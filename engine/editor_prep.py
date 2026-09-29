@@ -20,6 +20,30 @@ RX_NATIVE = re.compile(r'^war3(map|campaign)(skin)?((\.(w[a-zA-Z0-9]{2}|doo|shd|
 SPECIAL_FILES = {'(listfile)', '(attributes)', '(signature)', 'scripts\\war3map.j', 'conversation.json'}
 EDITOR_ESSENTIALS = ('war3map.wtg', 'war3map.wct', 'war3map.imp')
 
+EXTRA_JASSHELPER = b'[MapExtraInfo]\nEnableJassHelper=true\n\n'
+KNOWN_W3I = 33
+
+
+def enable_jasshelper(extra):
+    if not extra:
+        return EXTRA_JASSHELPER, True
+    body_text = extra.decode('latin-1')
+    eol = '\r\n' if '\r\n' in body_text else '\n'
+    line_list = body_text.split(eol)
+    for i, line in enumerate(line_list):
+        if line.strip().lower().startswith('enablejasshelper='):
+            if line.strip().lower() == 'enablejasshelper=true':
+                return extra, False
+            line_list[i] = 'EnableJassHelper=true'
+            return eol.join(line_list).encode('latin-1'), True
+    for i, line in enumerate(line_list):
+        if line.strip().lower() == '[mapextrainfo]':
+            line_list.insert(i + 1, 'EnableJassHelper=true')
+            return eol.join(line_list).encode('latin-1'), True
+    return (body_text.rstrip(eol) + eol + '[MapExtraInfo]' + eol + 'EnableJassHelper=true' + eol).encode(
+        'latin-1'
+    ), True
+
 
 def fix_w3i(b):
     try:
@@ -29,6 +53,8 @@ def fix_w3i(b):
     except Exception:
         m = None
     v = struct.unpack_from('<i', b, 0)[0]
+    if m is None and v > KNOWN_W3I:
+        return b, 'new_version %d (an editor newer than the reader): left as is' % v, False
     if b[-1:] == b'\xff':
         n = 4 if v >= 25 else 3
         new = b[:-1] + b'\x00' * (4 * n)
@@ -140,8 +166,8 @@ def split_script(body_text):
     for fname in ('main', 'config'):
         ms = [m for m in RX_FUNCTION.finditer(rest) if m.group(1) == fname]
         if not ms:
-            header = list(re.finditer(r'(?m)^[ \t]*function[ \t]+%s[ \t]+takes' % fname, rest))
-            if not header or not re.search(r'(?m)^[ \t]*endfunction\b', rest[header[-1].end():]):
+            signatures = list(re.finditer(r'(?m)^[ \t]*function[ \t]+%s[ \t]+takes' % fname, rest))
+            if not signatures or not re.search(r'(?m)^[ \t]*endfunction\b', rest[signatures[-1].end():]):
                 raise ScriptCutOff('function %s: the script ends before it' % fname)
         if len(ms) != 1:
             raise ValueError('function %s: %d definitions' % (fname, len(ms)))
@@ -164,7 +190,10 @@ SKELETON_NAMES = (r'InitGlobals', r'InitCustomTriggers', r'RunInitializationTrig
                   r'InitCustomTeams', r'InitAllyPriorities', r'CreateAllUnits', r'CreateUnitsForPlayer\d+',
                   r'CreateNeutralHostile', r'CreateNeutralPassiveBuildings', r'CreateNeutralPassive',
                   r'CreatePlayerBuildings', r'CreatePlayerUnits', r'Unit\d+_DropItems', r'ItemTable\w*_DropItems',
-                  r'CreateRegions', r'CreateCameras')
+                  r'CreateRegions', r'CreateCameras',
+                  r'InitSounds', r'CreateAllDestructables', r'CreateAllItems', r'CreateBuildingsForPlayer\d+',
+                  r'CreateNeutralHostileBuildings', r'Doodad\d+_DropItems', r'InitTechTree(?:_Player\d+)?',
+                  r'InitUpgrades(?:_Player\d+)?')
 RX_SKELETON = re.compile(r'\b(' + '|'.join(SKELETON_NAMES) + r')\b')
 RX_DEFINE = re.compile(r'(?m)^[ \t]*function[ \t]+(\w+)[ \t]+takes')
 SKELETON_PREFIX = 'devo_'
@@ -194,35 +223,13 @@ def custom_script(body_text):
     functions, main, config = (rename_skeleton(functions, defined), rename_skeleton(main, defined),
                                rename_skeleton(config, defined))
     warning = JASS_WARNING
-    cs = (
-        prefix
-        + 'globals\n'
-        + globals_block
-        + 'endglobals\n'
-        + functions
-        + ('' if functions.endswith('\n') else '\n')
-        + '//! inject main\n'
-        + mark_dovjassinit(main)
-        + warning
-        + '//! endinject\n'
-        + '//! inject config\n'
-        + config
-        + '//! endinject\n'
-    )
-    assembled = (
-        prefix
-        + 'globals\n'
-        + globals_block
-        + 'endglobals\n'
-        + functions
-        + ('' if functions.endswith('\n') else '\n')
-        + 'function main takes nothing returns nothing\n'
-        + main
-        + 'endfunction\n'
-        + 'function config takes nothing returns nothing\n'
-        + config
-        + 'endfunction\n'
-    )
+    block_entry = ('globals\n' + globals_block + 'endglobals\n') if globals_block.strip() else ''
+    cs = (prefix + block_entry + functions + ('' if functions.endswith('\n') else '\n') +
+          '//! inject main\n' + mark_dovjassinit(main) + warning + '//! endinject\n' +
+          '//! inject config\n' + config + '//! endinject\n')
+    assembled = (prefix + block_entry + functions + ('' if functions.endswith('\n') else '\n') +
+                 'function main takes nothing returns nothing\n' + main + 'endfunction\n' +
+                 'function config takes nothing returns nothing\n' + config + 'endfunction\n')
     return cs.replace('\n', CRLF), assembled
 
 
@@ -309,6 +316,41 @@ def same_code(assembled, original):
     return g1 == g2 and f1 == [f for f in f2 if f[0] not in ('main', 'config')] + end_pos
 
 
+def restore_triggers(body_text, is_lua, log=print):
+    try:
+        import trigger_restore
+    except ImportError:
+        return None
+    try:
+        r = trigger_restore.restore(body_text, 'lua' if is_lua else 'jass', log=log)
+    except Exception as e:
+        log('trigger_restore: %s: %s' % (type(e).__name__, e))
+        return {'used': False, 'reason': 'failed: %s: %s' % (type(e).__name__, e)}, None, None, None
+    if r is None:
+        return None
+    went_ok, reason, wtg_b, wct_b, header_text, rep, proof_results, summary = trigger_restore.outcome(r)
+    as_text = rep.get('text', ())
+    info = {
+        'used': bool(went_ok and not reason),
+        'reason': reason,
+        'proof_results': proof_results,
+        'gui': rep.get('gui', 0),
+        'as_text': len(as_text) if isinstance(as_text, (list, tuple)) else as_text,
+        'variable_count': rep.get('variables', 0),
+        'custom_line_count': rep.get('custom_lines', 0),
+        'helpers': list(rep.get('external_to_header') or []),
+        'init_trigger_names': list(rep.get('init_triggers') or []),
+        'names_obfuscated': bool(rep.get('obfuscated')),
+        'disabled_triggers': len(rep.get('disabled') or ()),
+        'object_globals': list(rep.get('object_globals_used') or []),
+        'name_conflicts': list(rep.get('editor_name_conflicts') or []),
+        'summary': list(summary),
+    }
+    if not info['used'] and not info['reason']:
+        info['reason'] = 'proofs: ' + ', '.join(k for k, ok in proof_results.items() if ok is False)
+    return info, wtg_b, wct_b, header_text
+
+
 def prepare(entry, output, extra_names=(), log=print, method='attach', safe_units=True, extra_ids=()):
     a = mpqread.Archive(entry)
     details = {}
@@ -346,7 +388,21 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
             trigger_list = True
             details['regenerated_triggers'] = reason
     lua_error = None
-    if trigger_list and is_lua:
+    restoration = (
+        restore_triggers(raw_bytes[3:] if details['bom'] else raw_bytes, is_lua, log) if trigger_list else None
+    )
+    restored = restoration is not None and restoration[0].get('used', False)
+    if restoration is not None:
+        details['restoration'] = restoration[0]
+    if trigger_list and restored:
+        cs, assembled = restoration[3], expected_len
+        if is_lua:
+            lua_error = compile_lua(cs)
+        details['script'] = ('%s, %d B; the triggers restored in the editor: %d as GUI, %d as text, %d variables; the '
+                             'header (the script without them) in the custom script' % (
+                             j_source, len(raw_bytes), restoration[0]['gui'], restoration[0]['as_text'],
+                             restoration[0]['variable_count']))
+    elif trigger_list and is_lua:
         cs, assembled = custom_script_lua(body_text), body_text
         lua_error = compile_lua(cs)
         details['script'] = (
@@ -468,8 +524,12 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
             missing_items.append(n)
     details['replaced'] = []
     if trigger_list:
-        for n, data_bytes in (('war3map.wtg', single_category_wtg()),
-                              ('war3map.wct', wct(cs.replace('\r\n', '\n').replace('\n', CRLF)))):
+        if restored:
+            pair = (('war3map.wtg', restoration[1]), ('war3map.wct', restoration[2]))
+        else:
+            pair = (('war3map.wtg', single_category_wtg()),
+                    ('war3map.wct', wct(cs.replace('\r\n', '\n').replace('\n', CRLF))))
+        for n, data_bytes in pair:
             if a.find(n):
                 replacements[n] = data_bytes
                 details['replaced'].append(n)
@@ -494,6 +554,16 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
     if not a.find('war3map.imp'):
         new_ones['war3map.imp'] = imp(imported)
         missing_items.append('war3map.imp')
+    if trigger_list and not is_lua:
+        extra, changed = enable_jasshelper(a.read('war3mapExtra.txt') if a.find('war3mapExtra.txt') else b'')
+        if changed:
+            if a.find('war3mapExtra.txt'):
+                replacements['war3mapExtra.txt'] = extra
+                details['replaced'].append('war3mapExtra.txt')
+            else:
+                new_ones['war3mapExtra.txt'] = extra
+                missing_items.append('war3mapExtra.txt')
+            details['jasshelper'] = 'enabled in war3mapExtra.txt'
     details['new_ones'] = missing_items
     details['imported'] = len(imported)
     all_items = sorted(name_list | set(new_ones) | set(replacements), key=lambda n: (n.lower(), n))
@@ -514,8 +584,8 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
             'utf-8', 'surrogateescape')
         replacements['(listfile)'] = listfile
         shutil.copyfile(entry, output)
-        order = ('war3map.wtg', 'war3map.wct', 'war3map.imp', '(listfile)', 'war3map.w3r', 'war3map.w3c',
-                 'war3mapUnits.doo')
+        order = ('war3map.wtg', 'war3map.wct', 'war3map.imp', 'war3mapExtra.txt', '(listfile)', 'war3map.w3r',
+                 'war3map.w3c', 'war3mapUnits.doo')
         combined = dict(replacements)
         combined.update(new_ones)
         free_slots = mpqdoctor.analyze_tables(a)['free_slots']
@@ -553,7 +623,8 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
     try:
         w3i.parse(s.read('war3map.w3i'))
     except Exception as e:
-        failures.append('w3i cannot be read: %s' % e)
+        if not details['w3i'].startswith('new_version'):
+            failures.append('w3i cannot be read: %s' % e)
     if assembled != expected_len and not same_code(assembled, expected_len):
         failures.append('the script JassHelper would build differs from the original')
     if lua_error not in (None, 'no_lupa'):
