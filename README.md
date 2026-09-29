@@ -15,8 +15,13 @@ Open a map (or drag it onto the exe) and click one of the buttons:
 
 1. **Diagnose protection** shows what was done to the map. It only reads the file.
 2. **Remove protection** saves `<map>_unprotected.w3x`, which MPQ Editor can open and edit.
-3. **Make it open in World Editor** saves `<map>_editor.w3x`. The map script goes into the custom script, so keep
-   JassHelper enabled when you save.
+3. **Make it open in World Editor** saves `<map>_editor.w3x`. The map's triggers come back as GUI triggers in the
+   trigger editor (events, conditions and actions you can click), grouped by what fires them; a trigger goes back as
+   GUI only when writing it back to script gives exactly the code the map had, otherwise it stays as custom text with
+   its original code. The rest of the script goes into the custom script, and the map is saved with JassHelper turned
+   on (the World Editor needs it to build the script again). Works with JASS and Lua maps, and with scripts whose
+   names an obfuscator replaced. The units, items, regions and cameras the script creates are placed in the map too,
+   so the editor shows them.
 
 Your original map is never changed.
 
