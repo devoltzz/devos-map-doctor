@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.ruff_cache/
+names.npz
+build/
+dist/
+*.spec
+*_unprotected*.w3x
+*_editor*.w3x
