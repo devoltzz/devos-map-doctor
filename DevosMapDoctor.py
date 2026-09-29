@@ -12,7 +12,7 @@ import unprotect as D
 import updater
 
 APP = "Devo's Map Doctor"
-VERSION = '1.0'
+VERSION = '1.1'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -507,6 +507,9 @@ def editor_text(r):
                             'the editor opens the map and saving keeps the same code.'))
     if details.get('w3i_tail'):
         out.append(('info', '  - Restored the cut-off end of the map info file (war3map.w3i).'))
+    if str(details.get('w3i') or '').startswith('new_version'):
+        out.append(('info', '  - The map info file (war3map.w3i) is from a World Editor newer than this program knows: '
+                            'left as it is.'))
     mentioned = set()
     for x in details.get('count') or []:
         label, singular, plural, _where = COUNT.get(x['file_name'], ('file', 'record', 'records', ''))
@@ -535,6 +538,16 @@ def editor_text(r):
                                     'Editor shows them now.'
                             % (pluralize(x['new'], singular, plural), where,
                                pluralize(before, singular, plural) if before else 'none')))
+            if x.get('placed_items') or x.get('with_abilities'):
+                pieces = []
+                if x.get('placed_items'):
+                    pieces.append(
+                        pluralize(x['placed_items'], 'item placed on the ground', 'items placed on the ground')
+                    )
+                if x.get('with_abilities'):
+                    pieces.append('%s with the learned abilities, levels and inventory the script gives them'
+                                  % pluralize(x['with_abilities'], 'hero', 'heroes'))
+                out.append(('info', '      Among them, %s.' % ' and '.join(pieces)))
             if x.get('removed_risky'):
                 n = sum(x['removed_risky'].values())
                 out.append(('info', '  - Left out %s of those, whose model is a file inside this map that no doodad '
@@ -571,11 +584,40 @@ def editor_text(r):
             out.append(('info', '      The editor creates these files by itself when you save, so the map opens and '
                                 'saves without them.'))
     lua = bool(details.get('lua'))
-    if generated and lua:
+    restoration = details.get('restoration') or {}
+    restored = bool(generated and restoration.get('used'))
+    if restored:
+        out.append(('info', '  - Restored the map\'s triggers in the trigger editor: %s as GUI triggers (events, '
+                            'conditions and actions you can click) and %s as custom text (code that is not in the '
+                            'editor\'s pattern), with %s. Every GUI trigger was proved: written back to script, it '
+                            'gives the same code the map had.'
+                    % (pluralize(restoration.get('gui', 0), 'trigger', 'triggers'),
+                       pluralize(restoration.get('as_text', 0), 'trigger', 'triggers'),
+                       pluralize(restoration.get('variable_count', 0), 'variable', 'variables'))))
+        if restoration.get('names_obfuscated'):
+            out.append(
+                (
+                    'info',
+                    '      The script had its names scrambled (an obfuscator): the triggers are named T001, '
+                    'T002... and the variables by their new names.',
+                )
+            )
+        for ln in (restoration.get('summary') or [])[1:]:
+            out.append(('info', '      ' + ln.strip()))
+        if restoration.get('helpers'):
+            out.append(('info', '      %s the triggers call went to the custom script header.'
+                        % pluralize(len(restoration['helpers']), 'helper function', 'helper functions')))
+        out.append(('info', '  - The rest of the script (the header) is in the custom script of the trigger editor%s.'
+                    % (', inside do ... end; the last line keeps the map\'s own main and config running' if lua else
+                       ' (//! inject main / config): saving with JassHelper enabled builds the same script again')))
+    elif generated and restoration.get('reason'):
+        out.append(('info', '  - The triggers could not be restored as GUI triggers (%s), so the whole script went to '
+                            'the custom script:' % restoration['reason']))
+    if generated and lua and not restored:
         out.append(('info', '  - Placed the whole map script (Lua) in the custom script of the trigger editor, inside '
                             'do ... end. When you save, the editor adds its own main and config after it; the last '
                             'line of the custom script keeps the map\'s own ones running.'))
-    elif generated:
+    elif generated and not restored:
         out.append(('info', '  - Placed the whole map script in the custom script of the trigger editor (//! inject '
                             'main / config): saving with JassHelper enabled builds the same script again. The '
                             'functions the editor also creates (InitGlobals, CreateAllUnits, the unit creation of '
