@@ -368,8 +368,8 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
     else:
         try:
             with quiet():
-                new = editor_prep.fix_w3i(b3i)[0]
-            ed['w3i'] = 'ok' if new == b3i else 'truncated'
+                new, w3i_report, _tail = editor_prep.fix_w3i(b3i)
+            ed['w3i'] = 'new' if w3i_report.startswith('new_version') else ('ok' if new == b3i else 'truncated')
         except Exception:
             ed['w3i'] = 'unreadable'
     ed['missing_items'] = [n for n in EDITOR_FILES if not a.find(n)]
@@ -422,7 +422,7 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
         ed['status'] = 'script_' + (r['script'] or 'none')
     elif ed['w3i'] in ('unreadable', 'missing'):
         ed['status'] = 'w3i_' + ed['w3i']
-    elif ed['w3i'] == 'ok' and not ed['missing_items'] and not set(codes) & set(EDITOR_BLOCKERS) and \
+    elif ed['w3i'] in ('ok', 'new') and not ed['missing_items'] and not set(codes) & set(EDITOR_BLOCKERS) and \
             not ed.get('duplicate_textures') and not ed.get('trigger_list'):
         ed['status'] = 'ready'
     else:
