@@ -11,6 +11,8 @@ import w3i
 import inflated_counts
 import doodads
 import duplicate_textures
+import jpeg_flat
+import skin_split
 import wtg_triggers
 
 
@@ -19,6 +21,7 @@ RX_NATIVE = re.compile(r'^war3(map|campaign)(skin)?((\.(w[a-zA-Z0-9]{2}|doo|shd|
                        r'units\.doo|extra\.txt)$', re.I)
 SPECIAL_FILES = {'(listfile)', '(attributes)', '(signature)', 'scripts\\war3map.j', 'conversation.json'}
 EDITOR_ESSENTIALS = ('war3map.wtg', 'war3map.wct', 'war3map.imp')
+ENGINE_TEXTURES = ('Textures\\white.blp',)
 
 EXTRA_JASSHELPER = b'[MapExtraInfo]\nEnableJassHelper=true\n\n'
 KNOWN_W3I = 33
@@ -130,11 +133,11 @@ def single_category_wtg(fname='Map Script', index_=0):
             struct.pack('<ii', 2, 0) + struct.pack('<i', 0))
 
 
-def wct(code, comment_text=''):
+def wct(code, comment_text='', n_triggers=0):
     c = code.encode('latin-1')
     out = struct.pack('<i', 1) + comment_text.encode('utf-8') + b'\x00'
     out += (struct.pack('<i', len(c) + 1) + c + b'\x00') if c else struct.pack('<i', 0)
-    return out + struct.pack('<i', 0)
+    return out + struct.pack('<i', n_triggers) + struct.pack('<i', 0) * n_triggers
 
 
 def imp(name_list):
@@ -216,7 +219,7 @@ def split_comment(body_text):
     return body_text[:m.end()], body_text[m.end():]
 
 
-def custom_script(body_text):
+def custom_script(body_text, inject=True):
     prefix, body_text = split_comment(body_text)
     globals_block, functions, main, config = split_script(body_text)
     defined = skeleton_names(body_text)
@@ -227,6 +230,8 @@ def custom_script(body_text):
     cs = (prefix + block_entry + functions + ('' if functions.endswith('\n') else '\n') +
           '//! inject main\n' + mark_dovjassinit(main) + warning + '//! endinject\n' +
           '//! inject config\n' + config + '//! endinject\n')
+    if not inject:
+        cs = prefix + block_entry + functions + ('' if functions.endswith('\n') else '\n') + EDITOR_JASS_NOTE
     assembled = (prefix + block_entry + functions + ('' if functions.endswith('\n') else '\n') +
                  'function main takes nothing returns nothing\n' + main + 'endfunction\n' +
                  'function config takes nothing returns nothing\n' + config + 'endfunction\n')
@@ -253,6 +258,11 @@ JASS_WARNING = (
     "// call RunInitializationTriggers() at the end here (the editor generates those functions).\n"
     "// The map's own copies of the functions the editor also generates (InitGlobals, CreateAllUnits, ...) are\n"
     "// prefixed with \"devo_\" here: two functions with the same name do not compile.\n"
+)
+EDITOR_JASS_NOTE = (
+    "// The map's main and config are the ones the World Editor writes (the same code), so there is no\n"
+    "// //! inject here. The map's own copies of other functions the editor also generates keep the\n"
+    "// \"devo_\" prefix: two functions with the same name do not compile.\n"
 )
 LUA_WARNING = (
     "-- The map's ORIGINAL script, whole, inside do ... end. When you save, the World Editor writes this custom script\n"
@@ -316,13 +326,13 @@ def same_code(assembled, original):
     return g1 == g2 and f1 == [f for f in f2 if f[0] not in ('main', 'config')] + end_pos
 
 
-def restore_triggers(body_text, is_lua, log=print):
+def restore_triggers(body_text, is_lua, log=print, file_set=None):
     try:
         import trigger_restore
     except ImportError:
         return None
     try:
-        r = trigger_restore.restore(body_text, 'lua' if is_lua else 'jass', log=log)
+        r = trigger_restore.restore(body_text, 'lua' if is_lua else 'jass', log=log, editor_files=file_set)
     except Exception as e:
         log('trigger_restore: %s: %s' % (type(e).__name__, e))
         return {'used': False, 'reason': 'failed: %s: %s' % (type(e).__name__, e)}, None, None, None
@@ -346,9 +356,30 @@ def restore_triggers(body_text, is_lua, log=print):
         'name_conflicts': list(rep.get('editor_name_conflicts') or []),
         'summary': list(summary),
     }
+    if rep.get('editor_save') is not None:
+        info['editor_fit'] = dict(rep['editor_save'])
     if not info['used'] and not info['reason']:
         info['reason'] = 'proofs: ' + ', '.join(k for k, ok in proof_results.items() if ok is False)
     return info, wtg_b, wct_b, header_text
+
+
+EDITOR_FILE_NAMES = ('war3map.w3i', 'war3map.w3r', 'war3map.w3c', 'war3map.w3s', 'war3mapUnits.doo', 'war3map.doo',
+                     'war3map.w3e', 'war3map.w3u', 'war3mapSkin.w3u', 'war3map.w3t', 'war3mapSkin.w3t',
+                     'war3map.w3a', 'war3mapSkin.w3a', 'war3map.w3b', 'war3mapSkin.w3b')
+
+
+def fit_to_editor(header_text, file_set, original, log=print):
+    try:
+        import editor_render
+        import triggerdata
+    except ImportError:
+        return None
+    try:
+        td = triggerdata.load()
+        return editor_render.outcome(editor_render.fit(header_text, file_set, td, original=original, log=log), td)
+    except Exception as e:
+        log('editor_render: %s: %s' % (type(e).__name__, e))
+        return None
 
 
 def prepare(entry, output, extra_names=(), log=print, method='attach', safe_units=True, extra_ids=()):
@@ -387,10 +418,132 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
         if reason:
             trigger_list = True
             details['regenerated_triggers'] = reason
+    name_list = set(n for n in extra_names if a.find(n))
+    lf = a.read('(listfile)') or b''
+    name_list.update(n for n in lf.decode('utf-8', 'replace').splitlines() if n.strip() and a.find(n.strip()))
+    imported = sorted((n for n in name_list if n.lower() not in {x.lower() for x in SPECIAL_FILES}
+                       and not RX_NATIVE.match(n.split('\\')[-1]) and a.read(n) is not None),
+                      key=lambda n: (n.lower(), n))
+    engine_copies = []
+    for t in ENGINE_TEXTURES:
+        try:
+            if a.find(t) and jpeg_flat.blp_is_white(a.read(t) or b''):
+                engine_copies.append(t)
+        except Exception as e:
+            log('%s: %s' % (t, e))
+    if engine_copies:
+        left_out = set(x.lower() for x in engine_copies)
+        name_list = set(n for n in name_list if n.lower() not in left_out)
+        imported = [n for n in imported if n.lower() not in left_out]
+        details['engine_textures'] = engine_copies
+    new_ones = {}
+    missing_items = []
+    replacements = {} if new_w3i == b_w3i else {'war3map.w3i': new_w3i}
+    try:
+        skin_files = skin_split.split(dict((n, a.read(n)) for n in ('war3map.w3u', 'war3map.w3t', 'war3mapSkin.w3u',
+                                                                    'war3mapSkin.w3t') if a.find(n)))
+    except Exception as e:
+        skin_files = {}
+        log('skin: %s' % e)
+    for n in sorted(skin_files):
+        if a.find(n):
+            replacements[n] = skin_files[n]
+        else:
+            new_ones[n] = skin_files[n]
+            missing_items.append(n)
+    if skin_files:
+        details['skin'] = sorted(n for n in skin_files if n.startswith('war3mapSkin'))
+    try:
+        w3i_version = struct.unpack_from('<i', new_w3i, 0)[0] if new_w3i else None
+    except struct.error:
+        w3i_version = None
+    try:
+        editor_w3i = w3i.parse(new_w3i).get('editor_version')
+    except Exception:
+        editor_w3i = None
+    context = {'w3i': w3i_version, 'game_132': _game_is_132(new_w3i), 'mpq': a,
+               'safe_units': safe_units, 'editor_w3i': editor_w3i, 'file_set': replacements}
+    try:
+        _bd = a.read('war3map.doo')
+        if _bd:
+            _valid = doodads.game_ids() | doodads.map_ids(a) | set(extra_ids)
+            if _valid:
+                _new_doo, _bad = doodads.without_invalid_ids(_bd, _valid)
+                if _bad:
+                    replacements['war3map.doo'] = _new_doo
+                    details['doodads'] = [{'id': k.decode('latin-1'), 'n': v} for k, v in _bad]
+                    details['doodads_outside'] = sum(v for _k, v in _bad)
+    except Exception as e:
+        log('war3map.doo: %s' % e)
+    try:
+        _duplicates, details['duplicate_textures'] = duplicate_textures.make_distinct(
+            a, sorted(name_list, key=lambda n: (n.lower(), n))
+        )
+        replacements.update(_duplicates)
+    except Exception as e:
+        details['duplicate_textures'] = []
+        log('duplicate textures: %s' % e)
+    EMPTY_FILES = {
+        'war3map.w3r': empty_w3r,
+        'war3map.w3c': empty_w3c,
+        'war3map.w3s': empty_w3s,
+        'war3map.mmp': empty_mmp,
+    }
+
+    def empty_file(fname, b):
+        if fname == 'war3mapUnits.doo':
+            return empty_units_doo(context.get('w3i'), b, context.get('game_132'))
+        return EMPTY_FILES[fname]()
+
+    for fname in sorted(n for n in broken if n not in ('war3map.wtg', 'war3map.wct')):
+        data_bytes, done = inflated_counts.fixable(fname, a.read(fname), script=body_text,
+                                                   context=dict(context, current=a.read(fname)))
+        if data_bytes is None and broken[fname]['reason'] == inflated_counts.EMPTY and \
+                (fname in EMPTY_FILES or fname == 'war3mapUnits.doo'):
+            data_bytes, done = empty_file(fname, a.read(fname)), {
+                'file_name': fname, 'declared': None, 'read_count': 0, 'new': 0, 'from_script': False,
+                'reason': inflated_counts.EMPTY, 'report': '%s: empty (not even the header)' % fname}
+        if data_bytes is None:
+            continue
+        replacements[fname] = data_bytes
+        details['count'].append(done)
+    for n in ('war3map.w3s', 'war3map.w3r', 'war3map.w3c', 'war3mapUnits.doo'):
+        if n in replacements:
+            continue
+        present = inflated_counts.count_in_file(n, a)
+        done = inflated_counts.fix_from_script(n, body_text, context=dict(context, current=a.read(n)))
+        if done and done[1]['new'] and (not a.find(n) or present is None or done[1]['new'] > present):
+            data_bytes, info = done
+            info['reason'] = 'was_missing' if not a.find(n) else ('empty' if present == 0 else 'missing_objects')
+            info['in_file'] = present
+            if a.find(n):
+                replacements[n] = data_bytes
+            else:
+                new_ones[n] = data_bytes
+                missing_items.append(n)
+            details['count'].append(info)
+            continue
+        if not a.find(n) and n != 'war3map.w3s':
+            new_ones[n] = empty_file(n, None)
+            missing_items.append(n)
+    for info in details['count']:
+        where = replacements if 'war3map.w3r' in replacements else new_ones
+        if info.get('file_name') == 'war3map.w3r' and info.get('from_script') and 'war3map.w3r' in where:
+            w3s_final = replacements.get('war3map.w3s', new_ones.get('war3map.w3s', a.read('war3map.w3s')))
+            where['war3map.w3r'], info['sounds_dropped'] = inflated_counts.w3r_without_outside_sounds(
+                where['war3map.w3r'], w3s_final
+            )
+    editor_file_set = {}
+    for n in EDITOR_FILE_NAMES:
+        data_bytes = replacements.get(n, new_ones.get(n))
+        if data_bytes is None and a.find(n):
+            data_bytes = a.read(n)
+        if data_bytes is not None:
+            editor_file_set[n] = data_bytes
     lua_error = None
-    restoration = (
-        restore_triggers(raw_bytes[3:] if details['bom'] else raw_bytes, is_lua, log) if trigger_list else None
-    )
+    fit_wtg = None
+    restoration = restore_triggers(raw_bytes[3:] if details['bom'] else raw_bytes, is_lua, log,
+                                   editor_file_set) if trigger_list else None
     restored = restoration is not None and restoration[0].get('used', False)
     if restoration is not None:
         details['restoration'] = restoration[0]
@@ -438,97 +591,30 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
                 else 'DIFFERENT from',
             )
         )
+        adjustment = fit_to_editor(expected_len, editor_file_set, body_text, log)
+        if adjustment is not None:
+            details['editor_fit'] = adjustment[6]
+            if adjustment[0]:
+                cs, assembled, fit_wtg = custom_script(adjustment[2], adjustment[3])[0], expected_len, adjustment[4]
+                details['script'] += (
+                    '; fitted to the editor (%s): %d globals and %d functions stay with it, proven by '
+                    'pjass and by the functions the game runs'
+                    % (adjustment[1], len(adjustment[6]['dropped']), len(adjustment[6]['replaced']))
+                )
     else:
         cs, assembled = None, body_text
         details['script'] = '%s, %d B; the map already has war3map.wtg and war3map.wct: its own are kept' % (
             j_source,
             len(raw_bytes),
         )
-    name_list = set(n for n in extra_names if a.find(n))
-    lf = a.read('(listfile)') or b''
-    name_list.update(n for n in lf.decode('utf-8', 'replace').splitlines() if n.strip() and a.find(n.strip()))
-    imported = sorted((n for n in name_list if n.lower() not in {x.lower() for x in SPECIAL_FILES}
-                       and not RX_NATIVE.match(n.split('\\')[-1]) and a.read(n) is not None),
-                      key=lambda n: (n.lower(), n))
-    new_ones = {}
-    missing_items = []
-    replacements = {} if new_w3i == b_w3i else {'war3map.w3i': new_w3i}
-    try:
-        w3i_version = struct.unpack_from('<i', new_w3i, 0)[0] if new_w3i else None
-    except struct.error:
-        w3i_version = None
-    context = {'w3i': w3i_version, 'game_132': _game_is_132(new_w3i), 'mpq': a,
-               'safe_units': safe_units}
-    try:
-        _bd = a.read('war3map.doo')
-        if _bd:
-            _valid = doodads.game_ids() | doodads.map_ids(a) | set(extra_ids)
-            if _valid:
-                _new_doo, _bad = doodads.without_invalid_ids(_bd, _valid)
-                if _bad:
-                    replacements['war3map.doo'] = _new_doo
-                    details['doodads'] = [{'id': k.decode('latin-1'), 'n': v} for k, v in _bad]
-                    details['doodads_outside'] = sum(v for _k, v in _bad)
-    except Exception as e:
-        log('war3map.doo: %s' % e)
-    try:
-        _duplicates, details['duplicate_textures'] = duplicate_textures.make_distinct(
-            a, sorted(name_list, key=lambda n: (n.lower(), n))
-        )
-        replacements.update(_duplicates)
-    except Exception as e:
-        details['duplicate_textures'] = []
-        log('duplicate textures: %s' % e)
-    EMPTY_FILES = {
-        'war3map.w3r': empty_w3r,
-        'war3map.w3c': empty_w3c,
-        'war3map.w3s': empty_w3s,
-        'war3map.mmp': empty_mmp,
-    }
-
-    def empty_file(fname, b):
-        if fname == 'war3mapUnits.doo':
-            return empty_units_doo(context.get('w3i'), b, context.get('game_132'))
-        return EMPTY_FILES[fname]()
-
-    for fname in sorted(n for n in broken if n not in ('war3map.wtg', 'war3map.wct')):
-        data_bytes, done = inflated_counts.fixable(fname, a.read(fname), script=body_text,
-                                                   context=dict(context, current=a.read(fname)))
-        if data_bytes is None and broken[fname]['reason'] == inflated_counts.EMPTY and \
-                (fname in EMPTY_FILES or fname == 'war3mapUnits.doo'):
-            data_bytes, done = empty_file(fname, a.read(fname)), {
-                'file_name': fname, 'declared': None, 'read_count': 0, 'new': 0, 'from_script': False,
-                'reason': inflated_counts.EMPTY, 'report': '%s: empty (not even the header)' % fname}
-        if data_bytes is None:
-            continue
-        replacements[fname] = data_bytes
-        details['count'].append(done)
-    for n in ('war3map.w3r', 'war3map.w3c', 'war3mapUnits.doo'):
-        if n in replacements:
-            continue
-        present = inflated_counts.count_in_file(n, a)
-        done = inflated_counts.fix_from_script(n, body_text, context=dict(context, current=a.read(n)))
-        if done and done[1]['new'] and (not a.find(n) or present is None or done[1]['new'] > present):
-            data_bytes, info = done
-            info['reason'] = 'was_missing' if not a.find(n) else ('empty' if present == 0 else 'missing_objects')
-            info['in_file'] = present
-            if a.find(n):
-                replacements[n] = data_bytes
-            else:
-                new_ones[n] = data_bytes
-                missing_items.append(n)
-            details['count'].append(info)
-            continue
-        if not a.find(n):
-            new_ones[n] = empty_file(n, None)
-            missing_items.append(n)
     details['replaced'] = []
     if trigger_list:
         if restored:
             pair = (('war3map.wtg', restoration[1]), ('war3map.wct', restoration[2]))
         else:
-            pair = (('war3map.wtg', single_category_wtg()),
-                    ('war3map.wct', wct(cs.replace('\r\n', '\n').replace('\n', CRLF))))
+            pair = (('war3map.wtg', fit_wtg or single_category_wtg()),
+                    ('war3map.wct', wct(cs.replace('\r\n', '\n').replace('\n', CRLF),
+                                        n_triggers=1 if fit_wtg else 0)))
         for n, data_bytes in pair:
             if a.find(n):
                 replacements[n] = data_bytes
@@ -568,17 +654,8 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
     details['imported'] = len(imported)
     all_items = sorted(name_list | set(new_ones) | set(replacements), key=lambda n: (n.lower(), n))
     if method == 'rebuild':
-        r = mpq_rebuild.rebuild(
-            entry,
-            output,
-            all_items,
-            replacements=replacements,
-            new_ones=new_ones,
-            to_remove=['(attributes)'],
-            sector_shift=3,
-            level=6,
-            log=log,
-        )
+        r = mpq_rebuild.rebuild(entry, output, all_items, replacements=replacements, new_ones=new_ones,
+                                to_remove=['(attributes)'] + engine_copies, sector_shift=3, level=6, log=log)
     else:
         listfile = (CRLF.join(n for n in all_items if n not in ('(listfile)', '(attributes)')) + CRLF).encode(
             'utf-8', 'surrogateescape')
@@ -596,9 +673,15 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
         else:
             work_queue = sorted(replacements.items()) + sorted(new_ones.items())
         no_slot = []
-        sz = mpqadd.add_files(output, work_queue, to_delete=['(attributes)'] if a.find('(attributes)') else [],
-                              fake_count=tight, no_slot=no_slot, log=log,
-                              grow=sorted(name_list, key=lambda n: (n.lower(), n)) if tight else None)
+        sz = mpqadd.add_files(
+            output,
+            work_queue,
+            to_delete=(['(attributes)'] if a.find('(attributes)') else []) + engine_copies,
+            fake_count=tight,
+            no_slot=no_slot,
+            log=log,
+            grow=sorted(name_list, key=lambda n: (n.lower(), n)) if tight else None,
+        )
         r = {'method': 'attach', 'byte_size': sz, 'attached': len(work_queue) - len(no_slot), 'error_list': [],
              'no_slot': no_slot, 'free_slots': free_slots}
         if no_slot:
@@ -620,6 +703,7 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
             failures.append('%s: differs when read back' % n)
     if s.read(j_source) != raw_bytes:
         failures.append('%s: the game script changed' % j_source)
+    failures.extend('%s: still in the map' % n for n in engine_copies if s.find(n))
     try:
         w3i.parse(s.read('war3map.w3i'))
     except Exception as e:
