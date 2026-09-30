@@ -37,7 +37,7 @@ def read_data(b, skin=None):
                 p += 4 + 4 + 12 + 4 + 12
                 if attempt:
                     p += 4
-                if ver >= 13:
+                if ver >= 12:
                     p += 4
                 if ver >= 6:
                     p += 1
@@ -58,7 +58,7 @@ def read_data(b, skin=None):
                 if ver >= 4:
                     editor_id = struct.unpack_from('<I', b, p)[0]
                     p += 4
-                if ver >= 13:
+                if ver >= 12:
                     p += 4 + 4
                     lights = struct.unpack_from('<I', b, p)[0]
                     p += 4
