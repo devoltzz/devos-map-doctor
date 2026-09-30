@@ -12,7 +12,7 @@ import unprotect as D
 import updater
 
 APP = "Devo's Map Doctor"
-VERSION = '1.2'
+VERSION = '1.3'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -27,6 +27,7 @@ STAGES = {
     'repair': 'Fixing the MPQ header and removing fake files...',
     'listing': 'Writing a real file list...',
     'ids': 'Restoring the scrambled object IDs...',
+    'script': 'Turning the compiled script back into JASS (this can take a minute)...',
     'editor': 'Adding what the World Editor needs...',
     'save': 'Saving...',
     'verify': 'Checking the result...',
@@ -34,6 +35,10 @@ STAGES = {
 
 MARKS = {'vexorian': ' (the mark of the Vexorian map optimizer, "VxOP")', 'w3p': ' (the mark of the w3p protector)',
          'pg2': ' (the mark of the PG2 protector)', 'sprotect': ' (the mark of SProtect)'}
+NO_ENCRYPTION = ('Ask the author for a copy without the KK encryption. Other versions of a map sometimes reach the '
+                 'platform\'s download folder (Maps\\dz) as plain archives: if you find one of this map there, use '
+                 'that file.')
+COMPILED = {'kkwe': 'kkmap.jc (KKWE)', 'j2b': 'war3map.bin (j2b)'}
 
 COUNT = {
     'war3map.w3r': ('region file', 'region', 'regions', 'Loading Rects'),
@@ -102,7 +107,16 @@ def describe(p):
         return 'SProtect: %s of the %s file entries are scrambled.' % (num(p['marked']), num(p['used_entries']))
     if c == 'kk_encrypted':
         return ('Encrypted by the KK platform: %s of the real map (script, terrain, objects, models) is stored '
-                'encrypted outside the MPQ archive, and only the KK client can decrypt it.' % mb(p.get('outside', 0)))
+                'encrypted outside the MPQ archive, and only the KK client can decrypt it. What the archive holds is '
+                'a loader: an empty script and a few small files.' % mb(p.get('outside', 0)))
+    if c == 'script_kkwe':
+        return ('The script is compiled (KKWE): war3map.j is only a stub, and the whole script is in kkmap.jc (%s) as '
+                'the bytecode of the game\'s script engine, which the World Editor cannot read. Button 3 turns it '
+                'back into JASS.' % mb(p.get('byte_size', 0)))
+    if c == 'script_j2b':
+        return ('The script is compiled and encrypted (j2b): war3map.j is only a shell that loads war3map.bin (%s), '
+                'the real script as encrypted bytecode of the game\'s script engine, which the World Editor cannot '
+                'read. Button 3 decrypts it and turns it back into JASS.' % mb(p.get('byte_size', 0)))
     if c == 'full_hash_table':
         return 'The file index is 100%% full (%s entries): the MPQ Editor cannot add files.' % num(p['hash_entries'])
     if c == 'unreadable_tables':
@@ -208,13 +222,10 @@ def diagnosis_text(d):
             out.append(('warning', '  - ' + describe(p)))
         out.append(('', ''))
         if d['fixable'] == 'impossible':
-            out.append(
-                (
-                    'invalid',
-                    "This map can't be unprotected: the real map is not inside this file. Ask for a copy of the "
-                    'map without the KK encryption.',
-                )
-            )
+            out.append(('invalid', "This map can't be unprotected, and no button here can help: the real map is not "
+                                   'inside this file, and nothing is tried on it. ' + NO_ENCRYPTION))
+        elif set(p['code'] for p in d['protections']) <= set(D.BUTTON3_ONLY):
+            out.append(('ok', 'Devo\'s Map Doctor can fix it: click "Make it open in World Editor".'))
         else:
             out.append(('ok', 'Devo\'s Map Doctor can remove it: click "Remove protection".'))
     lf = d.get('listfile')
@@ -256,8 +267,11 @@ def diagnosis_text(d):
         out.append(('ok', 'Click "Make it open in World Editor": each map above is prepared inside the campaign.'))
     elif status == 'needs_work':
         gaps = []
-        if set(p['code'] for p in d['protections']) & set(D.EDITOR_BLOCKERS):
+        blocking = set(p['code'] for p in d['protections']) & set(D.EDITOR_BLOCKERS)
+        if blocking - {'script_kkwe', 'script_j2b'}:
             gaps.append('the protection has to go first')
+        if blocking & {'script_kkwe', 'script_j2b'}:
+            gaps.append('the compiled script has to be turned back into JASS')
         if ed.get('w3i') == 'truncated':
             gaps.append('the end of the map info file (war3map.w3i) was cut off')
         if ed.get('missing_items'):
@@ -281,6 +295,7 @@ def diagnosis_text(d):
 def editor_reason(status):
     return {
         'script_kkwe': 'the script is compiled by KKWE (kkmap.jc), which the World Editor cannot read.',
+        'script_j2b': 'the script is compiled and encrypted (j2b, war3map.bin), which the World Editor cannot read.',
         'script_none': 'the map has no script.',
         'script_cut_off': 'the map script is cut off before its end (the map file is incomplete), so there is nothing '
         'to put in the trigger editor.',
@@ -374,7 +389,8 @@ def _common_failures(r, verb):
             (
                 'invalid',
                 "This map can't be %s: the real map (script, terrain, objects, models) is encrypted outside "
-                'the MPQ archive by the KK platform. Ask for a copy of the map without the KK encryption.' % verb,
+                'the MPQ archive by the KK platform, so there is nothing here to work on. No file was '
+                'written. ' % verb + NO_ENCRYPTION,
             )
         ]
     if e == 'incomplete':
@@ -472,8 +488,18 @@ def editor_text(r):
         return out + failure
     if r['status'] == 'nothing_to_do':
         return out + [('ok', 'The map already opens in the World Editor: nothing to do. No file was written.')]
-    if r['status'] in ('script_lua', 'script_kkwe', 'script_none', 'script_cut_off', 'w3i_unreadable', 'w3i_missing',
-                       'unreadable'):
+    if r['status'] == 'script_not_restored':
+        return out + [
+            (
+                'invalid',
+                'Not possible: the compiled script of this map, %s, could not be turned back into JASS. '
+                'Nothing was saved, and your original map was not changed.'
+                % COMPILED.get(d.get('script'), 'the bytecode'),
+            ),
+            ('info', 'Why: %s' % r.get('err')),
+        ]
+    if r['status'] in ('script_lua', 'script_kkwe', 'script_j2b', 'script_none', 'script_cut_off', 'w3i_unreadable',
+                       'w3i_missing', 'unreadable'):
         return out + [('invalid', 'Not possible: ' + editor_reason(r['status']))]
     out.append(('ok', 'Ready for the World Editor.' if r['status'] == 'done' else
                 'Prepared for the World Editor, with some leftovers (see below).'))
@@ -495,11 +521,41 @@ def editor_text(r):
             )
         return out
     unprot = r.get('unprotection')
-    if unprot:
+    if unprot and unprot.get('status') in ('done', 'partial'):
         out.append(('info', '  - First removed the protection:'))
         for line in _fixes_done(unprot['steps'].get('repair') or {}, unprot['steps'], d):
             out.append(('info', '      ' + line))
     details = r.get('editor') or {}
+    sv = details.get('script_restore') or {}
+    if sv:
+        kkwe = sv.get('kind') == 'kkwe'
+        out.append(('info', '  - Turned the map script back into JASS. It was %s, the bytecode of the game\'s script '
+                            'engine, and war3map.j was only %s. The copy has the script itself in war3map.j (%s, %s) '
+                            'and no longer carries %s, which was the compiled form of the same script.'
+                    % ('compiled (kkmap.jc, KKWE)' if kkwe else 'compiled and encrypted (war3map.bin, j2b)',
+                       'a stub' if kkwe else 'a shell that loaded it',
+                       pluralize(sv.get('functions', 0), 'function', 'functions'),
+                       pluralize(sv.get('globals_block', 0), 'global', 'globals'), sv.get('file_name'))))
+        pj = str(sv.get('pjass') or '')
+        out.append(('info', '      Proved: compiled again, the text gives the same %s instructions the map had, one by '
+                            'one%s.' % (num(sv.get('instructions', 0)),
+                                        '' if pj.startswith('skipped') else
+                                        '; and the Reforged compiler (pjass) finds no error in it')))
+        if sv.get('hooks'):
+            out.append(('info', '      %s that the map\'s plugin runs from outside the script came back as native '
+                                'declarations: in the compiled script each one was an empty function the plugin '
+                                'takes over while the game runs.' % pluralize(sv['hooks'], 'function', 'functions')))
+        if sv.get('hooks_left_out'):
+            outside = sv['hooks_left_out']
+            out.append(('info', '      Left out the declaration of %s of those, which the map never calls and whose '
+                                'name Reforged uses for a native of its own (%s%s).'
+                        % (num(len(outside)), ', '.join(outside[:4]), '...' if len(outside) > 4 else '')))
+        if sv.get('clashes'):
+            ch = sv['clashes']
+            out.append(('warning', '      %s the script defines %s also defined by Reforged (%s%s): the World Editor '
+                                   'reports them as redeclared when you save, until they are renamed in the script.'
+                        % (pluralize(len(ch), 'name', 'names'), 'is' if len(ch) == 1 else 'are', ', '.join(ch[:4]),
+                           '...' if len(ch) > 4 else '')))
     if details.get('regenerated_triggers'):
         out.append(('info', '  - The map\'s triggers used functions the World Editor 3.0 does not have (YDWE or '
                             'another extended editor): they were replaced by the map script in the custom script, so '
@@ -594,13 +650,9 @@ def editor_text(r):
                        pluralize(restoration.get('as_text', 0), 'trigger', 'triggers'),
                        pluralize(restoration.get('variable_count', 0), 'variable', 'variables'))))
         if restoration.get('names_obfuscated'):
-            out.append(
-                (
-                    'info',
-                    '      The script had its names scrambled (an obfuscator): the triggers are named T001, '
-                    'T002... and the variables by their new names.',
-                )
-            )
+            out.append(('info', '      The script had its names scrambled (an obfuscator): the triggers are named '
+                                'after what fires them (the chat command, the event and the object it checks, the '
+                                'region) or T001, T002... when nothing tells, and the variables by their new names.'))
         for ln in (restoration.get('summary') or [])[1:]:
             out.append(('info', '      ' + ln.strip()))
         if restoration.get('helpers'):
@@ -622,9 +674,32 @@ def editor_text(r):
                             'functions the editor also creates (InitGlobals, CreateAllUnits, the unit creation of '
                             'each player...) are named "devo_..." there: two functions with the same name do not '
                             'compile, and the editor refused to open the script with "Function redeclared".'))
+    if generated and not restored:
+        for ln in (details.get('optimizer') or {}).get('line_list') or []:
+            out.append(('info', '  - ' + ln))
     if 'war3map.imp' in (details.get('new_ones') or []):
         out.append(('info', '  - Listed %s, so the editor keeps them when you save.'
                     % pluralize(details.get('imported', 0), 'imported file', 'imported files')))
+    elif details.get('imp_added'):
+        out.append(('info', '  - Added %s to the map\'s own list of imported files (war3map.imp), which left them out: '
+                            'the editor only keeps the listed files when you save.'
+                    % pluralize(details['imp_added'], 'file', 'files')))
+    unnamed = details.get('unnamed') or {}
+    if sum(unnamed.values()):
+        pieces = [pluralize(unnamed[k], singular, plural) for k, singular, plural in (
+            ('models', 'model', 'models'), ('images', 'image', 'images'), ('others', 'other file', 'other files'))
+            if unnamed.get(k)]
+        n = sum(unnamed.values())
+        out.append(
+            (
+                'warning',
+                '  - %s in the map %s no name that could be recovered (%s), and the World Editor does not '
+                'keep a file without a name when you save. No file of the map cites them by name: either '
+                'the author imported them and stopped using them, or the script builds their path while '
+                'the game runs -- and then the map saved by the editor misses them.'
+                % (pluralize(n, 'file', 'files'), 'has' if n == 1 else 'have', ', '.join(pieces)),
+            )
+        )
     out.append(('', ''))
     out.append(('info', 'Good to know:'))
     if lua:
@@ -632,6 +707,11 @@ def editor_text(r):
                             'please report anything that breaks.'))
     else:
         out.append(('info', '  - Keep JassHelper enabled (the default) when you save the map.'))
+    if sv.get('natives') or sv.get('hooks'):
+        out.append(('info', '  - This map was made for the KK platform: its script declares %s that only that platform '
+                            '(or the map\'s own plugin) provides. The World Editor opens and saves it, but Warcraft '
+                            'III does not run it until the calls to them are ported.'
+                    % pluralize(sv.get('natives', 0) + sv.get('hooks', 0), 'native', 'natives')))
     if generated:
         placed_files = set(x['file_name'] for x in details.get('count') or [] if x.get('from_script'))
         if placed_files:
