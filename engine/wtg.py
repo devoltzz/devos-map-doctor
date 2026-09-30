@@ -253,9 +253,12 @@ class _Reader(object):
             mt.elements.append((c, item))
 
 
-def read_wtg(data, td):
+def read_wtg(data, td, script_fallback=False):
     if isinstance(td, dict):
         td = Arities(td)
+    if script_fallback:
+        import triggerdata
+        td = triggerdata.ScriptFallback(td)
     r = _Reader(data, td)
     if r.b[:4] != b'WTG!':
         raise ValueError('not a wtg (no WTG! signature)')
