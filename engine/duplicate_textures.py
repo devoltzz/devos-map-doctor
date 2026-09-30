@@ -1,4 +1,4 @@
-# Finds identical imported textures, which crash the World Editor 3.0.
+# Finds identical imported textures and makes each one a different file.
 import hashlib
 
 
