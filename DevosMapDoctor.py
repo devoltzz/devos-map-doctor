@@ -635,9 +635,13 @@ def editor_text(r):
     if generated:
         placed_files = set(x['file_name'] for x in details.get('count') or [] if x.get('from_script'))
         if placed_files:
-            out.append(('info', '  - Units, regions and sounds that the script creates used to stay out of the editor: '
-                                'the ones listed above are there now. The items and abilities of a unit, and the '
-                                'sounds, still only exist in the game.'))
+            out.append(
+                (
+                    'info',
+                    '  - Units, regions, cameras and sounds that the script creates used to stay out of the '
+                    'editor: the ones listed above are there now.',
+                )
+            )
         else:
             out.append(('info', '  - Units, regions and sounds that the script creates do not show in the editor, but '
                                 'the game still creates them.'))
