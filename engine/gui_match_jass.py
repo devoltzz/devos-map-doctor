@@ -22,12 +22,13 @@ CALLBACK_FORMS = {'ForGroup': 'ForGroupMultiple', 'ForForce': 'ForForceMultiple'
                   'EnumItemsInRectBJ': 'EnumItemsInRectBJMultiple'}
 LOOP_FORMS = {'A': ('ForLoopA', 'ForLoopAMultiple'), 'B': ('ForLoopB', 'ForLoopBMultiple'),
               'Var': ('ForLoopVar', 'ForLoopVarMultiple')}
+MULTIPLE_TO_ONE = dict((m, o) for o, m in list(CALLBACK_FORMS.items()) + list(LOOP_FORMS.values()))
 LITERAL_TYPES = frozenset(('abilityuiyesnooption', 'disabledenabledoption', 'hideshowoption'))
 REGISTRATION = frozenset(('CreateTrigger', 'DisableTrigger', 'TriggerAddCondition', 'TriggerAddAction'))
 RX_EDITOR_HELPER = re.compile(r'^Func\d{3}(?:Func\d{3}|\d{3})*(?:C|A|\d{3})$')
 RX_TRIGGER_BANNER = re.compile(r'^//\s?Trigger:\s?(.*)$')
 RX_LINE_BREAK = re.compile(r'\r\n|\r|\n')
-ONE_LINE_DEFAULT = {'A': True, 'B': False, 'Var': False, 'callback': True}
+ONE_LINE_DEFAULT = {'A': False, 'B': False, 'Var': False, 'callback': False}
 CUSTOM_SCRIPT_IDIOMS = frozenset(('RemoveLocation', 'DestroyGroup'))
 RAWCODE_VARIABLE_TYPE = 'unitcode'
 
@@ -73,6 +74,8 @@ def _is_name(e, name=None):
 
 
 def _editor_unescape(body):
+    if '\n' in body or '\r' in body:
+        return None
     if '\\' not in body:
         return body
     out = []
@@ -81,9 +84,9 @@ def _editor_unescape(body):
         c = body[i]
         if c == '\\':
             nxt = body[i + 1:i + 2]
-            if nxt not in ('\\', '"'):
+            if nxt not in ('\\', '"', 'n'):
                 return None
-            out.append(nxt)
+            out.append('\n' if nxt == 'n' else nxt)
             i += 2
             continue
         out.append(c)
@@ -254,6 +257,17 @@ class _Matcher(object):
         if self.prefix and name.startswith(self.prefix) and RX_EDITOR_HELPER.match(name[len(self.prefix):]):
             return 'digits' if name[-1].isdigit() else name[-1]
         return None
+
+    def one_line(self, a):
+        if a.name not in self.td.multiple:
+            return a
+        one = MULTIPLE_TO_ONE.get(a.name)
+        child = self.one_line(a.children[0]) if one in self.td.actions and len(a.children) == 1 else None
+        if child is None:
+            return None
+        inner = wtg.Function(child.kind, child.name, child.enabled, child.params, None, child.children)
+        return wtg.Function(a.kind, one, a.enabled, list(a.params) + [wtg.Parameter(FUNCTION, 'DoNothing',
+                                                                                    function=inner)])
 
     def var_type(self, name):
         t = self.types.get(name)
@@ -460,10 +474,11 @@ class _Matcher(object):
         if f is None:
             return None
         acts = self.body_actions(f)
-        if len(acts) != 1 or acts[0].name in self.td.multiple:
+        single = self.one_line(acts[0]) if len(acts) == 1 else None
+        if single is None:
             self.reset(m)
             return None
-        return wtg.Parameter(FUNCTION, 'DoNothing', function=acts[0])
+        return wtg.Parameter(FUNCTION, 'DoNothing', function=single)
 
     def condition_helper(self, name):
         m = self.mark()
@@ -507,6 +522,10 @@ class _Matcher(object):
                     params = self.params(e.args, c.arg_types)
                     if params is not None:
                         return wtg.Function(CONDITION, c.name, 1, params)
+        if cls is jass_ast.Literal and e.kind == 'boolean':
+            kind = 'AndMultiple' if e.text == 'true' else 'OrMultiple'
+            if kind in self.td.conditions:
+                return wtg.Function(CONDITION, kind, 1, [], None, [])
         return None
 
     def compare_order(self, e):
@@ -723,9 +742,9 @@ class _Matcher(object):
         acts = self.body_actions(f)
         hint = self.hint(ref.name)
         one_line = hint == 'digits' if hint else ONE_LINE_DEFAULT['callback']
-        if (one is not None and len(acts) == 1 and acts[0].name not in self.td.multiple and
-                (one_line or multiple is None)):
-            return wtg.Function(ACTION, one.name, 1, params + [wtg.Parameter(FUNCTION, 'DoNothing', function=acts[0])])
+        single = self.one_line(acts[0]) if one is not None and len(acts) == 1 else None
+        if single is not None and (one_line or multiple is None):
+            return wtg.Function(ACTION, one.name, 1, params + [wtg.Parameter(FUNCTION, 'DoNothing', function=single)])
         if multiple is None:
             self.reset(m)
             return None
@@ -814,7 +833,7 @@ class _Matcher(object):
         then, other = bodies
         m = self.mark()
         f = self.helper(cond.name, 'boolean') if type(cond) is jass_ast.Call and not cond.args else None
-        tests = _tests(f, 'false', 'true', negated=True) if f is not None else None
+        tests = _tests(f, 'false', 'true', negated=True) if f is not None else [] if _is_literal(cond, 'true') else None
         if tests is not None and 'IfThenElseMultiple' in self.td.actions:
             children = []
             for x in tests:
@@ -835,13 +854,13 @@ class _Matcher(object):
             expr = f.body[0].value
         else:
             expr = None
-        if (expr is not None and 'IfThenElse' in self.td.actions and len(then) == 1 and len(other) == 1 and
-                then[0].name not in self.td.multiple and other[0].name not in self.td.multiple):
+        sides = [self.one_line(x[0]) for x in (then, other) if len(x) == 1]
+        if expr is not None and 'IfThenElse' in self.td.actions and len(sides) == 2 and None not in sides:
             c = self.condition(expr)
             if c is not None:
                 return wtg.Function(ACTION, 'IfThenElse', 1, [
-                    wtg.Parameter(FUNCTION, '', function=c), wtg.Parameter(FUNCTION, 'DoNothing', function=then[0]),
-                    wtg.Parameter(FUNCTION, 'DoNothing', function=other[0])])
+                    wtg.Parameter(FUNCTION, '', function=c), wtg.Parameter(FUNCTION, 'DoNothing', function=sides[0]),
+                    wtg.Parameter(FUNCTION, 'DoNothing', function=sides[1])])
         self.reset(m)
         return None
 
