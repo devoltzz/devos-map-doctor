@@ -177,6 +177,7 @@ RE_EXTENSION_B = re.compile(rb'\.' + _EXTENSIONS_B, re.I)
 RE_NUL_VALUE_B = re.compile(rb'(?<=\x00)[\x20-\x7e]{1,200}\.' + _EXTENSIONS_B + rb'(?=\x00)', re.I)
 PATH_REACH = 181
 PATH_EXT_MAX = 3
+RE_REQUIRE_B = re.compile(rb'''require\s*\(?\s*['"]([\w.\-/\\ ]{1,120})['"]''')
 
 
 def _paths(data_bytes):
@@ -236,7 +237,20 @@ def mine_bytes(data_bytes):
             u = re.sub(r'\\{2,}', lambda _m: '\\', s)
             if u != s:
                 out.add(u)
+    if b'require' in data_bytes:
+        for m in RE_REQUIRE_B.finditer(data_bytes):
+            module = m.group(1).decode('latin-1').replace('/', '\\')
+            file_path = module.replace('.', '\\')
+            out.update((file_path + '.lua', file_path + '\\init.lua', module + '.lua'))
     return out
+
+
+EXT_TO_MINE = frozenset((
+    '.j', '.lua', '.txt', '.ini', '.slk', '.wts', '.w3i', '.doo', '.wtg', '.wct',
+    '.imp', '.mdx', '.mdl', '.fdf', '.toc', '.pld', '.json', '.xml', '.html',
+    '.w3a', '.w3t', '.w3u', '.w3d', '.w3b', '.w3h', '.w3q', '.w3e', '.w3r',
+    '.w3c', '.w3s', '.wpm', '.mmp',
+))
 
 
 def _with_hash_entry(a, name_list):
@@ -406,6 +420,142 @@ def dictionary_leftovers(a, closure, name_list):
         accepted[n] = r[1]
         cat['leftovers'] += 1
     return accepted, cat
+
+
+DISABLED_FOLDER = 'ReplaceableTextures\\CommandButtonsDisabled\\'
+IMAGE_EXT = ('.blp', '.tga', '.dds')
+MODEL_EXT = ('.mdx', '.mdl')
+IMPORTED_FOLDERS = ('', 'war3mapImported\\')
+DERIVED_LIMIT = 3000000
+UNNAMED_TEXT_MAX = 8 << 20
+
+
+def mdx_inner_name(data_bytes):
+    if data_bytes[:4] != b'MDLX':
+        return ''
+    p = 4
+    while p + 8 <= len(data_bytes):
+        sz = int.from_bytes(data_bytes[p + 4:p + 8], 'little')
+        if data_bytes[p:p + 4] == b'MODL':
+            return data_bytes[p + 8:p + 88].split(b'\0')[0].decode('latin-1', 'replace').strip()
+        p += 8 + sz
+    return ''
+
+
+def unnamed_blocks(a, with_name):
+    return [bi for bi in a.pointed_blocks() if bi not in with_name]
+
+
+def read_unnamed(a, bi, whole=True):
+    import mpqread
+    try:
+        if a.blocks[bi][3] & mpqread.FLAG_ENCRYPT:
+            hash_key = a.unnamed_key(bi)
+            return a.read(None, bi=bi, hash_key=hash_key) if hash_key is not None else None
+        if whole:
+            return a.read(None, bi=bi)
+        v, begin_pos = a.validate_light(bi, None)
+        return begin_pos if v == 'ok' else None
+    except Exception:
+        return None
+
+
+def derived_names(a, name_list, log=None):
+    import mpqread
+    known = {}
+    for n in name_list:
+        r = a.find(n)
+        if r:
+            known.setdefault(n.replace('/', '\\'), r[1])
+    with_name = set(known.values())
+    with_name.update(r[1] for r in (a.find(n) for n in ('(listfile)', '(attributes)', '(signature)')) if r)
+    nameless = set(unnamed_blocks(a, with_name))
+    if not nameless:
+        return {}
+    keys = set(n.upper() for n in known)
+    models = {}
+    from_texts = set()
+    for bi in sorted(nameless):
+        d = read_unnamed(a, bi, whole=False)
+        if not d:
+            continue
+        model = d[:4] == b'MDLX'
+        body_text = not model and a.blocks[bi][2] <= UNNAMED_TEXT_MAX and content_matches('x.txt', d[:4096])
+        if not model and not body_text:
+            continue
+        if not a.blocks[bi][3] & mpqread.FLAG_ENCRYPT:
+            d = read_unnamed(a, bi)
+        if d and model:
+            models[bi] = (mdx_inner_name(d), sorted(mdx_textures(d)))
+        elif d:
+            for c in mine_bytes(d):
+                from_texts |= variants(c)
+    matches = {}
+    tested = set()
+
+    def try_names(candidates):
+        cand = sorted(set(c for c in candidates if c and c.upper() not in keys) - tested)[:DERIVED_LIMIT]
+        tested.update(cand)
+        opens = [c for c in _with_hash_entry(a, cand) if (a.find(c) or (None, None))[1] in nameless]
+        if not opens:
+            return []
+        accepted, _cat = dictionary_leftovers(a, dict(known, **matches), opens)
+        for n in sorted(accepted):
+            matches[n] = accepted[n]
+            keys.add(n.upper())
+            nameless.discard(accepted[n])
+        return sorted(accepted)
+
+    def folder(n):
+        return n.rsplit('\\', 1)[0] + '\\' if '\\' in n else ''
+
+    cand = []
+    for n in known:
+        root, ext = os.path.splitext(n.rsplit('\\', 1)[-1])
+        if ext.lower() in IMAGE_EXT and not root.upper().startswith('DIS'):
+            cand.extend(DISABLED_FOLDER + 'DIS' + root + e for e in IMAGE_EXT)
+    cand.extend(from_texts)
+    new_ones = try_names(cand)
+    model_folders = set(IMPORTED_FOLDERS) | set(folder(n) for n in known if n.lower().endswith(MODEL_EXT))
+    round_num = 0
+    while True:
+        round_num += 1
+        cand = []
+        for bi, (inner, textures) in sorted(models.items()):
+            if bi not in nameless:
+                continue
+            folders = model_folders | set(folder(t) for t in textures)
+            for base in sorted({inner, inner.replace(' ', ''), inner.replace(' ', '_')} - {''}):
+                for p in sorted(folders):
+                    cand.append(p + base + '.mdx')
+                    if not base.upper().endswith('_PORTRAIT'):
+                        cand.append(p + base + '_Portrait.mdx')
+        for _inner, textures in models.values():
+            for t in textures:
+                cand.extend(variants(t))
+                cand.extend(p + t.rsplit('\\', 1)[-1] for p in IMPORTED_FOLDERS)
+        for n in new_ones:
+            if os.path.splitext(n)[1].lower() not in EXT_TO_MINE:
+                continue
+            try:
+                d = a.read(n, bi=matches[n])
+            except Exception:
+                continue
+            for c in mine_bytes((d or b'')[:16 * 1048576]):
+                cand.extend(variants(c))
+        new_ones = try_names(cand)
+        if log:
+            log('unnamed, round %d: %d candidates, +%d (total %d, %d left)' % (round_num, len(set(cand)), len(new_ones),
+                                                                                  len(matches), len(nameless)))
+        if not new_ones:
+            return matches
+
+
+def full_closure(a, seeds=None, log=None):
+    closure = referenced_closure(a, seeds, log)
+    for n, bi in sorted(derived_names(a, closure, log).items()):
+        closure.setdefault(n, bi)
+    return closure
 
 
 BASE_NAMES = (

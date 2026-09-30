@@ -320,6 +320,18 @@ class Archive:
             return False
         return (self.h.offset + off) & 0xFFFFFFFF < len(self.d)
 
+    def pointed_blocks(self):
+        ht, nb = self.ht, len(self.blocks)
+        matches = set()
+        for i in range(self.hash_n_read):
+            bi = ht[4 * i + 3]
+            if bi >= 0xFFFFFFFE:
+                continue
+            bi &= 0x0FFFFFFF
+            if bi < nb and bi not in matches and self.exists(bi):
+                matches.add(bi)
+        return sorted(matches)
+
     def find_locale(self, name):
         r = self.find(name)
         if r is None or self.validate(r[1], name)[0] == 'ok':
@@ -334,7 +346,20 @@ class Archive:
                     return e[0], e[3]
         return r
 
-    def read(self, name, bi=None):
+    def unnamed_key(self, bi):
+        off, cs, fs, fl = self.blocks[bi]
+        if not fl & FLAG_ENCRYPT or fl & FLAG_SINGLE or not fs:
+            return None
+        p = (self.h.offset + off) & 0xFFFFFFFF
+        if not fl & (FLAG_IMPLODE | FLAG_COMPRESS):
+            return detect_content_key(self.d[p:p + 8], fs)
+        ntab = (fs + self.sector_size - 1) // self.sector_size + 1 + (1 if fl & 0x04000000 else 0)
+        for k in detect_sector_keys(self.d[p:p + 8], self.sector_size, ntab * 4):
+            if _validate_block(self, bi, None, _key=k)[0] == 'ok':
+                return k
+        return None
+
+    def read(self, name, bi=None, hash_key=None):
         if bi is None:
             r = self.find(name)
             if not r:
@@ -349,7 +374,7 @@ class Archive:
         raw = self.d[p:p + cs]
         key = None
         if fl & FLAG_ENCRYPT:
-            key = key_from_name(name, off, fs, fl)
+            key = hash_key if hash_key is not None else key_from_name(name, off, fs, fl)
 
         sec = self.sector_size
         nsec = (fs + sec - 1) // sec

@@ -232,7 +232,7 @@ def _new_tables(d, a, name_list=(), leftovers=False):
     import mpqnames
     import mpq_rebuild as RC
     hdr = a.h.offset
-    closure = mpqnames.referenced_closure(a)
+    closure = mpqnames.full_closure(a)
     chosen = dict((n, bi) for n, bi in closure.items() if n not in ('(listfile)', '(attributes)', '(signature)'))
     print('  VIRTUAL tables: %d file(s) the map references (the closure, each one validated)' % len(chosen))
     if name_list:
