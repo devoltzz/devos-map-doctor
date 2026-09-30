@@ -354,7 +354,10 @@ def _jass_parens(script):
         if t is existing.Paren:
             return expr(e.inner)
         if t is existing.Binary:
-            return existing.Paren(existing.Binary(e.op, expr(e.left), expr(e.right)))
+            left, right = expr(e.left), expr(e.right)
+            if e.op == '+' and all(type(x) is existing.Literal and x.kind == 'string' for x in (left, right)):
+                return existing.Literal('string', left.text[:-1] + right.text[1:])
+            return existing.Paren(existing.Binary(e.op, left, right))
         if t is existing.Unary:
             return existing.Unary(e.op, expr(e.operand))
         if t is existing.Call:
@@ -414,7 +417,12 @@ def _lua_parens(body):
         if t is la.Paren:
             return expr(e.inner)
         if t is la.Binary:
-            return la.Paren(la.Binary(e.op, expr(e.left), expr(e.right)))
+            left, right = expr(e.left), expr(e.right)
+            if e.op == '..' and all(type(x) is la.Literal and x.kind == 'string' for x in (left, right)):
+                quoted = all((x.text or '')[:1] == '"' for x in (left, right))
+                return la.Literal('string', left.text[:-1] + right.text[1:] if quoted else None,
+                                  left.value + right.value)
+            return la.Paren(la.Binary(e.op, left, right))
         if t is la.Unary:
             return la.Unary(e.op, expr(e.operand))
         if t is la.Call:
@@ -519,7 +527,7 @@ RX_INTEGER = re.compile(r'^-?(?:\d+|0[xX][0-9A-Fa-f]+|\$[0-9A-Fa-f]+)$')
 
 
 def _escape(s):
-    return s.replace('\\', '\\\\').replace('"', '\\"')
+    return s.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
 
 
 def _multiple_groups(f):
