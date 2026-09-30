@@ -145,6 +145,26 @@ def write_w3r(regions, v=5):
     return b''.join(out)
 
 
+def w3r_without_outside_sounds(b, b_w3s):
+    d = read_w3r(b)
+    if d.get('version_num') != 5 or d['remaining'] != 0:
+        return b, []
+    sounds = set()
+    if b_w3s:
+        try:
+            import editor_render
+            sounds = set(s['name'] for s in editor_render.read_w3s(b_w3s)[1])
+        except Exception:
+            sounds = set()
+    removed = [r['sound'].decode('latin-1') for r in d['regs'] if r.get('sound') and r['sound'] not in sounds]
+    if not removed:
+        return b, []
+    for r in d['regs']:
+        if r.get('sound') and r['sound'] not in sounds:
+            r['sound'] = b''
+    return write_w3r(d['regs'], 5), removed
+
+
 def min_w3c(v, new_ones=True, dof=None):
     if dof is None:
         return min(min_w3c(v, new_ones, True), min_w3c(v, new_ones, False))
@@ -247,7 +267,7 @@ def read_sound(r, v):
     return sound
 
 
-def read_w3s(b):
+def read_w3s_records(b):
     r = Reader(b, 8)
     v, n = struct.unpack_from('<II', b, 0)
     sounds = []
@@ -257,6 +277,147 @@ def read_w3s(b):
         except End:
             break
     return _res(sounds, n, r, _min_sound(v), 8, 4, version_num=v)
+
+
+RX_SOUND_CREATE = re.compile(r'(?:\bset\s+)?\b(gg_snd_\w+)\s*=\s*CreateSound\s*\(')
+RX_SOUND_MUSIC = re.compile(r'(?:\bset\s+)?\b(gg_snd_\w+)\s*=\s*("(?:[^"\\]|\\.)*")')
+RX_SOUND_CALL = re.compile(r'\b(Set\w+|RegisterStackedSound)\s*\(\s*(gg_snd_\w+)\s*,')
+SOUND_UNSET = 4294967296.0
+
+
+def _jass_args(body_text, begin):
+    args, cur, max_depth, i = [], [], 0, begin + 1
+    while i < len(body_text):
+        c = body_text[i]
+        if c == '"':
+            j = i + 1
+            while j < len(body_text) and body_text[j] != '"':
+                j += 2 if body_text[j] == '\\' else 1
+            cur.append(body_text[i:j + 1])
+            i = j + 1
+            continue
+        if c == '(':
+            max_depth += 1
+        elif c == ')':
+            if max_depth == 0:
+                args.append(''.join(cur).strip())
+                return args, i + 1
+            max_depth -= 1
+        elif c == ',' and max_depth == 0:
+            args.append(''.join(cur).strip())
+            cur = []
+            i += 1
+            continue
+        cur.append(c)
+        i += 1
+    return None, len(body_text)
+
+
+def _jass_string(t):
+    t = t.strip()
+    if len(t) < 2 or t[0] != '"' or t[-1] != '"':
+        raise ValueError(t)
+    out, i, s = [], 0, t[1:-1]
+    while i < len(s):
+        if s[i] == '\\' and i + 1 < len(s):
+            out.append({'n': '\n', 't': '\t', 'r': '\r'}.get(s[i + 1], s[i + 1]))
+            i += 2
+            continue
+        out.append(s[i])
+        i += 1
+    try:
+        return ''.join(out).encode('latin-1')
+    except UnicodeEncodeError:
+        return ''.join(out).encode('utf-8', 'surrogateescape')
+
+
+def _empty_sound(fname, file_path, music=False):
+    d = SOUND_UNSET
+    return {'name': fname, 'path': file_path, 'eax': b'DefaultEAXON', 'flags': 8 if music else 0, 'fade_in': 10,
+            'fade_out': 10, 'volume': -1, 'pitch': d, 'pitch_variance': d, 'priority': 8, 'channel': -1,
+            'min_distance': d, 'max_distance': d, 'cutoff': d, 'cone_inside': d, 'cone_outside': d,
+            'cone_outside_volume': -1, 'cone_x': d, 'cone_y': d, 'cone_z': d, 'name2': fname, 'label': b'',
+            'path2': file_path, 'text_key': -1, 'text': b'', 'speaker_key': -1, 'speaker': b'', 'facial_flag': 0,
+            'facial_unit': b'', 'facial_label': b'', 'facial_group': b'', 'facial_path': b'', 'v3_flag': 0}
+
+
+def sounds_of_script(body_text):
+    if not body_text:
+        return []
+    bodies = _bodies_by_name(body_text)
+    body = bodies.get('InitSounds') or ''
+    sounds, order, where = {}, [], {}
+    for m in RX_SOUND_CREATE.finditer(body):
+        args, _stop = _jass_args(body, body.index('(', m.end() - 1))
+        if not args or len(args) != 7 or m.group(1) in sounds:
+            continue
+        try:
+            s = _empty_sound(m.group(1).encode('latin-1'), _jass_string(args[0]))
+            s['flags'] = sum(b for b, a in ((1, args[1]), (2, args[2]), (4, args[3])) if a.strip() == 'true')
+            s['fade_in'], s['fade_out'] = int(_num(args[4])), int(_num(args[5]))
+            s['eax'] = _jass_string(args[6])
+        except ValueError:
+            continue
+        sounds[m.group(1)] = s
+        order.append(m.group(1))
+        where[m.group(1)] = m.start()
+    for m in RX_SOUND_MUSIC.finditer(body):
+        if m.group(1) not in sounds:
+            try:
+                sounds[m.group(1)] = _empty_sound(m.group(1).encode('latin-1'), _jass_string(m.group(2)), music=True)
+            except ValueError:
+                continue
+            order.append(m.group(1))
+            where[m.group(1)] = m.start()
+    order.sort(key=where.get)
+    for m in RX_SOUND_CALL.finditer(body):
+        s = sounds.get(m.group(2))
+        if s is None:
+            continue
+        args, _stop = _jass_args(body, body.index('(', m.start()))
+        if not args:
+            continue
+        args = args[1:]
+        try:
+            _sound_field(s, m.group(1), args)
+        except (ValueError, IndexError):
+            continue
+    return [sounds[n] for n in order]
+
+
+def _sound_field(s, function, args):
+    if function == 'SetSoundParamsFromLabel':
+        s['label'] = _jass_string(args[0])
+    elif function == 'SetSoundFacialAnimationLabel':
+        s['facial_label'] = _jass_string(args[0])
+    elif function == 'SetSoundFacialAnimationGroupLabel':
+        s['facial_group'] = _jass_string(args[0])
+    elif function == 'SetSoundFacialAnimationSetFilepath':
+        s['facial_path'] = _jass_string(args[0])
+    elif function in ('SetDialogueSpeakerNameKey', 'SetDialogueTextKey'):
+        m = re.match(r'TRIGSTR_(\d+)$', _jass_string(args[0]).decode('latin-1'))
+        if m:
+            s['speaker_key' if 'Speaker' in function else 'text_key'] = int(m.group(1))
+    elif function == 'SetSoundChannel':
+        s['channel'] = int(_num(args[0]))
+    elif function == 'SetSoundVolume':
+        s['volume'] = int(_num(args[0]))
+    elif function == 'SetSoundPitch':
+        s['pitch'] = _num(args[0])
+    elif function == 'SetSoundDistances':
+        s['min_distance'], s['max_distance'] = _num(args[0]), _num(args[1])
+    elif function == 'SetSoundDistanceCutoff':
+        s['cutoff'] = _num(args[0])
+    elif function == 'SetSoundConeAngles':
+        s['cone_inside'], s['cone_outside'], s['cone_outside_volume'] = _num(args[0]), _num(args[1]), int(
+            _num(args[2]))
+    elif function == 'SetSoundConeOrientation':
+        s['cone_x'], s['cone_y'], s['cone_z'] = _num(args[0]), _num(args[1]), _num(args[2])
+
+
+def write_w3s_file(sounds, version_num=3):
+    import editor_render
+    return editor_render.write_w3s(version_num, sounds)
 
 
 def read_imp(b):
@@ -575,7 +736,7 @@ def player_count(w3i_version=None):
     return 24 if (w3i_version or 0) >= 31 else 12
 
 
-_READERS = {'war3map.w3r': read_w3r, 'war3map.w3c': read_w3c, 'war3map.w3s': read_w3s, 'war3map.imp': read_imp,
+_READERS = {'war3map.w3r': read_w3r, 'war3map.w3c': read_w3c, 'war3map.w3s': read_w3s_records, 'war3map.imp': read_imp,
             'war3map.mmp': read_mmp, 'war3map.wct': read_wct, 'war3map.wtg': read_wtg,
             'war3mapUnits.doo': read_units_doo}
 
@@ -693,12 +854,39 @@ def fixable(fname, b, script=None, context=None):
                  'report': '%s: empty (declared %s and no record can be read)' % (fname, declared)}
 
 
-def _map_models(a):
+MODEL_IN_OBJECT_FILES = (('war3map.w3u', 'umdl', False), ('war3mapSkin.w3u', 'umdl', False),
+                         ('war3map.w3t', 'ifil', False), ('war3mapSkin.w3t', 'ifil', False),
+                         ('war3map.w3b', 'bfil', False), ('war3mapSkin.w3b', 'bfil', False),
+                         ('war3map.w3d', 'dfil', True), ('war3mapSkin.w3d', 'dfil', True))
+MODEL_IN_SLK = ('Units\\UnitUI.slk', 'Units\\ItemData.slk', 'Units\\DestructableData.slk', 'Doodads\\Doodads.slk')
+MODEL_IN_TXT = ('war3mapSkin.txt', 'Units\\UnitSkin.txt', 'Units\\ItemSkin.txt', 'Units\\DestructableSkin.txt',
+                'Doodads\\DoodadSkins.txt', 'Units\\CampaignUnitFunc.txt', 'Units\\HumanUnitFunc.txt',
+                'Units\\OrcUnitFunc.txt', 'Units\\UndeadUnitFunc.txt', 'Units\\NightElfUnitFunc.txt',
+                'Units\\NeutralUnitFunc.txt', 'Units\\ItemFunc.txt')
+MODEL_ON_FIRST_OPEN = ('war3map.w3u', 'war3map.w3t', 'war3map.w3b', 'war3map.w3d')
+
+
+def _map_models(a, first_open_only=False, file_set=None):
     import objbin
+    import slk
     out = {}
-    for file_name, field_id, with_levels in (('war3map.w3u', 'umdl', False), ('war3map.w3b', 'bfil', False),
-                                             ('war3map.w3d', 'dfil', True)):
-        b = a.read(file_name)
+
+    def place(ident, val):
+        if ident and val:
+            out.setdefault(ident, set()).add(val)
+
+    def read_data(fname):
+        if file_set and fname in file_set:
+            return file_set[fname]
+        try:
+            return a.read(fname)
+        except Exception:
+            return None
+
+    for file_name, field_id, with_levels in MODEL_IN_OBJECT_FILES:
+        if first_open_only and file_name not in MODEL_ON_FIRST_OPEN:
+            continue
+        b = read_data(file_name)
         if not b:
             continue
         try:
@@ -706,10 +894,30 @@ def _map_models(a):
         except Exception:
             continue
         for objs in tables:
-            for _old_id, new, mods in objs:
+            for former_id, new, mods in objs:
                 for mid, _vt, _lvl, _dptr, val in mods:
                     if mid.strip('\x00') == field_id and isinstance(val, bytes) and val:
-                        out[new] = val.decode('latin-1')
+                        place(new if new.strip('\x00') else former_id, val.decode('latin-1'))
+    if first_open_only:
+        return out
+    for file_name in MODEL_IN_SLK:
+        b = read_data(file_name)
+        if b:
+            try:
+                for ident, fields in slk.parse_slk_bytes(b)[1].items():
+                    place(ident, fields.get('file'))
+            except Exception:
+                pass
+    for file_name in MODEL_IN_TXT:
+        b = read_data(file_name)
+        if b:
+            try:
+                for ident, fields in slk.parse_ini_bytes(b).items():
+                    for hash_key, val in fields.items():
+                        if hash_key == 'file' or hash_key.startswith('file:'):
+                            place(ident, val)
+            except Exception:
+                pass
     return out
 
 
@@ -726,9 +934,9 @@ def _in_map(a, fname):
     return False
 
 
-def risky_units(a, units):
+def risky_units(a, units, file_set=None):
     import doodads
-    models = _map_models(a)
+    models = _map_models(a, first_open_only=True, file_set=file_set)
     placed = set()
     try:
         b = a.read('war3map.doo')
@@ -739,12 +947,17 @@ def risky_units(a, units):
                     placed.add(ident.decode('latin-1'))
     except Exception:
         placed = set()
-    from_doodads = set(models[i].lower() for i in placed if i in models)
+    try:
+        valid_ids = set(i.decode('latin-1') for i in doodads.game_ids() | doodads.map_ids(a))
+    except Exception:
+        valid_ids = set()
+    if valid_ids:
+        placed &= valid_ids
+    from_doodads = set(m.lower() for i in placed for m in models.get(i, ()))
     staying, removed = [], {}
     for u in units:
         ident = u['id'].decode('latin-1') if isinstance(u['id'], bytes) else u['id']
-        m = models.get(ident)
-        if m and _in_map(a, m) and m.lower() not in from_doodads:
+        if any(_in_map(a, m) and m.lower() not in from_doodads for m in models.get(ident, ())):
             removed[ident] = removed.get(ident, 0) + 1
             continue
         staying.append(u)
@@ -787,7 +1000,7 @@ def _from_script(fname, script, x, declared=None, context=None):
                 return None
             removed = {}
             if context.get('mpq') is not None and context.get('safe_units', True):
-                item_entries, removed = risky_units(context['mpq'], item_entries)
+                item_entries, removed = risky_units(context['mpq'], item_entries, file_set=context.get('file_set'))
             data_bytes = write(item_entries, version_num, subversion, skin)
             try:
                 reread = read_units_doo(data_bytes)
@@ -825,19 +1038,27 @@ def _from_script(fname, script, x, declared=None, context=None):
                 'layout': '%d/%d%s' % (version_num, subversion, '+skin' if skin else ''),
                 'report': report,
             }
-        return write(item_entries), {
-            'file_name': fname,
-            'declared': declared,
-            'read_count': 0,
-            'new': len(item_entries),
-            'from_script': True,
-            'reason': x.get('reason'),
-            'where': where,
-            'singular': singular,
-            'plural': plural,
-            'report': ('%s: %d %s from `%s` in the script' % (fname, len(item_entries), plural, where)),
-        }
+        data_bytes = (
+            write(item_entries, new_ones=_camera_with_local(context)) if fname == 'war3map.w3c' else write(item_entries)
+        )
+        return data_bytes, {'file_name': fname, 'declared': declared, 'read_count': 0, 'new': len(item_entries),
+                            'from_script': True, 'reason': x.get('reason'),
+                            'where': where, 'singular': singular, 'plural': plural,
+                            'report': ('%s: %d %s from `%s` in the script' % (fname, len(item_entries), plural, where))}
     return None
+
+
+def _camera_with_local(context):
+    current = context.get('current')
+    if current:
+        try:
+            d = read_w3c(current)
+            if d and d.get('regs') and d.get('layout'):
+                return bool(d['layout'][0])
+        except Exception:
+            pass
+    editor = context.get('editor_w3i')
+    return True if editor is None else editor >= 6071
 
 
 def fix_from_script(fname, script, reason='was_missing', context=None):
@@ -1133,9 +1354,10 @@ RX_CREATE_CALL = re.compile(r'(?<![\w.:])(Create\w+)[ \t]*\([ \t]*\)')
 RX_GG = re.compile(r'gg_(?:unit|item)_\w{4}_(\d+)$')
 RX_DROP_ITEM = re.compile(r'RandomDistAddItem\(\s*((?:ChooseRandomItemEx|FourCC)\([^()]*\)|[^,()]+?)\s*,'
                           r'\s*(-?\d+)\s*\)')
-RX_ITEM_CLASS = re.compile(r'ChooseRandomItemEx\(\s*(ITEM_TYPE_\w+)\s*,\s*(\d)\s*\)$')
+RX_ITEM_CLASS = re.compile(r'ChooseRandomItemEx\(\s*(ITEM_TYPE_\w+)\s*,\s*(-?\d+)\s*\)$')
 ITEM_CLASS_LETTER = {'ITEM_TYPE_PERMANENT': 'i', 'ITEM_TYPE_CHARGED': 'j', 'ITEM_TYPE_POWERUP': 'k',
-                     'ITEM_TYPE_ARTIFACT': 'line'}
+                     'ITEM_TYPE_ARTIFACT': 'line', 'ITEM_TYPE_PURCHASABLE': 'm', 'ITEM_TYPE_CAMPAIGN': 'n',
+                     'ITEM_TYPE_MISCELLANEOUS': 'o', 'ITEM_TYPE_ANY': 'Y'}
 RANDOM_BUILDING_ID = b'bDNR'
 
 
@@ -1178,11 +1400,11 @@ def _drop_item_sets(body):
             arg, chance = m.group(1).strip(), int(m.group(2))
             r = RX_ITEM_CLASS.match(arg)
             if r:
-                if r.group(1) not in ITEM_CLASS_LETTER:
+                level = int(r.group(2))
+                if r.group(1) not in ITEM_CLASS_LETTER or not -1 <= level <= 15:
                     return None
-                item_entries.append(
-                    (('Y%sI%s' % (ITEM_CLASS_LETTER[r.group(1)], r.group(2))).encode('latin-1'), chance)
-                )
+                letter = '/' if level < 0 else chr(48 + level)
+                item_entries.append((('Y%sI%s' % (ITEM_CLASS_LETTER[r.group(1)], letter)).encode('latin-1'), chance))
                 continue
             if arg == '-1':
                 item_entries.append((b'\x00' * 4, chance))
@@ -1485,5 +1707,6 @@ def write_units_doo(units, version_num=7, subversion=9, skin=False):
 FROM_SCRIPT = (('war3map.w3r', script_regions, write_w3r, 'region', 'regions', 'CreateRegions()'),
                ('war3map.w3c', cameras_from_script, write_w3c, 'camera', 'cameras', 'CreateCameras()'),
                ('war3mapUnits.doo', script_units, write_units_doo, 'unit', 'units',
-                'CreateAllUnits()'))
+                'CreateAllUnits()'),
+               ('war3map.w3s', sounds_of_script, write_w3s_file, 'sound', 'sounds', 'InitSounds()'))
 
