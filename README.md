@@ -11,25 +11,58 @@ damaged (the program offers to download it when it's missing).
 
 ## Usage
 
-Open a map (or drag it onto the exe) and click one of the buttons:
+Open a map (or drag it onto the exe) and click one of the three buttons. Your original map is never changed: each
+result is saved as a new file next to it.
 
-1. **Diagnose protection** shows what was done to the map. It only reads the file.
-2. **Remove protection** saves `<map>_unprotected.w3x`, which MPQ Editor can open and edit.
-3. **Make it open in World Editor** saves `<map>_editor.w3x`. The map's triggers come back as GUI triggers in the
-   trigger editor (events, conditions and actions you can click), grouped by what fires them; a trigger goes back as
-   GUI only when writing it back to script gives exactly the code the map had, otherwise it stays as custom text with
-   its original code. The rest of the script goes into the custom script, and the map is saved with JassHelper turned
-   on (the World Editor needs it to build the script again). Works with JASS and Lua maps, with scripts whose names an
-   obfuscator replaced, and with scripts a map optimizer squeezed into `main`. The units, items, regions, cameras and
-   sounds the script creates are placed in the map too, so the editor shows them, and the script the editor writes
-   when you save is checked to compile and to run the map's own code.
+### 1. Diagnose protection
 
-Your original map is never changed.
+Only reads the map and lists what it finds:
 
-Maps encrypted by the KK platform can't be recovered, and file names a protector removed only come back when the map
-itself mentions them.
+- a tampered or fake MPQ header, or a missing map header (why MPQ Editor opens the map read-only, or not at all)
+- file tables that are scrambled, virtual or full (SProtect, PG2 and the like)
+- fake files by the thousand, decoy names and files only the game can read
+- scrambled object ids
+- a script compiled for the KK platform
+- what would stop the World Editor: missing editor files, counters inflated to hang it while loading, doodads whose
+  id doesn't exist
+- a file that is damaged rather than protected: a download that was cut short, or a copy taken from a compressed
+  NTFS folder
 
-From the command line:
+For each one it says which button takes care of it, or that nothing can be done.
+
+### 2. Remove protection
+
+Saves `<map>_unprotected.w3x`, which MPQ Editor can open and edit.
+
+### 3. Make it open in World Editor
+
+Saves `<map>_editor.w3x`. The triggers come back as GUI triggers you can click through (events, conditions and
+actions), grouped by what fires them. A trigger only goes back as GUI when writing it back to script gives exactly
+the code the map had. Otherwise it stays as custom text with its original code.
+
+The rest of the script goes into the custom script, and the units, items, regions, cameras and sounds the script
+creates are placed in the map, so the editor shows them. The map is saved with JassHelper turned on, which the World
+Editor needs to build the script again.
+
+It works with JASS and Lua maps, with scripts renamed by an obfuscator and with scripts a map optimizer squeezed into
+`main`.
+
+## KK platform maps
+
+Maps made for the KK platform work too. When the script is compiled (KKWE, `kkmap.jc`) or compiled and encrypted
+(j2b, `war3map.bin`), button 3 first turns it back into JASS, and only accepts the result if compiling it again
+gives the same instructions the map had.
+
+One protection is left out: maps the platform encrypts outside the archive. That file only holds a loader, the real
+map can only be decrypted by the KK client, and the Doctor tells you so instead of trying anything.
+
+## Limits
+
+File names a protector removed only come back when the map itself mentions them, or when the file gives them away (a
+disabled button icon, the name a model carries inside). The World Editor drops unnamed files when it saves, and
+button 3 tells you how many are left.
+
+## Command line
 
 ```
 DevosMapDoctor.exe --text map.w3x [--unprotect] [--editor]
