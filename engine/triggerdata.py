@@ -479,3 +479,60 @@ def load(path=None, cache_dir=None, game=None):
         _write_atomic(_pointer_file(cache_dir, casc.build_key), td.md5 + '\n')
     return td
 
+
+REF_DIR = os.path.normpath(os.path.join(HERE, '..', 'ref', '3.0'))
+REF_SCRIPTS = ('common.j', 'blizzard.j', 'common.ai')
+RX_SIGNATURE = re.compile(r'(?m)^[ \t]*(?:constant[ \t]+)?(?:native|function)[ \t]+(\w+)[ \t]+takes[ \t]+(.*?)'
+                          r'[ \t]+returns[ \t]+(\w+)')
+_SIGNATURES = {}
+
+
+def script_signatures(ref_dir=None, extra=()):
+    ref_dir = ref_dir or REF_DIR
+    base = _SIGNATURES.get(ref_dir)
+    if base is None:
+        base = {}
+        for name in REF_SCRIPTS:
+            try:
+                with open(os.path.join(ref_dir, name), 'rb') as f:
+                    base.update(_signatures(f.read().decode('utf-8', 'replace'), base))
+            except OSError:
+                pass
+        _SIGNATURES[ref_dir] = base
+    out = dict(base)
+    for text in extra:
+        out.update(_signatures(text, out))
+    return out
+
+
+def _signatures(text, known):
+    out = {}
+    for m in RX_SIGNATURE.finditer(text):
+        if m.group(1) not in known and m.group(1) not in out:
+            args = m.group(2).strip()
+            out[m.group(1)] = (0 if args == 'nothing' else args.count(',') + 1, m.group(3))
+    return out
+
+
+class ScriptFallback(object):
+    def __init__(self, td, signatures=None):
+        self.td = td
+        self.signatures = script_signatures() if signatures is None else signatures
+        self.derived = {}
+
+    def arity(self, kind, name):
+        try:
+            return self.td.arity(kind, name)
+        except Exception as e:
+            if not (isinstance(e, KeyError) or type(e).__name__ == 'UnknownFunction'):
+                raise
+            sig = self.signatures.get(name)
+            if sig is None:
+                raise
+        n = max(sig[0] - 1, 0) if _kind_name(kind) == 'event' else sig[0]
+        self.derived[(_kind_name(kind), name)] = n
+        return n
+
+    def __getattr__(self, name):
+        return getattr(self.td, name)
+
