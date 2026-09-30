@@ -62,6 +62,8 @@ def main():
             '--specpath', work]
     for module in sorted(f[:-3] for f in os.listdir(ENGINE) if f.endswith('.py')):
         args += ['--hidden-import', module]
+    for data in sorted(f for f in os.listdir(ENGINE) if f.endswith('.j')):
+        args += ['--add-data', os.path.join(ENGINE, data) + os.pathsep + '.']
     for module in EXCLUDE:
         args += ['--exclude-module', module]
     PyInstaller.__main__.run(args)

@@ -30,8 +30,10 @@ EDITOR_FILES = ('war3map.wtg', 'war3map.wct', 'war3map.w3r', 'war3map.w3c', 'war
 OBJECT_IDS_FILES = tuple('war3map.' + e for e, _n, _t in object_ids.TYPES) + ('war3map.j', 'scripts\\war3map.j')
 HEADER_MARKS = {0x504F7856: 'vexorian', 0x00200102: 'w3p', 0x2E324750: 'pg2', 0x6F725053: 'sprotect'}
 EDITOR_BLOCKERS = ('read_only', 'fake_header', 'missing_hm3w', 'virtual_tables', 'sprotect', 'kk_encrypted',
-                   'scrambled_ids', 'locale_decoy', 'inflated_counts', 'invalid_doodad', 'unreadable_tables')
-BUTTON3_ONLY = ('inflated_counts', 'invalid_doodad')
+                   'scrambled_ids', 'locale_decoy', 'inflated_counts', 'invalid_doodad', 'unreadable_tables',
+                   'script_kkwe', 'script_j2b')
+BUTTON3_ONLY = ('inflated_counts', 'invalid_doodad', 'script_kkwe', 'script_j2b')
+EDITOR_SCRIPTS = ('jass', 'lua', 'kkwe', 'j2b')
 
 
 def _nothing(*_a, **_k):
@@ -292,6 +294,9 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
     r['w3i_language'] = language = language_from_w3i(_read(a, 'war3map.w3i'))
     if lua and (language == 1 or not j):
         r['script'] = 'lua'
+    elif j and script_j2b(a, j):
+        r['script'] = 'j2b'
+        prot('script_j2b', byte_size=a.blocks[a.find(J2B_FILE)[1]][2])
     elif j is not None and len(j) < 450 and a.find('kkmap.jc'):
         import kkwe
         try:
@@ -304,6 +309,7 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
             r['script'] = 'kk_encrypted'
         else:
             r['script'] = 'kkwe'
+            prot('script_kkwe', byte_size=a.blocks[a.find('kkmap.jc')[1]][2])
     elif j:
         r['script'] = 'jass'
     if not virtual and r['script'] != 'kk_encrypted':
@@ -381,7 +387,7 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
             reason = None
         if reason:
             ed['trigger_list'] = reason
-    if not virtual and r['script'] in ('jass', 'lua'):
+    if not virtual and r['script'] in EDITOR_SCRIPTS:
         try:
             lf = _read(a, '(listfile)') or b''
             lf_names = [line.strip() for line in lf.decode('utf-8', 'surrogateescape').splitlines() if line.strip()]
@@ -418,7 +424,7 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
             ed['status'] = 'campaign_needs_work'
         else:
             ed['status'] = 'ready'
-    elif r['script'] not in ('jass', 'lua'):
+    elif r['script'] not in EDITOR_SCRIPTS:
         ed['status'] = 'script_' + (r['script'] or 'none')
     elif ed['w3i'] in ('unreadable', 'missing'):
         ed['status'] = 'w3i_' + ed['w3i']
@@ -535,6 +541,23 @@ def language_from_w3i(b):
     return m.get('script_language')
 
 
+J2B_FILE = 'war3map.bin'
+RX_J2B = re.compile(rb'"war3map\.bin"')
+
+
+def script_j2b(a, j):
+    if not RX_J2B.search(j):
+        return False
+    r = a.find(J2B_FILE)
+    if not r:
+        return False
+    try:
+        v, begin_pos = a.validate_light(r[1], J2B_FILE)
+    except Exception:
+        return False
+    return v == 'ok' and begin_pos[:4] == b'2SAJ'
+
+
 def scrambled_ids(a, j):
     try:
         with quiet():
@@ -578,6 +601,13 @@ def map_names(a):
                         name_list[n.upper()] = n
             except Exception:
                 pass
+    try:
+        with quiet():
+            derived = mpqnames.derived_names(a, sorted(name_list.values()))
+    except Exception:
+        derived = {}
+    for n in sorted(derived):
+        name_list.setdefault(n.upper(), n)
     return sorted((n for n in name_list.values() if n.lower() not in SPECIAL_FILES), key=lambda n: (n.lower(), n))
 
 
@@ -922,6 +952,13 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
                     line.strip() for line in lf.decode('utf-8', 'surrogateescape').splitlines() if line.strip()
                 ]
                 del b
+        if diag.get('script') in editor_prep.COMPILED_SCRIPT:
+            p('script')
+            t = os.path.join(tmp, '2_script.w3x')
+            with quiet():
+                res['script'] = editor_prep.script_restore(src, t, diag['script'], log=_nothing)
+            src = t
+            name_list = None
         if name_list is None:
             p('name_list')
             name_list = map_names(_open(src))
@@ -931,6 +968,8 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
         with quiet():
             details, _assembled = editor_prep.prepare(src, part, name_list, log=_nothing,
                                                    safe_units=safe_units, extra_ids=extra_ids)
+        if res.get('script'):
+            details['script_restore'] = res['script']
         res['editor'] = details
         if details['failures']:
             raise RuntimeError('editor_prep: %s' % '; '.join(details['failures']))
@@ -940,8 +979,9 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
         res['output'] = after_diag['file_name'] = os.path.abspath(output)
         res['status'] = 'done' if after_diag['editor'].get('status') == 'ready' else 'partial'
     except (Exception, SystemExit) as e:
-        res['status'] = 'script_cut_off' if isinstance(e, editor_prep.ScriptCutOff) else 'failed'
-        res['err'] = _error(e)
+        res['status'] = 'script_cut_off' if isinstance(e, editor_prep.ScriptCutOff) else \
+            'script_not_restored' if isinstance(e, editor_prep.ScriptNotRestored) else 'failed'
+        res['err'] = str(e) if isinstance(e, editor_prep.ScriptNotRestored) else _error(e)
         if res['output'] and os.path.isfile(res['output']):
             os.remove(res['output'])
         res['output'] = None

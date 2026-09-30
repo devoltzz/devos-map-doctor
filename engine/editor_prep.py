@@ -1,4 +1,5 @@
 # Adds what the World Editor needs to open a protected or optimized map.
+import os
 import re
 import struct
 import shutil
@@ -6,6 +7,7 @@ import shutil
 import mpq_rebuild
 import mpqadd
 import mpqdoctor
+import mpqnames
 import mpqread
 import w3i
 import inflated_counts
@@ -145,6 +147,57 @@ def imp(name_list):
     for n in name_list:
         out += b'\x0d' + n.encode('utf-8', 'surrogateescape') + b'\x00'
     return out
+
+
+IMPORTED_FOLDER = 'war3mapImported\\'
+
+
+def read_imp(b):
+    return _read_imp(b)[:2]
+
+
+def _read_imp(b):
+    version_num, n = struct.unpack_from('<ii', b, 0)
+    p, out = 8, []
+    for _ in range(n):
+        f = b.index(b'\0', p + 1)
+        out.append((b[p], b[p + 1:f].decode('utf-8', 'surrogateescape')))
+        p = f + 1
+    return version_num, out, p
+
+
+def missing_from_imp(b, imported):
+    _version, hash_entries = read_imp(b)
+    listed = set()
+    for _mark, fname in hash_entries:
+        fname = fname.replace('/', '\\').upper()
+        listed.add(fname)
+        listed.add(IMPORTED_FOLDER.upper() + fname)
+    return [n for n in imported if n.replace('/', '\\').upper() not in listed]
+
+
+def unnamed(a, name_list):
+    comment = set()
+    for n in list(name_list) + sorted(SPECIAL_FILES):
+        r = a.find(n)
+        if r:
+            comment.add(r[1])
+    out = {'models': 0, 'images': 0, 'others': 0}
+    for bi in mpqnames.unnamed_blocks(a, comment):
+        if not a.blocks[bi][2] or a.validate(bi)[0] != 'ok':
+            continue
+        begin_pos = (mpqnames.read_unnamed(a, bi, whole=False) or b'')[:4]
+        out[
+            'models' if begin_pos == b'MDLX' else 'images' if begin_pos in (b'BLP1', b'BLP2', b'DDS ') else 'others'
+        ] += 1
+    return out
+
+
+def imp_with(b, missing_items):
+    version_num, hash_entries, end_pos = _read_imp(b)
+    return (
+        struct.pack('<ii', version_num, len(hash_entries) + len(missing_items)) + b[8:end_pos] + imp(missing_items)[8:]
+    )
 
 
 RX_FUNCTION = re.compile(r'(?ms)^[ \t]*function[ \t]+(\w+)[ \t]+takes.*?^[ \t]*endfunction[ \t]*(?://[^\n]*)?$\n?')
@@ -326,13 +379,40 @@ def same_code(assembled, original):
     return g1 == g2 and f1 == [f for f in f2 if f[0] not in ('main', 'config')] + end_pos
 
 
-def restore_triggers(body_text, is_lua, log=print, file_set=None):
+def to_standard_script(body_text, b_w3i, log=print, doo=None):
+    try:
+        import jass_normal
+        import trigger_restore
+    except ImportError:
+        return body_text, None, None
+    try:
+        n_players = jass_normal.players_of(struct.unpack_from('<i', b_w3i, 8)[0]) if b_w3i else None
+    except struct.error:
+        n_players = None
+    try:
+        new, report = trigger_restore.standard_script(body_text, n_players, log, doo)
+        report['line_list'] = trigger_restore.optimizer_lines(report)
+        return new, report, n_players
+    except Exception as e:
+        log('standard script: %s: %s' % (type(e).__name__, e))
+        return body_text, None, n_players
+
+
+def restore_triggers(body_text, is_lua, log=print, file_set=None, n_players=None, default_value=None, read_data=None):
     try:
         import trigger_restore
     except ImportError:
         return None
     try:
-        r = trigger_restore.restore(body_text, 'lua' if is_lua else 'jass', log=log, editor_files=file_set)
+        name_list = None
+        if read_data is not None:
+            try:
+                import object_names
+                name_list = lambda: object_names.names(read_data)
+            except ImportError:
+                name_list = None
+        r = trigger_restore.restore(body_text, 'lua' if is_lua else 'jass', log=log, editor_files=file_set,
+                                    players=n_players, standard=default_value, object_names=name_list)
     except Exception as e:
         log('trigger_restore: %s: %s' % (type(e).__name__, e))
         return {'used': False, 'reason': 'failed: %s: %s' % (type(e).__name__, e)}, None, None, None
@@ -348,6 +428,8 @@ def restore_triggers(body_text, is_lua, log=print, file_set=None):
         'as_text': len(as_text) if isinstance(as_text, (list, tuple)) else as_text,
         'variable_count': rep.get('variables', 0),
         'custom_line_count': rep.get('custom_lines', 0),
+        'clean_gui': rep.get('gui_clean', 0),
+        'custom_only': rep.get('only_custom', 0),
         'helpers': list(rep.get('external_to_header') or []),
         'init_trigger_names': list(rep.get('init_triggers') or []),
         'names_obfuscated': bool(rep.get('obfuscated')),
@@ -361,6 +443,109 @@ def restore_triggers(body_text, is_lua, log=print, file_set=None):
     if not info['used'] and not info['reason']:
         info['reason'] = 'proofs: ' + ', '.join(k for k, ok in proof_results.items() if ok is False)
     return info, wtg_b, wct_b, header_text
+
+
+COMPILED_SCRIPT = {'kkwe': 'kkmap.jc', 'j2b': 'war3map.bin'}
+RX_PJASS_WHERE = re.compile(r'^.*?war3map\.j:\d+:\s*')
+
+
+class ScriptNotRestored(ValueError):
+    pass
+
+
+def _pjass_check(body_text, clashes):
+    try:
+        import pjass
+    except ImportError as e:
+        return True, 'skipped: %s' % e
+    exe = pjass.exe()
+    if not os.path.isfile(exe):
+        return True, 'skipped: no pjass at %s' % exe
+    import tempfile
+    tmp = tempfile.mkdtemp('', 'devos_map_doctor_pjass_')
+    try:
+        origin = os.path.join(tmp, 'script.j')
+        with open(origin, 'wb') as f:
+            f.write(body_text.encode('utf-8', 'surrogateescape'))
+        ref = pjass.default_ref()
+        r = pjass.run_action(
+            [
+                (os.path.join(ref, 'common.j'), 'common.j'),
+                (os.path.join(ref, 'blizzard.j'), 'Blizzard.j'),
+                (origin, 'war3map.j'),
+            ],
+            tmp=os.path.join(tmp, 'pjass'),
+        )
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    if r.get('missing'):
+        return True, 'skipped: no %s' % os.path.basename(r['missing'])
+    error_list = [RX_PJASS_WHERE.sub('', line) for line in r['line_list'] if RX_PJASS_WHERE.match(line)]
+    rx = re.compile(r'\b(%s)\b.*already defined' % '|'.join(re.escape(c) for c in clashes)) if clashes else None
+    others = [e for e in error_list if not (rx and rx.search(e))]
+    return not others, 'rc=%s, %d error(s)%s' % (
+        r['rc'],
+        len(error_list),
+        ': ' + '; '.join(others[:3]) if others else '',
+    )
+
+
+def script_restore(entry, output, kind, log=print):
+    try:
+        import j2b
+        import kkwe
+        import kkwe_decompile
+        import triggerdata
+    except ImportError as e:
+        raise ScriptNotRestored('the decompiler is not part of this build (%s)' % e)
+    compiled = COMPILED_SCRIPT[kind]
+    a = mpqread.Archive(entry)
+    j_name = 'war3map.j' if a.find('war3map.j') else 'scripts\\war3map.j'
+    try:
+        shell = a.read(j_name) or b''
+        data_bytes = a.read(compiled)
+    except Exception as e:
+        raise ScriptNotRestored('%s cannot be read (%s)' % (compiled, e))
+    if not data_bytes:
+        raise ScriptNotRestored('%s is missing or empty' % compiled)
+    common, blizzard = triggerdata.game_script('common.j'), triggerdata.game_script('blizzard.j')
+    if not common or not blizzard:
+        raise ScriptNotRestored(
+            'the game scripts (common.j and blizzard.j) could not be read: the decompiler takes the '
+            'signature of every native from them, so Warcraft III has to be installed'
+        )
+    try:
+        if kind == 'j2b':
+            bc = j2b.bytecode(data_bytes)
+            map_own = shell.decode('utf-8', 'surrogateescape')
+        else:
+            bc = kkwe.Bytecode(kkwe.read_container(data_bytes))
+            map_own = ''
+        body_text, details = kkwe_decompile.recover(bc, common, blizzard, None, map_own, no_clash=True)
+    except kkwe_decompile.DecompileError as e:
+        raise ScriptNotRestored(str(e))
+    except OSError as e:
+        raise ScriptNotRestored('a file of the decompiler is missing (%s)' % e)
+    except (ValueError, struct.error, IndexError) as e:
+        raise ScriptNotRestored('%s is not in the format this tool reads (%s)' % (compiled, e))
+    ok, details['pjass'] = _pjass_check(body_text, details['clashes'])
+    log(
+        'script restored (%s): %d instructions, %d functions; pjass %s'
+        % (kind, details['instructions'], details['functions'], details['pjass'])
+    )
+    if not ok:
+        raise ScriptNotRestored(
+            'the script came back, but the Reforged compiler (pjass) rejects it: %s' % details['pjass']
+        )
+    new = body_text.encode('utf-8', 'surrogateescape')
+    shutil.copyfile(entry, output)
+    no_slot = []
+    mpqadd.add_files(output, [(j_name, new)], to_delete=[compiled], log=log, no_slot=no_slot)
+    s = mpqread.Archive(output)
+    if no_slot or s.read(j_name) != new or s.find(compiled):
+        raise ScriptNotRestored('the new %s could not be written into the map' % j_name)
+    details.update({'kind': kind, 'file_name': compiled, 'bytes': len(new)})
+    return details
 
 
 EDITOR_FILE_NAMES = ('war3map.w3i', 'war3map.w3r', 'war3map.w3c', 'war3map.w3s', 'war3mapUnits.doo', 'war3map.doo',
@@ -404,6 +589,11 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
     details['bom'] = body_text.startswith('\xef\xbb\xbf')
     if details['bom']:
         body_text = body_text[3:]
+    default_value, details['n_players'] = None, None
+    if not is_lua:
+        body_text, default_value, details['n_players'] = to_standard_script(body_text, b_w3i, log,
+                                                         a.read('war3map.doo') if a.find('war3map.doo') else None)
+        details['optimizer'] = default_value
     expected_len = body_text
     counts = inflated_counts.analyze_map(a)
     broken = dict((x['file_name'], x) for x in counts)
@@ -542,8 +732,19 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
             editor_file_set[n] = data_bytes
     lua_error = None
     fit_wtg = None
-    restoration = restore_triggers(raw_bytes[3:] if details['bom'] else raw_bytes, is_lua, log,
-                                   editor_file_set) if trigger_list else None
+    def read_file(fname):
+        data_bytes = replacements.get(fname, new_ones.get(fname))
+        return data_bytes if data_bytes is not None else (a.read(fname) if a.find(fname) else None)
+
+    restoration = (
+        restore_triggers(raw_bytes[3:] if details['bom'] else raw_bytes, is_lua, log, editor_file_set)
+        if (trigger_list and is_lua)
+        else restore_triggers(
+            body_text.encode('latin-1'), is_lua, log, editor_file_set, details['n_players'], default_value, read_file
+        )
+        if trigger_list
+        else None
+    )
     restored = restoration is not None and restoration[0].get('used', False)
     if restoration is not None:
         details['restoration'] = restoration[0]
@@ -640,6 +841,21 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
     if not a.find('war3map.imp'):
         new_ones['war3map.imp'] = imp(imported)
         missing_items.append('war3map.imp')
+    else:
+        b_imp = a.read('war3map.imp') or b''
+        try:
+            outside = missing_from_imp(b_imp, imported)
+            new_imp = imp_with(b_imp, outside) if outside else None
+        except Exception as e:
+            log('war3map.imp: %s' % e)
+            outside, new_imp = list(imported), imp(imported)
+        if new_imp is not None:
+            replacements['war3map.imp'] = new_imp
+            details['imp_added'] = len(outside)
+    try:
+        details['unnamed'] = unnamed(a, name_list)
+    except Exception as e:
+        log('unnamed: %s' % e)
     if trigger_list and not is_lua:
         extra, changed = enable_jasshelper(a.read('war3mapExtra.txt') if a.find('war3mapExtra.txt') else b'')
         if changed:

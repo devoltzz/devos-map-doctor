@@ -1,4 +1,4 @@
-# Recognizes the encrypted script loader of the KK platform.
+# Reads the bytecode of a map script compiled by KKWE, and recognizes the loader of an encrypted map.
 import array
 import struct
 import sys
@@ -18,6 +18,9 @@ OP = {v: k for k, v in OPS.items()}
 TYPES = {0: 'nothing', 2: 'null', 3: 'code', 4: 'integer', 5: 'real', 6: 'string', 7: 'handle', 8: 'boolean',
          9: 'integer array', 10: 'real array', 11: 'string array', 12: 'handle array', 13: 'boolean array'}
 TYPE_CODE = {'nothing': 0, 'null': 2, 'code': 3, 'integer': 4, 'real': 5, 'string': 6, 'handle': 7, 'boolean': 8}
+WITH_NAME = {3, 5, 6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 21, 22}
+
+
 def read_container(data_bytes):
     if not data_bytes.startswith(MARK):
         raise ValueError('not a kkmap.jc (missing the marker %r)' % MARK)
@@ -45,8 +48,12 @@ def read_container(data_bytes):
     return bytes(output[:decomp_size])
 
 
+SOURCE_ORDER, REVERSE_ORDER = 'source', 'reverse'
+
+
 class Bytecode(object):
-    def __init__(self, payload):
+    def __init__(self, payload, order=SOURCE_ORDER):
+        self.order = order
         rest, dw = struct.unpack_from('<II', payload, 0)
         if rest + 4 != len(payload) or dw % 2:
             raise ValueError('bytecode: header %d/%d does not add up to %d B' % (rest, dw, len(payload)))
