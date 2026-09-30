@@ -19,9 +19,10 @@ Open a map (or drag it onto the exe) and click one of the buttons:
    trigger editor (events, conditions and actions you can click), grouped by what fires them; a trigger goes back as
    GUI only when writing it back to script gives exactly the code the map had, otherwise it stays as custom text with
    its original code. The rest of the script goes into the custom script, and the map is saved with JassHelper turned
-   on (the World Editor needs it to build the script again). Works with JASS and Lua maps, and with scripts whose
-   names an obfuscator replaced. The units, items, regions and cameras the script creates are placed in the map too,
-   so the editor shows them.
+   on (the World Editor needs it to build the script again). Works with JASS and Lua maps, with scripts whose names an
+   obfuscator replaced, and with scripts a map optimizer squeezed into `main`. The units, items, regions, cameras and
+   sounds the script creates are placed in the map too, so the editor shows them, and the script the editor writes
+   when you save is checked to compile and to run the map's own code.
 
 Your original map is never changed.
 
