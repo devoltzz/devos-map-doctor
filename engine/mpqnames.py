@@ -174,6 +174,7 @@ RE_PATH_B = re.compile(
     rb'[A-Za-z0-9_\-\\/\.\[\(!#$%&@^~{=][A-Za-z0-9_\-\\/\. \[\]\(\)\+!#$%&@^~{}=]{0,180}?\.' + _EXTENSIONS_B,
     re.I)
 RE_EXTENSION_B = re.compile(rb'\.' + _EXTENSIONS_B, re.I)
+RE_NUL_VALUE_B = re.compile(rb'(?<=\x00)[\x20-\x7e]{1,200}\.' + _EXTENSIONS_B + rb'(?=\x00)', re.I)
 PATH_REACH = 181
 PATH_EXT_MAX = 3
 
@@ -212,6 +213,8 @@ def mine_bytes(data_bytes):
     out = set()
     if data_bytes[:4] == b'MDLX':
         out |= mdx_textures(data_bytes)
+    if b'\x00' in data_bytes:
+        out.update(m.group(0).decode('latin-1').replace('/', '\\') for m in RE_NUL_VALUE_B.finditer(data_bytes))
     for m in _paths(data_bytes):
         s = m.group(0).decode('latin-1', 'replace').replace('/', '\\').strip()
         s = s.strip('"\' \t\r\n\x00')
