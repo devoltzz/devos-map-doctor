@@ -22,9 +22,10 @@ CALLBACK_FORMS = {'ForGroup': 'ForGroupMultiple', 'ForForce': 'ForForceMultiple'
                   'EnumItemsInRectBJ': 'EnumItemsInRectBJMultiple'}
 LOOP_FORMS = {'A': ('ForLoopA', 'ForLoopAMultiple'), 'B': ('ForLoopB', 'ForLoopBMultiple'),
               'Var': ('ForLoopVar', 'ForLoopVarMultiple')}
-ONE_LINE_DEFAULT = {'ForLoopA': True, 'ForLoopB': False, 'ForLoopVar': False, 'ForGroup': True, 'ForForce': False,
-                    'EnumDestructablesInRectAll': True, 'EnumDestructablesInCircleBJ': False,
-                    'EnumItemsInRectBJ': True}
+MULTIPLE_TO_ONE = dict((m, o) for o, m in list(CALLBACK_FORMS.items()) + list(LOOP_FORMS.values()))
+ONE_LINE_DEFAULT = {'ForLoopA': False, 'ForLoopB': False, 'ForLoopVar': False, 'ForGroup': False, 'ForForce': False,
+                    'EnumDestructablesInRectAll': False, 'EnumDestructablesInCircleBJ': False,
+                    'EnumItemsInRectBJ': False}
 LITERAL_TYPES = frozenset(('abilityuiyesnooption', 'disabledenabledoption', 'hideshowoption'))
 PRESET_PREFERENCE = {('unitorderptarg', '"rainoffire"'): 'UnitOrderRainOfFire',
                      ('unitorderutarg', '"darkconversion"'): 'UnitOrderDarkConversionFast',
@@ -187,6 +188,8 @@ def _editor_unescape(text):
     if text[:1] != '"' or text[-1:] != '"' or len(text) < 2:
         return None
     body = text[1:-1]
+    if '\n' in body or '\r' in body:
+        return None
     if '\\' not in body:
         return body
     out, i = [], 0
@@ -194,9 +197,9 @@ def _editor_unescape(text):
         c = body[i]
         if c == '\\':
             nxt = body[i + 1:i + 2]
-            if nxt not in ('\\', '"'):
+            if nxt not in ('\\', '"', 'n'):
                 return None
-            out.append(nxt)
+            out.append('\n' if nxt == 'n' else nxt)
             i += 2
             continue
         out.append(c)
@@ -349,6 +352,17 @@ class _Matcher(object):
         if self.prefix and name and name.startswith(self.prefix) and RX_EDITOR_HELPER.match(name[len(self.prefix):]):
             return 'digits' if name[-1].isdigit() else name[-1]
         return None
+
+    def one_line(self, a):
+        if a.name not in self.td.multiple:
+            return a
+        one = MULTIPLE_TO_ONE.get(a.name)
+        child = self.one_line(a.children[0]) if one in self.td.actions and len(a.children) == 1 else None
+        if child is None:
+            return None
+        inner = wtg.Function(child.kind, child.name, child.enabled, child.params, None, child.children)
+        return wtg.Function(a.kind, one, a.enabled, list(a.params) + [wtg.Parameter(FUNCTION, 'DoNothing',
+                                                                                    function=inner)])
 
     def var_type(self, name):
         t = self.types.get(name)
@@ -590,10 +604,11 @@ class _Matcher(object):
         if f is None:
             return None
         acts = self.actions(f.body)
-        if len(acts) != 1 or acts[0].name in self.td.multiple:
+        single = self.one_line(acts[0]) if len(acts) == 1 else None
+        if single is None:
             self.reset(m)
             return None
-        return wtg.Parameter(FUNCTION, 'DoNothing', function=acts[0])
+        return wtg.Parameter(FUNCTION, 'DoNothing', function=single)
 
     def condition_helper(self, name):
         m = self.mark()
@@ -843,7 +858,7 @@ class _Matcher(object):
         elif hint == 'digits':
             first = one + multi
         else:
-            default = ONE_LINE_DEFAULT.get(one[0].name if one else '', True)
+            default = ONE_LINE_DEFAULT.get(one[0].name if one else '', False)
             first = one + multi if default else multi + one
         return first + rest
 
@@ -1008,8 +1023,8 @@ class _Matcher(object):
                 'IfThenElse' in self.td.actions):
             c = self.condition(body[0].values[0])
             if c is not None:
-                sides = [self.actions(s.branches[0][1]), self.actions(s.branches[1][1])]
-                if all(len(x) <= 1 and not (x and x[0].name in self.td.multiple) for x in sides):
+                sides = [[self.one_line(a) for a in self.actions(b)] for _c, b in s.branches]
+                if all(len(x) <= 1 and None not in x for x in sides):
                     params = [wtg.Parameter(FUNCTION, 'DoNothing', function=x[0] if x else wtg.Function(
                         ACTION, 'CommentString', 1, [wtg.Parameter(LITERAL, '')])) for x in sides]
                     return wtg.Function(ACTION, 'IfThenElse', 1, [wtg.Parameter(FUNCTION, '', function=c)] + params)
