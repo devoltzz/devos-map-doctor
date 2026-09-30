@@ -1,6 +1,28 @@
 # Reads and rewrites the object data files of a map (war3map.w3u, .w3t, .w3a...).
+import importlib.util
+import os
 import struct
+import sys
 
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SCRIPTS = HERE
+
+
+def common_module(fname):
+    hash_key = '_kk_' + fname
+    mod = sys.modules.get(hash_key)
+    if mod is None and getattr(sys, 'frozen', False) and not os.path.isfile(os.path.join(SCRIPTS, fname + '.py')):
+        mod = sys.modules[hash_key] = importlib.import_module(fname)
+    if mod is None:
+        spec = importlib.util.spec_from_file_location(hash_key, os.path.join(SCRIPTS, fname + '.py'))
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[hash_key] = mod
+        spec.loader.exec_module(mod)
+    return mod
+
+
+slk = common_module('slk')
 
 VERSIONS = (1, 2)
 
