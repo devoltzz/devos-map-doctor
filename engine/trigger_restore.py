@@ -256,7 +256,18 @@ def _structure_body(f):
     return '\n'.join(lines[1:-1]) + '\n' if len(lines) > 2 else ''
 
 
-def _skeleton_by_structure(src):
+RX_CREATE_TRIGGER = re.compile(r'^\s*set\s+(\w+)\s*=\s*CreateTrigger\s*\(\s*\)', re.M)
+NO_SKELETON = 'no editor skeleton: no InitCustomTriggers by name or by structure'
+
+
+def _creates_trigger(body, triggers):
+    m = RX_CREATE_TRIGGER.search(body)
+    if m and m.group(1) in triggers and ('TriggerAddAction' in body or 'TriggerAddCondition' in body):
+        return m.group(1)
+    return None
+
+
+def _skeleton_by_structure(src, extras=()):
     sk = {'by': 'structure', 'reason': '', 'renames': {}}
     if src.lang != JASS:
         sk['reason'] = 'no editor skeleton: no InitCustomTriggers (the search by structure is for JASS)'
@@ -268,10 +279,11 @@ def _skeleton_by_structure(src):
     triggers = set(n for n, d in src.globals.items() if d.type == 'trigger' and not d.is_array)
     init_like = collections.OrderedDict()
     for n, body in funcs.items():
-        m = re.search(r'^\s*set\s+(\w+)\s*=\s*CreateTrigger\s*\(\s*\)', body, re.M)
-        if m and m.group(1) in triggers and ('TriggerAddAction' in body or 'TriggerAddCondition' in body):
-            init_like[n] = m.group(1)
+        t = _creates_trigger(body, triggers)
+        if t:
+            init_like[n] = t
     main_calls = re.findall(r'call\s+(\w+)\s*\(', funcs['main'])
+    inits = set(init_like) | set(extras)
 
     def only(body, test):
         lines = [x.strip() for x in body.split('\n') if x.strip() and not x.strip().startswith('//')]
@@ -279,9 +291,9 @@ def _skeleton_by_structure(src):
 
     ict = next((n for n, body in funcs.items() if n in main_calls and only(
         body, lambda x: re.match(r'call\s+(\w+)\s*\(\s*\)$', x) and
-        re.match(r'call\s+(\w+)', x).group(1) in init_like)), None)
+        re.match(r'call\s+(\w+)', x).group(1) in inits)), None)
     if ict is None:
-        sk['reason'] = 'no editor skeleton: no InitCustomTriggers by name or by structure'
+        sk['reason'] = NO_SKELETON
         return sk
     rit = next((n for n, body in funcs.items() if n in main_calls and n != ict and only(
         body, lambda x: re.match(r'call\s+ConditionalTriggerExecute\s*\(\s*\w+\s*\)$', x))), None)
@@ -290,10 +302,11 @@ def _skeleton_by_structure(src):
         if x not in called:
             called.append(x)
     ren = {}
-    order = [x for x in called if x in init_like] + [x for x in init_like if x not in called]
+    order = [x for x in called if x in inits] + [x for x in init_like if x not in called]
     for k, f in enumerate(order, 1):
         ren[f] = 'InitTrig_T%03d' % k
-        ren[init_like[f]] = 'gg_trg_T%03d' % k
+        if f in init_like:
+            ren[init_like[f]] = 'gg_trg_T%03d' % k
     ren[ict] = ICT
     if rit:
         ren[rit] = RIT
@@ -327,18 +340,505 @@ def _skeleton_by_structure(src):
         sk['reason'] = 'the editor names %s already exist in the script' % ', '.join(clash[:3])
         return sk
     sk['renames'] = ren
-    sk['triggers'] = [ren[f] for f in called if f in init_like]
+    sk['triggers'] = [ren[f] for f in called if f in inits]
     sk['init_custom_triggers'] = ICT
     sk['run_initialization_triggers'] = RIT if rit else None
     sk['init_globals'] = 'InitGlobals' if 'InitGlobals' in ren.values() else None
     return sk
 
 
+RX_RENAME = re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"|\'[^\'\\]*(?:\\.[^\'\\]*)*\'|//[^\r\n]*|\$[0-9A-Fa-f]+|'
+                       r'0[xX][0-9A-Fa-f]+|[0-9]+\.[0-9]*|\.[0-9]+|[0-9]+|[A-Za-z_][A-Za-z0-9_]*|[(),]', re.S)
+RX_ARGUMENT_END = re.compile(r'[ \t]*[,)]')
+NAME_ARGUMENTS = {'ExecuteFunc': 0, 'TriggerRegisterVariableEvent': 1}
+
+
 def _rename(text, renames):
     if not renames:
         return text
-    rx = re.compile(r'\b(' + '|'.join(sorted(map(re.escape, renames), key=len, reverse=True)) + r')\b')
-    return rx.sub(lambda m: renames[m.group(1)], text)
+    out, pos, calls, prev = [], 0, [], ''
+    for m in RX_RENAME.finditer(text):
+        tok = m.group(0)
+        c = tok[0]
+        new = None
+        if c == '(':
+            calls.append([prev, 0])
+        elif c == ',':
+            if calls:
+                calls[-1][1] += 1
+        elif c == ')':
+            if calls:
+                calls.pop()
+        elif c == '"':
+            if (calls and NAME_ARGUMENTS.get(calls[-1][0]) == calls[-1][1] and tok[1:-1] in renames and
+                    prev in ('(', ',') and RX_ARGUMENT_END.match(text, m.end())):
+                new = '"%s"' % renames[tok[1:-1]]
+        elif c.isalpha() or c == '_':
+            new = renames.get(tok)
+        if new is not None:
+            out.append(text[pos:m.start()])
+            out.append(new)
+            pos = m.end()
+        prev = tok
+    out.append(text[pos:])
+    return ''.join(out)
+
+
+TRIGGER_SETUP = re.compile(r'^(?:TriggerRegister\w+|BlzTriggerRegister\w+|TriggerAddCondition|TriggerAddAction'
+                           r'|DisableTrigger)$')
+
+
+def _plain(e):
+    while type(e) is jass_ast.Paren:
+        e = e.inner
+    return e
+
+
+def _is_create(s):
+    if type(s) is jass_ast.SetStmt and type(s.target) is jass_ast.Name:
+        v = _plain(s.value)
+        if type(v) is jass_ast.Call and v.name == 'CreateTrigger' and not v.args:
+            return s.target.name
+    return None
+
+
+def _editor_handler(call):
+    if len(call.args) != 2:
+        return False
+    h = _plain(call.args[1])
+    if call.name == 'TriggerAddAction':
+        return type(h) is jass_ast.FuncRef
+    return (type(h) is jass_ast.Call and h.name in ('Condition', 'Filter') and len(h.args) == 1 and
+            type(_plain(h.args[0])) is jass_ast.FuncRef)
+
+
+def _touch(s, names):
+    used = frozenset(x.name for x in jass_ast.walk(s) if type(x) is jass_ast.Name and x.name in names)
+    if used and type(s) is jass_ast.SetStmt and type(s.target) is jass_ast.Name and s.target.name in used and \
+            not any(type(x) is jass_ast.Name and x.name == s.target.name for x in jass_ast.walk(s.value)):
+        return used, s.target.name
+    return used, None
+
+
+def _read_first(touches):
+    seen, bad = set(), set()
+    for used, assigned in touches:
+        new = used - seen
+        if new:
+            bad |= new - {assigned}
+            seen |= new
+    return bad
+
+
+def _literal_decl(d):
+    v = None if d.initializer is None else _plain(d.initializer)
+    if type(v) is jass_ast.Unary and v.op in '-+':
+        v = _plain(v.operand)
+    return v is None or type(v) is jass_ast.Literal
+
+
+def _returns(stmts):
+    return any(type(x) is jass_ast.ReturnStmt for s in stmts for x in jass_ast.walk(s))
+
+
+def _wrapper_names(src, firsts, idents):
+    taken = set(src.functions) | set(src.globals)
+    out = []
+    for s in firsts:
+        base = gui_render.trigger_identifier(s.call.name if type(s) is jass_ast.CallStmt else 'Init')
+        ident, k = base, 1
+        while ident in idents or 'InitTrig_' + ident in taken or 'gg_trg_' + ident in taken:
+            k += 1
+            ident = '%s_%d' % (base, k)
+        idents.add(ident)
+        out.append(ident)
+    return out
+
+
+def _declared(src, text, wanted):
+    edits = []
+    for x, nxt, last in wanted:
+        d = src.globals.get(nxt) if nxt else None
+        at = d.start if d is not None else (src.globals[last].end if last in src.globals else None)
+        if at is not None:
+            edits.append((at, x))
+    for _k, (at, x) in sorted(enumerate(edits), key=lambda e: (e[1][0], e[0]), reverse=True):
+        text = text[:at] + '    trigger gg_trg_%s = null\n' % x + text[at:]
+    return text, ['gg_trg_' + x for _a, x in edits]
+
+
+def _inlined_setup(src):
+    main = src.functions.get('main')
+    if src.lang != JASS or main is None or not main.node.body or main.node.params:
+        return None, ''
+    node, text, starts = main.node, src.text, src.starts
+    body = [s for s in node.body if type(s) is not jass_ast.CommentStmt]
+    n = len(body)
+    triggers = set(x for x, d in src.globals.items() if d.type == 'trigger' and not d.is_array)
+    ours = set(x for x in triggers if not x.startswith('bj_'))
+    locs = collections.OrderedDict((d.name, d) for d in node.locals)
+
+    def on(s):
+        if type(s) is jass_ast.CallStmt and TRIGGER_SETUP.match(s.call.name) and s.call.args and \
+                type(s.call.args[0]) is jass_ast.Name:
+            return s.call.args[0].name
+        return None
+
+    def extent(c, t, limit):
+        regs = [k for k in range(c + 1, limit) if on(body[k]) == t]
+        ok = any(body[k].call.name in ('TriggerAddAction', 'TriggerAddCondition') and _editor_handler(body[k].call)
+                 for k in regs)
+        return (regs[-1] + 1 if regs else c + 1), ok
+
+    made = [(k, _is_create(s)) for k, s in enumerate(body)]
+    made = [(k, t) for k, t in made if t in ours]
+    blocks = []
+    for i, (c, t) in enumerate(made):
+        e, ok = extent(c, t, made[i + 1][0] if i + 1 < len(made) else n)
+        if ok:
+            blocks.append([c, e, t])
+    if not blocks:
+        return None, ''
+    for i, b in enumerate(blocks):
+        b[1] = extent(b[0], b[2], blocks[i + 1][0] if i + 1 < len(blocks) else n)[0]
+    twice = [t for t, k in collections.Counter(b[2] for b in blocks).items() if k > 1]
+    if twice:
+        return None, 'main creates the trigger %s twice' % twice[0]
+    touches = [_touch(s, locs) for s in body]
+    creates = [any(_is_create(x) for x in jass_ast.walk(s) if type(x) is jass_ast.SetStmt) for s in body]
+
+    def reads(a, b):
+        return _read_first(touches[a:b])
+
+    def called(k):
+        s = body[k]
+        if type(s) is not jass_ast.CallStmt or s.call.args or s.call.name in ('main', 'config'):
+            return None
+        f = src.functions.get(s.call.name)
+        return None if f is None else _creates_trigger(_structure_body(f), triggers)
+
+    def head(c, e, lo):
+        for a in range(c, lo - 1, -1):
+            if a < c and creates[a]:
+                return None
+            if not reads(a, e):
+                return a
+        return None
+
+    def initializers(s, lo, e, prev):
+        while s > lo and touches[s - 1][1] and not creates[s - 1] and not reads(s - 1, e) and \
+                not any(touches[s - 1][1] in touches[k][0] for k in range(prev, s - 1)):
+            s -= 1
+        return s
+
+    def tail(a, e, limit):
+        seen = set()
+        for k in range(a, limit):
+            used, assigned = touches[k]
+            new = used - seen
+            if new - {assigned} and k >= e:
+                return k
+            seen |= new
+        return limit
+
+    def between(x, y):
+        out = []
+        for k in range(x, y):
+            t = called(k)
+            if t:
+                out.append(('call', k, k + 1, t))
+            elif out and out[-1][0] == 'wrap' and out[-1][2] == k:
+                out[-1] = ('wrap', out[-1][1], k + 1, None)
+            else:
+                out.append(('wrap', k, k + 1, None))
+        return out
+
+    entries, why = [], 'the setup inlined into main reads a local of main before setting it: %s'
+    c, e, t = blocks[0]
+    a = head(c, e, 0)
+    if a is None:
+        return None, why % ', '.join(sorted(reads(c, e)))
+    a = start = initializers(a, 0, e, 0)
+    while start > 0 and called(start - 1):
+        start -= 1
+    entries.extend(('call', k, k + 1, called(k)) for k in range(start, a))
+    for (c, e, t), (c2, e2, _t) in zip(blocks, blocks[1:]):
+        low = max([e] + [k + 1 for k in range(e, c2) if creates[k]])
+        s = next((x for x in range(min(tail(a, e, c2), c2), low - 1, -1) if not reads(x, e2)), None)
+        if s is None:
+            return None, why % ', '.join(sorted(reads(e, e2)))
+        s = initializers(s, low, e2, a)
+        last = max([k + 1 for k in range(e, s) if touches[k][0]] + [e])
+        first = min([k for k in range(s, c2) if touches[k][0]] + [c2])
+        entries.append(('group', a, last, t))
+        entries.extend(between(last, first))
+        a = first
+    c, e, t = blocks[-1]
+
+    def cte(k):
+        s = body[k]
+        if type(s) is jass_ast.CallStmt and s.call.name == 'ConditionalTriggerExecute' and len(s.call.args) == 1 and \
+                type(s.call.args[0]) is jass_ast.Name:
+            return s.call.args[0].name
+        return None
+
+    q = next((k for k in range(e, n) if cte(k)), None)
+    rit = []
+    if q is not None:
+        last = max([k + 1 for k in range(e, q) if touches[k][0]] + [e])
+        done = set(x[3] for x in entries if x[3]) | {t} | set(called(k) for k in range(last, q) if called(k))
+        if tail(a, e, last) == last and cte(q) in done:
+            entries.append(('group', a, last, t))
+            entries.extend(between(last, q))
+            end = after = q
+            while after < n and cte(after) in done:
+                after += 1
+            rit = list(range(q, after))
+        else:
+            q = None
+    if q is None:
+        entries.append(('group', a, e, t))
+        end = e
+        while end < n and called(end):
+            end += 1
+        entries.extend(('call', k, k + 1, called(k)) for k in range(e, end))
+        after = end
+    if _returns(body[start:end]):
+        return None, 'main returns inside the trigger setup inlined into it'
+    groups = [x for x in entries if x[0] == 'group']
+    used = [set().union(*[touches[k][0] for k in range(g[1], g[2])]) for g in groups]
+    moved = set().union(*used)
+    bad = [x for x in moved if locs[x].is_array or not _literal_decl(locs[x])]
+    if bad:
+        return None, 'the setup inlined into main uses its local %s, which cannot move (%s)' % (
+            bad[0], 'an array' if locs[bad[0]].is_array else 'set by a call at the start of main')
+    bad = _read_first(touches[after:]) & moved
+    if bad:
+        return None, 'main reads its local %s after the setup inlined into it, which set it' % sorted(bad)[0]
+    in_main = set().union(*[touches[k][0] for k in list(range(start)) + list(range(after, n))])
+    wraps = [x for x in entries if x[0] == 'wrap']
+    idents = [re.match(r'gg_trg_(\w+)$', g[3]) for g in groups]
+    taken = set(src.functions) | set(src.globals)
+    by = 'name'
+    if (None not in idents and all(_identifier_ok(m.group(1), m.group(1)) for m in idents) and
+            all(body[x[1]].call.name.startswith('InitTrig_') for x in entries if x[0] == 'call')):
+        names = ['InitTrig_' + m.group(1) for m in idents]
+        known = set(m.group(1) for m in idents) | set(body[x[1]].call.name[9:] for x in entries if x[0] == 'call')
+        wrap_names = ['InitTrig_' + x for x in _wrapper_names(src, [body[w[1]] for w in wraps], known)]
+        ict, rit_name = ICT, (RIT if rit else None)
+        if len(set(names)) < len(names) or (set(names) | {ict, rit_name}) & taken:
+            by = 'structure'
+    else:
+        by = 'structure'
+    if by == 'structure':
+        names = ['devo_it%03d' % k for k in range(1, len(groups) + 1)]
+        wrap_names = ['devo_ix%03d' % k for k in range(1, len(wraps) + 1)]
+        ict, rit_name = 'devo_ict', ('devo_rit' if rit else None)
+        clash = sorted((set(names) | set(wrap_names) | {ict, rit_name}) & taken)
+        if clash:
+            return None, 'the script already has %s' % clash[0]
+
+    def off(k):
+        return starts[(body[k].line if k < n else node.end_line) - 1]
+
+    decl = {}
+    for d in node.locals:
+        a0, b0 = _line_span(starts, text, d.line, d.line + (
+            0 if d.initializer is None else jass_ast.unparse(d.initializer).count('\n')))
+        decl[d.name] = (a0, b0)
+    gi, wi, ui = iter(names), iter(wrap_names), iter(used)
+    functions, calls, wanted = [], [], []
+    for i, (kind, a0, b0, t) in enumerate(entries):
+        if kind == 'call':
+            calls.append(body[a0].call.name)
+            continue
+        name = next(gi) if kind == 'group' else next(wi)
+        u = next(ui) if kind == 'group' else ()
+        calls.append(name)
+        functions.append('function %s takes nothing returns nothing\n%s%sendfunction\n' % (
+            name, ''.join(text[decl[x][0]:decl[x][1]] for x in locs if x in u), text[off(a0):off(b0)]))
+        if kind == 'wrap' and by == 'name':
+            nxt = next((x[3] for x in entries[i + 1:] if x[3]), None)
+            wanted.append((name[9:], nxt, next((x[3] for x in reversed(entries[:i]) if x[3]), None)))
+    functions.append('function %s takes nothing returns nothing\n%sendfunction\n' % (
+        ict, ''.join('    call %s()\n' % x for x in calls)))
+    if rit:
+        functions.append('function %s takes nothing returns nothing\n%sendfunction\n' % (
+            rit_name, ''.join('    call ConditionalTriggerExecute(%s)\n' % cte(k) for k in rit)))
+    top_line = node.body[0].line
+    only_moved = [decl[x] for x in moved - in_main]
+    top = _remove_spans(text[main.start:starts[top_line - 1]], [(a0 - main.start, b0 - main.start)
+                                                                 for a0, b0 in only_moved])
+    new_main = (top + text[starts[top_line - 1]:off(start)] + '    call %s()\n' % ict +
+                ('    call %s()\n' % rit_name if rit else '') + text[off(after):off(n)] + text[off(n):main.end])
+    head_text, added = _declared(src, text[:main.lead], wanted)
+    new = head_text + '\n'.join(functions) + '\n' + text[main.lead:main.start] + new_main + text[main.end:]
+    extras = sum(1 for (kind, a0, b0, t) in groups
+                 if any(_is_create(body[k]) != t and on(body[k]) != t for k in range(a0, b0)))
+    info = {'host': 'main', 'proof': 'main_inlined', 'by': by, 'triggers': len(entries),
+            'calls': sum(1 for x in entries if x[0] == 'call'), 'wrappers': wrap_names, 'with_extras': extras,
+            'locals': sorted(moved), 'rit': len(rit), 'text': new, 'ict': ict, 'rit_name': rit_name,
+            'new': names + wrap_names + [ict] + ([rit_name] if rit else []), 'added_globals': added,
+            'original': src}
+    return new, info
+
+
+def _init_extras(src):
+    f = src.functions.get(ICT)
+    if src.lang != JASS or f is None or f.node.params:
+        return None, ''
+    node, text, starts = f.node, src.text, src.starts
+    body = [s for s in node.body if type(s) is not jass_ast.CommentStmt]
+    seen, entries = [], []
+    for k, s in enumerate(body):
+        name = s.call.name if type(s) is jass_ast.CallStmt and not s.call.args else None
+        if name and name.startswith('InitTrig_') and name in src.functions and name not in seen:
+            seen.append(name)
+            entries.append(('call', k, k + 1, 'gg_trg_' + name[9:]))
+        elif entries and entries[-1][0] == 'wrap' and entries[-1][2] == k:
+            entries[-1] = ('wrap', entries[-1][1], k + 1, None)
+        else:
+            entries.append(('wrap', k, k + 1, None))
+    wraps = [x for x in entries if x[0] == 'wrap']
+    if not wraps or not seen:
+        return None, ''
+    if node.locals:
+        return None, 'InitCustomTriggers has locals'
+    if _returns(body):
+        return None, 'InitCustomTriggers returns early'
+    known = set(x[9:] for x in seen) | set(x[7:] for x in src.globals if x.startswith('gg_trg_'))
+    wrap_names = ['InitTrig_' + x for x in _wrapper_names(src, [body[w[1]] for w in wraps], known)]
+
+    def off(k):
+        return starts[(body[k].line if k < len(body) else node.end_line) - 1]
+
+    functions, wanted, parts, pos = [], [], [], f.start
+    wi = iter(wrap_names)
+    for i, (kind, a0, b0, t) in enumerate(entries):
+        if kind != 'wrap':
+            continue
+        name = next(wi)
+        functions.append('function %s takes nothing returns nothing\n%sendfunction\n' % (name, text[off(a0):off(b0)]))
+        parts.extend([text[pos:off(a0)], '    call %s()\n' % name])
+        pos = off(b0)
+        wanted.append((name[9:], next((x[3] for x in entries[i + 1:] if x[3]), None),
+                       next((x[3] for x in reversed(entries[:i]) if x[3]), None)))
+    parts.append(text[pos:f.end])
+    head_text, added = _declared(src, text[:f.lead], wanted)
+    new = head_text + '\n'.join(functions) + '\n' + text[f.lead:f.start] + ''.join(parts) + text[f.end:]
+    info = {'host': ICT, 'proof': 'ict_extras', 'by': 'name', 'triggers': len(wraps), 'calls': len(seen),
+            'wrappers': wrap_names, 'with_extras': 0, 'locals': [], 'rit': 0, 'text': new,
+            'moved': [jass_ast.unparse(body[k], comments=False).strip()[:60] for w in wraps for k in range(w[1], w[2])],
+            'new': wrap_names, 'added_globals': added, 'original': src}
+    return new, info
+
+
+def _rebuilt_proof(info):
+    orig, new, host = info['original'], info['source'], info['host']
+    added = set(info['new'])
+    problems = []
+
+    def stmts(name):
+        return [s for s in new.functions[name].node.body if type(s) is not jass_ast.CommentStmt]
+
+    def inline(ss):
+        out = []
+        for s in ss:
+            name = s.call.name if type(s) is jass_ast.CallStmt and not s.call.args else None
+            out.extend(inline(stmts(name)) if name in added else [s])
+        return out
+
+    back = inline(stmts(host))
+    a = '\n'.join(jass_ast.canonical(s) for s in back)
+    b = '\n'.join(jass_ast.canonical(s) for s in orig.functions[host].node.body
+                  if type(s) is not jass_ast.CommentStmt)
+    if a != b:
+        problems.append('%s inlined back differs: %s' % (host, _first_difference(a, b)))
+
+    def decls(name):
+        return dict((d.name, jass_ast.canonical(jass_ast.unparse(d, comments=False)))
+                    for d in new.functions[name].node.locals)
+
+    old = dict((d.name, jass_ast.canonical(jass_ast.unparse(d, comments=False)))
+               for d in orig.functions[host].node.locals)
+    mine = decls(host)
+    seen, shared = set(mine), set()
+    for g in sorted(added):
+        mg = decls(g)
+        seen |= set(mg)
+        shared |= set(mg) & set(mine)
+        if any(old.get(x) != v for x, v in mg.items()):
+            problems.append('%s declares a local %s does not have' % (g, host))
+        bad = _read_first([_touch(s, mg) for s in stmts(g)])
+        if bad:
+            problems.append('%s reads its local %s before setting it' % (g, sorted(bad)[0]))
+    if any(old.get(x) != v for x, v in mine.items()) or seen != set(old):
+        problems.append('the locals of %s are not the original ones' % host)
+    body = stmts(host)
+    k = next((i for i, s in enumerate(body) if type(s) is jass_ast.CallStmt and s.call.name in added), len(body))
+    bad = _read_first([_touch(s, shared) for s in body[k + 1:]])
+    if bad:
+        problems.append('%s reads %s after the moved code, which set it' % (host, sorted(bad)[0]))
+    if set(new.functions) - set(orig.functions) != added:
+        problems.append('functions added: %s' % ', '.join(sorted(set(new.functions) - set(orig.functions))[:3]))
+    changed = [f for f, x in orig.texts.items() if f != host and new.texts.get(f) != x]
+    if changed:
+        problems.append('functions changed: %s' % ', '.join(changed[:3]))
+    extra = set(info['added_globals'])
+    if [(x, d.text) for x, d in orig.globals.items()] != [(x, d.text) for x, d in new.globals.items()
+                                                          if x not in extra]:
+        problems.append('the globals changed')
+    ok, pj = _pjass_proof(new.text, orig.text)
+    if not ok:
+        problems.append('pjass: %s' % pj)
+    if problems:
+        return False, '%d differences: %s' % (len(problems), '; '.join(problems[:3]))
+    return True, ('%s with the %d rebuilt triggers put back inline equals the original (%d statements)%s; pjass %s' % (
+        host, info['triggers'], len(back), ', %d locals moved (%s)' % (len(info['locals']), ', '.join(
+            info['locals'][:5])) if info['locals'] else '', pj))
+
+
+def _rebuilt_restore(res, info, init_per_trigger):
+    res.proofs[info['proof']] = _rebuilt_proof(info)
+    res.report['rebuilt'] = dict((k, len(info[k]) if k == 'wrappers' else info[k]) for k in (
+        'host', 'by', 'triggers', 'calls', 'wrappers', 'with_extras', 'locals', 'rit') + (
+        ('moved',) if 'moved' in info else ()))
+    return info['source'].text, info['source'], init_per_trigger and info['host'] != 'main'
+
+
+def _rebuilt(sk, src, rebuild, what):
+    text, info = rebuild(src)
+    if text is None:
+        if info:
+            sk['reason'] += '; %s' % info
+        return sk, src
+    new = _Source(text, JASS)
+    ren = {}
+    if info['by'] == 'name':
+        sk2 = _skeleton_by_name(new) or {'reason': 'no InitCustomTriggers'}
+    else:
+        sk2 = _skeleton_by_structure(new, info['wrappers'])
+        ren = sk2.get('renames') or {}
+        if not sk2['reason'] and (ren.get(info['ict']) != ICT or info['rit_name'] and ren.get(info['rit_name']) != RIT):
+            sk2['reason'] = 'the search by structure did not take the rebuilt InitCustomTriggers'
+    if sk2['reason']:
+        sk['reason'] += '; %s, %s' % (what, sk2['reason'])
+        return sk, src
+    info['source'] = new
+    sk2['rebuilt'] = info
+    sk2['wrappers'] = [ren.get(x, x) for x in info['wrappers']]
+    return sk2, new
+
+
+WURST = 'compiled by WurstScript: it has no editor triggers'
+
+
+def _is_wurst(text, lang):
+    return lang == LUA and '__wurst_' in text and len(set(re.findall(r'\b__wurst_\w+', _code_only(text, lang)))) >= 3
+
+
+def _is_typescript(text, lang):
+    return lang == LUA and '__TS__' in text and len(set(re.findall(r'\b__TS__\w+', _code_only(text, lang)))) >= 3
 
 
 def skeleton(script, lang=JASS):
@@ -351,8 +851,14 @@ def skeleton(script, lang=JASS):
         except (jass_ast.JassSyntaxError, lua_ast.LuaSyntaxError) as e:
             return {'by': None, 'reason': 'the script does not parse: %s' % e, 'renames': {}}
     sk = _skeleton_by_name(src)
-    if sk is None:
+    if sk is not None and sk['reason']:
+        sk, src = _rebuilt(sk, src, _init_extras, 'with the code that is not an InitTrig_ made triggers')
+    elif sk is None:
         sk = _skeleton_by_structure(src)
+        if sk['reason'] == NO_SKELETON:
+            sk, src = _rebuilt(sk, src, _inlined_setup, 'with the trigger setup inlined into main rebuilt')
+        elif _is_wurst(src.text, src.lang):
+            sk['reason'] = WURST
     sk.setdefault('by', None)
     sk['main'] = 'main' if 'main' in src.functions else None
     sk['config'] = 'config' if 'config' in src.functions else None
@@ -410,7 +916,7 @@ def _init_per_trigger(src, sk, names):
     for init in sk['triggers']:
         f = src.functions[init]
         node = f.node
-        if node.locals or node.params:
+        if node.locals or node.params or init in sk.get('wrappers', ()):
             continue
         move = [s for s in node.body if type(s) is not jass_ast.CommentStmt and not _is_registration(s)]
         if not move:
@@ -689,6 +1195,9 @@ def _gui(ctx, d, obfuscated):
     lost = set(d.own) - covered - set(external)
     if lost:
         return 'the model leaves %s out' % sorted(lost)[0]
+    orphans = set(n for n in rendered if n in src.functions and n not in covered and n in ctx.header and
+                  ctx.words[n] == 1)
+    covered = covered | orphans
     clash = sorted(set(rendered) & (set(src.functions) - covered))
     if clash:
         return 'the render defines %s, which the script already has' % clash[0]
@@ -712,6 +1221,7 @@ def _gui(ctx, d, obfuscated):
             stack.append(g)
     d.kind, d.trigger, d.covered, d.external = 'gui', t, covered, external
     d.custom, d.rendered = getattr(m, 'custom_lines', 0), sorted(rendered)
+    ctx.header -= orphans
     return ''
 
 
@@ -887,7 +1397,7 @@ def categorize(mt, td, texts=None, lang=JASS):
     return collections.OrderedDict((c, names.count(c)) for c in used), pairs
 
 
-def _restore(res, text, td, init_per_trigger, say, matcher):
+def _restore(res, text, td, init_per_trigger, say, matcher, editor_files=None):
     lang = res.lang
     rep = res.report
     t0 = time.time()
@@ -905,6 +1415,8 @@ def _restore(res, text, td, init_per_trigger, say, matcher):
     if sk['reason']:
         res.reason = sk['reason']
         return res
+    if sk.get('rebuilt'):
+        text, src, init_per_trigger = _rebuilt_restore(res, sk['rebuilt'], init_per_trigger)
     obfuscated = sk['by'] == 'structure'
     rep['obfuscated'] = obfuscated
     rep['renamed'] = len(sk['renames'])
@@ -1016,7 +1528,7 @@ def _restore(res, text, td, init_per_trigger, say, matcher):
     removed_globals = set('udg_' + v.name for v in wtg_vars) | set('gg_trg_' + x for x in order)
     header_text = _header_text(src, removed, removed_globals)
     rep['timing_decide'] = round(time.time() - t0, 3)
-    _assemble(res, src, td, mt, texts, header_text, decisions)
+    _assemble(res, src, td, mt, texts, header_text, decisions, editor_files)
     rep['gui'] = sum(1 for d in decisions.values() if d.kind == 'gui')
     rep['text'] = [{'name': d.name, 'reason': d.reason} for d in decisions.values() if d.kind == 'text']
     rep['disabled'] = [x for x in order if x not in decisions]
@@ -1292,8 +1804,25 @@ def _lua_env_proof(header_text, private, mt, td, texts, generated_src):
     return not bad, detail
 
 
-def _assemble(res, src, td, mt, texts, header_text, decisions):
+def _editor_fit(res, src, td, mt, texts, header_text, editor_files):
+    import editor_render
+    reference = _expected_jass(mt, td, header_text, texts)
+    f = editor_render.fit(header_text, editor_files, td, mt, texts, reference=reference, original=src.text,
+                          triggers=_triggers_code(mt, td, texts, JASS))
+    res.report['editor_save'] = {'ok': f.ok, 'level': f.level, 'globals_to_editor': len(f.dropped),
+                                 'functions_to_editor': list(f.replaced), 'objects_named': len(f.objects),
+                                 'inject': f.inject, 'lines': list(f.lines), 'reason': f.reason, 'notes': f.notes[:3]}
+    return f if f.ok else None
+
+
+def _assemble(res, src, td, mt, texts, header_text, decisions, editor_files=None):
     lang, proofs, rep = res.lang, res.proofs, res.report
+    fitted = _editor_fit(res, src, td, mt, texts, header_text, editor_files) if (
+        lang == JASS and editor_files is not None) else None
+    if fitted is not None and fitted.objects:
+        mt, texts = fitted.triggers, fitted.texts
+        res.triggers = mt
+        rep['categories'], rep['category_order_risk'] = categorize(mt, td, texts, lang)
     try:
         res.wtg = wtg.write_wtg(mt, td)
         back = wtg.read_wtg(res.wtg, td)
@@ -1310,8 +1839,10 @@ def _assemble(res, src, td, mt, texts, header_text, decisions):
         return
     header_names = set(hsrc.functions)
     places = collections.defaultdict(list)
+    to_editor = set() if fitted is None else set(PE.SKELETON_PREFIX + x for x in fitted.replaced) | (
+        set() if fitted.inject else {'main', 'config'})
     for n in header_names:
-        places[n].append('custom script')
+        places[n].append('editor' if n in to_editor else 'custom script')
     for d in decisions.values():
         for f in (d.covered if d.kind == 'gui' else d.own):
             places[f].append('%s %s' % (d.kind, d.name))
@@ -1328,7 +1859,8 @@ def _assemble(res, src, td, mt, texts, header_text, decisions):
         ''.join('; %s: %s' % (k, ', '.join(v[:3])) for k, v in (('lost', lost), ('twice', twice), ('extra', extra))
                 if v)))
     if lang == JASS:
-        cs, _montado = PE.custom_script(header_text)
+        cs, _montado = PE.custom_script(header_text) if fitted is None else PE.custom_script(fitted.header,
+                                                                                           fitted.inject)
         res.header = cs.replace('\r\n', '\n')
     else:
         private = set(n for n in header_names if EDITOR_GENERATED.match(n) or PE.RX_SKELETON.fullmatch(n))
@@ -1376,6 +1908,9 @@ def _assemble(res, src, td, mt, texts, header_text, decisions):
         rep['expected_differences'] = problems[:20]
     if lang == JASS:
         proofs['pjass'] = _pjass_proof(res.expected_script, src.text)
+        if fitted is not None:
+            res.expected_script = fitted.script
+            proofs.update(fitted.proofs)
     else:
         a = _lua_compiles(res.header, 'the custom script')
         b = _lua_compiles(res.expected_script, 'the expected script')
@@ -1384,11 +1919,12 @@ def _assemble(res, src, td, mt, texts, header_text, decisions):
     res.ok = all(ok for ok, _d in proofs.values())
 
 
-def restore(script_text, lang=JASS, td=None, init_per_trigger=True, log=None, matcher=None):
+def restore(script_text, lang=JASS, td=None, init_per_trigger=True, log=None, matcher=None, editor_files=None):
     lang = LUA if lang == LUA else JASS
     res = Restoration(lang)
     try:
-        return _restore(res, _normalize(script_text), td, init_per_trigger, log or (lambda *a: None), matcher)
+        return _restore(res, _normalize(script_text), td, init_per_trigger, log or (lambda *a: None), matcher,
+                        editor_files)
     except Exception as e:
         import traceback
         res.ok = False
@@ -1410,6 +1946,18 @@ def summary(res):
         'Lua' if res.lang == LUA else 'JASS', r.get('gui', 0), len(r.get('text', ())),
         ', %d disabled (only the name)' % len(r['disabled']) if r.get('disabled') else '', r.get('variables', 0),
         '; the names were remade (the protector removed them)' if r.get('obfuscated') else '')]
+    if _is_typescript(res.header or '', res.lang):
+        lines.append('Most of the map\'s code was compiled from TypeScript (TypeScriptToLua): it was never editor '
+                     'triggers, so it stays in the custom script.')
+    rb = r.get('rebuilt')
+    if rb and rb['host'] == 'main':
+        lines.append('The trigger setup was inlined into main by an optimizer: %d triggers were rebuilt from it (%s)%s.'
+                     % (rb['triggers'], 'the names are lost: T001...' if rb['by'] == 'structure' else
+                        'the names from the gg_trg_ globals', ', with %d text trigger(s) for the code that ran '
+                        'between two setups' % rb['wrappers'] if rb['wrappers'] else ''))
+    elif rb:
+        lines.append('InitCustomTriggers also ran code that is not a trigger\'s InitTrig_ (%s): %d text trigger(s) run '
+                     'it at the same place.' % (', '.join(rb.get('moved', ())[:3]), rb['triggers']))
     cats = r.get('categories') or {}
     if cats:
         lines.append('Grouped into %d categories: %s' % (len(cats), ', '.join('%s %d' % kv for kv in cats.items())))
@@ -1422,6 +1970,17 @@ def summary(res):
     if made:
         lines.append('  %d new initialization trigger(s), what an InitTrig_ did besides registering, run first: %s%s'
                      % (len(made), ', '.join(made[:5]), ', ...' if len(made) > 5 else ''))
+    fit = r.get('editor_save')
+    if fit and fit.get('ok'):
+        lines.append('Saving from the World Editor proven: the script it writes compiles and runs the map\'s own code; '
+                     '%d globals and %d functions it writes itself left the custom script%s%s.' % (
+                         fit['globals_to_editor'], len(fit['functions_to_editor']),
+                         '' if fit['inject'] else ', main and config too',
+                         '' if not fit['objects_named'] else '; %d placed objects named in the disabled trigger %r'
+                         % (fit['objects_named'], 'Custom script objects')))
+    elif fit:
+        lines.append('Saving from the World Editor not proven (%s): the custom script stays as before.'
+                     % (fit.get('reason') or '?')[:160])
     bad = [k for k, (ok, _d) in res.proofs.items() if not ok]
     lines.append('Proofs: %s' % ('all passed' if not bad else 'FAILED: ' + ', '.join(bad)))
     return lines
