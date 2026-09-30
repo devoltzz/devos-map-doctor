@@ -14,6 +14,7 @@ EVENT, CONDITION, ACTION, CALL = wtg.EVENT, wtg.CONDITION, wtg.ACTION, wtg.CALL
 PRESET, VARIABLE, FUNCTION, LITERAL = wtg.PRESET, wtg.VARIABLE, wtg.FUNCTION, wtg.LITERAL
 COMPARISONS = {'==': '==', '~=': '!=', '<': '<', '<=': '<=', '>': '>', '>=': '>='}
 ARITHMETIC = frozenset(('+', '-', '*', '/', '//'))
+CUSTOM_GLOBAL = '<custom script>'
 OBJECT_TYPES = (('gg_unit_', 'unit'), ('gg_rct_', 'rect'), ('gg_cam_', 'camerasetup'), ('gg_snd_', 'sound'),
                 ('gg_trg_', 'trigger'), ('gg_dest_', 'destructable'), ('gg_item_', 'item'))
 CALLBACK_FORMS = {'ForGroup': 'ForGroupMultiple', 'ForForce': 'ForForceMultiple',
@@ -375,6 +376,8 @@ class _Matcher(object):
         return t
 
     def fits(self, actual, expected):
+        if actual == CUSTOM_GLOBAL:
+            return False
         if actual is None or expected is None or expected in ('AnyGlobal', 'Null', 'AnyType'):
             return True
         a, x = self.k.base(actual), self.k.base(expected)

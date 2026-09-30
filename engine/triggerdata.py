@@ -487,17 +487,38 @@ RX_SIGNATURE = re.compile(r'(?m)^[ \t]*(?:constant[ \t]+)?(?:native|function)[ \
 _SIGNATURES = {}
 
 
+_GAME_SCRIPTS = {}
+
+
+def game_script(name, ref_dir=None, game=None):
+    key = (ref_dir or REF_DIR, name, game)
+    text = _GAME_SCRIPTS.get(key)
+    if text is None:
+        data = None
+        try:
+            with open(os.path.join(key[0], name), 'rb') as f:
+                data = f.read()
+        except OSError:
+            try:
+                import casc_wc3
+                casc = casc_wc3.CascWC3(game or casc_wc3.DEFAULT_GAME)
+                try:
+                    data = casc.read_wc3('scripts\\' + name)
+                finally:
+                    casc.on_close()
+            except Exception:
+                data = None
+        text = _GAME_SCRIPTS[key] = (data or b'').decode('utf-8', 'surrogateescape')
+    return text
+
+
 def script_signatures(ref_dir=None, extra=()):
     ref_dir = ref_dir or REF_DIR
     base = _SIGNATURES.get(ref_dir)
     if base is None:
         base = {}
         for name in REF_SCRIPTS:
-            try:
-                with open(os.path.join(ref_dir, name), 'rb') as f:
-                    base.update(_signatures(f.read().decode('utf-8', 'replace'), base))
-            except OSError:
-                pass
+            base.update(_signatures(game_script(name, ref_dir), base))
         _SIGNATURES[ref_dir] = base
     out = dict(base)
     for text in extra:

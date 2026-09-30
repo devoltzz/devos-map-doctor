@@ -469,7 +469,7 @@ def _lua_parens(body):
     block(body)
 
 
-def _reparenthesized(toks, lang):
+def _reparenthesized(toks, lang, inline=False):
     import jass_ast
     import lua_ast
     text = ' '.join(toks)
@@ -481,7 +481,8 @@ def _reparenthesized(toks, lang):
             _lua_parens(chunk.body)
             out = lua_ast.unparse(chunk)
         else:
-            script = jass_ast.parse(text)
+            import jass_normal
+            script = jass_normal.normalize(jass_ast.parse(text), inline=inline)
             _jass_parens(script)
             out = jass_ast.unparse(script, comments=False)
     except (jass_ast.JassSyntaxError, lua_ast.LuaSyntaxError, RecursionError):
@@ -493,9 +494,11 @@ def _reparenthesized(toks, lang):
 
 def canonical(text, lang=JASS, inline=True, self_name=None):
     toks = tokens(text, lang)
-    if inline:
+    tree = _reparenthesized(toks, lang, inline) if lang == JASS else None
+    if tree is None and inline:
         toks = _inline_simple(toks, lang)
-    tree = _reparenthesized(toks, lang)
+    if lang == LUA:
+        tree = _reparenthesized(toks, lang)
     if self_name is None:
         self_name = _self_trigger(toks)
     own = 'gg_trg_' + self_name if self_name else None
@@ -903,8 +906,12 @@ def _declared(td, v, lua):
     return {'boolean': 'false', 'integer': '0', 'real': '0.0' if lua else '0'}.get(base, 'nil' if lua else 'null')
 
 
-def _enabled_triggers(mt):
-    return [t for t in mt.triggers if t.enabled and not t.is_comment]
+def _enabled_triggers(mt, editor=False):
+    out = [(k, t) for k, t in enumerate(mt.triggers) if t.enabled and not t.is_comment]
+    if editor:
+        place = dict((c.id, k) for k, c in enumerate(mt.categories))
+        out.sort(key=lambda kt: (place.get(kt[1].category_id, len(place)), kt[0]))
+    return [t for _k, t in out]
 
 
 def render_globals(mt, td, lang=JASS):
@@ -956,25 +963,25 @@ def render_init_globals(mt, td, lang=JASS):
     return '\n'.join(head + body + ['endfunction']) + '\n'
 
 
-def render_init_custom_triggers(mt, lang=JASS):
-    idents = [trigger_identifier(t.name) for t in _enabled_triggers(mt)]
+def render_init_custom_triggers(mt, lang=JASS, editor=False):
+    idents = [trigger_identifier(t.name) for t in _enabled_triggers(mt, editor)]
     if lang == LUA:
         return '\n'.join(['function InitCustomTriggers()'] + ['InitTrig_%s()' % i for i in idents] + ['end']) + '\n'
     return '\n'.join([BANNER, 'function InitCustomTriggers takes nothing returns nothing'] +
                      ['    call InitTrig_%s()' % i for i in idents] + ['endfunction']) + '\n'
 
 
-def initialization_triggers(mt):
+def initialization_triggers(mt, editor=False):
     out = []
-    for t in _enabled_triggers(mt):
+    for t in _enabled_triggers(mt, editor):
         event = any(f.kind == EVENT and f.name == 'MapInitializationEvent' and f.enabled for f in t.functions)
         if (event or t.run_on_init) and not t.initially_off:
             out.append(t)
     return out
 
 
-def render_run_initialization_triggers(mt, lang=JASS):
-    idents = [trigger_identifier(t.name) for t in initialization_triggers(mt)]
+def render_run_initialization_triggers(mt, lang=JASS, editor=False):
+    idents = [trigger_identifier(t.name) for t in initialization_triggers(mt, editor)]
     if not idents:
         return ''
     if lang == LUA:

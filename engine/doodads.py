@@ -90,7 +90,11 @@ def ids(b, d=None):
     return out
 
 
-def map_ids(a, name_list=('war3map.w3d', 'war3map.w3b')):
+SLK_TABLES = ('Doodads\\Doodads.slk', 'Units\\DestructableData.slk')
+RX_ID_SLK = (re.compile(rb'K"([A-Za-z][A-Za-z0-9_]{3})"'), re.compile(rb'(?m)^([A-Za-z][A-Za-z0-9_]{3});'))
+
+
+def map_ids(a, name_list=('war3map.w3d', 'war3map.w3b'), slk=SLK_TABLES):
     out = set()
     for fname in name_list:
         try:
@@ -101,6 +105,13 @@ def map_ids(a, name_list=('war3map.w3d', 'war3map.w3b')):
             continue
         for m in re.finditer(rb'[A-Za-z][A-Za-z0-9_]{3}', b):
             out.add(m.group(0))
+    for fname in slk:
+        try:
+            b = a.read(fname)
+        except Exception:
+            b = None
+        for rx in RX_ID_SLK if b else ():
+            out.update(m.group(1) for m in rx.finditer(b))
     return out
 
 

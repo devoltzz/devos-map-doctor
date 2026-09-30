@@ -344,6 +344,7 @@ def _empty_sound(fname, file_path, music=False):
 def sounds_of_script(body_text):
     if not body_text:
         return []
+    body_text = flat_literals(body_text)
     bodies = _bodies_by_name(body_text)
     body = bodies.get('InitSounds') or ''
     sounds, order, where = {}, [], {}
@@ -1001,6 +1002,10 @@ def _from_script(fname, script, x, declared=None, context=None):
             removed = {}
             if context.get('mpq') is not None and context.get('safe_units', True):
                 item_entries, removed = risky_units(context['mpq'], item_entries, file_set=context.get('file_set'))
+            if subversion == 9 and any(
+                u.get('hero_attributes') or u.get('item_table') is not None for u in item_entries
+            ):
+                version_num, subversion = (8 if version_num == 7 else version_num), 11
             data_bytes = write(item_entries, version_num, subversion, skin)
             try:
                 reread = read_units_doo(data_bytes)
@@ -1117,6 +1122,26 @@ def _num(t):
     return float(s)
 
 
+RX_LITERAL_HEX = re.compile(r'"(?:[^"\\]|\\.)*"|//[^\n]*|\'[^\'\n]*\'|(?<![\w.$])(?:\$|0[xX])([0-9A-Fa-f]+)\b')
+_ID_LETTERS = frozenset(b'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz')
+
+
+def flat_literals(body_text):
+    if '$' not in body_text and '0x' not in body_text and '0X' not in body_text:
+        return body_text
+
+    def swap(m):
+        if m.group(1) is None:
+            return m.group(0)
+        v = int(m.group(1), 16)
+        b = (v & 0xFFFFFFFF).to_bytes(4, 'big')
+        if v > 0xFFFFFF and all(c in _ID_LETTERS for c in b):
+            return "'%s'" % b.decode('ascii')
+        return str(v)
+
+    return RX_LITERAL_HEX.sub(swap, body_text)
+
+
 def _var_name(fname, prefix=''):
     if prefix and fname.startswith(prefix):
         fname = fname[len(prefix):]
@@ -1190,6 +1215,7 @@ RX_ANY_WEATHER = re.compile(r'AddWeatherEffect\(\s*(\w+)\s*,\s*(?:FourCC\(\s*[\'
 def script_regions(body_text):
     if not body_text:
         return []
+    body_text = flat_literals(body_text)
     hits, order = {}, []
     for rx in (RX_RECT_JASS, RX_RECT):
         for m in rx.finditer(body_text):
@@ -1276,6 +1302,7 @@ RX_ANY_CAM_POS = re.compile(r'CameraSetupSetDestPosition\(\s*(\w+)\s*,\s*([^,]+)
 def cameras_from_script(body_text):
     if not body_text:
         return []
+    body_text = flat_literals(body_text)
     hits, order = {}, []
     for m in RX_CAM.finditer(body_text):
         fname = m.group(1)
@@ -1548,6 +1575,7 @@ def _owner(who, owners, neutral_players):
 def script_units(body_text, how_many=12, reforged=True, regions=None):
     if not body_text:
         return []
+    body_text = flat_literals(body_text)
     neutral_players = neutral_owners(how_many, reforged)
     out = []
     start_player = dict((int(i), int(p)) for p, i in RX_START_PLAYER.findall(body_text))
@@ -1565,6 +1593,7 @@ def script_units(body_text, how_many=12, reforged=True, regions=None):
     for fname, body in _bodies_of(body_text):
         owners = dict(overall)
         owners.update(_script_owner(body, neutral_players))
+        assignments = [(a.start(), a.group(1), a.group(2).strip()) for a in RX_PLAYER_VAR.finditer(body)]
         matches = sorted([(m.start(), False, m) for m in RX_CREATE_UNIT.finditer(body)] +
                          [(m.start(), True, m) for m in RX_GOLDMINE.finditer(body)], key=lambda a: a[0])
         for k, (_pos, goldmine, m) in enumerate(matches):
@@ -1572,7 +1601,12 @@ def script_units(body_text, how_many=12, reforged=True, regions=None):
                 ident, skin_id, xyz = b'ugol', None, (m.group(3), m.group(4), m.group(5))
             else:
                 ident, skin_id, xyz = _script_id(m, 3), _script_id(m, 10), (m.group(7), m.group(8), m.group(9))
-            owner = _owner(m.group(2).strip(), owners, neutral_players)
+            who = m.group(2).strip()
+            owner = _owner(who, owners, neutral_players)
+            if owner is None and not who.startswith('Player('):
+                before = [val for pos, var, val in assignments if var == who and pos < m.start()]
+                if before:
+                    owner = _owner('Player(%s)' % before[-1], owners, neutral_players)
             try:
                 x, y, rot = _num(xyz[0]), _num(xyz[1]), _num(xyz[2])
             except ValueError:

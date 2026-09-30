@@ -1,19 +1,17 @@
 # Turns the JASS of a trigger back into the GUI events, conditions and actions it came from.
 import collections
-import os
 import re
 
 import jass_ast
+import jass_normal
 import wtg
 
-
-HERE = os.path.dirname(os.path.abspath(__file__))
-REF_DIR = os.path.join(HERE, '..', 'ref', '3.0')
 
 EVENT, CONDITION, ACTION, CALL = wtg.EVENT, wtg.CONDITION, wtg.ACTION, wtg.CALL
 PRESET, VARIABLE, FUNCTION, LITERAL = wtg.PRESET, wtg.VARIABLE, wtg.FUNCTION, wtg.LITERAL
 COMPARISONS = frozenset(('==', '!=', '<', '<=', '>', '>='))
 ARITHMETIC = frozenset(('+', '-', '*', '/'))
+CUSTOM_GLOBAL = '<custom script>'
 OBJECT_TYPES = (('gg_unit_', 'unit'), ('gg_rct_', 'rect'), ('gg_cam_', 'camerasetup'), ('gg_snd_', 'sound'),
                 ('gg_trg_', 'trigger'), ('gg_dest_', 'destructable'), ('gg_item_', 'item'))
 CALLBACK_FORMS = {'ForGroup': 'ForGroupMultiple', 'ForForce': 'ForForceMultiple',
@@ -102,41 +100,33 @@ def _identifier(name):
     return ident + 'u' if ident.endswith('_') else ident
 
 
-def _read_ref(name):
-    path = os.path.join(REF_DIR, name)
-    try:
-        with open(path, 'rb') as f:
-            return f.read().decode('utf-8', 'surrogateescape')
-    except OSError:
-        return ''
-
-
 class _Knowledge(object):
     def __init__(self, td):
         self.td = td
+        self.ref = jass_normal.reference()
         self.presets = {}
         self.preset_types = collections.defaultdict(list)
+        by_value, by_form = collections.defaultdict(list), collections.defaultdict(list)
         for p in td.presets.values():
             key = (p.type, _canon(p.code))
             self.presets.setdefault(key, p.name)
             self.preset_types[key[1]].append(p.type)
+            constant = self.ref.constants.get(p.code)
+            value = jass_normal.number(constant) if constant is not None else None
+            if value is not None:
+                by_value[(p.type,) + value].append(p.name)
+            elif type(constant) is jass_ast.Call:
+                by_form[(p.type, _canon(jass_ast.unparse(constant)))].append(p.name)
+        self.preset_values = dict((k, v[0]) for k, v in by_value.items() if len(v) == 1)
+        self.preset_forms = dict((k, v[0]) for k, v in by_form.items() if len(v) == 1 and k not in self.presets)
         self.compares = [f for f in td.conditions.values()
                          if len(f.arg_types) == 3 and f.arg_types[1] in ('ComparisonOperator', 'EqualNotEqualOperator')]
         self.operators = {}
         for f in self.compares:
             self.operators[f.arg_types[1]] = frozenset(p.code for p in td.presets.values()
                                                       if p.type == f.arg_types[1])
-        self.extends, self.returns, self.global_types = {}, {}, {}
-        for name in ('common.j', 'blizzard.j'):
-            try:
-                ref = jass_ast.parse(_read_ref(name))
-            except jass_ast.JassSyntaxError:
-                continue
-            self.extends.update((d.name, d.base) for d in ref.types)
-            for f in ref.natives + ref.functions:
-                self.returns.setdefault(f.name, f.return_type)
-            for g in ref.globals:
-                self.global_types.setdefault(g.name, g.type)
+        self.boolean = next((f for f in self.compares if f.arg_types[0] == 'boolean'), None)
+        self.extends, self.returns, self.global_types = self.ref.extends, self.ref.returns, self.ref.global_types
 
     def base(self, t):
         return self.td.base_type(t) if t else t
@@ -221,9 +211,10 @@ def script_functions(script):
 
 
 class _Matcher(object):
-    def __init__(self, functions, td, globals_types, prefix=None, lines=None):
+    def __init__(self, functions, td, globals_types, prefix=None, lines=None, relaxed=False):
         self.functions = functions
         self.lines = lines
+        self.relaxed = relaxed
         self.td = td
         self.k = _knowledge(td)
         self.types = globals_types or {}
@@ -233,6 +224,7 @@ class _Matcher(object):
         self.used_set = set()
         self.custom = 0
         self.loose = []
+        self.depth = 0
 
     def mark(self):
         return len(self.used), self.custom, len(self.loose)
@@ -278,6 +270,8 @@ class _Matcher(object):
         return t
 
     def fits(self, actual, expected):
+        if actual == CUSTOM_GLOBAL:
+            return False
         if actual is None or expected is None or expected in ('AnyGlobal', 'Null', 'AnyType'):
             return True
         a, x = self.k.base(actual), self.k.base(expected)
@@ -313,7 +307,7 @@ class _Matcher(object):
             return 'boolean'
         return None
 
-    def param(self, e, t):
+    def param(self, e, t, again=True):
         e = _bare(e)
         if t == 'code':
             return self.code_param(e)
@@ -326,26 +320,85 @@ class _Matcher(object):
         if t in ('eventcall', 'scriptcode'):
             return None
         cls = type(e)
+        p = None
         if cls is jass_ast.Name:
-            return self.name_param(e, t)
-        if cls is jass_ast.Literal:
-            return self.literal_param(e, e.kind, t)
-        if cls is jass_ast.Call:
-            return self.call_param(e, t)
-        if cls is jass_ast.Index:
-            return self.index_param(e, t)
-        if cls is jass_ast.Binary and e.op in ARITHMETIC:
-            return self.arithmetic_param(e, t)
-        if cls is jass_ast.Unary and e.op == '-':
+            p = self.name_param(e, t)
+        elif cls is jass_ast.Literal:
+            p = self.literal_param(e, e.kind, t)
+        elif cls is jass_ast.Call:
+            p = self.call_param(e, t)
+        elif cls is jass_ast.Index:
+            p = self.index_param(e, t)
+        elif cls is jass_ast.Binary and e.op in ARITHMETIC:
+            p = self.arithmetic_param(e, t)
+        elif cls is jass_ast.Unary and e.op == '-':
             inner = _bare(e.operand)
             if type(inner) is jass_ast.Literal and inner.kind in ('integer', 'real') and inner is e.operand:
-                return self.literal_param(e, inner.kind, t)
+                p = self.literal_param(e, inner.kind, t)
+        if p is None and again and self.relaxed and cls is not jass_ast.Literal:
+            p = self.uninlined(e, t)
+        return p
+
+    def uninlined(self, e, t):
+        ref = self.k.ref
+        if type(e) is jass_ast.Name:
+            for fn in ref.returned_by.get(e.name, ()):
+                for c in self.k.calls('call', fn):
+                    if not c.arg_types and (t is None or self.fits(c.return_type, t)):
+                        return wtg.Parameter(FUNCTION, c.name, function=wtg.Function(CALL, c.name, 1, []))
+            return None
+        if self.depth >= 12:
+            return None
+        n = _bare(jass_normal.normal_expr(e, ref))
+        self.depth += 1
+        try:
+            if _canon(_text(n)) != _canon(_text(e)):
+                m = self.mark()
+                p = self.param(n, t, False)
+                if p is not None:
+                    return p
+                self.reset(m)
+            for one, body in ref.wrappers().get(jass_normal.head(n), ()):
+                if one.statement or not any(len(c.arg_types) == len(one.params)
+                                            for c in self.k.calls('call', one.name)):
+                    continue
+                bound = jass_normal.unify(body, n, set(one.params))
+                call = None if bound is None else jass_ast.Call(one.name, [bound[x] for x in one.params])
+                if call is None or not jass_normal.same(jass_normal.normal_expr(call, ref), n):
+                    continue
+                m = self.mark()
+                f = self.call_function(call, t)
+                if f is not None:
+                    return wtg.Parameter(FUNCTION, f.name, function=f)
+                self.reset(m)
+        finally:
+            self.depth -= 1
         return None
+
+    def rewrapped(self, call, kind):
+        ref = self.k.ref
+        n = _bare(jass_normal.normal_expr(call, ref))
+        out = []
+        for one, body in ref.wrappers().get(jass_normal.head(n), ()):
+            if not self.k.calls(kind, one.name):
+                continue
+            bound = jass_normal.unify(body, n, set(one.params))
+            other = None if bound is None else jass_ast.Call(one.name, [bound[x] for x in one.params])
+            if other is not None and jass_normal.same(jass_normal.normal_expr(other, ref), n):
+                out.append(other)
+        return out
 
     def preset_param(self, e, t):
         if t in LITERAL_TYPES:
             return None
-        name = self.k.preset(_canon(_text(e)), t)
+        code = _canon(_text(e))
+        name = self.k.preset(code, t)
+        if name is None and self.relaxed and t is not None:
+            value = jass_normal.number(e)
+            if value is None:
+                name = self.k.preset_forms.get((t, code))
+            elif self.k.base(t) != t:
+                name = self.k.preset_values.get((t,) + value)
         return None if name is None else wtg.Parameter(PRESET, name)
 
     def name_param(self, e, t):
@@ -384,6 +437,8 @@ class _Matcher(object):
                 return None
             value = _editor_unescape(text[1:-1])
             return None if value is None else wtg.Parameter(LITERAL, value)
+        if kind == 'rawcode' and len(text) == 3 and self.relaxed and t is not None and base in ('integer', 'real'):
+            return wtg.Parameter(LITERAL, str(jass_normal.number(e)[1]))
         if kind == 'rawcode':
             if t is not None and (base != 'integer' or t in ('integer', 'integervar')):
                 return None
@@ -394,7 +449,8 @@ class _Matcher(object):
                 return None
             if kind == 'real' and base == 'integer':
                 return None
-            return wtg.Parameter(LITERAL, text)
+            return wtg.Parameter(LITERAL, text if not self.relaxed else _plain_number(
+                e, kind, text, base == 'integer' and t not in (None, 'integer', 'integervar')))
         if kind == 'boolean':
             if t is not None and base != 'boolean':
                 return None
@@ -511,7 +567,8 @@ class _Matcher(object):
         e = _bare(e)
         cls = type(e)
         if cls is jass_ast.Binary and e.op in COMPARISONS:
-            return self.comparison(e)
+            c = self.comparison(e)
+            return c if c is not None or not self.relaxed or e.op not in ('==', '!=') else self.null_condition(e)
         if cls is jass_ast.Call:
             if not e.args:
                 multiple = self.multiple_condition(e.name)
@@ -526,7 +583,55 @@ class _Matcher(object):
             kind = 'AndMultiple' if e.text == 'true' else 'OrMultiple'
             if kind in self.td.conditions:
                 return wtg.Function(CONDITION, kind, 1, [], None, [])
+        if not self.relaxed:
+            return None
+        if cls is jass_ast.Binary and e.op in ('and', 'or'):
+            return self.chain_condition(e)
+        return self.boolean_condition(e)
+
+    def chain_condition(self, e):
+        kind = 'AndMultiple' if e.op == 'and' else 'OrMultiple'
+        if kind not in self.td.conditions:
+            return None
+        m = self.mark()
+        children = []
+        for x in _chain(e, e.op):
+            c = self.condition(x)
+            if c is None:
+                self.reset(m)
+                return None
+            c.branch = 0
+            children.append(c)
+        return wtg.Function(CONDITION, kind, 1, [], None, children)
+
+    def null_condition(self, e):
+        for a, b in ((e.left, e.right), (e.right, e.left)):
+            a, b = _bare(a), _bare(b)
+            if type(b) is not jass_ast.Literal or b.kind != 'null' or self.k.base(self.type_of(a)) != 'boolean':
+                continue
+            if e.op == '!=':
+                return self.condition(a)
+            if type(a) in (jass_ast.Call, jass_ast.Name, jass_ast.Index):
+                return self.boolean_condition(jass_ast.Unary('not', a))
         return None
+
+    def boolean_condition(self, e):
+        f = self.k.boolean
+        if f is None:
+            return None
+        value = 'true'
+        if type(e) is jass_ast.Unary and e.op == 'not':
+            e, value = _bare(e.operand), 'false'
+        if type(e) not in (jass_ast.Call, jass_ast.Name, jass_ast.Index):
+            return None
+        op = self.k.preset('==', f.arg_types[1])
+        m = self.mark()
+        a = self.param(e, f.arg_types[0])
+        b = self.param(jass_ast.Literal('boolean', value), f.arg_types[2]) if a is not None and op else None
+        if b is None:
+            self.reset(m)
+            return None
+        return wtg.Function(CONDITION, f.name, 1, [a, wtg.Parameter(PRESET, op), b])
 
     def compare_order(self, e):
         strong, weak = [], []
@@ -576,7 +681,7 @@ class _Matcher(object):
         for kind, fail, ok in (('AndMultiple', 'false', 'true'), ('OrMultiple', 'true', 'false')):
             if kind not in self.td.conditions:
                 continue
-            tests = _tests(f, fail, ok, negated=kind == 'AndMultiple')
+            tests = _tests(f, fail, ok, negated=kind == 'AndMultiple', folded=self.relaxed)
             if tests is None:
                 continue
             m2 = self.mark()
@@ -698,9 +803,20 @@ class _Matcher(object):
             return None
         return wtg.Function(ACTION, 'SetVariable', 1, [var, value])
 
-    def call_action(self, call):
+    def call_action(self, call, again=True):
         if call.name in CUSTOM_SCRIPT_IDIOMS:
             return None
+        a = self.plain_action(call)
+        if a is None and again and self.relaxed:
+            for other in self.rewrapped(call, 'action') + self.rewrapped(call, 'event'):
+                m = self.mark()
+                a = self.plain_action(other)
+                if a is not None:
+                    break
+                self.reset(m)
+        return a
+
+    def plain_action(self, call):
         cands = self.k.calls('action', call.name)
         ref = _bare(call.args[-1]) if call.args else None
         if type(ref) is jass_ast.FuncRef:
@@ -827,7 +943,9 @@ class _Matcher(object):
         return wtg.Function(ACTION, 'WaitForCondition', 1, [cond, interval])
 
     def if_action(self, s, bodies):
-        if len(s.branches) != 2 or s.branches[1][0] is not None:
+        if len(s.branches) == 1 and self.relaxed:
+            bodies = [bodies[0], []]
+        elif len(s.branches) != 2 or s.branches[1][0] is not None:
             return None
         cond = _bare(s.branches[0][0])
         then, other = bodies
@@ -861,22 +979,71 @@ class _Matcher(object):
                 return wtg.Function(ACTION, 'IfThenElse', 1, [
                     wtg.Parameter(FUNCTION, '', function=c), wtg.Parameter(FUNCTION, 'DoNothing', function=sides[0]),
                     wtg.Parameter(FUNCTION, 'DoNothing', function=sides[1])])
+        if expr is not None and self.relaxed and 'IfThenElseMultiple' in self.td.actions:
+            children = []
+            for x in _chain(_bare(expr), 'and'):
+                c = self.condition(x)
+                if c is None:
+                    self.reset(m)
+                    return None
+                c.branch = 0
+                children.append(c)
+            for branch, acts in ((1, then), (2, other)):
+                for a in acts:
+                    a.branch = branch
+                    children.append(a)
+            return wtg.Function(ACTION, 'IfThenElseMultiple', 1, [], None, children)
         self.reset(m)
         return None
 
-    def event(self, call):
+    def event(self, call, again=True):
         for c in self.k.calls('event', call.name):
             if len(c.arg_types) + 1 == len(call.args):
                 params = self.params(call.args[1:], c.arg_types)
                 if params is not None:
                     return wtg.Function(EVENT, c.name, 1, params)
+        for other in (self.rewrapped(call, 'event') if again and self.relaxed else ()):
+            e = self.event(other, False)
+            if e is not None:
+                return e
         return None
 
 
-def _tests(f, fail, ok, negated):
+RX_DECIMAL = re.compile(r'^-?\d+$')
+RX_REAL = re.compile(r'^-?\d+\.\d+$')
+
+
+def _plain_number(e, kind, text, code):
+    text = text.replace(' ', '')
+    if kind == 'integer':
+        value = jass_normal.number(e)
+        if value is None:
+            return text
+        if code:
+            spelled = jass_normal.integer_text(value[1])
+            if spelled[0] == "'":
+                return spelled[1:-1]
+        return text if RX_DECIMAL.match(text) and not (len(text.lstrip('-')) > 1 and text.lstrip('-')[0] == '0') \
+            else str(value[1])
+    if RX_REAL.match(text):
+        return text
+    sign = '-' if text.startswith('-') else ''
+    body = text.lstrip('-')
+    if body.startswith('.'):
+        body = '0' + body
+    if body.endswith('.'):
+        body += '0'
+    return sign + body
+
+
+def _tests(f, fail, ok, negated, folded=False):
     if f.locals or not f.body:
         return None
     last = f.body[-1]
+    body = [s for s in f.body if type(s) is not jass_ast.CommentStmt]
+    if (folded and len(body) == 1 and type(last) is jass_ast.ReturnStmt and last.value is not None and
+            type(_bare(last.value)) is not jass_ast.Literal):
+        return _chain(_bare(last.value), 'and' if negated else 'or')
     if type(last) is not jass_ast.ReturnStmt or not _is_literal(last.value, ok):
         return None
     out = []
@@ -893,6 +1060,13 @@ def _tests(f, fail, ok, negated):
             cond = cond.operand
         out.append(cond)
     return out
+
+
+def _chain(e, op):
+    e = _bare(e)
+    if type(e) is jass_ast.Binary and e.op == op:
+        return _chain(e.left, op) + _chain(e.right, op)
+    return [e]
 
 
 def _is_literal(e, text):
@@ -961,14 +1135,14 @@ def _first_line(s):
     return jass_ast.unparse(s).split('\n')[0].strip()[:120]
 
 
-def match_trigger(functions, init_name, td, globals_types=None, name=None, source=None):
+def match_trigger(functions, init_name, td, globals_types=None, name=None, source=None, relaxed=False):
     init = functions.get(init_name)
     if init is None or getattr(init, 'is_native', False):
         return Match(None, 'no function %s' % init_name)
     try:
         trig, off, event_calls, cond_name, act_name = _init_statements(init)
         prefix = act_name[:-7] if act_name.endswith('_Actions') else None
-        m = _Matcher(functions, td, globals_types, prefix, _source_lines(source))
+        m = _Matcher(functions, td, globals_types, prefix, _source_lines(source), relaxed)
         events = []
         for call in event_calls:
             e = m.event(call)
@@ -978,7 +1152,7 @@ def match_trigger(functions, init_name, td, globals_types=None, name=None, sourc
         conditions = []
         if cond_name is not None:
             f = m.helper(cond_name, 'boolean')
-            tests = _tests(f, 'false', 'true', negated=True) if f is not None else None
+            tests = _tests(f, 'false', 'true', negated=True, folded=relaxed) if f is not None else None
             if tests is None:
                 raise _Fail('conditions not a Trig_Conditions: %s' % cond_name)
             for x in tests:

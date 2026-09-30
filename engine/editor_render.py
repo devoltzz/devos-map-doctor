@@ -1370,8 +1370,8 @@ def render(files, td=None, editor=None, game=None, mt=None, texts=None, duration
     if cameras:
         out.add('CreateCameras', render_cameras(cameras, st))
     if mt is not None:
-        out.add('InitCustomTriggers', gui_render.render_init_custom_triggers(mt, 'jass'))
-        rit = gui_render.render_run_initialization_triggers(mt, 'jass')
+        out.add('InitCustomTriggers', gui_render.render_init_custom_triggers(mt, 'jass', True))
+        rit = gui_render.render_run_initialization_triggers(mt, 'jass', True)
         if rit:
             out.add('RunInitializationTriggers', rit)
     if w3i_ is not None:
@@ -1695,6 +1695,16 @@ def _replaceable(equal, header, reference, blocked):
     return keep
 
 
+ORDER_BY_FOLDER = ('InitCustomTriggers', 'RunInitializationTriggers')
+
+
+def _same_calls(a, b):
+    def calls(text):
+        return sorted(x.strip() for x in text.split('\n') if x.strip())
+
+    return calls(a) == calls(b)
+
+
 def runs_original(script, reference, replaced=()):
     mine = gui_render.split_functions(script, 'jass')
     theirs = reference if isinstance(reference, dict) else gui_render.split_functions(reference, 'jass')
@@ -1714,7 +1724,9 @@ def runs_original(script, reference, replaced=()):
             continue
         if mine[n] != theirs[n]:
             compared += 1
-            if canonical_function(mine[n], mine) != canonical_function(theirs[n], theirs):
+            if n in ORDER_BY_FOLDER and _same_calls(mine[n], theirs[n]):
+                pass
+            elif canonical_function(mine[n], mine) != canonical_function(theirs[n], theirs):
                 problems.append('%s differs' % n)
         stack.extend(sorted(function_refs(mine[n], names) - seen))
     detail = '%d functions reached from main and config, %d compared as code' % (len(seen), compared)
