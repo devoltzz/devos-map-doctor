@@ -12,7 +12,7 @@ import unprotect as D
 import updater
 
 APP = "Devo's Map Doctor"
-VERSION = '1.1'
+VERSION = '1.2'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -267,8 +267,7 @@ def diagnosis_text(d):
                         'another extended editor), so the editor cannot read them')
         if ed.get('duplicate_textures'):
             copies = sum(len(g) - 1 for g in ed['duplicate_textures'])
-            gaps.append('%s an exact copy of another one under a different name (%s), and the World Editor 3.0 '
-                        'crashes while it finishes opening a map that loads them'
+            gaps.append('%s an exact copy of another one under a different name (%s)'
                         % (pluralize(copies, 'imported texture is', 'imported textures are'),
                            ', '.join(os.path.basename(g[-1].replace('\\', '/')) for g in ed['duplicate_textures'][:3]) +
                            ('...' if len(ed['duplicate_textures']) > 3 else '')))
@@ -647,6 +646,15 @@ def editor_text(r):
                             'draws nothing for them and they made the World Editor crash while opening the map.'
                     % (pluralize(details['doodads_outside'], 'doodad', 'doodads'),
                        ', '.join('%s x%d' % (x['id'], x['n']) for x in (details.get('doodads') or [])[:4]))))
+    if details.get('skin'):
+        out.append(('info', '  - Moved the model of the unit and item types to the skin files (%s), the way the World '
+                            'Editor 3.0 writes them when it saves: the editor then places every unit without crashing '
+                            'while it opens the map. The game reads both files, so nothing changes in the game.'
+                    % ', '.join(details['skin'])))
+    if details.get('engine_textures'):
+        out.append(('info', '  - Left out of the editor copy the map\'s %s: it is the same plain white as the game\'s '
+                            'own, and the World Editor 3.0 read it while loading the units and crashed.'
+                    % ', '.join(details['engine_textures'])))
     clusters = details.get('duplicate_textures') or []
     changed_textures = [m for g in clusters for m in g['modified']]
     if changed_textures:
@@ -655,10 +663,9 @@ def editor_text(r):
             b = os.path.basename(m.replace('\\', '/'))
             if b not in seen:
                 seen.append(b)
-        out.append(('info', '  - Rewrote %s in %s (%s), each one with a few zero bytes at the end: the World Editor '
-                            '3.0 crashed while it finished opening a map that loads two identical textures, and it '
-                            'reads only one of them. Neither the game nor the editor reads the extra bytes: the image '
-                            'is exactly the same.'
+        out.append(('info', '  - Rewrote %s in %s (%s), each one with a few zero bytes at the end, so no two imported '
+                            'textures are the same file under different names. Neither the game nor the editor reads '
+                            'the extra bytes: the image is exactly the same.'
                     % (pluralize(len(changed_textures), 'imported texture', 'imported textures'),
                        pluralize(len(clusters), 'group', 'groups'),
                        ', '.join(seen[:4]) + ('...' if len(seen) > 4 else ''))))
