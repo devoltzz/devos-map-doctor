@@ -140,8 +140,9 @@ def data_done(steps):
         )
     x = details.get('quoted_numbers')
     if x:
-        out.append('Turned %s back into numbers in %s.'
-                   % (pluralize(sum(x.values()), 'value stored as text', 'values stored as text'), _short_names(x)))
+        n = sum(x.values())
+        out.append('Turned %s back into %s in %s.' % (pluralize(n, 'value stored as text', 'values stored as text'),
+                                                      'a number' if n == 1 else 'numbers', _short_names(x)))
     return out
 
 
