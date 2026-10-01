@@ -1,15 +1,16 @@
 # Builds dist/DevosMapDoctor.exe (one file, no console) with PyInstaller.
-import glob
 import os
 import re
 import shutil
 import sys
-import zipfile
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 ENGINE = os.path.join(ROOT, 'engine')
 NAME = 'DevosMapDoctor'
-EXCLUDE = ('PIL', 'cv2', 'lupa', 'matplotlib', 'pytest', 'setuptools', 'pip', 'unittest', 'pydoc_data')
+EXCLUDE = ('cv2', 'lupa', 'matplotlib', 'pytest', 'setuptools', 'pip', 'unittest', 'pydoc_data', 'tkinter')
+# the packages inside the exe, whose licenses go to THIRD_PARTY_NOTICES.txt
+PACKAGES = ('numpy', 'pillow', 'pywebview', 'pythonnet', 'clr_loader', 'bottle', 'proxy_tools', 'cffi',
+            'pycparser', 'typing_extensions')
 
 VERSION_FILE = """VSVersionInfo(
   ffi=FixedFileInfo(filevers=({v}), prodvers=({v}), mask=0x3f, flags=0x0, OS=0x40004, fileType=0x1,
@@ -34,15 +35,20 @@ def app_version():
 
 
 def notices():
-    # Adds the licenses of the embedded Python and Tcl/Tk to the ones of the source tree.
+    # Adds the licenses of the embedded Python and of each bundled package to the ones of the source tree.
+    from importlib import metadata
     text = open(os.path.join(ROOT, 'THIRD_PARTY_NOTICES.md'), encoding='utf-8').read()
     parts = [text, '\n## Python %d.%d.%d\n\n' % sys.version_info[:3]]
     parts.append(open(os.path.join(sys.base_prefix, 'LICENSE.txt'), encoding='utf-8', errors='replace').read())
-    for pattern, inner in (('libtcl*.zip', 'tcl_library/license.terms'), ('libtk*.zip', 'tk_library/license.terms')):
-        for z in sorted(glob.glob(os.path.join(sys.base_prefix, 'tcl', pattern))):
-            with zipfile.ZipFile(z) as f:
-                parts.append('\n## %s\n\n' % inner.split('_')[0].upper() + f.read(inner).decode('utf-8', 'replace'))
-            break
+    for name in PACKAGES:
+        try:
+            dist = metadata.distribution(name)
+        except metadata.PackageNotFoundError:
+            continue
+        files = [f for f in dist.files or [] if re.search(r'(LICEN[CS]E|COPYING|NOTICE)', f.name, re.I)]
+        licenses = '\n\n'.join(f.read_text(encoding='utf-8') or '' for f in files)
+        declared = dist.metadata.get('License-Expression') or dist.metadata.get('License') or ''
+        parts.append('\n## %s %s\n\n' % (dist.metadata['Name'], dist.version) + (licenses or declared) + '\n')
     return ''.join(parts)
 
 
@@ -59,7 +65,7 @@ def main():
     args = [os.path.join(ROOT, 'DevosMapDoctor.py'), '--onefile', '--windowed', '--noconfirm', '--clean',
             '--name', NAME, '--icon', icon, '--add-data', icon + os.pathsep + '.', '--paths', ENGINE,
             '--version-file', version_file, '--workpath', work, '--distpath', os.path.join(ROOT, 'dist'),
-            '--specpath', work]
+            '--specpath', work, '--add-data', os.path.join(ROOT, 'ui') + os.pathsep + 'ui']
     for module in sorted(f[:-3] for f in os.listdir(ENGINE) if f.endswith('.py')):
         args += ['--hidden-import', module]
     for data in sorted(f for f in os.listdir(ENGINE) if f.endswith('.j')):

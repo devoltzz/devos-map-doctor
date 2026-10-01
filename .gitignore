@@ -7,4 +7,5 @@ build/
 dist/
 *.spec
 *_unprotected*.w3x
+*_fixed*.w3x
 *_editor*.w3x
