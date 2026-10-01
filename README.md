@@ -11,12 +11,10 @@ damaged (the program offers to download it when it's missing).
 
 ## Usage
 
-Open a map (or drag it onto the exe) and click one of the three buttons. Your original map is never changed: each
-result is saved as a new file next to it.
+Open a map, or drag it onto the window or onto the exe. It is checked right away, and the header shows what was
+found. Your original map is never changed: each result is saved as a new file next to it.
 
-### 1. Diagnose protection
-
-Only reads the map and lists what it finds:
+The check finds:
 
 - a tampered or fake MPQ header, or a missing map header (why MPQ Editor opens the map read-only, or not at all)
 - file tables that are scrambled, virtual or full (SProtect, PG2 and the like)
@@ -29,13 +27,13 @@ Only reads the map and lists what it finds:
 - a file that is damaged rather than protected: a download that was cut short, or a copy taken from a compressed
   NTFS folder
 
-For each one it says which button takes care of it, or that nothing can be done.
+### Fix map
 
-### 2. Remove protection
+Saves `<map>_fixed.w3x`: without the protection (MPQ Editor opens it in edit mode) and with what Warcraft III 3.0 no
+longer accepts fixed. The extras, when you tick them: the imported models that crash the game, single player for maps
+that end the game when played alone, your map card changes, a translation, and a smaller map that loses nothing.
 
-Saves `<map>_unprotected.w3x`, which MPQ Editor can open and edit.
-
-### 3. Make it open in World Editor
+### Open in World Editor
 
 Saves `<map>_editor.w3x`. The triggers come back as GUI triggers you can click through (events, conditions and
 actions), grouped by what fires them. A trigger only goes back as GUI when writing it back to script gives exactly
@@ -47,6 +45,18 @@ Editor needs to build the script again.
 
 It works with JASS and Lua maps, with scripts renamed by an obfuscator and with scripts a map optimizer squeezed into
 `main`.
+
+Every step of both actions is an option. The steps the World Editor cannot do without are locked and say why; the
+defaults are the recommended ones, and presets keep your own choices.
+
+### The other tabs
+
+- Map card: name, author, description, loading screen, players and teams, minimap and preview, with a preview of the
+  color codes and a gradient tool. What the map says about itself: chat commands, where it saves, its language.
+- Runs on Reforged?: what the archive has measured that stops a map on Warcraft III 3.0.
+- Files, Script and Triggers: the map's files with a preview and extract, the script with export, the trigger tree.
+- Translation: every text a player sees in one file to translate, and the translation loaded back with the checks.
+- Compare: what changed between two versions of a map.
 
 ## KK platform maps
 
