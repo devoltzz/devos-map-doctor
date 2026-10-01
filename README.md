@@ -23,6 +23,7 @@ Only reads the map and lists what it finds:
 - fake files by the thousand, decoy names and files only the game can read
 - scrambled object ids
 - a script compiled for the KK platform
+- data tables of an old SLK map that Warcraft III 3.0 no longer accepts
 - what would stop the World Editor: missing editor files, counters inflated to hang it while loading, doodads whose
   id doesn't exist
 - a file that is damaged rather than protected: a download that was cut short, or a copy taken from a compressed
@@ -55,6 +56,13 @@ gives the same instructions the map had.
 
 One protection is left out: maps the platform encrypts outside the archive. That file only holds a loader, the real
 map can only be decrypted by the KK client, and the Doctor tells you so instead of trying anything.
+
+## Old SLK maps
+
+Maps saved in SLK mode (KKWE, YDWE, w3x2lni) carry their own data tables, and Warcraft III 3.0 no longer accepts
+some of what they hold: model paths in the `file` column (the game crashes when the first unit is created), ability
+tables that stop at level 4, half written button positions, a stray `*/` in a frame file, ability lists ending in
+`|n`. Buttons 2 and 3 fix these in the copy they save and change nothing else in those tables.
 
 ## Limits
 
