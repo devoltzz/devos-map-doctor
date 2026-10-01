@@ -1,17 +1,12 @@
 # Devo's Map Doctor: the window, the text mode and the result texts.
 import os
-import queue
 import sys
-import threading
-import traceback
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 if not getattr(sys, 'frozen', False):
     sys.path.insert(0, os.path.join(HERE, 'engine'))
 import unprotect as D
-import updater
 
-APP = "Devo's Map Doctor"
 VERSION = '1.4'
 
 STAGES = {
@@ -32,6 +27,11 @@ STAGES = {
     'editor': 'Adding what the World Editor needs...',
     'save': 'Saving...',
     'verify': 'Checking the result...',
+    'extra_models': 'Fixing the models that crash the game...',
+    'extra_single_player': 'Letting the map run in single player...',
+    'extra_card': 'Writing the map card changes...',
+    'extra_translation': 'Applying the translation...',
+    'extra_shrink': 'Making the map smaller (this can take a while on big maps)...',
 }
 
 MARKS = {'vexorian': ' (the mark of the Vexorian map optimizer, "VxOP")', 'w3p': ' (the mark of the w3p protector)',
@@ -182,19 +182,20 @@ def describe(p):
                 'a loader: an empty script and a few small files.' % mb(p.get('outside', 0)))
     if c == 'script_kkwe':
         return ('The script is compiled (KKWE): war3map.j is only a stub, and the whole script is in kkmap.jc (%s) as '
-                'the bytecode of the game\'s script engine, which the World Editor cannot read. Button 3 turns it '
+                'the bytecode of the game\'s script engine, which the World Editor cannot read. "Open in World '
+                'Editor" turns it '
                 'back into JASS.' % mb(p.get('byte_size', 0)))
     if c == 'script_j2b':
         return ('The script is compiled and encrypted (j2b): war3map.j is only a shell that loads war3map.bin (%s), '
                 'the real script as encrypted bytecode of the game\'s script engine, which the World Editor cannot '
-                'read. Button 3 decrypts it and turns it back into JASS.' % mb(p.get('byte_size', 0)))
+                'read. "Open in World Editor" decrypts it and turns it back into JASS.' % mb(p.get('byte_size', 0)))
     if c == 'full_hash_table':
         return 'The file index is 100%% full (%s entries): the MPQ Editor cannot add files.' % num(p['hash_entries'])
     if c == 'unreadable_tables':
         cv = p.get('carver') or {}
         if cv.get('w3i') and cv.get('script'):
             return ('The file tables of this map are scrambled (none of the %s entries leads to a readable file), but '
-                    'the files themselves are intact: %s found by their content (%s encrypted). "Remove protection" '
+                    'the files themselves are intact: %s found by their content (%s encrypted). "Fix map" '
                     'rebuilds the map around them with new file tables.'
                     % (num(p.get('hash_entries', 0)), pluralize(cv.get('file_set') or 0, 'file was', 'files were'),
                        num(cv.get('encrypted_count') or 0)))
@@ -234,7 +235,7 @@ def describe(p):
     if c == 'invalid_doodad':
         return ('%s an object ID that does not exist in the game data nor in the map\'s own object data (%s%s). '
                 'The game draws nothing for them and the World Editor reports "Invalid object ID" and crashes while '
-                'opening the map. They are removed in button 3.'
+                'opening the map. "Open in World Editor" removes them.'
                 % (pluralize(p.get('n', 0), 'doodad placed in the map uses', 'doodads placed in the map use'),
                    ', '.join(p.get('examples') or []) or '?', '...' if len(p.get('ids') or []) > 5 else ''))
     if c in D.DATA_ONLY:
@@ -300,9 +301,9 @@ def diagnosis_text(d):
             out.append(('invalid', "This map can't be unprotected, and no button here can help: the real map is not "
                                    'inside this file, and nothing is tried on it. ' + NO_ENCRYPTION))
         elif set(p['code'] for p in protections) <= set(D.BUTTON3_ONLY):
-            out.append(('ok', 'Devo\'s Map Doctor can fix it: click "Make it open in World Editor".'))
+            out.append(('ok', 'Devo\'s Map Doctor can fix it: click "Open in World Editor".'))
         else:
-            out.append(('ok', 'Devo\'s Map Doctor can remove it: click "Remove protection".'))
+            out.append(('ok', 'Devo\'s Map Doctor can remove it: click "Fix map".'))
     if d.get('slk'):
         out.append(('info', 'SLK mode: the map ships its own data tables (%s).'
                     % pluralize(len(d['slk']), 'file', 'files')))
@@ -312,7 +313,7 @@ def diagnosis_text(d):
         for p in data_bytes:
             out.append(('warning', '  - ' + describe(p)))
         out.append(('', ''))
-        out.append(('ok', 'Both buttons fix it: "Remove protection" saves a copy to play, "Make it open in World '
+        out.append(('ok', 'Both actions fix it: "Fix map" saves a copy to play, "Open in World '
                           'Editor" one for the editor.'))
     lf = d.get('listfile')
     if lf:
@@ -350,7 +351,7 @@ def diagnosis_text(d):
                         ),
                     )
                 )
-        out.append(('ok', 'Click "Make it open in World Editor": each map above is prepared inside the campaign.'))
+        out.append(('ok', 'Click "Open in World Editor": each map above is prepared inside the campaign.'))
     elif status == 'needs_work':
         gaps = []
         blocking = set(p['code'] for p in d['protections']) & set(D.EDITOR_BLOCKERS)
@@ -372,7 +373,7 @@ def diagnosis_text(d):
                            ', '.join(os.path.basename(g[-1].replace('\\', '/')) for g in ed['duplicate_textures'][:3]) +
                            ('...' if len(ed['duplicate_textures']) > 3 else '')))
         out.append(('warning', 'World Editor: the map will not open yet (%s).' % '; '.join(gaps or ['see above'])))
-        out.append(('ok', 'Click "Make it open in World Editor".'))
+        out.append(('ok', 'Click "Open in World Editor".'))
     else:
         out.append(('invalid', 'World Editor: ' + editor_reason(status)))
     return out
@@ -511,17 +512,17 @@ def _common_failures(r, verb):
 
 def unprotection_text(r):
     d = r['before']
-    out = [('heading', 'Remove protection: %s' % os.path.basename(d['file_name']))]
+    out = [('heading', 'Fix map: %s' % os.path.basename(d['file_name']))]
     failure = _common_failures(r, 'unprotected')
     if failure:
         return out + failure
     if r['status'] == 'nothing_to_do':
         if r.get('for_button3'):
-            return out + [
-                ('ok', 'Nothing to remove in the MPQ archive. No file was written.'),
-                ('info', 'The World Editor problems found above are fixed by "Make it open in World Editor".'),
-            ]
+            return out + [('ok', 'Nothing to remove in the MPQ archive. No file was written.'),
+                          ('info', 'The World Editor problems found above are fixed by "Open in World Editor".')]
         return out + [('ok', 'No protection found: nothing to remove. No file was written.')]
+    if r['status'] == 'nothing_selected':
+        return out + [('ok', 'Every step this map needs was turned off: nothing to do. No file was written.')]
     data_only = [k for k in r['steps'] if k != 'data_bytes'] == []
     if data_only:
         out.append(('ok', 'Fixed for Warcraft III 3.0.' if r['status'] == 'done' else
@@ -548,13 +549,17 @@ def unprotection_text(r):
                        ' (%s)' % '; '.join(on_purpose) if on_purpose else '')))
     after_diag = (r.get('after_diag') or {}).get('protections') or []
     button3 = [p for p in after_diag if p['code'] in D.BUTTON3_ONLY]
-    unresolved = [p for p in after_diag if p['code'] not in D.BUTTON3_ONLY and p['code'] not in D.DATA_ONLY]
+    deixados = set(r.get('deixados') or [])
+    unresolved = [p for p in after_diag if p['code'] not in D.BUTTON3_ONLY and p['code'] not in D.DATA_ONLY and
+                  p['code'] not in deixados]
     for p in after_diag:
-        if p['code'] in D.DATA_ONLY:
+        if p['code'] in deixados:
+            out.append(('info', '  - Left as you chose: ' + describe(p)))
+        elif p['code'] in D.DATA_ONLY:
             out.append(('warning', '  - Not fixed: ' + describe(p)))
     if button3:
         out.append(('', ''))
-        out.append(('info', 'Left for "Make it open in World Editor" (this button keeps every map file identical):'))
+        out.append(('info', 'Left for "Open in World Editor" (this action keeps every map file identical):'))
         for p in button3:
             out.append(('info', '  - ' + describe(p)))
     if unresolved:
@@ -575,7 +580,7 @@ def unprotection_text(r):
 
 def editor_text(r):
     d = r['before']
-    out = [('heading', 'Make it open in World Editor: %s' % os.path.basename(d['file_name']))]
+    out = [('heading', 'Open in World Editor: %s' % os.path.basename(d['file_name']))]
     failure = _common_failures(r, 'prepared for the World Editor')
     if failure:
         return out + failure
@@ -861,217 +866,24 @@ def execute(action_code, map_path, progress=None, safe_units=True):
     if action_code == 'diag':
         return diagnosis_text(D.diagnose(map_path, progress))
     if action_code == 'unprotect':
-        return unprotection_text(D.unprotect(map_path, D.free_output(map_path, '_unprotected'), progress))
+        return unprotection_text(D.unprotect(map_path, D.free_output(map_path, '_fixed'), progress))
     return editor_text(D.prepare_for_editor(map_path, D.free_output(map_path, '_editor'), progress,
                                             safe_units=safe_units))
 
 
 def window(initial_map_path=None):
-    import tkinter as tk
-    from tkinter import filedialog, font, ttk
-    from tkinter.scrolledtext import ScrolledText
-
-    root = tk.Tk()
-    root.title(APP)
-    root.minsize(760, 540)
-    root.geometry('880x620')
+    import doctor_app
     try:
-        root.iconbitmap(default=icon_ico())
-    except Exception:
-        pass
-    work_queue = queue.Queue()
-    status = {'busy': False}
-    map_path_var = tk.StringVar(value=initial_map_path or '')
-    status_var = tk.StringVar(value='Select a Warcraft III map or campaign (.w3x / .w3m / .w3n) to start.')
-
-    base = font.nametofont('TkDefaultFont')
-    base.configure(size=10)
-    bold_font = base.copy()
-    bold_font.configure(weight='bold')
-    heading_font = base.copy()
-    heading_font.configure(size=13, weight='bold')
-
-    header = ttk.Frame(root, padding=(14, 12, 14, 4))
-    header.pack(fill='x')
-    ttk.Label(header, text=APP, font=heading_font).pack(side='left')
-    ttk.Label(header, text='  diagnose and remove Warcraft III map protections', foreground='#666').pack(side='left')
-
-    ln = ttk.Frame(root, padding=(14, 6, 14, 6))
-    ln.pack(fill='x')
-    ttk.Label(ln, text='Map:').pack(side='left')
-    ent = ttk.Entry(ln, textvariable=map_path_var, state='readonly')
-    ent.pack(side='left', fill='x', expand=True, padx=(6, 6))
-    b_choose = ttk.Button(ln, text='Select map...', command=lambda: choose())
-    b_choose.pack(side='left')
-
-    buttons = ttk.Frame(root, padding=(14, 4, 14, 8))
-    buttons.pack(fill='x')
-    tag = ttk.Style()
-    tag.configure('Big.TButton', font=bold_font, padding=(10, 10))
-    b1 = ttk.Button(buttons, text='1   Diagnose protection', style='Big.TButton', command=lambda: run_action('diag'))
-    b2 = ttk.Button(buttons, text='2   Remove protection', style='Big.TButton', command=lambda: run_action('unprotect'))
-    b3 = ttk.Button(
-        buttons, text='3   Make it open in World Editor', style='Big.TButton', command=lambda: run_action('editor')
-    )
-    for i, b in enumerate((b1, b2, b3)):
-        b.grid(row=0, column=i, sticky='ew', padx=(0 if i == 0 else 8, 0))
-        buttons.columnconfigure(i, weight=1)
-
-    log = ScrolledText(root, wrap='word', height=20, relief='flat', borderwidth=1, padx=12, pady=10,
-                       font=base, background='#fbfbfb')
-    log.pack(fill='both', expand=True, padx=14)
-    log.tag_configure('heading', font=heading_font, spacing1=6, spacing3=4)
-    log.tag_configure('heading2', font=bold_font)
-    log.tag_configure('ok', foreground='#1b7f3a', font=bold_font)
-    log.tag_configure('warning', foreground='#a35a00')
-    log.tag_configure('invalid', foreground='#b3261e', font=bold_font)
-    log.tag_configure('info', foreground='#222')
-    log.tag_configure('file_path', foreground='#1a4fa0')
-    log.configure(state='disabled')
-
-    footer = ttk.Frame(root, padding=(14, 6, 14, 10))
-    footer.pack(fill='x')
-    bar = ttk.Progressbar(footer, mode='determinate', length=160, value=0)
-    bar.pack(side='left')
-    ttk.Label(footer, textvariable=status_var).pack(side='left', padx=(10, 0))
-    ttk.Label(footer, text='v%s  -  your original map is never changed' % VERSION, foreground='#888').pack(side='right')
-
-    def write(line_list):
-        log.configure(state='normal')
-        if log.index('end-1c') != '1.0':
-            log.insert('end', '\n')
-        for st, txt in line_list:
-            log.insert('end', txt + '\n', st or ())
-        log.configure(state='disabled')
-        log.see('end')
-
-    def enable(yes):
-        for b in (b1, b2, b3, b_choose):
-            b.configure(state='normal' if yes else 'disabled')
-
-    def choose():
-        begin = os.path.dirname(map_path_var.get()) if map_path_var.get() else None
-        p = filedialog.askopenfilename(
-            title='Select a Warcraft III map',
-            initialdir=begin,
-            filetypes=[('Warcraft III maps and campaigns', '*.w3x *.w3m *.w3n'), ('All files', '*.*')],
-        )
-        if p:
-            map_path_var.set(os.path.normpath(p))
-            status_var.set('Ready. Choose an action.')
-
-    def run_action(action_code):
-        map_path = map_path_var.get()
-        if status['busy']:
-            return
-        if not map_path or not os.path.isfile(map_path):
-            choose()
-            map_path = map_path_var.get()
-            if not map_path or not os.path.isfile(map_path):
-                return
-        status['busy'] = True
-        enable(False)
-        bar.configure(mode='indeterminate')
-        bar.start(12)
-        status_var.set('Working...')
-
-        def work():
-            try:
-                line_list = execute(action_code, map_path, progress=lambda c: work_queue.put(('stage', c)))
-            except Exception as e:
-                line_list = [('invalid', 'Unexpected error: %s' % e),
-                             ('info', 'Your original map was not changed.'),
-                             ('info', traceback.format_exc(limit=3))]
-            work_queue.put(('end_pos', line_list))
-        threading.Thread(target=work, daemon=True).start()
-
-    def poll():
-        try:
-            while True:
-                kind, datum = work_queue.get_nowait()
-                if kind == 'stage':
-                    status_var.set(STAGES.get(datum, 'Working...'))
-                elif kind == 'version_num':
-                    offer(datum)
-                elif kind == 'offer_index':
-                    offer_index(datum)
-                elif kind == 'message':
-                    status_var.set(datum)
-                else:
-                    write(datum)
-                    bar.stop()
-                    bar.configure(mode='determinate', value=0)
-                    status['busy'] = False
-                    enable(True)
-                    status_var.set('Done.')
-        except queue.Empty:
-            pass
-        root.after(120, poll)
-
-    def on_close():
-        if status['busy']:
-            from tkinter import messagebox
-            if not messagebox.askyesno(APP, 'A task is still running. Close anyway? (Your original map is safe.)'):
-                return
-        root.destroy()
-
-    root.protocol('WM_DELETE_WINDOW', on_close)
-    write([('heading', 'Welcome'),
-           ('info', '1. Select a Warcraft III map.'),
-           ('info', '2. "Diagnose protection" tells you what was done to it.'),
-           ('info', '3. "Remove protection" saves an unprotected copy next to it (fake files removed too), which the '
-                    'MPQ Editor opens in edit mode.'),
-           ('info', '4. "Make it open in World Editor" saves a copy the World Editor can open.'),
-           ('info', 'Your original map is never changed.')])
-    if initial_map_path:
-        status_var.set('Ready. Choose an action.')
-
-    def new_version(release):
-        work_queue.put(('version_num', release))
-
-    def offer(release):
-        from tkinter import messagebox
-        body_text = 'Version %s of %s is available (you have %s).\n\nDownload and install it now?' % (
-            release['version'].lstrip('vV'), APP, VERSION)
-        if not messagebox.askyesno(APP, body_text):
-            return
-        status_var.set('Downloading the new version...')
-        root.update_idletasks()
-        try:
-            if updater.install(release):
-                root.destroy()
-        except Exception as e:
-            messagebox.showerror(APP, 'The update failed: %s\n\nThe release page will open instead.' % e)
-            updater.open_page(release)
-        status_var.set('Ready.')
-
-    def index_missing(release):
-        work_queue.put(('offer_index', release))
-
-    def offer_index(release):
-        from tkinter import messagebox
-
-        body_text = (
-            'The file name index (names.npz, %s) is %s. With it, the Doctor names more of the files it finds in '
-            'maps whose file tables are damaged.\n\nDownload it now?'
-            % (mb(release.get('index_size') or 0), 'out of date' if os.path.isfile(updater.index_path()) else 'missing')
-        )
-        if not messagebox.askyesno(APP, body_text):
-            return
-        status_var.set('Downloading the file name index...')
-
-        def fetch():
-            try:
-                updater.download_index(release)
-                work_queue.put(('message', 'The file name index is ready.'))
-            except Exception as e:
-                work_queue.put(('message', 'The file name index could not be downloaded: %s' % e))
-        threading.Thread(target=fetch, daemon=True).start()
-
-    if updater.enabled(sys.argv):
-        updater.check(VERSION, new_version, index_missing)
-    poll()
-    root.mainloop()
+        import updater
+    except ImportError:
+        updater = None
+    try:
+        icon_file = icon_ico()
+    except OSError:
+        icon_file = None
+    if updater is not None:
+        updater.cleanup()
+    doctor_app.run(VERSION, initial_map_path, updater, icon_file)
 
 
 def icon_ico():
@@ -1091,7 +903,9 @@ def _no_console():
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else list(argv)
     _no_console()
-    updater.cleanup()
+    if '--worker' in argv:
+        import doctor_app
+        return doctor_app.worker_main(sys.modules[__name__])
     if '--text' in argv:
         log = next((a.split('=', 1)[1] for a in argv if a.startswith('--log=')), None)
         out = open(log, 'w', encoding='utf-8') if log else sys.stdout

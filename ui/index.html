@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Devo's Map Doctor</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="brand"><h1>Devo's Map Doctor</h1><span class="ver" id="version"></span></div>
+    <div class="grow"></div>
+    <span id="update" class="hidden"></span>
+    <button class="btn hidden" id="btnOpen">Open another map...</button>
+    <button class="btn ghost" id="btnReport" title="Open a GitHub issue with this report filled in">Report a problem</button>
+  </header>
+
+  <main id="main">
+    <!-- no map yet -->
+    <section id="welcome">
+      <div class="drop" id="drop">
+        <h2>Drop a Warcraft III map here</h2>
+        <p>Or open one: .w3x, .w3m and .w3n campaigns. The map is checked as soon as it opens.</p>
+        <button class="btn primary" id="btnOpen2">Open map...</button>
+        <p class="faint" style="margin-top:22px">Your original map is never changed: each result is saved as a new
+          file next to it.</p>
+      </div>
+      <div class="recent hidden" id="recent"><h3 class="muted">Recent maps</h3><ul id="recentList"></ul></div>
+    </section>
+
+    <!-- a map is open -->
+    <section id="mapview" class="hidden">
+      <div class="card maphead">
+        <canvas class="thumb" id="thumb" width="96" height="96"></canvas>
+        <div class="grow">
+          <div class="title" id="mapTitle"></div>
+          <div class="path" id="mapPath"></div>
+          <div class="badges" id="badges"></div>
+          <details class="diag" id="diagBox"><summary>Diagnosis</summary><div class="report" id="diagLines"></div></details>
+        </div>
+      </div>
+
+      <div class="card hidden" id="jobCard">
+        <div class="job"><div class="spinner"></div><div class="label" id="jobLabel"></div>
+          <span class="time" id="jobTime">0:00</span><button class="btn danger small" id="btnCancel">Cancel</button></div>
+      </div>
+
+      <nav class="tabs" id="tabs">
+        <button data-tab="actions" class="on">Actions</button>
+        <button data-tab="card">Map card</button>
+        <button data-tab="reforged">Runs on Reforged?</button>
+        <button data-tab="files">Files</button>
+        <button data-tab="script">Script</button>
+        <button data-tab="triggers">Triggers</button>
+        <button data-tab="translation">Translation</button>
+        <button data-tab="compare">Compare</button>
+      </nav>
+
+      <div class="tab" id="tab-actions">
+        <div class="actions" id="actions"></div>
+        <div id="results"></div>
+      </div>
+      <div class="tab hidden" id="tab-card"></div>
+      <div class="tab hidden" id="tab-reforged"></div>
+      <div class="tab hidden" id="tab-files"></div>
+      <div class="tab hidden" id="tab-script"></div>
+      <div class="tab hidden" id="tab-triggers"></div>
+      <div class="tab hidden" id="tab-translation"></div>
+      <div class="tab hidden" id="tab-compare"></div>
+    </section>
+  </main>
+
+  <footer class="bottom"><span id="status">Ready.</span></footer>
+</div>
+<div id="toasts"></div>
+<script src="app.js"></script>
+</body>
+</html>
