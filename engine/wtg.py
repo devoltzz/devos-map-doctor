@@ -576,6 +576,10 @@ def trigger_texts(mt, ct):
     return texts
 
 
+def to_classic_wct(ct, mt):
+    return CustomText(False, ct.comment, ct.header, trigger_texts(mt, ct), ct.version)
+
+
 class Arities(object):
     def __init__(self, table, multiple=None):
         self.table, self.multiple = table, multiple or {}

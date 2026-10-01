@@ -1002,3 +1002,8 @@ def compare_trigger(trigger, td, mt, script, lang=JASS, text=None, functions=Non
     b = canonical('\n'.join(real[n] for n in closure(real, root)), lang, self_name=root[9:])
     return a == b, a, b
 
+
+def _read(path, mode='rb'):
+    with open(path, mode) as f:
+        return f.read()
+

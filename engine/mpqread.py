@@ -28,6 +28,11 @@ CACHE_MAX = 96 << 20
 CACHE_CHUNK_MAX = 4 << 20
 
 
+def clear_cache():
+    _CACHE.clear()
+    _CACHE_BYTES[0] = 0
+
+
 def _crypt(data, key):
     data = bytes(data)
     k = (key, data)

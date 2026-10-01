@@ -1660,3 +1660,6 @@ _BAD = (
     ('semicolon 200 levels deep', 'do ' * 199 + ';' + ' end' * 199),
     ('bad label after a label', 'goto c local x = 1 ::c:: ::\nend'),
 )
+def _read(path):
+    with open(path, 'rb') as f:
+        return f.read().decode('utf-8', 'surrogateescape')

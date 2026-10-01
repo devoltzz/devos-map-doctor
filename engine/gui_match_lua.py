@@ -1518,3 +1518,8 @@ def _param_difference(p, q, td, at):
         return _param_difference(p.index, q.index, td, at + '[]')
     return None
 
+
+def _read(path):
+    with open(path, 'rb') as f:
+        return f.read()
+

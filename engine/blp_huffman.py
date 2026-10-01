@@ -1,0 +1,413 @@
+# Rewrites JPEG BLP textures with optimal Huffman tables, losing nothing.
+import io
+import struct
+
+
+SOF_NOT_BASELINE = {0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}
+VERSION = 'blp_huffman/1'
+
+
+class _LeBits:
+    __slots__ = ('d', 'p', 'acc', 'n')
+
+    def __init__(self, d, p):
+        self.d = d
+        self.p = p
+        self.acc = 0
+        self.n = 0
+
+    def bits(self, k):
+        while self.n < k:
+            d = self.d
+            b = d[self.p]
+            if b == 0xFF:
+                if d[self.p + 1] == 0x00:
+                    self.p += 2
+            else:
+                self.p += 1
+            self.acc = ((self.acc << 8) | b) & 0xFFFFFFFFFFFF
+            self.n += 8
+        self.n -= k
+        return (self.acc >> self.n) & ((1 << k) - 1)
+
+    def alinha(self):
+        self.n = 0
+        self.acc = 0
+
+
+def _tab_decod(counts, syms):
+    code = 0
+    k = 0
+    maxcode = [-1] * 18
+    valptr = [0] * 17
+    mincode = [0] * 17
+    for L in range(1, 17):
+        n = counts[L - 1]
+        if n:
+            valptr[L] = k
+            mincode[L] = code
+            code += n
+            k += n
+            maxcode[L] = code - 1
+        code <<= 1
+    return maxcode, valptr, mincode, syms
+
+
+def _decod(lb, t):
+    maxcode, valptr, mincode, syms = t
+    code = lb.bits(1)
+    L = 1
+    while code > maxcode[L]:
+        code = (code << 1) | lb.bits(1)
+        L += 1
+        if L > 16:
+            raise ValueError('codigo Huffman invalido')
+    return syms[valptr[L] + code - mincode[L]]
+
+
+def _segmentos(d):
+    if d[:2] != b'\xff\xd8':
+        raise ValueError('no SOI')
+    segs = [(0xD8, 0, 2)]
+    p = 2
+    while True:
+        while d[p] == 0xFF and d[p + 1] == 0xFF:
+            p += 1
+        if d[p] != 0xFF:
+            raise ValueError('marcador esperado em %d' % p)
+        mk = d[p + 1]
+        L = struct.unpack_from('>H', d, p + 2)[0]
+        segs.append((mk, p, p + 2 + L))
+        p += 2 + L
+        if mk == 0xDA:
+            return segs, p
+
+
+def _tabelas_dht(seg):
+    q = 0
+    while q < len(seg):
+        tc, th = seg[q] >> 4, seg[q] & 15
+        counts = list(seg[q + 1:q + 17])
+        n = sum(counts)
+        yield (tc, th), counts, list(seg[q + 17:q + 17 + n]), seg[q:q + 17 + n]
+        q += 17 + n
+
+
+def analyze(d):
+    d = bytes(d)
+    segs, ent = _segmentos(d)
+    dht = {}
+    comps = {}
+    dri = 0
+    sof = None
+    for mk, a, b in segs:
+        seg = d[a + 4:b]
+        if mk in SOF_NOT_BASELINE:
+            return None
+        if mk == 0xC0:
+            prec, hh, ww, nc = struct.unpack_from('>BHHB', seg, 0)
+            if prec != 8:
+                return None
+            sof = (hh, ww)
+            for i in range(nc):
+                cid, hv, _tq = seg[6 + 3 * i:9 + 3 * i]
+                comps[cid] = (hv >> 4, hv & 15)
+        elif mk == 0xC4:
+            for key, counts, syms, _ in _tabelas_dht(seg):
+                dht[key] = _tab_decod(counts, syms)
+        elif mk == 0xDD:
+            dri = struct.unpack_from('>H', seg, 0)[0]
+    mk, a, b = segs[-1]
+    sos = d[a + 4:b]
+    ns = sos[0]
+    if sof is None or sos[1 + 2 * ns:4 + 2 * ns] != b'\x00\x3f\x00':
+        return None
+    scan = [(sos[1 + 2 * i], sos[2 + 2 * i] >> 4, sos[2 + 2 * i] & 15) for i in range(ns)]
+    hh, ww = sof
+    hmax = max(x[0] for x in comps.values())
+    vmax = max(x[1] for x in comps.values())
+    if ns == 1:
+        h, v = comps[scan[0][0]]
+        cw = (ww * h + hmax - 1) // hmax
+        ch = (hh * v + vmax - 1) // vmax
+        nmcu = ((cw + 7) // 8) * ((ch + 7) // 8)
+        block_list = [(scan[0], 1)]
+    else:
+        nmcu = ((ww + 8 * hmax - 1) // (8 * hmax)) * ((hh + 8 * vmax - 1) // (8 * vmax))
+        block_list = [(sc, comps[sc[0]][0] * comps[sc[0]][1]) for sc in scan]
+    lb = _LeBits(d, ent)
+    seq = []
+    ap = seq.append
+    for mcu in range(nmcu):
+        if dri and mcu and mcu % dri == 0:
+            lb.alinha()
+            if d[lb.p] != 0xFF or not (0xD0 <= d[lb.p + 1] <= 0xD7):
+                raise ValueError('RST esperado')
+            lb.p += 2
+            ap(None)
+        for (_cid, td, ta), nb in block_list:
+            tdc = dht[(0, td)]
+            tac = dht[(1, ta)]
+            kdc = (0, td)
+            kac = (1, ta)
+            for _ in range(nb):
+                s = _decod(lb, tdc)
+                ap((kdc, s, lb.bits(s) if s else 0, s))
+                k = 1
+                while k < 64:
+                    rs = _decod(lb, tac)
+                    s = rs & 15
+                    ap((kac, rs, lb.bits(s) if s else 0, s))
+                    if s == 0:
+                        if rs == 0xF0:
+                            k += 16
+                            continue
+                        break
+                    k += (rs >> 4) + 1
+                if k > 64:
+                    raise ValueError('coeficientes demais no bloco')
+    lb.alinha()
+    q = lb.p
+    while q + 1 < len(d) and d[q] == 0xFF and d[q + 1] == 0xFF:
+        q += 1
+    if d[q:q + 2] != b'\xff\xd9':
+        return None
+    return {'d': d, 'segs': segs, 'seq': seq, 'end_ent': lb.p}
+
+
+def frequencias(analises):
+    freq = {}
+    for a in analises:
+        for x in a['seq']:
+            if x is None:
+                continue
+            fr = freq.setdefault(x[0], {})
+            fr[x[1]] = fr.get(x[1], 0) + 1
+    return freq
+
+
+def _otima(freq):
+    f = [0] * 257
+    for s, n in freq.items():
+        f[s] = n
+    f[256] = 1
+    codesize = [0] * 257
+    others = [-1] * 257
+    live = [i for i in range(257) if f[i]]
+    while True:
+        c1 = -1
+        v = 1 << 62
+        for i in live:
+            if f[i] <= v:
+                v = f[i]
+                c1 = i
+        c2 = -1
+        v = 1 << 62
+        for i in live:
+            if f[i] <= v and i != c1:
+                v = f[i]
+                c2 = i
+        if c2 < 0:
+            break
+        f[c1] += f[c2]
+        f[c2] = 0
+        live.remove(c2)
+        codesize[c1] += 1
+        while others[c1] >= 0:
+            c1 = others[c1]
+            codesize[c1] += 1
+        others[c1] = c2
+        codesize[c2] += 1
+        while others[c2] >= 0:
+            c2 = others[c2]
+            codesize[c2] += 1
+    bits = [0] * 33
+    for i in range(257):
+        if codesize[i]:
+            bits[codesize[i]] += 1
+    for i in range(32, 16, -1):
+        while bits[i] > 0:
+            j = i - 2
+            while bits[j] == 0:
+                j -= 1
+            bits[i] -= 2
+            bits[i - 1] += 1
+            bits[j + 1] += 2
+            bits[j] -= 1
+    i = 16
+    while bits[i] == 0:
+        i -= 1
+    bits[i] -= 1
+    huffval = [s for L in range(1, 33) for s in range(256) if codesize[s] == L]
+    return bits[1:17], huffval
+
+
+def tabelas_otimas(freq):
+    return {k: _otima(v) for k, v in freq.items()}
+
+
+def _codes(bits, huffval):
+    tab = {}
+    code = 0
+    k = 0
+    for L in range(1, 17):
+        for _ in range(bits[L - 1]):
+            tab[huffval[k]] = (code, L)
+            k += 1
+            code += 1
+        code <<= 1
+    return tab
+
+
+def reescreve(a, tables):
+    d, segs, seq = a['d'], a['segs'], a['seq']
+    code_part = {k: _codes(*v) for k, v in tables.items()}
+    out = bytearray()
+    acc = 0
+    n = 0
+    rst = 0
+    for x in seq:
+        if x is None:
+            if n:
+                k = 8 - n
+                b = ((acc << k) | ((1 << k) - 1)) & 0xFF
+                out.append(b)
+                if b == 0xFF:
+                    out.append(0)
+                acc = 0
+                n = 0
+            out += bytes([0xFF, 0xD0 + rst])
+            rst = (rst + 1) & 7
+            continue
+        key, s, extra, nb = x
+        c, L = code_part[key][s]
+        acc = (acc << L) | c
+        n += L
+        if nb:
+            acc = (acc << nb) | extra
+            n += nb
+        while n >= 8:
+            n -= 8
+            b = (acc >> n) & 0xFF
+            out.append(b)
+            if b == 0xFF:
+                out.append(0)
+        acc &= (1 << n) - 1
+    if n:
+        k = 8 - n
+        b = ((acc << k) | ((1 << k) - 1)) & 0xFF
+        out.append(b)
+        if b == 0xFF:
+            out.append(0)
+    body = bytearray()
+    for mk, p, q in segs:
+        if mk == 0xC4:
+            for key, _, _, raw_data in _tabelas_dht(d[p + 4:q]):
+                if key not in tables:
+                    body += raw_data
+    for key in sorted(tables):
+        bits, huffval = tables[key]
+        body += bytes([key[0] << 4 | key[1]]) + bytes(bits) + bytes(huffval)
+    res = bytearray()
+    existing = False
+    for mk, p, q in segs:
+        if mk == 0xC4:
+            if not existing:
+                res += b'\xff\xc4' + struct.pack('>H', len(body) + 2) + body
+                existing = True
+            continue
+        res += d[p:q]
+    res += out
+    res += d[a['end_ent']:]
+    return bytes(res)
+
+
+def mesmos_pixels(j1, j2):
+    from PIL import Image
+    a = Image.open(io.BytesIO(j1))
+    b = Image.open(io.BytesIO(j2))
+    return a.mode == b.mode and a.size == b.size and a.tobytes() == b.tobytes()
+
+
+def mipmaps_jpeg(c):
+    mo = struct.unpack_from('<16I', c, 28)
+    ms = struct.unpack_from('<16I', c, 92)
+    hsz = struct.unpack_from('<I', c, 156)[0]
+    return [c[160:160 + hsz] + c[o:o + s] for o, s in zip(mo, ms) if o and s]
+
+
+def same_texture(a, b):
+    if a == b:
+        return True
+    if not (a and b and a[:8] == b'BLP1\x00\x00\x00\x00' == b[:8] and a[8:28] == b[8:28]):
+        return False
+    ma, mb = mipmaps_jpeg(a), mipmaps_jpeg(b)
+    return len(ma) == len(mb) and all(mesmos_pixels(x, y) for x, y in zip(ma, mb))
+
+
+def otimiza_blp(c, prova=True):
+    c = bytes(c)
+    if len(c) < 160 or c[:4] != b'BLP1' or struct.unpack_from('<I', c, 4)[0] != 0:
+        return None, 'nao e BLP1 JPEG'
+    mo = list(struct.unpack_from('<16I', c, 28))
+    ms = list(struct.unpack_from('<16I', c, 92))
+    hsz = struct.unpack_from('<I', c, 156)[0]
+    hdr = c[160:160 + hsz]
+    ent = sorted(set((o, s) for o, s in zip(mo, ms) if o and s))
+    if not ent:
+        return None, 'no mipmap'
+    pos = 160 + hsz
+    for o, s in ent:
+        if o != pos:
+            return None, 'layout not contiguous'
+        pos += s
+    if pos != len(c):
+        return None, 'sobra no fim'
+    jpegs = {e: hdr + c[e[0]:e[0] + e[1]] for e in ent}
+    try:
+        an = {e: analyze(j) for e, j in jpegs.items()}
+    except (ValueError, IndexError, KeyError, struct.error) as ex:
+        return None, 'decodificacao: %s' % ex
+    if any(a is None for a in an.values()):
+        return None, 'not baseline'
+    no_cab = [q <= hsz for a in an.values() for mk, p, q in a['segs'] if mk == 0xC4]
+    if not no_cab:
+        return None, 'no DHT'
+    if all(no_cab):
+        tab = tabelas_otimas(frequencias(an.values()))
+        new_ones = {e: reescreve(a, tab) for e, a in an.items()}
+        old = sum(q - p for mk, p, q in next(iter(an.values()))['segs'] if mk == 0xC4)
+        first = next(iter(new_ones.values()))
+        new = sum(q - p for mk, p, q in _segmentos(first)[0] if mk == 0xC4)
+        nhsz = hsz + new - old
+        method = 'tabela conjunta'
+    elif not any(no_cab):
+        new_ones = {e: reescreve(a, tabelas_otimas(frequencias([a]))) for e, a in an.items()}
+        nhsz = hsz
+        method = 'tabela por mipmap'
+    else:
+        return None, 'DHT parte no cabecalho, parte no mipmap'
+    nhdr = next(iter(new_ones.values()))[:nhsz]
+    if any(nj[:nhsz] != nhdr for nj in new_ones.values()):
+        return None, 'the header is no longer a common one'
+    if prova:
+        for e in ent:
+            if not mesmos_pixels(jpegs[e], new_ones[e]):
+                return None, 'PIXEL DIFFERENT (not written)'
+    out = bytearray(c[:156]) + struct.pack('<I', nhsz) + nhdr
+    new_pos = {}
+    for e in ent:
+        body = new_ones[e][nhsz:]
+        new_pos[e] = (len(out), len(body))
+        out += body
+    nmo, nms = [], []
+    for o, s in zip(mo, ms):
+        node, ns = new_pos[(o, s)] if (o and s) else (o, s)
+        nmo.append(node)
+        nms.append(ns)
+    struct.pack_into('<16I', out, 28, *nmo)
+    struct.pack_into('<16I', out, 92, *nms)
+    if len(out) >= len(c):
+        return None, 'did not get smaller'
+    return bytes(out), 'ok, ' + method
+

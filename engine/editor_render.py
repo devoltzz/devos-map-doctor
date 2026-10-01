@@ -1232,6 +1232,22 @@ def referenced_objects(mt, texts=None, header=None, enabled_only=True):
     return out
 
 
+EDITOR_FILES = ('war3map.w3i', 'war3map.w3r', 'war3map.w3c', 'war3map.w3s', 'war3mapUnits.doo', 'war3map.doo',
+                'war3map.w3e', 'war3map.wtg', 'war3map.wct') + tuple(name for name, _k, _l in GameData.OBJECT_FILES)
+
+
+def map_files(archive):
+    out = {}
+    for name in EDITOR_FILES:
+        try:
+            data = archive.read(name)
+        except Exception:
+            data = None
+        if data is not None:
+            out[name] = data
+    return out
+
+
 def _triggers(files, td, mt, texts, header):
     if mt is not None or not files.get('war3map.wtg') or td is None:
         return mt, texts, header
@@ -1435,6 +1451,25 @@ def _runs(ids):
     for i in ids:
         if not out or out[-1] != i:
             out.append(i)
+    return out
+
+
+def family(name):
+    return re.sub(r'\d+', 'N', name)
+
+
+def compare(rendering, script):
+    if isinstance(script, bytes):
+        script = script.decode('utf-8', 'surrogateescape')
+    script = script.replace('\r\n', '\n')
+    theirs = gui_render.split_functions(script, 'jass')
+    mine = dict(rendering.functions)
+    out = collections.OrderedDict()
+    for name, text in rendering.functions.items():
+        if name not in theirs:
+            out[name] = 'missing'
+        else:
+            out[name] = 'equal' if same_function(text, theirs[name], mine, theirs, name) else 'differs'
     return out
 
 

@@ -557,3 +557,34 @@ class ScriptFallback(object):
     def __getattr__(self, name):
         return getattr(self.td, name)
 
+
+def _category(warning):
+    return warning.split(': ', 2)[1]
+
+
+def summary(td):
+    out = ['TriggerData.txt: %s' % td.source, '  md5 %s' % td.md5,
+           '  categories %d, types %d (%d with a default value), presets %d' % (
+               len(td.categories), len(td.types), len(td.type_defaults), len(td.presets)),
+           '  events %d, conditions %d, actions %d, calls %d; %d with a script name of their own, %d Multiple' % (
+               len(td.events), len(td.conditions), len(td.actions), len(td.calls),
+               sum(1 for f in td.functions() if f.script_name != f.name), len(td.multiple)),
+           '  entries %d = %d held + %d dropped' % (td.stats['entries'], td.held(), td.stats['dropped']),
+           '  warnings %d' % len(td.warnings)]
+    groups = {}
+    for w in td.warnings:
+        groups.setdefault(_category(w), []).append(w)
+    for category, ws in sorted(groups.items(), key=lambda x: (-len(x[1]), x[0])):
+        out.append('    %3d  %s%s' % (len(ws), category, ' (the line is dropped)' if category in DROPPING else ''))
+        out.extend('           %s' % w for w in ws[:3])
+        if len(ws) > 3:
+            out.append('           ...')
+    shared = [(k, v) for k, v in td.by_script_all.items() if len(v) > 1]
+    out.append('  script functions shared by several GUI functions (by_script takes the first): %d' % len(shared))
+    out.extend('    %s %s: %s' % (k[0], k[1], ', '.join(f.name for f in v)) for k, v in shared)
+    by_code = {}
+    for p in td.presets.values():
+        by_code.setdefault((p.type, p.code), []).append(p.name)
+    out.append('  (type, code) pairs shared by several presets (presets_by_code takes the first): %d' % sum(
+        1 for v in by_code.values() if len(v) > 1))
+    return '\n'.join(out)

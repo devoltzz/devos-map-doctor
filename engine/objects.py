@@ -24,6 +24,7 @@ def common_module(fname):
 
 slk = common_module('slk')
 
+WITH_LEVELS = ('.w3a', '.w3d', '.w3q')
 VERSIONS = (1, 2)
 
 

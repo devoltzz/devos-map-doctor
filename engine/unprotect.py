@@ -44,6 +44,123 @@ def _nothing(*_a, **_k):
     pass
 
 
+def step_on(options, hash_key):
+    return options is None or options.get(hash_key, True) is not False
+
+
+def steps(diag):
+    code_part = set(x['code'] for x in diag.get('protections') or [])
+    mpq = code_part - set(BUTTON3_ONLY) - set(DATA_ONLY)
+    ids = next((x for x in diag.get('protections') or [] if x['code'] == 'scrambled_ids'), None)
+    ed = (diag.get('editor') or {}).get('status')
+    out = []
+
+    def place(action_code, hash_key, applies, locked=False, reason=None, default_on=True):
+        out.append({'action_code': action_code, 'hash_key': hash_key, 'applies': bool(applies), 'locked': bool(locked),
+                    'reason': reason if (locked or not applies) else None, 'default_on': bool(default_on and applies)})
+
+    place('fix', 'mpq', mpq, reason=None if mpq else 'no_protection')
+    place(
+        'fix', 'fake_list', mpq and 'fake_files' in code_part, reason=None if 'fake_files' in code_part else 'no_fakes'
+    )
+    place('fix', 'listing', mpq and not has_virtual_tables(diag), reason=None if mpq else 'no_protection')
+    place('fix', 'ids', ids and ids.get('fixable'), reason=None if ids else 'no_ids')
+    for problem in slk_patch.PROBLEMS:
+        present = SLK_CODE[problem] in code_part
+        place('fix', 'dados:' + problem, present, reason=None if present else 'tables_ok')
+    needs_work = ed == 'needs_work' or bool(code_part & set(DATA_ONLY))
+    blocks_editor = code_part & set(EDITOR_BLOCKERS)
+    place(
+        'editor',
+        'unprotection',
+        blocks_editor,
+        locked=True,
+        reason='editor_requires' if blocks_editor else 'no_protection',
+    )
+    script = diag.get('script')
+    place('editor', 'script_restore', script in ('kkwe', 'j2b'), locked=True,
+          reason='editor_requires' if script in ('kkwe', 'j2b') else 'not_compiled')
+    place('editor', 'editor_only_files', ed == 'needs_work', locked=True, reason='editor_requires' if ed == 'needs_work'
+          else 'editor_is_ready')
+    for code, hash_key in (('inflated_counts', 'inflated_counts'), ('invalid_doodad', 'invalid_doodads')):
+        place(
+            'editor',
+            hash_key,
+            code in code_part,
+            locked=True,
+            reason='editor_crashes' if code in code_part else 'not_needed',
+        )
+    for hash_key in ('gui_triggers', 'script_objects', 'safe_units'):
+        place('editor', hash_key, ed == 'needs_work', reason=None if ed == 'needs_work' else 'editor_is_ready')
+    for problem in slk_patch.PROBLEMS:
+        present = SLK_CODE[problem] in code_part
+        place('editor', 'dados:' + problem, present and needs_work, reason=None if present else 'tables_ok')
+    return out
+
+
+EXTRAS = ('models', 'single_player', 'card', 'translation', 'shrink')
+
+
+def apply_extras(entry, output, extras, progress=None):
+    p = progress or _nothing
+    out = {'relatos': {}, 'failures': {}, 'output': None}
+    tmp = tempfile.mkdtemp(prefix='devos_map_doctor_extras_')
+    src = entry
+    try:
+        for i, extra in enumerate(EXTRAS):
+            param = (extras or {}).get(extra)
+            if not param:
+                continue
+            p('extra_' + extra)
+            t = os.path.join(tmp, '%d_%s%s' % (i, extra, os.path.splitext(entry)[1] or '.w3x'))
+            try:
+                with quiet():
+                    if extra == 'models':
+                        import model_check
+                        details = model_check.fix(src, t)
+                    elif extra == 'single_player':
+                        import single_player
+                        details = single_player.unlock(src, t)
+                    elif extra == 'card':
+                        import map_card
+                        details = map_card.write(src, t, param)
+                    elif extra == 'translation':
+                        import translation_io
+                        details = translation_io.import_(src, param, t)
+                    else:
+                        import shrink
+                        details = shrink.shrink(src, t, param if isinstance(param, dict) else None)
+                if not os.path.isfile(t):
+                    raise RuntimeError(
+                        (details or {}).get('error') or (details or {}).get('reason') or 'nothing was written'
+                    )
+                out['relatos'][extra] = details
+                src = t
+            except (Exception, SystemExit) as e:
+                out['failures'][extra] = _error(e)
+        if src != entry:
+            shutil.copyfile(src, output)
+            out['output'] = output
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    return out
+
+
+def deixados_de_proposito(codes, options):
+    out = set(SLK_CODE[x] for x in slk_patch.PROBLEMS if not step_on(options, 'dados:' + x))
+    if not step_on(options, 'mpq'):
+        out |= set(codes) - set(BUTTON3_ONLY) - set(DATA_ONLY)
+    if not step_on(options, 'ids'):
+        out.add('scrambled_ids')
+    if not step_on(options, 'fake_list'):
+        out.add('fake_files')
+    return out
+
+
+def has_virtual_tables(diag):
+    return 'virtual_tables' in set(x['code'] for x in diag.get('protections') or [])
+
+
 class _Record(io.TextIOBase):
     def __init__(self):
         super().__init__()
@@ -724,9 +841,9 @@ def _map_tables(file_path):
     return name_list, slk_patch.table_files(name_list, lambda n: _read(a, n)), _read(a, '(listfile)')
 
 
-def data_fixes(entry, output):
+def data_fixes(entry, output, only_problems=None):
     name_list, file_set, lf = _map_tables(entry)
-    modified, report = slk_patch.patch(file_set)
+    modified, report = slk_patch.patch(file_set, only_problems)
     out = {'report': report, 'modified': sorted(modified), 'new_ones': sorted(n for n in modified if n not in file_set)}
     if not modified:
         return out
@@ -760,7 +877,7 @@ def _part(output):
     return base + '.part' + (ext or '.w3x')
 
 
-def unprotect(file_path, output, progress=None, diag=None):
+def unprotect(file_path, output, progress=None, diag=None, options=None):
     p = progress or _nothing
     diag = diag or diagnose(file_path, p)
     res = {
@@ -784,10 +901,17 @@ def unprotect(file_path, output, progress=None, diag=None):
         return res
     if 'unreadable_tables' in codes:
         return _unprotect_by_carving(file_path, output, p, diag, res)
+    remove_mpq = bool(codes - set(BUTTON3_ONLY) - set(DATA_ONLY)) and step_on(options, 'mpq')
+    data_only = [x for x in slk_patch.PROBLEMS if SLK_CODE[x] in codes and step_on(options, 'dados:' + x)]
+    prot_ids = next((x for x in diag['protections'] if x['code'] == 'scrambled_ids'), None)
+    do_ids = bool(prot_ids and prot_ids.get('fixable')) and step_on(options, 'ids')
+    if not (remove_mpq or data_only or do_ids):
+        res['status'] = 'nothing_selected'
+        return res
     tmp = tempfile.mkdtemp(prefix='devos_map_doctor_')
     try:
         src = file_path
-        if 'sector512' in codes:
+        if 'sector512' in codes and remove_mpq:
             p('sector_bytes')
             t = os.path.join(tmp, '0_sector.w3x')
             a = _open(src)
@@ -803,7 +927,7 @@ def unprotect(file_path, output, progress=None, diag=None):
                 raise RuntimeError('mpq_rebuild: %s' % ((rs or {}).get('error_list') or reg.body_text().strip()[-200:]))
             src = t
             res['steps']['sector_bytes'] = True
-        if 'sprotect' in codes:
+        if 'sprotect' in codes and remove_mpq:
             p('sprotect')
             t = os.path.join(tmp, '1_sprotect.w3x')
             reg = _Record()
@@ -816,7 +940,7 @@ def unprotect(file_path, output, progress=None, diag=None):
             src = t
             res['steps']['sprotect'] = True
         modified = []
-        if codes - set(BUTTON3_ONLY) - set(DATA_ONLY):
+        if remove_mpq or do_ids:
             a = _open(src)
             virtual = mpqdoctor.virtual_tables(a)
             name_list = []
@@ -824,39 +948,49 @@ def unprotect(file_path, output, progress=None, diag=None):
                 p('name_list')
                 name_list = map_names(a)
             del a
+        if remove_mpq:
             p('repair')
             t = os.path.join(tmp, '2_fix.w3x')
             details = {}
             reg = _Record()
+            fake_list = step_on(options, 'fake_list')
             with quiet(reg):
-                out = mpqdoctor.fix(src, t, name_list=name_list, clean_alias=True, prefix_hm3w=True, hide_junk=True,
-                                    hide_copies=True, report=details)
+                out = mpqdoctor.fix(
+                    src,
+                    t,
+                    name_list=name_list,
+                    clean_alias=True,
+                    prefix_hm3w=True,
+                    hide_junk=fake_list,
+                    hide_copies=fake_list,
+                    report=details,
+                )
             if out is None or not os.path.isfile(t):
                 raise RuntimeError('mpqdoctor.fix: %s' % reg.body_text().strip().splitlines()[-1:])
             res['steps']['repair'] = details
             src = t
-            if not virtual:
+            if not virtual and step_on(options, 'listing'):
                 p('listing')
                 res['steps']['listing'] = _listfile_and_fake(src, name_list)
-            prot_ids = next((x for x in diag['protections'] if x['code'] == 'scrambled_ids'), None)
-            if prot_ids and prot_ids.get('fixable'):
-                p('ids')
-                t = os.path.join(tmp, '3_ids.w3x')
-                reg = _Record()
-                try:
-                    with quiet(reg):
-                        rc = object_ids.main(['object_ids.py', src, t])
-                except SystemExit as e:
-                    raise RuntimeError('object_ids: %s' % e)
-                if rc or not os.path.isfile(t):
-                    raise RuntimeError('object_ids: %s' % reg.body_text().strip().splitlines()[-1:])
-                res['steps']['ids'] = prot_ids['n']
-                modified = list(OBJECT_IDS_FILES)
-                src = t
-        if codes & set(DATA_ONLY):
+        if do_ids:
+            p('ids')
+            t = os.path.join(tmp, '3_ids.w3x')
+            reg = _Record()
+            try:
+                with quiet(reg):
+                    rc = object_ids.main(['object_ids.py', src, t])
+            except SystemExit as e:
+                raise RuntimeError('object_ids: %s' % e)
+            if rc or not os.path.isfile(t):
+                raise RuntimeError('object_ids: %s' % reg.body_text().strip().splitlines()[-1:])
+            res['steps']['ids'] = prot_ids['n']
+            modified = list(OBJECT_IDS_FILES)
+            src = t
+        if data_only:
             p('data_bytes')
             t = os.path.join(tmp, '4_data.w3x')
-            res['steps']['data_bytes'] = data_fixes(src, t)
+            res['steps']['data_bytes'] = data_fixes(src, t, None if len(data_only) == len(slk_patch.PROBLEMS)
+                                                         else data_only)
             if res['steps']['data_bytes']['modified']:
                 modified += res['steps']['data_bytes']['modified']
                 src = t
@@ -872,8 +1006,10 @@ def unprotect(file_path, output, progress=None, diag=None):
                                % (len(c['different']), len(c['missing_items'])))
         os.replace(part, output)
         res['output'] = res['after_diag']['file_name'] = os.path.abspath(output)
-        res['status'] = 'partial' if [x for x in res['after_diag']['protections'] if x['code'] not in BUTTON3_ONLY] \
-            else 'done'
+        deixados = deixados_de_proposito(codes, options)
+        res['deixados'] = sorted(set(x['code'] for x in res['after_diag']['protections']) & deixados)
+        res['status'] = 'partial' if [x for x in res['after_diag']['protections'] if x['code'] not in BUTTON3_ONLY and
+                                      x['code'] not in deixados] else 'done'
     except (Exception, SystemExit) as e:
         res['status'] = 'failed'
         res['err'] = _error(e)
@@ -970,9 +1106,12 @@ def _unprotect_by_carving(file_path, output, p, diag, res):
     return res
 
 
-def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=True, unprotection=None, extra_ids=()):
+def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=True, unprotection=None, extra_ids=(),
+                       options=None):
     p = progress or _nothing
     diag = diag or diagnose(file_path, p, extra_ids=extra_ids)
+    if options is not None and 'safe_units' in options:
+        safe_units = step_on(options, 'safe_units')
     res = {'status': None, 'output': None, 'before': diag, 'unprotection': None, 'editor': None, 'after_diag': None,
            'err': None}
     if diag['fixable'] in ('not_a_map', 'cannot_read', 'impossible', 'unreadable', 'incomplete'):
@@ -981,7 +1120,8 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
     status = diag['editor'].get('status')
     if status == 'campaign_needs_work':
         return _prepare_campaign_for_editor(file_path, output, p, diag, res, safe_units, unprotection)
-    data_bytes = set(x['code'] for x in diag['protections']) & set(DATA_ONLY)
+    data_bytes = set(SLK_CODE[x] for x in slk_patch.PROBLEMS if step_on(options, 'dados:' + x)) & \
+        set(x['code'] for x in diag['protections'])
     if status != 'needs_work' and not (status == 'ready' and data_bytes):
         res['status'] = 'nothing_to_do' if status == 'ready' else status
         return res
@@ -997,11 +1137,11 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
                     raise RuntimeError('unprotect: the output %r of button 2 no longer exists' % t)
             else:
                 t = os.path.join(tmp, '1_unprotected.w3x')
-                r1 = unprotect(file_path, t, p, diag)
+                r1 = unprotect(file_path, t, p, diag, options)
             res['unprotection'] = r1
             if r1['status'] in ('done', 'partial'):
                 src = t
-            elif r1['status'] != 'nothing_to_do':
+            elif r1['status'] not in ('nothing_to_do', 'nothing_selected'):
                 raise RuntimeError('unprotect: %s' % (r1['err'] or r1['status']))
             if src != file_path:
                 b = _open(src)
@@ -1024,8 +1164,8 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
         part = _part(output)
         res['output'] = part
         with quiet():
-            details, _assembled = editor_prep.prepare(src, part, name_list, log=_nothing,
-                                                   safe_units=safe_units, extra_ids=extra_ids)
+            details, _assembled = editor_prep.prepare(src, part, name_list, log=_nothing, safe_units=safe_units,
+                                                   extra_ids=extra_ids, options=options)
         if res.get('script'):
             details['script_restore'] = res['script']
         res['editor'] = details

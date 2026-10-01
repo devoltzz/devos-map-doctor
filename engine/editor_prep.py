@@ -567,7 +567,10 @@ def fit_to_editor(header_text, file_set, original, log=print):
         return None
 
 
-def prepare(entry, output, extra_names=(), log=print, method='attach', safe_units=True, extra_ids=()):
+def prepare(entry, output, extra_names=(), log=print, method='attach', safe_units=True, extra_ids=(),
+            options=None):
+    def step_on(hash_key):
+        return options is None or options.get(hash_key, True) is not False
     a = mpqread.Archive(entry)
     details = {}
     b_w3i = a.read('war3map.w3i')
@@ -701,7 +704,8 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
         if n in replacements:
             continue
         present = inflated_counts.count_in_file(n, a)
-        done = inflated_counts.fix_from_script(n, body_text, context=dict(context, current=a.read(n)))
+        done = inflated_counts.fix_from_script(n, body_text, context=dict(context, current=a.read(n))) \
+            if step_on('script_objects') else None
         if done and done[1]['new'] and (not a.find(n) or present is None or done[1]['new'] > present):
             data_bytes, info = done
             info['reason'] = 'was_missing' if not a.find(n) else ('empty' if present == 0 else 'missing_objects')
@@ -736,15 +740,21 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
         data_bytes = replacements.get(fname, new_ones.get(fname))
         return data_bytes if data_bytes is not None else (a.read(fname) if a.find(fname) else None)
 
-    restoration = (
-        restore_triggers(raw_bytes[3:] if details['bom'] else raw_bytes, is_lua, log, editor_file_set)
-        if (trigger_list and is_lua)
-        else restore_triggers(
-            body_text.encode('latin-1'), is_lua, log, editor_file_set, details['n_players'], default_value, read_file
+    restoration = None
+    if trigger_list and step_on('gui_triggers'):
+        restoration = (
+            restore_triggers(raw_bytes[3:] if details['bom'] else raw_bytes, is_lua, log, editor_file_set)
+            if is_lua
+            else restore_triggers(
+                body_text.encode('latin-1'),
+                is_lua,
+                log,
+                editor_file_set,
+                details['n_players'],
+                default_value,
+                read_file,
+            )
         )
-        if trigger_list
-        else None
-    )
     restored = restoration is not None and restoration[0].get('used', False)
     if restoration is not None:
         details['restoration'] = restoration[0]

@@ -1,11 +1,13 @@
 # Parses JASS into a syntax tree that keeps every literal and comment.
 import contextlib
 import gc
+import os
 import re
 import sys
 
 
 
+HERE = os.path.dirname(os.path.abspath(__file__))
 KEYWORDS = frozenset((
     'globals', 'endglobals', 'native', 'constant', 'type', 'extends', 'function', 'endfunction', 'takes', 'returns',
     'nothing', 'local', 'array', 'set', 'call', 'if', 'then', 'elseif', 'else', 'endif', 'loop', 'endloop',
@@ -35,6 +37,10 @@ class JassSyntaxError(Exception):
         Exception.__init__(self, 'line %d: %s' % (line, message))
         self.line = line
         self.message = message
+
+
+def tokenize(text):
+    return _TOKEN_RE.findall(text)
 
 
 def _line_breaks(token):
@@ -1089,4 +1095,20 @@ def canonical(text_or_node):
         text = text_or_node
     fast = _canonical_fast(text)
     return _canonical_tokens(text) if fast is None else fast
+
+
+def read_script(path):
+    with open(path, 'rb') as fh:
+        return fh.read().decode('utf-8', 'surrogateescape')
+
+
+def _load_pjass():
+    path = os.path.join(HERE, '..', 'kk', 'pjass.py')
+    if not os.path.isfile(path):
+        return None
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('jass_ast_pjass', path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod if os.path.isfile(mod.exe()) else None
 

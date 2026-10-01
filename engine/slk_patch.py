@@ -187,3 +187,7 @@ def patch(files, only=None):
     changed = dict((n, b) for n, b in cur.items() if files.get(n) != b)
     return changed, report
 
+
+def scan(files):
+    _changed, report = patch(files)
+    return dict((k, sum(v.values())) for k, v in report.items())
