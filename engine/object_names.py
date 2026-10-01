@@ -3,6 +3,7 @@ import re
 
 import objbin
 import slk
+import slk_patch
 
 
 FILES = (('w3u', 'unam', False), ('w3t', 'unam', False), ('w3a', 'anam', True), ('w3q', 'gnam', True),
@@ -42,10 +43,33 @@ def clean(name):
     return ' '.join(RX_COLOR.sub('', name).split())
 
 
+def profile_names(read, texts):
+    out = {}
+    for file_name in slk_patch.PROFILES:
+        data = read(file_name)
+        if not data:
+            continue
+        try:
+            sections = slk.parse_ini_bytes(data)
+        except Exception:
+            continue
+        for section, fields in sections.items():
+            name = fields.get('Name') or fields.get('name')
+            if name and len(section) == 4:
+                value = name.split(',')[0].strip('"')
+                m = re.match(r'TRIGSTR_(\d+)$', value)
+                out.setdefault(section, texts.get(int(m.group(1)), value) if m else value)
+    return out
+
+
 def names(read, game=True):
     base = game_names() if game else {}
     texts = strings(read('war3map.wts'))
+    own = dict((k, clean(v)) for k, v in profile_names(read, texts).items() if clean(v))
     out = dict(base)
+    out.update(own)
+    known = dict(base)
+    known.update(own)
     for extension, field, levels in FILES:
         found, made_from = {}, {}
         for file_name in ('war3map.' + extension, 'war3mapSkin.' + extension):
@@ -66,7 +90,7 @@ def names(read, game=True):
                             m = re.match(r'TRIGSTR_(\d+)$', value)
                             found[ident] = texts.get(int(m.group(1)), value) if m else value
         for ident, original in made_from.items():
-            name = found.get(ident) or base.get(original)
+            name = found.get(ident) or own.get(ident) or known.get(original)
             if name:
                 out[ident] = clean(name)
     return out
