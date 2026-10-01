@@ -612,5 +612,7 @@ GAME_NAMES = tuple(
             'CommandStrings',
         )
     ]
+    + ['Units\\%sSkin.txt' % n for n in ('Unit', 'Item', 'Ability', 'Upgrade', 'Destructable')]
+    + ['Doodads\\DoodadSkins.txt']
 )
 

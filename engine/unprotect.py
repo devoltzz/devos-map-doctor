@@ -21,6 +21,7 @@ import doodads
 import duplicate_textures
 import wtg_triggers
 import ntfs_undo
+import slk_patch
 
 
 FREE, DELETED = 0xFFFFFFFF, 0xFFFFFFFE
@@ -34,6 +35,9 @@ EDITOR_BLOCKERS = ('read_only', 'fake_header', 'missing_hm3w', 'virtual_tables',
                    'script_kkwe', 'script_j2b')
 BUTTON3_ONLY = ('inflated_counts', 'invalid_doodad', 'script_kkwe', 'script_j2b')
 EDITOR_SCRIPTS = ('jass', 'lua', 'kkwe', 'j2b')
+DATA_ONLY = ('slk_file_column', 'slk_levels', 'slk_buttonpos', 'fdf_stray_comment', 'slk_id_list', 'slk_quoted_numbers')
+SLK_CODE = {'file_column': 'slk_file_column', 'levels': 'slk_levels', 'buttonpos': 'slk_buttonpos',
+            'fdf_comment': 'fdf_stray_comment', 'id_lists': 'slk_id_list', 'quoted_numbers': 'slk_quoted_numbers'}
 
 
 def _nothing(*_a, **_k):
@@ -367,6 +371,18 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
         scrambled, sums = scrambled_ids(a, j)
         if scrambled and sums:
             prot('scrambled_ids', n=scrambled, sums=sums, fixable=r['script'] == 'jass')
+    if r['script'] != 'kk_encrypted':
+        try:
+            with quiet():
+                file_set = slk_patch.table_files(listfile_names(a), lambda n: _read(a, n))
+                r['slk'] = slk_patch.is_slk_map(file_set)
+                _changed, slk_report = slk_patch.patch(file_set)
+        except Exception:
+            slk_report = {}
+        for problem in slk_patch.PROBLEMS:
+            per_file = slk_report.get(problem)
+            if per_file:
+                prot(SLK_CODE[problem], n=sum(per_file.values()), file_set=sorted(per_file))
     ed = r['editor']
     b3i = _read(a, 'war3map.w3i')
     if b3i is None:
@@ -702,6 +718,39 @@ def check_content(original, output, exclude=()):
     return out
 
 
+def _map_tables(file_path):
+    a = _open(file_path)
+    name_list = listfile_names(a)
+    return name_list, slk_patch.table_files(name_list, lambda n: _read(a, n)), _read(a, '(listfile)')
+
+
+def data_fixes(entry, output):
+    name_list, file_set, lf = _map_tables(entry)
+    modified, report = slk_patch.patch(file_set)
+    out = {'report': report, 'modified': sorted(modified), 'new_ones': sorted(n for n in modified if n not in file_set)}
+    if not modified:
+        return out
+    repl = sorted(modified.items())
+    if out['new_ones'] and lf is not None:
+        body_text = lf.decode('utf-8', 'surrogateescape')
+        line_list = [x for x in body_text.replace('\r\n', '\n').split('\n') if x.strip()]
+        existing = set(x.strip().lower() for x in line_list)
+        line_list += [n for n in out['new_ones'] if n.lower() not in existing]
+        end_pos = '\r\n' if '\r\n' in body_text or not body_text else '\n'
+        repl.append(('(listfile)', (end_pos.join(line_list) + end_pos).encode('utf-8', 'surrogateescape')))
+    shutil.copyfile(entry, output)
+    no_slot = []
+    with quiet():
+        mpqadd.add_files(output, repl, log=_nothing, no_slot=no_slot, grow=name_list + out['new_ones'])
+    if no_slot:
+        raise RuntimeError('data fixes: no table entry for %s' % ', '.join(no_slot))
+    b = _open(output)
+    for n, data_bytes in modified.items():
+        if _read(b, n) != data_bytes:
+            raise RuntimeError('data fixes: %s did not read back the same' % n)
+    return out
+
+
 def _error(e):
     return '%s: %s' % (type(e).__name__, e) if str(e) else type(e).__name__
 
@@ -766,43 +815,51 @@ def unprotect(file_path, output, progress=None, diag=None):
                 raise RuntimeError('sprotect_fix: %s' % e)
             src = t
             res['steps']['sprotect'] = True
-        a = _open(src)
-        virtual = mpqdoctor.virtual_tables(a)
-        name_list = []
-        if not virtual:
-            p('name_list')
-            name_list = map_names(a)
-        del a
-        p('repair')
-        t = os.path.join(tmp, '2_fix.w3x')
-        details = {}
-        reg = _Record()
-        with quiet(reg):
-            out = mpqdoctor.fix(src, t, name_list=name_list, clean_alias=True, prefix_hm3w=True, hide_junk=True,
-                                hide_copies=True, report=details)
-        if out is None or not os.path.isfile(t):
-            raise RuntimeError('mpqdoctor.fix: %s' % reg.body_text().strip().splitlines()[-1:])
-        res['steps']['repair'] = details
-        src = t
-        if not virtual:
-            p('listing')
-            res['steps']['listing'] = _listfile_and_fake(src, name_list)
         modified = []
-        prot_ids = next((x for x in diag['protections'] if x['code'] == 'scrambled_ids'), None)
-        if prot_ids and prot_ids.get('fixable'):
-            p('ids')
-            t = os.path.join(tmp, '3_ids.w3x')
+        if codes - set(BUTTON3_ONLY) - set(DATA_ONLY):
+            a = _open(src)
+            virtual = mpqdoctor.virtual_tables(a)
+            name_list = []
+            if not virtual:
+                p('name_list')
+                name_list = map_names(a)
+            del a
+            p('repair')
+            t = os.path.join(tmp, '2_fix.w3x')
+            details = {}
             reg = _Record()
-            try:
-                with quiet(reg):
-                    rc = object_ids.main(['object_ids.py', src, t])
-            except SystemExit as e:
-                raise RuntimeError('object_ids: %s' % e)
-            if rc or not os.path.isfile(t):
-                raise RuntimeError('object_ids: %s' % reg.body_text().strip().splitlines()[-1:])
-            res['steps']['ids'] = prot_ids['n']
-            modified = list(OBJECT_IDS_FILES)
+            with quiet(reg):
+                out = mpqdoctor.fix(src, t, name_list=name_list, clean_alias=True, prefix_hm3w=True, hide_junk=True,
+                                    hide_copies=True, report=details)
+            if out is None or not os.path.isfile(t):
+                raise RuntimeError('mpqdoctor.fix: %s' % reg.body_text().strip().splitlines()[-1:])
+            res['steps']['repair'] = details
             src = t
+            if not virtual:
+                p('listing')
+                res['steps']['listing'] = _listfile_and_fake(src, name_list)
+            prot_ids = next((x for x in diag['protections'] if x['code'] == 'scrambled_ids'), None)
+            if prot_ids and prot_ids.get('fixable'):
+                p('ids')
+                t = os.path.join(tmp, '3_ids.w3x')
+                reg = _Record()
+                try:
+                    with quiet(reg):
+                        rc = object_ids.main(['object_ids.py', src, t])
+                except SystemExit as e:
+                    raise RuntimeError('object_ids: %s' % e)
+                if rc or not os.path.isfile(t):
+                    raise RuntimeError('object_ids: %s' % reg.body_text().strip().splitlines()[-1:])
+                res['steps']['ids'] = prot_ids['n']
+                modified = list(OBJECT_IDS_FILES)
+                src = t
+        if codes & set(DATA_ONLY):
+            p('data_bytes')
+            t = os.path.join(tmp, '4_data.w3x')
+            res['steps']['data_bytes'] = data_fixes(src, t)
+            if res['steps']['data_bytes']['modified']:
+                modified += res['steps']['data_bytes']['modified']
+                src = t
         p('save')
         part = _part(output)
         res['output'] = part
@@ -924,7 +981,8 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
     status = diag['editor'].get('status')
     if status == 'campaign_needs_work':
         return _prepare_campaign_for_editor(file_path, output, p, diag, res, safe_units, unprotection)
-    if status != 'needs_work':
+    data_bytes = set(x['code'] for x in diag['protections']) & set(DATA_ONLY)
+    if status != 'needs_work' and not (status == 'ready' and data_bytes):
         res['status'] = 'nothing_to_do' if status == 'ready' else status
         return res
     tmp = tempfile.mkdtemp(prefix='devos_map_doctor_')
@@ -950,7 +1008,7 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
                 lf = _read(b, '(listfile)') or b''
                 name_list = [
                     line.strip() for line in lf.decode('utf-8', 'surrogateescape').splitlines() if line.strip()
-                ]
+                ] or None
                 del b
         if diag.get('script') in editor_prep.COMPILED_SCRIPT:
             p('script')
