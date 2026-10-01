@@ -12,7 +12,7 @@ import unprotect as D
 import updater
 
 APP = "Devo's Map Doctor"
-VERSION = '1.3'
+VERSION = '1.4'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -27,6 +27,7 @@ STAGES = {
     'repair': 'Fixing the MPQ header and removing fake files...',
     'listing': 'Writing a real file list...',
     'ids': 'Restoring the scrambled object IDs...',
+    'data_bytes': 'Fixing the data tables for Warcraft III 3.0...',
     'script': 'Turning the compiled script back into JASS (this can take a minute)...',
     'editor': 'Adding what the World Editor needs...',
     'save': 'Saving...',
@@ -73,6 +74,75 @@ def _reason(code, field_value):
         'block_position': 'the position of the block table is invalid (before the header)',
         'sector_bytes': 'the sector size field has garbage in it',
     }.get(code, code)
+
+
+def _short_names(file_set):
+    name_list = [a.replace('/', '\\').split('\\')[-1] for a in file_set or []]
+    return (
+        name_list[0]
+        if len(name_list) == 1
+        else ', '.join(name_list[:-1]) + ' and ' + name_list[-1]
+        if name_list
+        else ''
+    )
+
+
+def describe_data(p):
+    c, n, where = p['code'], p.get('n', 0), _short_names(p.get('file_set'))
+    if c == 'slk_file_column':
+        return ('%s %s the models of %s in the `file` column. Warcraft III 3.0 reads that column and crashes '
+                'when the first unit or item is created, with nothing in the log. The paths go to UnitSkin.txt and '
+                'ItemSkin.txt.' % (where, 'keeps' if len(p.get('file_set') or []) == 1 else 'keep',
+                                   pluralize(n, 'unit or item', 'units and items')))
+    if c == 'slk_levels':
+        return ('%s has no columns for ability levels 5 and 6. In 3.0 every value of those levels reads as 0: hero '
+                'skills vanish from the command card and damage drops to 0. They are added as copies of level 4, '
+                'which is what older patches used.' % where)
+    if c == 'slk_buttonpos':
+        return ('%s half written (like Buttonpos=,2) in %s. They are completed (0,2).'
+                % (pluralize(n, 'command button position is', 'command button positions are'), where))
+    if c == 'fdf_stray_comment':
+        return ('%s in %s that closes no /*: 3.0 rejects it and closes on the loading screen. It is removed.'
+                % (pluralize(n, 'stray */', 'stray */'), where))
+    if c == 'slk_id_list':
+        return ('%s in %s end in |n (like "A07Y|n", a line break left in the field). 3.0 reads it as part of the '
+                'code, so the item or unit has an ability that does not exist. The |n is removed.'
+                % (pluralize(n, 'list of abilities', 'lists of abilities'), where))
+    if c == 'slk_quoted_numbers':
+        return ('%s stored as text in %s (like walk="280."). Not a crash, cleaned up as well.'
+                % (pluralize(n, 'number', 'numbers'), where))
+    return c
+
+
+def data_done(steps):
+    details = (steps.get('data_bytes') or {}).get('report') or {}
+    out = []
+    x = details.get('file_column')
+    if x:
+        out.append('Moved %s out of the `file` column of %s into UnitSkin.txt and ItemSkin.txt: the column that '
+                   'crashes 3.0 is gone.' % (pluralize(sum(x.values()), 'model path', 'model paths'), _short_names(x)))
+    x = details.get('levels')
+    if x:
+        out.append('Added the columns for ability levels 5 and 6 to %s (%s, copies of level 4).'
+                   % (_short_names(x), pluralize(sum(x.values()), 'column', 'columns')))
+    x = details.get('buttonpos')
+    if x:
+        out.append('Completed %s in %s.' % (pluralize(sum(x.values()), 'half-written button position',
+                                                      'half-written button positions'), _short_names(x)))
+    x = details.get('fdf_comment')
+    if x:
+        out.append('Removed %s from %s.' % (pluralize(sum(x.values()), 'stray */', 'stray */'), _short_names(x)))
+    x = details.get('id_lists')
+    if x:
+        out.append(
+            'Removed the |n from %s in %s.'
+            % (pluralize(sum(x.values()), 'list of abilities', 'lists of abilities'), _short_names(x))
+        )
+    x = details.get('quoted_numbers')
+    if x:
+        out.append('Turned %s back into numbers in %s.'
+                   % (pluralize(sum(x.values()), 'value stored as text', 'values stored as text'), _short_names(x)))
+    return out
 
 
 def describe(p):
@@ -166,6 +236,8 @@ def describe(p):
                 'opening the map. They are removed in button 3.'
                 % (pluralize(p.get('n', 0), 'doodad placed in the map uses', 'doodads placed in the map use'),
                    ', '.join(p.get('examples') or []) or '?', '...' if len(p.get('ids') or []) > 5 else ''))
+    if c in D.DATA_ONLY:
+        return describe_data(p)
     if c == 'inflated_counts':
         label, singular, plural, where = COUNT.get(p['file_name'], ('file', 'record', 'records', p['file_name']))
         if p.get('reason') == 'odd_version':
@@ -214,20 +286,33 @@ def diagnosis_text(d):
     if d['fixable'] == 'cannot_read':
         return out + [('invalid', 'The MPQ archive could not be read (%s).' % d.get('err'))]
     out.append(('', ''))
-    if not d['protections']:
+    protections = [p for p in d['protections'] if p['code'] not in D.DATA_ONLY]
+    data_bytes = [p for p in d['protections'] if p['code'] in D.DATA_ONLY]
+    if not protections:
         out.append(('ok', 'No MPQ protection found.'))
     else:
         out.append(('heading2', 'Protection found:'))
-        for p in d['protections']:
+        for p in protections:
             out.append(('warning', '  - ' + describe(p)))
         out.append(('', ''))
         if d['fixable'] == 'impossible':
             out.append(('invalid', "This map can't be unprotected, and no button here can help: the real map is not "
                                    'inside this file, and nothing is tried on it. ' + NO_ENCRYPTION))
-        elif set(p['code'] for p in d['protections']) <= set(D.BUTTON3_ONLY):
+        elif set(p['code'] for p in protections) <= set(D.BUTTON3_ONLY):
             out.append(('ok', 'Devo\'s Map Doctor can fix it: click "Make it open in World Editor".'))
         else:
             out.append(('ok', 'Devo\'s Map Doctor can remove it: click "Remove protection".'))
+    if d.get('slk'):
+        out.append(('info', 'SLK mode: the map ships its own data tables (%s).'
+                    % pluralize(len(d['slk']), 'file', 'files')))
+    if data_bytes:
+        out.append(('', ''))
+        out.append(('heading2', 'Needs fixing for Warcraft III 3.0:'))
+        for p in data_bytes:
+            out.append(('warning', '  - ' + describe(p)))
+        out.append(('', ''))
+        out.append(('ok', 'Both buttons fix it: "Remove protection" saves a copy to play, "Make it open in World '
+                          'Editor" one for the editor.'))
     lf = d.get('listfile')
     if lf:
         if lf['status'] == 'ok':
@@ -436,29 +521,36 @@ def unprotection_text(r):
                 ('info', 'The World Editor problems found above are fixed by "Make it open in World Editor".'),
             ]
         return out + [('ok', 'No protection found: nothing to remove. No file was written.')]
-    out.append(('ok', 'Protection removed.' if r['status'] == 'done' else
-                'Protection removed, with some leftovers (see below).'))
+    data_only = [k for k in r['steps'] if k != 'data_bytes'] == []
+    if data_only:
+        out.append(('ok', 'Fixed for Warcraft III 3.0.' if r['status'] == 'done' else
+                    'Fixed for Warcraft III 3.0, with some leftovers (see below).'))
+    else:
+        out.append(('ok', 'Protection removed.' if r['status'] == 'done' else
+                    'Protection removed, with some leftovers (see below).'))
     out.append(('file_path', 'Saved as: %s' % r['output']))
     out.append(('', ''))
-    for line in _fixes_done(r['steps'].get('repair') or {}, r['steps'], d):
+    if not data_only:
+        for line in _fixes_done(r['steps'].get('repair') or {}, r['steps'], d):
+            out.append(('info', '  - ' + line))
+    for line in data_done(r['steps']):
         out.append(('info', '  - ' + line))
     c = r.get('content') or {}
     if c.get('identical'):
-        out.append(
-            (
-                'info',
-                '  - Checked: %s identical to the original%s.'
-                % (
-                    pluralize(c['identical'], 'file reads back', 'files read back'),
-                    ' (the object data and the script changed on purpose: the new IDs)'
-                    if r['steps'].get('ids')
-                    else '',
-                ),
-            )
-        )
+        on_purpose = []
+        if r['steps'].get('ids'):
+            on_purpose.append('the object data and the script changed on purpose: the new IDs')
+        if (r['steps'].get('data_bytes') or {}).get('modified'):
+            on_purpose.append('the data tables above changed on purpose')
+        out.append(('info', '  - Checked: %s identical to the original%s.'
+                    % (pluralize(c['identical'], 'file reads back', 'files read back'),
+                       ' (%s)' % '; '.join(on_purpose) if on_purpose else '')))
     after_diag = (r.get('after_diag') or {}).get('protections') or []
     button3 = [p for p in after_diag if p['code'] in D.BUTTON3_ONLY]
-    unresolved = [p for p in after_diag if p['code'] not in D.BUTTON3_ONLY]
+    unresolved = [p for p in after_diag if p['code'] not in D.BUTTON3_ONLY and p['code'] not in D.DATA_ONLY]
+    for p in after_diag:
+        if p['code'] in D.DATA_ONLY:
+            out.append(('warning', '  - Not fixed: ' + describe(p)))
     if button3:
         out.append(('', ''))
         out.append(('info', 'Left for "Make it open in World Editor" (this button keeps every map file identical):'))
@@ -522,9 +614,12 @@ def editor_text(r):
         return out
     unprot = r.get('unprotection')
     if unprot and unprot.get('status') in ('done', 'partial'):
-        out.append(('info', '  - First removed the protection:'))
-        for line in _fixes_done(unprot['steps'].get('repair') or {}, unprot['steps'], d):
-            out.append(('info', '      ' + line))
+        if [k for k in unprot['steps'] if k != 'data_bytes']:
+            out.append(('info', '  - First removed the protection:'))
+            for line in _fixes_done(unprot['steps'].get('repair') or {}, unprot['steps'], d):
+                out.append(('info', '      ' + line))
+        for line in data_done(unprot['steps']):
+            out.append(('info', '  - ' + line))
     details = r.get('editor') or {}
     sv = details.get('script_restore') or {}
     if sv:
