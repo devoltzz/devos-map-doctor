@@ -568,7 +568,10 @@ function selectTab(name) {
   $$('.tab').forEach(t => t.classList.toggle('hidden', t.id !== 'tab-' + name));
 }
 
-function tabBody(name, ...kids) { $('#tab-' + name).replaceChildren(...kids); }
+// the empty parts (null, false) are skipped, as in el(): replaceChildren() would show them as the text "null"
+function tabBody(name, ...kids) {
+  $('#tab-' + name).replaceChildren(...kids.flat().filter(k => k !== null && k !== undefined && k !== false));
+}
 function tabFailed(name, what, e) {
   setTabState(name, 'failed');
   tabBody(name, el('div', { class: 'card' }, el('div', { class: 'report' },
@@ -1048,7 +1051,16 @@ async function runPort() {
     state.results.port = r;
     renderPort();
     status(r.outcome === 'ok' ? 'Ported.' : 'The port stopped.');
-  } catch (e) { failed(e, 'Port to Reforged'); }
+  } catch (e) {
+    failed(e, 'Port to Reforged');
+    if (e && e.cancelled) return;
+    // the worker itself failed: the result card says what, with the trace, so it can be copied and reported
+    const msg = (e && e.message) || String(e);
+    const lines = [['bad', 'The port stopped: ' + msg]];
+    if (e && e.trace) e.trace.split('\n').filter(l => l.trim()).forEach(l => lines.push(['info', '  ' + l]));
+    state.portResult = { outcome: 'failed', lines: lines, port: { error: msg } };
+    renderPort();
+  }
 }
 
 function portResult(r) {

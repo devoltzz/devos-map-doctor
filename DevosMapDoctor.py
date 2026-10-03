@@ -7,7 +7,7 @@ if not getattr(sys, 'frozen', False):
     sys.path.insert(0, os.path.join(HERE, 'engine'))
 import unprotect as D
 
-VERSION = '1.5'
+VERSION = '1.5.1'
 
 STAGES = {
     'read_map': 'Reading the map...',
