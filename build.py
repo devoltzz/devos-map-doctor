@@ -70,6 +70,17 @@ def main():
         args += ['--hidden-import', module]
     for data in sorted(f for f in os.listdir(ENGINE) if f.endswith('.j')):
         args += ['--add-data', os.path.join(ENGINE, data) + os.pathsep + '.']
+    # the JASS parts of the port layer and the templates it fills
+    for folder in sorted(
+        d for d in os.listdir(ENGINE) if os.path.isdir(os.path.join(ENGINE, d)) and d != '__pycache__'
+    ):
+        args += ['--add-data', os.path.join(ENGINE, folder) + os.pathsep + folder]
+    # pjass checks the ported script; without it the port says the compiler gates were skipped
+    pjass = os.environ.get('PJASS') or os.path.join(ENGINE, 'pjass.exe')
+    if os.path.isfile(pjass):
+        args += ['--add-binary', pjass + os.pathsep + '.']
+    else:
+        print('pjass.exe not found (engine/pjass.exe or PJASS): the exe ports maps without the compiler gates')
     for module in EXCLUDE:
         args += ['--exclude-module', module]
     PyInstaller.__main__.run(args)

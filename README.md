@@ -1,6 +1,7 @@
 # Devo's Map Doctor
 
-Removes the protection from Warcraft III maps and makes protected maps open in the World Editor again.
+Removes the protection from Warcraft III maps, makes protected maps open in the World Editor again, and ports maps
+made for the KK and M16 platforms to Warcraft III 3.0.
 
 ## Download
 
@@ -56,6 +57,8 @@ defaults are the recommended ones, and presets keep your own choices.
 - Runs on Reforged?: what the archive has measured that stops a map on Warcraft III 3.0.
 - Files, Script and Triggers: the map's files with a preview and extract, the script with export, the trigger tree.
 - Translation: every text a player sees in one file to translate, and the translation loaded back with the checks.
+  The export can also be an HTML page for machine translation (Google Translate, DeepL): the color codes and line
+  breaks are marked so the translator leaves them alone, and the translated page loads back with the same checks.
 - Compare: what changed between two versions of a map.
 
 ## KK platform maps
@@ -66,6 +69,30 @@ gives the same instructions the map had.
 
 One protection is left out: maps the platform encrypts outside the archive. That file only holds a loader, the real
 map can only be decrypted by the KK client, and the Doctor tells you so instead of trying anything.
+
+## Port to Reforged
+
+Maps made for the Chinese KK platform (DzAPI, japi) and for the Korean M16/JN platform call functions that only exist
+on those platforms, and Warcraft III 3.0 refuses to load them. The Port to Reforged tab turns such a map into one that
+runs on 3.0 and saves `<map>_reforged.w3x` next to it, with `<map>_reforged.report.txt`.
+
+What the port does:
+
+- the platform functions get a body written in JASS: the platform save becomes a local save that every player loads
+  without desyncing, the platform frames become game frames, and the shop, level and VIP queries answer as a player
+  with everything unlocked would see them
+- a compiled script (KKWE, j2b) is turned back into JASS first, and proved
+- the code that would desync a multiplayer game on 3.0 is fixed, and the data tables of SLK maps too
+- the script that comes out has to pass pjass, the JASS checker, with the game scripts, or the port stops and says why
+
+Some platform functions have no equivalent on 3.0 (the platform shop, the online ranking): they stay as stubs that
+compile and return an empty value. The report lists each stub the map calls, with the functions and triggers that
+call it, so you know which features to check in game.
+
+Some maps ask for art that only the platform client has (its `.mix`, `.asi` or `.mpq` packages). Add those packages
+to the port and the art the map asks for is imported from them. The packages are read as data, never run.
+
+Warcraft III 3.0 has to be installed: the port reads the game scripts from it.
 
 ## Old SLK maps
 
@@ -94,7 +121,9 @@ python DevosMapDoctor.py
 python build.py
 ```
 
-`names.npz` is not in the repository: download it from the latest release into this folder. `build.py` writes
+`names.npz` is not in the repository: download it from the latest release into this folder. The port checks scripts
+with [pjass](https://github.com/lep/pjass): put `pjass.exe` in `engine/` (or point the `PJASS` variable to it) and
+`build.py` bundles it. `build.py` writes
 `dist/DevosMapDoctor.exe` and copies `names.npz` next to it. To publish, create a release tagged with the version
 (`v1.0`) and attach both files; the updater reads the latest release.
 
