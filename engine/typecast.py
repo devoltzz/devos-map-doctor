@@ -6,6 +6,7 @@ RX_PRAGMA = re.compile(r'(?m)^([ \t]*)//# \+nosemanticerror[ \t]*\r?$')
 RX_FUNC = re.compile(r'(?m)^([ \t]*)function[ \t]+(\w+)[ \t]+takes[ \t]+([^\r\n]*?)[ \t]+returns[ \t]+(\w+)[ \t]*\r?$')
 RX_END = re.compile(r'(?m)^[ \t]*endfunction\b[^\r\n]*\r?$')
 NULL_CAST = 'KK_tc_nula'
+MARK = '// [framework KK] passo 0d'
 NEUTRAL = {'integer': 'return 0', 'real': 'return 0.', 'boolean': 'return false', 'string': 'return ""'}
 
 
@@ -42,7 +43,7 @@ def applies(body_text, expected_count=None):
             continue
         indent_trim, fname, params, retorno = f.group(1), f.group(2), f.group(3), f.group(4)
         inside = indent_trim + '    '
-        new = [indent_trim + '// [framework KK] step 0d: the body became TIPOCORRETO (the game does not know the //# '
+        new = [indent_trim + MARK + ': the body became TYPE-CORRECT (the game does not know the //# '
                '+nosemanticerror and would refuse the script)', f.group(0).rstrip('\r')]
         new += [inside + line for line in body(retorno, params)]
         replacements.append((m.start(), end_pos.start(), nl.join(new) + nl))
@@ -55,7 +56,7 @@ def applies(body_text, expected_count=None):
     if any(r == 'code' for _n, r, _c in info['functions']) and \
             not re.search(r'(?m)^[ \t]*function %s takes' % NULL_CAST, body_text):
         i = body_text.index('return function %s' % NULL_CAST)
-        begin = body_text.rfind('// [framework KK] passo 0d', 0, i)
+        begin = body_text.rfind(MARK, 0, i)
         begin = body_text.rfind('\n', 0, begin) + 1
         body_text = (
             body_text[:begin]

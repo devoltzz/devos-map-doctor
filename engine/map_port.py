@@ -225,12 +225,11 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log):
                     if d.lower() == 'scripts' and os.path.isdir(os.path.join(extract, d))
                     for f in os.listdir(os.path.join(extract, d)))
     import blizzard_map
-    if 'blizzard.j' in proprios and not os.path.isfile(blizzard_map.VANILLA):
-        WARNINGS.append("the map has its own Scripts\\Blizzard.j; without the Blizzard.j of patch 1.27 to compare it "
-                        "with, its changes were not carried over (Reforged uses its own Blizzard.j)")
-    elif 'blizzard.j' in proprios:
-        blz_part, blz_info = blizzard_map.extract_parts(proprios['blizzard.j'], raw_data)
-        failures = blizzard_map.failures_of(blz_info)
+    if 'blizzard.j' in proprios:
+        without_127 = not os.path.isfile(blizzard_map.VANILLA)
+        base = os.path.join(new.REF, 'blizzard.j') if without_127 else None
+        blz_part, blz_info = blizzard_map.extract_parts(proprios['blizzard.j'], raw_data, vanilla_path=base)
+        failures = [] if without_127 else blizzard_map.failures_of(blz_info)
         if failures:
             WARNINGS.append(
                 "the map's own Scripts\\Blizzard.j changes functions of the game, and Reforged uses its own: "
