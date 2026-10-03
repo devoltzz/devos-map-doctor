@@ -3,6 +3,10 @@ import re
 
 
 
+def parse_slk(path):
+    return parse_slk_bytes(open(path, 'rb').read())
+
+
 def parse_slk_bytes(raw):
     txt = raw.decode('utf-8', 'surrogateescape')
     header = {}
@@ -67,6 +71,10 @@ def parse_slk_bytes(raw):
                 d[name] = v
         rows[rid] = d
     return hdr, rows
+
+
+def parse_ini(path):
+    return parse_ini_bytes(open(path, 'rb').read())
 
 
 def parse_ini_bytes(raw):

@@ -1,0 +1,9 @@
+// ==============================================================================================
+// ==============================================================================================
+//@SLOTGLOBALS
+hashtable DB_anim_ht=null
+//@ENDSLOTGLOBALS
+
+function DB_anim_init takes nothing returns nothing
+    set DB_anim_ht=InitHashtable()
+endfunction

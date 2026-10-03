@@ -53,6 +53,13 @@ def slk_columns(line_list):
     return out, empty_columns
 
 
+def filter_columns(origin, dest, keep_names):
+    line_list, crlf = read_data(origin)
+    output, n = filter_lines(line_list, keep_names)
+    io.open(dest, 'wb').write(join_lines(output, crlf))
+    return n
+
+
 def filter_lines(line_list, keep_names):
     col, _ = slk_columns(line_list)
     new_x = {}

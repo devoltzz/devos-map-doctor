@@ -1,6 +1,8 @@
 # Turns numbers stored as text back into numbers in SLK tables, and removes the |n from lists of ids.
 import io
+import os
 import re
+import sys
 from collections import defaultdict
 
 
@@ -93,3 +95,34 @@ def fix_numbers(line_list):
         line_list[i] = before.replace('K' + v, 'K' + new, 1)
         replacements.append((y, x, v, new))
     return replacements, numeric_columns
+
+
+def main():
+    if '--todos' in sys.argv:
+        args = [a for a in sys.argv[1:] if not a.startswith('--')]
+        src_path, dst = args[0], args[1]
+        total = 0
+        for f in sorted(os.listdir(src_path)):
+            if not f.lower().endswith('.slk'):
+                continue
+            replacements, _ = fixable(os.path.join(src_path, f), os.path.join(dst, f))
+            print('%-24s %d cell(s) fixed' % (f, len(replacements)))
+            total += len(replacements)
+        print('total:', total)
+        return
+
+    origin = sys.argv[1]
+    dest = sys.argv[2] if len(sys.argv) > 2 else None
+    replacements, numeric_columns = fixable(origin, dest)
+    n_lists = sum(1 for _, _, v, _ in replacements if '|n' in v)
+    print('%s: %d numeric columns, %d cell(s) fixed (%d number(s) as text, %d id list(s) with |n)'
+          % (origin, len(numeric_columns), len(replacements), len(replacements) - n_lists, n_lists))
+    touched_lines = sorted(set(y for y, _, _, _ in replacements))
+    if touched_lines:
+        print('lines touched: %d (from %d to %d)' % (len(touched_lines), touched_lines[0], touched_lines[-1]))
+        for y, x, v, new in replacements[:6]:
+            print('   line %-5d column %-3d %s -> %s' % (y, x, v, new))
+
+
+if __name__ == '__main__':
+    main()

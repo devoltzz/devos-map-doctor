@@ -6,7 +6,27 @@ import struct
 import zlib
 
 
-DEFAULT_GAME = r'C:\Program Files (x86)\Warcraft III'
+def _default_game_dir():
+    folder = os.environ.get('WC3_GAME')
+    if folder:
+        return folder
+    try:
+        import winreg
+        for key in (r'SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Warcraft III',
+                    r'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Warcraft III'):
+            try:
+                with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key) as k:
+                    value = winreg.QueryValueEx(k, 'InstallLocation')[0]
+                if value and os.path.isdir(value):
+                    return value
+            except OSError:
+                pass
+    except ImportError:
+        pass
+    return r'C:\Program Files (x86)\Warcraft III'
+
+
+DEFAULT_GAME = _default_game_dir()
 
 
 class CascError(Exception):

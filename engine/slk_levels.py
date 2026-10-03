@@ -1,8 +1,13 @@
 # Adds the columns of ability levels 5 and 6 to AbilityData.slk, as copies of level 4.
+import io
+import os
 import re
+import sys
 
 import slk_cols as C
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
 
 LEVEL_FIELDS = ['Area', 'BuffID', 'Cast', 'Cool', 'Cost',
                 'DataA', 'DataB', 'DataC', 'DataD', 'DataE', 'DataF', 'DataG', 'DataH', 'DataI',
@@ -34,6 +39,8 @@ def resolve(line_list):
 
 def add_levels(line_list):
     col, _ = C.slk_columns(line_list)
+    if not col:
+        return None
     inv = dict((v, x) for x, v in col.items())
     if any(('%s5' % c) in inv for c in LEVEL_FIELDS):
         return None
@@ -107,3 +114,31 @@ def add_levels(line_list):
         'next_item': next_item,
         'warnings': warnings,
     }
+
+
+def main():
+    p = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, 'port', 'out', 'extract_en', 'units',
+                                                          'abilitydata.slk')
+    line_list, crlf = C.read_data(p)
+    r = add_levels(line_list)
+    if r is None:
+        print('%s already has level 5 columns; nothing to do' % p)
+        return
+    for c in r['warnings']:
+        print('warning: column %s4 does not exist, field skipped' % c)
+    io.open(p, 'wb').write((('\r\n' if crlf else '\n').join(r['line_list'])).encode('utf-8', 'surrogateescape'))
+    print(
+        '%s: %d new columns (%d fields x levels %s), %d cells copied from level 4, B;X%d'
+        % (
+            p,
+            len(r['plain_name']) * len(NEW_LEVELS),
+            len(r['plain_name']),
+            '/'.join(map(str, NEW_LEVELS)),
+            r['copied'],
+            r['next_item'],
+        )
+    )
+
+
+if __name__ == '__main__':
+    main()

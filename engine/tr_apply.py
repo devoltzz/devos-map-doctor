@@ -1,4 +1,5 @@
 # Applies translated texts to the script and the data files of a map.
+import json
 import os
 import re
 from collections import Counter
@@ -6,8 +7,18 @@ from collections import Counter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TR = os.environ.get('TR_DIR') or os.path.join(HERE, 'tr')
+BUILD = os.path.join(TR, 'build')
 import kr_inventory as ki
 import tr_extract as tx
+
+
+def load_translations():
+    tr = {}
+    for fn in ('reuso.json', 'glossary.json', 'bulk.json', 'repair.json', 'manual.json'):
+        p = os.path.join(TR, fn)
+        if os.path.exists(p):
+            tr.update(json.load(open(p, encoding='utf-8')))
+    return tr
 
 
 ALL_OS_ARGUMENTS = object()
@@ -104,6 +115,12 @@ def classifica_occurrence(ln, pos, lit, caution_como_screen=False):
     return 'tela:' + fn
 
 
+def apply_by_occurrence(body_text, by_text, caution_como_screen=False, all_entries=None):
+    line_list, sep = tx.quebra(body_text, jass=True)
+    cats, detail, n = apply_por_occurrence_lines(line_list, by_text, caution_como_screen, all_entries)
+    return sep.join(line_list), cats, detail, n
+
+
 def apply_por_occurrence_lines(line_list, by_text, caution_como_screen=False, all_entries=None, protected=None):
     all_entries = all_entries or {}
     cats = Counter()
@@ -146,6 +163,30 @@ def apply_por_occurrence_lines(line_list, by_text, caution_como_screen=False, al
     return cats, detail, n
 
 
+def load_extras():
+    p = os.path.join(TR, 'texto_en_extra.json')
+    if not os.path.exists(p):
+        return {}
+    d = json.load(open(p, encoding='utf-8'))
+    return dict((k, v) for k, v in d.items() if not k.startswith('_'))
+
+
+def load_all():
+    p = os.path.join(TR, 'texto_en_todas.json')
+    if not os.path.exists(p):
+        return {}
+    d = json.load(open(p, encoding='utf-8'))
+    return dict((k, v) for k, v in d.items() if not k.startswith('_'))
+
+
+def extras_by_id(entries, extras):
+    output = {}
+    for e in entries:
+        if e.get('text') in extras:
+            output[e['id']] = extras[e['text']]
+    return output
+
+
 def fix_value(en, entry):
     en = en.replace('"', "'")
     if entry.get('quoted'):
@@ -153,4 +194,93 @@ def fix_value(en, entry):
     if ',' in en and not entry.get('comma'):
         return '"' + en + '"'
     return en
+
+
+def apply_txt(root, entries, tr, stats):
+    by_file = {}
+    for e in entries:
+        if e['src'].endswith('.txt') and e['id'] in tr:
+            by_file.setdefault(e['src'], {})[e['line']] = (e, tr[e['id']])
+    for details, lines_map in by_file.items():
+        src = tx.read_text(os.path.join(root, details))
+        lines, sep = tx.quebra(src)
+        n = 0
+        for line_no, (e, en) in lines_map.items():
+            mk = re.match(r'^([A-Za-z0-9_]+)=(.*)$', lines[line_no])
+            assert mk and mk.group(1) == e['key'], (details, line_no, e['key'])
+            lines[line_no] = '%s=%s' % (e['key'], fix_value(en, e))
+            n += 1
+        out = os.path.join(BUILD, details.replace('/', os.sep))
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        open(out, 'wb').write(sep.join(lines).encode('utf-8', 'surrogateescape'))
+        stats[details] = n
+
+
+def apply_misc(root, entries, tr, stats):
+    for fn in ('war3mapMisc.txt', 'war3mapSkin.txt'):
+        p = os.path.join(root, fn)
+        if not os.path.exists(p):
+            continue
+        lines, sep = tx.quebra(tx.read_text(p))
+        n = 0
+        for e in entries:
+            if e['src'] == fn and e['id'] in tr:
+                lines[e['line']] = '%s=%s' % (e['key'], tr[e['id']].replace('"', "'"))
+                n += 1
+        open(os.path.join(BUILD, fn), 'wb').write(sep.join(lines).encode('utf-8', 'surrogateescape'))
+        stats[fn] = n
+    p = os.path.join(root, 'war3map.wts')
+    if os.path.exists(p):
+        t = tx.read_text(p)
+        n = 0
+        for e in entries:
+            if e['src'] == 'war3map.wts' and e['id'] in tr:
+                num = e['key'].split()[1]
+                t, k = re.subn(
+                    r'(STRING %s\s*(?://[^\n]*\n)?\s*\{\r?\n)(.*?)(\r?\n\})' % num,
+                    lambda m: m.group(1) + tr[e['id']] + m.group(3),
+                    t,
+                    count=1,
+                    flags=re.S,
+                )
+                n += k
+        open(os.path.join(BUILD, 'war3map.wts'), 'wb').write(t.encode('utf-8', 'surrogateescape'))
+        stats['war3map.wts'] = n
+    p = os.path.join(root, 'war3map.w3i')
+    if os.path.exists(p):
+        w = open(p, 'rb').read()
+        q = 12
+        parts = [w[:12]]
+        for lab in ('name', 'author', 'description', 'players'):
+            e = w.index(b'\0', q)
+            s = w[q:e]
+            key = 'w3i:' + lab
+            if key in tr:
+                s = tr[key].encode('utf-8')
+            parts.append(s + b'\0')
+            q = e + 1
+        fixed = 32 + 16 + 8 + 4 + 1 + 4
+        parts.append(w[q:q + fixed])
+        q += fixed
+        for lab in ('loading_model', 'loading_text', 'loading_title', 'loading_sub'):
+            e = w.index(b'\0', q)
+            s = w[q:e]
+            key = 'w3i:' + lab
+            if key in tr:
+                s = tr[key].encode('utf-8')
+            parts.append(s + b'\0')
+            q = e + 1
+        parts.append(w[q:])
+        open(os.path.join(BUILD, 'war3map.w3i'), 'wb').write(b''.join(parts))
+        stats['war3map.w3i'] = sum(1 for k in tr if k.startswith('w3i:'))
+
+
+def mapa_de_traducao(entries, tr, extras=None):
+    by_text = {}
+    for e in entries:
+        if e['src'] == 'war3map.j' and e['kind'] in ('script', 'command') and e['id'] in tr:
+            by_text[e['text']] = tr[e['id']]
+    for k, v in (extras or {}).items():
+        by_text.setdefault(k, v)
+    return by_text
 

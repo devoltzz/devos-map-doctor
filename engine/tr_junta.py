@@ -6,6 +6,7 @@ import re
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TR_DIR = os.environ.get('TR_DIR') or os.path.join(HERE, 'tr')
+OUT = os.path.join(TR_DIR, 'out')
 os.environ.setdefault('TR_DIR', TR_DIR)
 import tr_validate as tv
 import tr_gradient as tg

@@ -3,6 +3,9 @@ import os
 import struct
 
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
+
 def le_chunks(data, begin, end_pos):
     p = begin
     while p + 8 <= end_pos:

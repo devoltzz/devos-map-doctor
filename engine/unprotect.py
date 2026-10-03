@@ -23,6 +23,8 @@ import wtg_triggers
 import ntfs_undo
 import slk_patch
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+KK = os.path.normpath(os.path.join(HERE, '..', 'kk'))
 
 FREE, DELETED = 0xFFFFFFFF, 0xFFFFFFFE
 MASK = mpqread.BLOCK_MASK

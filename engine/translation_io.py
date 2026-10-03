@@ -565,6 +565,114 @@ def export(path, out_file, progress=None):
     return rep
 
 
+RX_CODES = re.compile(r'(\|c[0-9A-Fa-f]{8}|\|[rRnN]|%(?:\d+\$)?[sd]|\\n|\n)')
+
+
+def _html_text(s):
+    import html
+    out = []
+    for i, part in enumerate(RX_CODES.split(s)):
+        if not part:
+            continue
+        if i % 2:
+            out.append('<span translate="no" class="c">%s</span>' % html.escape(part).replace('\n', '&#10;'))
+        else:
+            out.append(html.escape(part).replace('\n', '<br>'))
+    return ''.join(out)
+
+
+def export_html(path, out_file, progress=None):
+    import html
+    tmp = out_file + '.json.part'
+    rep = export(path, tmp, progress)
+    if rep['state'] != 'done':
+        return rep
+    try:
+        with open(tmp, encoding='utf-8') as f:
+            doc = json.load(f)
+    finally:
+        os.remove(tmp)
+    rows = []
+    for e in doc['entries']:
+        texto = e['text'].replace('\r\n', '\n')
+        rows.append('<tr data-id="%s"%s><td translate="no" class="id">%s</td>'
+                    '<td translate="no" class="src">%s</td><td class="t">%s</td></tr>'
+                    % (html.escape(e['id'], True), ' data-crlf="1"' if '\r\n' in e['text'] else '',
+                       html.escape(e['id']), html.escape(texto), _html_text(texto)))
+    body = (
+        '<!doctype html>\n<html lang="%s"><head><meta charset="utf-8"><meta name="format" content="%s;%d">'
+        '<title>%s</title><style>td{border:1px solid #ccc;padding:4px;vertical-align:top}.id,.src{color:#777;'
+        'font-size:80%%}.c{color:#a50}</style></head><body><p translate="no">Devo\'s Map Doctor translation file for '
+        '%s. Translate only the last column; leave the gray cells and the brown codes as they are, then load the '
+        'translated file back in the Translation tab.</p><table>\n%s\n</table></body></html>\n'
+        % (
+            doc.get('language') or 'und',
+            FORMAT,
+            VERSION,
+            html.escape(doc['map']),
+            html.escape(doc['map']),
+            '\n'.join(rows),
+        )
+    )
+    part = out_file + '.part'
+    with open(part, 'w', encoding='utf-8', newline='\n') as f:
+        f.write(body)
+    back = _load_html(part)
+    if [x['id'] for x in back['entries']] != [e['id'] for e in doc['entries']] or \
+            any(x['translation'] != e['text'] for x, e in zip(back['entries'], doc['entries'])):
+        os.remove(part)
+        rep.update(state='failed', error='the HTML file did not read back the same')
+        return rep
+    os.replace(part, out_file)
+    rep['file'] = out_file
+    return rep
+
+
+def _load_html(translation_file):
+    import html
+    import html.parser
+
+    class Leitor(html.parser.HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.rows, self.cell, self.buf, self.lang = [], None, [], ''
+
+        def handle_starttag(self, tag, attrs):
+            a = dict(attrs)
+            if tag == 'html' and a.get('lang'):
+                self.lang = a['lang']
+            elif tag == 'tr' and 'data-id' in a:
+                self.rows.append({'id': a['data-id'], 'src': '', 't': '', 'crlf': 'data-crlf' in a})
+            elif tag == 'td' and self.rows:
+                cls = a.get('class') or ''
+                self.cell = 'src' if 'src' in cls else 't' if 't' in cls.split() else None
+                self.buf = []
+            elif tag == 'br' and self.cell == 't':
+                self.buf.append('\n')
+
+        def handle_endtag(self, tag):
+            if tag == 'td' and self.cell and self.rows:
+                self.rows[-1][self.cell] = ''.join(self.buf)
+                self.cell = None
+
+        def handle_data(self, data):
+            if self.cell:
+                self.buf.append(data)
+
+    r = Leitor()
+    with open(translation_file, encoding='utf-8-sig') as f:
+        r.feed(f.read())
+    if not r.rows:
+        raise ValueError('not a Devo\'s Map Doctor translation file')
+    lang = r.lang if r.lang and r.lang != 'und' else ''
+    def volta(s, crlf):
+        s = s.replace('\r\n', '\n')
+        return s.replace('\n', '\r\n') if crlf else s
+    return {'format': FORMAT, 'language': lang,
+            'entries': [{'id': x['id'], 'text': volta(x['src'], x['crlf']), 'translation': volta(x['t'], x['crlf'])}
+                        for x in r.rows]}
+
+
 def _english(err):
     for pt, en in REASONS:
         if err.startswith(pt):
@@ -757,6 +865,8 @@ def _readback(a, mt, wanted, linked, script):
 
 
 def _load(translation_file):
+    if translation_file.lower().endswith(('.html', '.htm')):
+        return _load_html(translation_file)
     with open(translation_file, encoding='utf-8-sig') as f:
         doc = json.load(f)
     if not isinstance(doc, dict) or doc.get('format') != FORMAT or not isinstance(doc.get('entries'), list):

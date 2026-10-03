@@ -10,6 +10,7 @@ import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 COMMON = os.path.dirname(HERE)
+ROOT = os.path.dirname(COMMON)
 CACHE = os.path.join(COMMON, 'cache')
 INDEX = os.path.join(CACHE, 'names.idx')
 MAGIC = b'W3XIDX1\n'

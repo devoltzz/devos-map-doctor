@@ -1,5 +1,7 @@
 # Completes the half-written command button positions of the unit and ability text files.
 import io
+import os
+import sys
 
 
 def complete(field_value):
@@ -70,3 +72,29 @@ def fixable(p):
     if n:
         io.open(p, 'wb').write((('\r\n' if crlf else '\n').join(line_list)).encode('utf-8', 'surrogateescape'))
     return n
+
+
+def main():
+    for a in sys.argv[1:]:
+        if a.startswith('--learn='):
+            for pair in a.split('=', 1)[1].split(';'):
+                if pair.strip():
+                    oid, _, pos = pair.partition(':')
+                    LEARN[oid.strip()] = pos.strip()
+    args = [a for a in sys.argv[1:] if not a.startswith('--')]
+    if not args:
+        raise SystemExit(__doc__)
+    folder = args[0]
+    total = 0
+    for f in sorted(os.listdir(folder)):
+        if not f.lower().endswith('.txt'):
+            continue
+        n = fixable(os.path.join(folder, f))
+        if n:
+            print('%-34s %d position(s) completed' % (f, n))
+        total += n
+    print('total:', total)
+
+
+if __name__ == '__main__':
+    main()

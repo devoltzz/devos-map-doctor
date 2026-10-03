@@ -1,6 +1,7 @@
 # Turns the bytecode of a compiled map script (KKWE, j2b) back into JASS.
 import collections
 import os
+import re
 import struct
 import sys
 
@@ -14,6 +15,7 @@ DEFAULT_NATIVES = os.path.join(getattr(sys, '_MEIPASS', HERE), 'kk_natives.j')
 LIT, MOVRR, MOVRV, MOVRCODE, MOVRA, MOVVR, MOVAR = 12, 13, 14, 15, 16, 17, 18
 PUSH, POP, CALLN, CALLJ, I2R, NEG, NOT, RET, LABEL, JIT, JIF, JUMP = 19, 20, 21, 22, 23, 37, 38, 39, 40, 41, 42, 43
 FUNCTION, ENDFUNCTION, LOCAL, GLOBAL, CONSTANT, FUNCARG, POPN = 3, 4, 5, 6, 7, 8, 11
+EXTENDS_OP, TYPE_OP = 9, 10
 BINOP = {26: '==', 27: '!=', 28: '<=', 29: '>=', 30: '<', 31: '>', 32: '+', 33: '-', 34: '*', 35: '/'}
 BASIC = {0: 'nothing', 3: 'code', 4: 'integer', 5: 'real', 6: 'string', 7: 'handle', 8: 'boolean'}
 
@@ -45,9 +47,17 @@ class Reference(object):
                         self.globals_block[n] = (t, is_array)
         self.extra = {}
         self.extra_text = {}
+        self.extra_types = collections.OrderedDict()
+        self.bytecode_type_list = []
         for body_text, own in ((map_own, True), (extra_natives, False)):
             for ln in body_text.splitlines():
                 s = ln.strip()
+                if s.startswith('type '):
+                    it = KC.analyze(s)[0]
+                    if it[1] not in self.parent:
+                        self.parent[it[1]] = it[2]
+                        self.extra_types[it[1]] = it[2]
+                    continue
                 if s.startswith('native ') or s.startswith('constant native '):
                     it = KC.analyze(s)[0]
                     signature = (it[2], it[3])
@@ -58,6 +68,31 @@ class Reference(object):
                     if own or it[1] not in self.natives:
                         self.extra[it[1]] = signature
                         self.extra_text[it[1]] = ' '.join(s.split()) if own else s
+
+    def bytecode_types(self, bc):
+        for k in [i for i, op in enumerate(bc.op) if op == EXTENDS_OP]:
+            if k + 1 < bc.n and bc.op[k + 1] == TYPE_OP:
+                fname, parent = bc.fname(bc.arg[k + 1]), bc.fname(bc.arg[k])
+                if fname not in self.parent or fname in self.extra_types:
+                    self.parent.setdefault(fname, parent)
+                    self.extra_types[fname] = self.parent[fname]
+                    if fname not in self.bytecode_type_list:
+                        self.bytecode_type_list.append(fname)
+
+    def type_lines(self, body_text):
+        wanted = list(self.bytecode_type_list) + [t for t in self.extra_types if t not in self.bytecode_type_list and
+                                             re.search(r'\b%s\b' % re.escape(t), body_text)]
+        output, seen_types = [], set()
+
+        def place(t):
+            if t in seen_types or t not in self.extra_types:
+                return
+            place(self.extra_types[t])
+            seen_types.add(t)
+            output.append('type %s extends %s' % (t, self.extra_types[t]))
+        for t in wanted:
+            place(t)
+        return output
 
     def native(self, fname):
         if fname in self.extra:
@@ -649,6 +684,22 @@ class Inference(object):
                         self.flow(self.expr_type(c[1], f), ('node', ('r', f.fname)), f.fname)
             walk_cmds(f.body, visit)
 
+    def pin_hook_types(self, funcs):
+        for f in funcs:
+            if not is_hook(f) or f.fname not in self.ref.extra:
+                continue
+            params, ret = self.ref.extra[f.fname]
+            if len(params) != len(f.params):
+                continue
+            for (c, pn), (t, _n) in zip(f.params, params):
+                node = ('line', f.fname, pn)
+                if c == 7 and node in self.nodes and self.ref.is_handle(t):
+                    self.flow(('t', t), ('node', node), 'hook %s' % f.fname)
+                    self.flow(('node', node), ('t', t), 'hook %s' % f.fname)
+            if ('r', f.fname) in self.nodes and self.ref.is_handle(ret):
+                self.flow(('t', ret), ('node', ('r', f.fname)), 'hook %s' % f.fname)
+                self.flow(('node', ('r', f.fname)), ('t', ret), 'hook %s' % f.fname)
+
     def expr(self, e, f):
         def visit(x):
             if x[0] == 'call':
@@ -682,18 +733,30 @@ class Inference(object):
                     if t is not None and t != kind.get(node):
                         kind[node] = t
                         changed = True
-            new_ones = 0
-            for node in self.nodes:
-                if node in kind:
-                    continue
+            cand = {}
+            without_type = sorted((node for node in self.nodes if node not in kind), key=repr)
+            for node in without_type:
                 t = None
-                for x in self.dst_t.get(node, ()):
+                for x in sorted(self.dst_t.get(node, ())):
                     t = x if t is None else (ref.glb(t, x) or t)
-                for d in self.dst_n.get(node, ()):
-                    if d in kind:
-                        t = kind[d] if t is None else (ref.glb(t, kind[d]) or t)
                 if t is not None:
-                    kind[node] = t
+                    cand[node] = t
+            changed = True
+            while changed:
+                changed = False
+                for node in without_type:
+                    t = cand.get(node)
+                    for d in sorted(self.dst_n.get(node, ()), key=repr):
+                        td = kind.get(d) or cand.get(d)
+                        if td is not None:
+                            t = td if t is None else (ref.glb(t, td) or t)
+                    if t is not None and t != cand.get(node):
+                        cand[node] = t
+                        changed = True
+            new_ones = 0
+            for node in without_type:
+                if node in cand:
+                    kind[node] = cand[node]
                     new_ones += 1
             if not new_ones:
                 break
@@ -856,7 +919,8 @@ class Printer(object):
 
     def program(self, globals_block, funcs, natives, header_text, hooks=(), outside=()):
         funcs = [f for f in funcs if f.fname not in outside] if outside else funcs
-        line_list = list(header_text)
+        header = list(header_text)
+        line_list = []
         line_list.append('globals')
         for code_part, n, const, e in globals_block:
             t = self.type_name(code_part, ('g', n))
@@ -882,7 +946,9 @@ class Printer(object):
             self.statements(f.body, f, 1, line_list)
             line_list.append('endfunction')
             line_list.append('')
-        return '\n'.join(line_list)
+        body = '\n'.join(line_list)
+        types = self.ref.type_lines(body)
+        return '\n'.join(header + types + ([''] if types else []) + [body])
 
 
 def prove_map(bc, ref, common, blizzard, map_text, maximum=5):
@@ -897,7 +963,7 @@ def prove_map(bc, ref, common, blizzard, map_text, maximum=5):
     c.rot = rot - 1 if rot else 0
     if segments and segments[0][0] + 1 < segments[0][1] and bc.op[segments[0][0] + 1] in (GLOBAL, CONSTANT):
         c.init_name = bc.fname(bc.arg[segments[0][0]])
-    c.file_name(KC.analyze(map_text))
+    c.file_name([it for it in KC.analyze(map_text) if it[0] != 'type'])
     real_blocks = []
     identical, diffs = KC.compare(bc, c.ins, maximum=maximum, real_blocks=real_blocks, where=where)
     return len(c.ins), len(where), identical, diffs, real_blocks, c
@@ -981,12 +1047,15 @@ def recover(bc, common, blizzard, extra_natives=None, map_own='', header_text=HE
         with open(DEFAULT_NATIVES, 'rb') as fh:
             extra_natives = fh.read().decode('utf-8', 'surrogateescape')
     ref = Reference(common, blizzard, extra_natives, map_own)
+    ref.bytecode_types(bc)
     try:
         globals_block, funcs, natives, _region = decompile(bc, ref)
     except (IndexError, KeyError, struct.error) as e:
         raise DecompileError('the bytecode cannot be read (%s: %s)' % (type(e).__name__, e))
     inf = Inference(ref, globals_block, funcs)
     inf.collect(globals_block)
+    if bc.order == kkwe.REVERSE_ORDER:
+        inf.pin_hook_types(funcs)
     types = inf.resolve()
     imp = Printer(ref, inf)
     faithful = imp.program(globals_block, funcs, natives, list(header_text))
@@ -1004,8 +1073,11 @@ def recover(bc, common, blizzard, extra_natives=None, map_own='', header_text=HE
             'equal, %d real literals with another value%s' % (n, total, identical, len(real_blocks), where)
         )
     called, codes, texts = cited(globals_block, funcs)
-    hooks = [f.fname for f in funcs if is_hook(f) and f.fname not in codes and f.fname not in texts] \
-        if bc.order == kkwe.REVERSE_ORDER else []
+    if bc.order == kkwe.REVERSE_ORDER:
+        hooks = [f.fname for f in funcs if is_hook(f) and f.fname not in codes and f.fname not in texts]
+    else:
+        hooks = [f.fname for f in funcs if is_hook(f) and f.ret == 3 and f.fname not in codes and
+                 f.fname not in texts]
     from_game = set(ref.natives) | set(ref.funcs)
     outside = [g for g in hooks if no_clash and g not in called and g in from_game]
     body_text = faithful
@@ -1017,7 +1089,9 @@ def recover(bc, common, blizzard, extra_natives=None, map_own='', header_text=HE
     clashes = sorted(set([f.fname for f in funcs if f.fname in from_game and f.fname not in outside] +
                          [n for n in natives if n in from_game] +
                          [n for _c, n, _k, _e in globals_block if n in ref.globals_block or n in from_game]))
+    global_clashes = sorted(set(n for _c, n, _k, _e in globals_block if n in ref.globals_block or n in from_game))
     return body_text, {'instructions': total, 'globals_block': len(globals_block), 'functions': len(funcs) - len(hooks),
                        'natives': len(natives), 'hooks': len(hooks) - len(outside), 'hooks_left_out': outside,
-                       'clashes': clashes, 'handles': len(types), 'bad_flows': len(inf.bad_ones)}
+                       'clashes': clashes, 'global_clashes': global_clashes, 'handles': len(types),
+                       'bad_flows': len(inf.bad_ones)}
 

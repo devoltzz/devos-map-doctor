@@ -50,7 +50,40 @@ def enable_jasshelper(extra):
     ), True
 
 
-def fix_w3i(b):
+def fix_w3i(b, sobe=False):
+    new, report, tail = _fix_w3i(b)
+    if sobe:
+        new, report = raise_w3i(new, report)
+    return new, report, tail
+
+
+W3I_RAISED_TO = 31
+W3I_GDV_TFT = 1
+W3I_MODES = 3
+
+
+def raise_w3i(b, report):
+    try:
+        m = w3i.parse(b)
+    except Exception:
+        return b, report
+    v = m['version']
+    if v >= W3I_RAISED_TO:
+        return b, report
+    n_players = [(p['number'], p['type'], p['race'], p['fixed_start']) for p in m['players']]
+    m['supported_modes'] = W3I_MODES
+    m['game_data_version'] = W3I_GDV_TFT
+    new = w3i.write(m, version=W3I_RAISED_TO)
+    m2 = w3i.parse(new)
+    if (m2['version'] != W3I_RAISED_TO or m2['game_data_version'] != W3I_GDV_TFT or m2.get('_tail')
+            or [(p['number'], p['type'], p['race'], p['fixed_start']) for p in m2['players']] != n_players
+            or w3i.write(m2) != new):
+        raise ValueError('w3i v%d -> v%d: the new one does not round-trip' % (v, W3I_RAISED_TO))
+    return new, '%s; v%d -> v%d, game_data_version %d (TFT), supported_modes %d (%d -> %d B)' % (
+        report, v, W3I_RAISED_TO, W3I_GDV_TFT, W3I_MODES, len(b), len(new))
+
+
+def _fix_w3i(b):
     try:
         m = w3i.parse(b)
         if w3i.write(m) == b and not m.get('_tail'):
@@ -278,7 +311,7 @@ def custom_script(body_text, inject=True):
     defined = skeleton_names(body_text)
     functions, main, config = (rename_skeleton(functions, defined), rename_skeleton(main, defined),
                                rename_skeleton(config, defined))
-    warning = JASS_WARNING
+    warning = jass_warning(main)
     block_entry = ('globals\n' + globals_block + 'endglobals\n') if globals_block.strip() else ''
     cs = (prefix + block_entry + functions + ('' if functions.endswith('\n') else '\n') +
           '//! inject main\n' + mark_dovjassinit(main) + warning + '//! endinject\n' +
@@ -304,14 +337,29 @@ def mark_dovjassinit(main):
     return DOVJASSINIT + main
 
 
-JASS_WARNING = (
-    "// The map's ORIGINAL main and config, through JassHelper (//! inject): saving from the World Editor with\n"
-    "// JassHelper ENABLED builds the same script again. A unit, region or trigger you add in the editor only runs\n"
-    "// if main calls it: add call CreateAllUnits(), call CreateRegions(), call InitCustomTriggers() and\n"
-    "// call RunInitializationTriggers() at the end here (the editor generates those functions).\n"
-    "// The map's own copies of the functions the editor also generates (InitGlobals, CreateAllUnits, ...) are\n"
-    "// prefixed with \"devo_\" here: two functions with the same name do not compile.\n"
-)
+EDITOR_CALLS = ('CreateAllUnits', 'CreateRegions', 'InitCustomTriggers', 'RunInitializationTriggers')
+
+
+def jass_warning(main):
+    chama = set(m.group(1) for m in re.finditer(r'\bcall[ \t]+(?:devo_)?(\w+)[ \t]*\(', main))
+    missing_items = [n for n in EDITOR_CALLS if n not in chama]
+    if missing_items:
+        pede = ("A unit, region or trigger you add in the editor only runs\n"
+                "// if main calls it: add %s at the end here (the editor generates those functions).\n"
+                % ' and '.join('call %s()' % n for n in missing_items))
+    else:
+        pede = ("main already calls everything the editor generates (%s):\n"
+                "// a unit, region or trigger you add in the editor runs without changing anything here.\n"
+                % ', '.join(EDITOR_CALLS))
+    return (
+        "// The map's ORIGINAL main and config, through JassHelper (//! inject): saving from the World Editor with\n"
+        "// JassHelper ENABLED builds the same script again. "
+        + pede
+        + "// The map's own copies of the functions the editor also generates (InitGlobals, CreateAllUnits, ...) are\n"
+        "// prefixed with \"devo_\" here: two functions with the same name do not compile.\n"
+    )
+
+
 EDITOR_JASS_NOTE = (
     "// The map's main and config are the ones the World Editor writes (the same code), so there is no\n"
     "// //! inject here. The map's own copies of other functions the editor also generates keep the\n"
@@ -453,6 +501,27 @@ class ScriptNotRestored(ValueError):
     pass
 
 
+RX_REAL_FUNCTION = re.compile(r'^\s*(?:constant\s+)?function\s+\w+\s+takes\b.*\breturns\s+real\s*$')
+RX_INTEGER_RETURN = re.compile(r'^(\s*return\s+)(-?\d+)(\s*(?://.*)?)$')
+
+
+def real_literal_return(body_text):
+    line_list = body_text.split('\n')
+    real, n = False, 0
+    for i, ln in enumerate(line_list):
+        s = ln.strip()
+        if s.startswith('function ') or s.startswith('constant function '):
+            real = bool(RX_REAL_FUNCTION.match(ln))
+        elif s.startswith('endfunction'):
+            real = False
+        elif real:
+            m = RX_INTEGER_RETURN.match(ln)
+            if m:
+                line_list[i] = '%s%s.0%s' % (m.group(1), m.group(2), m.group(3))
+                n += 1
+    return ('\n'.join(line_list), n) if n else (body_text, 0)
+
+
 def _pjass_check(body_text, clashes):
     try:
         import pjass
@@ -481,7 +550,7 @@ def _pjass_check(body_text, clashes):
     if r.get('missing'):
         return True, 'skipped: no %s' % os.path.basename(r['missing'])
     error_list = [RX_PJASS_WHERE.sub('', line) for line in r['line_list'] if RX_PJASS_WHERE.match(line)]
-    rx = re.compile(r'\b(%s)\b.*already defined' % '|'.join(re.escape(c) for c in clashes)) if clashes else None
+    rx = re.compile(r'\b(%s)\b.*al+ready defined' % '|'.join(re.escape(c) for c in clashes)) if clashes else None
     others = [e for e in error_list if not (rx and rx.search(e))]
     return not others, 'rc=%s, %d error(s)%s' % (
         r['rc'],
@@ -528,11 +597,14 @@ def script_restore(entry, output, kind, log=print):
         raise ScriptNotRestored('a file of the decompiler is missing (%s)' % e)
     except (ValueError, struct.error, IndexError) as e:
         raise ScriptNotRestored('%s is not in the format this tool reads (%s)' % (compiled, e))
-    ok, details['pjass'] = _pjass_check(body_text, details['clashes'])
-    log(
-        'script restored (%s): %d instructions, %d functions; pjass %s'
-        % (kind, details['instructions'], details['functions'], details['pjass'])
-    )
+    rename_items = details.get('global_clashes') or []
+    if rename_items:
+        body_text = rename_skeleton(body_text, rename_items)
+        details['renamed'] = list(rename_items)
+    body_text, details['real_returns'] = real_literal_return(body_text)
+    ok, details['pjass'] = _pjass_check(body_text, [c for c in details['clashes'] if c not in rename_items])
+    log('script back (%s): %d instructions, %d functions; %d global(s) renamed; pjass %s'
+        % (kind, details['instructions'], details['functions'], len(rename_items), details['pjass']))
     if not ok:
         raise ScriptNotRestored(
             'the script came back, but the Reforged compiler (pjass) rejects it: %s' % details['pjass']
@@ -574,7 +646,9 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
     a = mpqread.Archive(entry)
     details = {}
     b_w3i = a.read('war3map.w3i')
-    new_w3i, details['w3i'], details['w3i_tail'] = fix_w3i(b_w3i)
+    new_w3i, details['w3i'], details['w3i_tail'] = fix_w3i(b_w3i, sobe=True)
+    w3i_era = _fix_w3i(b_w3i)[0]
+    details['w3i_raised'] = new_w3i != w3i_era
     try:
         lang = w3i.parse(new_w3i).get('script_language')
     except Exception:
@@ -617,18 +691,18 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
     imported = sorted((n for n in name_list if n.lower() not in {x.lower() for x in SPECIAL_FILES}
                        and not RX_NATIVE.match(n.split('\\')[-1]) and a.read(n) is not None),
                       key=lambda n: (n.lower(), n))
-    engine_copies = []
+    engine = []
     for t in ENGINE_TEXTURES:
         try:
             if a.find(t) and jpeg_flat.blp_is_white(a.read(t) or b''):
-                engine_copies.append(t)
+                engine.append(t)
         except Exception as e:
             log('%s: %s' % (t, e))
-    if engine_copies:
-        left_out = set(x.lower() for x in engine_copies)
+    if engine:
+        left_out = set(x.lower() for x in engine)
         name_list = set(n for n in name_list if n.lower() not in left_out)
         imported = [n for n in imported if n.lower() not in left_out]
-        details['engine_textures'] = engine_copies
+        details['engine_textures'] = engine
     new_ones = {}
     missing_items = []
     replacements = {} if new_w3i == b_w3i else {'war3map.w3i': new_w3i}
@@ -647,14 +721,14 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
     if skin_files:
         details['skin'] = sorted(n for n in skin_files if n.startswith('war3mapSkin'))
     try:
-        w3i_version = struct.unpack_from('<i', new_w3i, 0)[0] if new_w3i else None
+        w3i_version = struct.unpack_from('<i', w3i_era, 0)[0] if w3i_era else None
     except struct.error:
         w3i_version = None
     try:
-        editor_w3i = w3i.parse(new_w3i).get('editor_version')
+        editor_w3i = w3i.parse(w3i_era).get('editor_version')
     except Exception:
         editor_w3i = None
-    context = {'w3i': w3i_version, 'game_132': _game_is_132(new_w3i), 'mpq': a,
+    context = {'w3i': w3i_version, 'game_132': _game_is_132(w3i_era), 'mpq': a,
                'safe_units': safe_units, 'editor_w3i': editor_w3i, 'file_set': replacements}
     try:
         _bd = a.read('war3map.doo')
@@ -881,7 +955,7 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
     all_items = sorted(name_list | set(new_ones) | set(replacements), key=lambda n: (n.lower(), n))
     if method == 'rebuild':
         r = mpq_rebuild.rebuild(entry, output, all_items, replacements=replacements, new_ones=new_ones,
-                                to_remove=['(attributes)'] + engine_copies, sector_shift=3, level=6, log=log)
+                                to_remove=['(attributes)'] + engine, sector_shift=3, level=6, log=log)
     else:
         listfile = (CRLF.join(n for n in all_items if n not in ('(listfile)', '(attributes)')) + CRLF).encode(
             'utf-8', 'surrogateescape')
@@ -902,7 +976,7 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
         sz = mpqadd.add_files(
             output,
             work_queue,
-            to_delete=(['(attributes)'] if a.find('(attributes)') else []) + engine_copies,
+            to_delete=(['(attributes)'] if a.find('(attributes)') else []) + engine,
             fake_count=tight,
             no_slot=no_slot,
             log=log,
@@ -929,7 +1003,7 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
             failures.append('%s: differs when read back' % n)
     if s.read(j_source) != raw_bytes:
         failures.append('%s: the game script changed' % j_source)
-    failures.extend('%s: still in the map' % n for n in engine_copies if s.find(n))
+    failures.extend('%s: still in the map' % n for n in engine if s.find(n))
     try:
         w3i.parse(s.read('war3map.w3i'))
     except Exception as e:

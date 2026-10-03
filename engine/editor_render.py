@@ -1789,8 +1789,9 @@ def pjass_run(scripts):
             path = os.path.join(tmp, tag + '.j')
             with open(path, 'wb') as f:
                 f.write(code.encode('utf-8', 'surrogateescape'))
-            r = pjass.run_action([(os.path.join(REF_DIR, 'common.j'), 'common.j'),
-                                  (os.path.join(REF_DIR, 'blizzard.j'), 'Blizzard.j'), (path, 'war3map.j')],
+            ref = pjass.game_scripts_dir(REF_DIR) or REF_DIR
+            r = pjass.run_action([(os.path.join(ref, 'common.j'), 'common.j'),
+                                  (os.path.join(ref, 'blizzard.j'), 'Blizzard.j'), (path, 'war3map.j')],
                                  tmp=os.path.join(tmp, tag))
             out[tag] = (r['rc'], collections.Counter(RX_PJASS_WHERE.sub('', x) for x in r['line_list']
                                                      if RX_PJASS_WHERE.match(x)))

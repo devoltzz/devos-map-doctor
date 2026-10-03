@@ -279,6 +279,34 @@ def run_action(D, G, job, path, task, progress, emit):
             'changes': page_changes(r, task, x)}
 
 
+def run_port(D, G, path, progress, emit, packages=()):
+    import map_port
+    out = D.free_output(path, '_reforged')
+    emit({'type': 'output', 'path': out})
+    report = os.path.splitext(out)[0] + '.report.txt'
+    work = tempfile.mkdtemp(prefix='devos_map_doctor_port_')
+    try:
+        r = map_port.map_port(path, os.path.join(work, 'port'), out, report, log=progress, pacotes=list(packages))
+        if r.get('err'):
+            chain = os.path.join(work, 'port', 'port', 'out', 'cadeia.log')
+            if os.path.isfile(chain):
+                log = os.path.splitext(out)[0] + '.chain.log'
+                shutil.copyfile(chain, log)
+                r['log'] = log
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    ported = r.get('resultado', '').startswith('ported')
+    return {'lines': page_lines(G.port_text(r)), 'file': r.get('output') if ported else None, 'report': report,
+            'outcome': 'ok' if ported else 'failed',
+            'port': {'g1': r.get('g1'), 'g2': r.get('g2'), 'stubs': r.get('stubs') or [],
+                     'warnings': r.get('warnings') or [], 'error': r.get('err'), 'log': r.get('log'),
+                     'removed': (r.get('dead_type') or {}).get('types') or [], 'form': r.get('forma'),
+                     'jn': bool((r.get('diagnostico') or {}).get('jn')),
+                     'implemented': len((r.get('diagnostico') or {}).get('implemented_count') or []),
+                     'declared': len((r.get('diagnostico') or {}).get('plataforma') or []),
+                     'size': r.get('bytes'), 'seconds': r.get('segundos')}}
+
+
 def run_job(job, emit, G):
     import unprotect as D
 
@@ -294,6 +322,8 @@ def run_job(job, emit, G):
                 'summary': page_summary(D, d)}
     if task in ('fix', 'editor'):
         return run_action(D, G, job, path, task, progress, emit)
+    if task == 'port':
+        return run_port(D, G, path, progress, emit, job.get('packages') or [])
     tool = TOOLS.get(task)
     if tool is None:
         raise ValueError('unknown task %r' % task)
@@ -355,6 +385,8 @@ def _triggers(job, progress):
 
 def _translation_export(job, progress):
     import translation_io
+    if job['file'].lower().endswith(('.html', '.htm')):
+        return translation_io.export_html(job['map'], job['file'], progress)
     return translation_io.export(job['map'], job['file'], progress)
 
 
@@ -447,7 +479,8 @@ class Api:
 
     def pick_file(self, kind):
         import webview
-        types = {'translation': ('Translation files (*.json)', 'All files (*.*)'),
+        types = {'translation': ('Translation files (*.json;*.html;*.htm)', 'All files (*.*)'),
+                 'package': ('Art packages (*.mix;*.asi;*.dll;*.mpq)', 'All files (*.*)'),
                  'image': ('Images (*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.blp)', 'All files (*.*)'),
                  'map': MAP_TYPES}.get(kind, ('All files (*.*)',))
         return self._dialog(webview.FileDialog.OPEN, file_types=types)
@@ -455,6 +488,7 @@ class Api:
     def pick_save(self, suggested, kind):
         import webview
         types = {'translation': ('Translation files (*.json)',),
+                 'translation_html': ('Web page for machine translation (*.html)',),
                  'script': ('Scripts (*.j;*.lua)', 'All files (*.*)')}.get(kind, ('All files (*.*)',))
         return self._dialog(webview.FileDialog.SAVE, save_filename=suggested or '', file_types=types)
 

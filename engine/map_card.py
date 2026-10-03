@@ -9,6 +9,7 @@ import re
 import shutil
 import struct
 import tempfile
+import time
 
 import numpy as np
 from PIL import Image
@@ -21,7 +22,7 @@ import lua_ast
 import mdxtex
 import mpqadd
 import mpqread
-import nomes_hm3w
+import hm3w_names
 import tr_gradient
 import w3i
 
@@ -597,21 +598,51 @@ def _chat_compared(text, lua):
     return out
 
 
+def computed_strings(text, expressions, budget=300000, seconds=8.0):
+    out = {}
+    if not expressions:
+        return out
+    try:
+        import jass_eval
+        it = jass_eval.run(text, budget=budget, seconds=seconds)
+    except Exception:
+        return out
+    deadline = time.time() + seconds
+    for x in expressions:
+        if time.time() > deadline:
+            break
+        try:
+            out[x] = it.text(x)
+        except Exception:
+            pass
+    return out
+
+
 def chat_commands(text, lua, strings=None):
     strings = strings or {}
-    seen, cache = {}, {}
+    found, cache = [], {}
     for m in _calls(RX_CHAT_EVENT, text):
         args = _args(text, m.end() - 1)
         if not args or len(args) < 3:
             continue
         value = _value(args[2], text, lua, cache)
         exact = {'true': True, 'false': False}.get(args[3] if len(args) > 3 else '')
-        key = (_trig(value, strings), exact, None if value is not None else args[2][:120])
+        found.append((value, exact, args[2]))
+    decoded = {} if lua else computed_strings(text, sorted(set(
+        x for v, _e, x in found if v is None and ('(' in x or (re.fullmatch(r'[A-Za-z_]\w*', x) and re.search(
+            r'(?m)^[ \t]*(?:constant\s+)?string\s+' + re.escape(x) + r'\b', text))))))
+    seen, built = {}, set()
+    for value, exact, expr in found:
+        if value is None and decoded.get(expr) is not None:
+            key = (_trig(decoded[expr], strings), exact, None)
+            built.add(key)
+        else:
+            key = (_trig(value, strings), exact, None if value is not None else expr[:120])
         seen[key] = seen.get(key, 0) + 1
     order = sorted(seen.items(), key=lambda kv: (kv[0][0] is None, kv[0][0] if kv[0][0] is not None else kv[0][2],
                                                  str(kv[0][1])))
-    registered = [{'text': t, 'exact': e, 'count': c} if t is not None else
-                  {'text': None, 'expr': x, 'exact': e, 'count': c} for (t, e, x), c in order]
+    registered = [dict({'text': t, 'exact': e, 'count': c}, **({'decoded': True} if (t, e, x) in built else {}))
+                  if t is not None else {'text': None, 'expr': x, 'exact': e, 'count': c} for (t, e, x), c in order]
     compared = set(_trig(x, strings) for x in _chat_compared(text, lua))
     return registered, sorted(x for x in compared if x is not None)
 
@@ -698,12 +729,12 @@ def _visible_literal(s):
 
 def _lobby(path):
     with open(path, 'rb') as f:
-        cab = f.read(nomes_hm3w.TAM)
-    if cab[:4] != b'HM3W' or b'\0' not in cab[nomes_hm3w.OFF_NAME:]:
+        cab = f.read(hm3w_names.TAM)
+    if cab[:4] != b'HM3W' or b'\0' not in cab[hm3w_names.OFF_NAME:]:
         return None, None
-    end = cab.index(b'\0', nomes_hm3w.OFF_NAME)
+    end = cab.index(b'\0', hm3w_names.OFF_NAME)
     players = struct.unpack_from('<I', cab, end + 5)[0] if end + 9 <= len(cab) else None
-    return nomes_hm3w.name_hm3w(path), players
+    return hm3w_names.name_hm3w(path), players
 
 
 def _model_of(a):
@@ -1186,7 +1217,7 @@ def _write_checked(a, part, repl, imgs, lobby, w3i_edit, texts, p):
                             % ', '.join(no_room))
     if lobby is not None:
         try:
-            nomes_hm3w.renomeia(part, lobby)
+            hm3w_names.renomeia(part, lobby)
         except ValueError:
             raise CardError('bad_text', 'The lobby name is too long for the map header.')
     p('Checking the new map')

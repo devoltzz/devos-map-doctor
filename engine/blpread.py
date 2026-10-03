@@ -69,6 +69,11 @@ def _name_format(info):
     return 'BLP2/compr=%d (desconhecido)' % info['compression']
 
 
+def _pixel_data(path, info, mip=0):
+    with open(path, 'rb') as f:
+        return _data_bytes(f.read(), info, mip, path)
+
+
 def _data_bytes(d, info, mip=0, path='<bytes>'):
     off, sz = info['offsets'][mip], info['sizes'][mip]
     if sz == 0:

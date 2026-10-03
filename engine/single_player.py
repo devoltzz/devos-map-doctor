@@ -838,7 +838,8 @@ def _pjass(old_bytes, new_bytes):
             src = os.path.join(tmp, tag + '.j')
             with open(src, 'wb') as fh:
                 fh.write(data)
-            r = pj.run_action([(os.path.join(REF_30, 'common.j'), 'common.j'), (os.path.join(REF_30, 'blizzard.j'),
+            ref = pj.game_scripts_dir(REF_30) or REF_30
+            r = pj.run_action([(os.path.join(ref, 'common.j'), 'common.j'), (os.path.join(ref, 'blizzard.j'),
                          'blizzard.j'), (src, 'war3map.j')], tmp=os.path.join(tmp, tag))
             lines = [ln.replace(os.path.join(tmp, tag), '') for ln in r['line_list']]
             res.append((r['rc'] == 0 and not r['error_list'] and not r['warnings'], (r['rc'], lines),

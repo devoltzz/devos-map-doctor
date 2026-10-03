@@ -67,6 +67,10 @@ STRING_FILES = ['units/itemstrings.txt', 'units/campaignabilitystrings.txt', 'un
 STRING_FILES += [s.strip() for s in os.environ.get('TR_TXT_EXTRA', '').split(',') if s.strip()]
 
 
+def read_text(path):
+    return open(path, 'rb').read().decode('utf-8', 'surrogateescape')
+
+
 def quebra(body_text, jass=False):
     crlf = body_text.count('\r\n')
     if body_text.count('\r') - crlf > crlf:
