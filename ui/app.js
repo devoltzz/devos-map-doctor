@@ -71,7 +71,10 @@ function rgbaCanvas(img, maxSide) {
 // ------------------------------------------------------------------ the bridge
 const state = {
   hello: null, settings: {}, map: null, open: null, jobs: {}, running: null, results: {},
-  tabsLoaded: {}, extras: { card: null, translation: null, models: null, singlePlayer: null },
+  // `gen` counts the maps opened: what a job of an earlier map brings back is dropped; the quiet jobs of the map
+  // (the tabs loading in the background) are cancelled when another one opens
+  gen: 0, tabState: {}, quietJobs: new Set(), images: {}, imageData: {},
+  extras: { card: null, translation: null, models: null, singlePlayer: null },
 };
 
 const api = () => window.pywebview.api;
@@ -81,7 +84,8 @@ function run(task, params, opts) {
   return new Promise(async (resolve, reject) => {
     const id = await api().start(task, Object.assign({ map: state.map }, params || {}));
     state.jobs[id] = { task, resolve, reject, started: Date.now(), label: opts.label, quiet: opts.quiet };
-    if (!opts.quiet) showJob(id, opts.label || 'Working...');
+    if (opts.quiet) state.quietJobs.add(id);
+    else showJob(id, opts.label || 'Working...');
   });
 }
 
@@ -101,6 +105,7 @@ window.doctor = {
       return;
     }
     delete state.jobs[ev.job];
+    state.quietJobs.delete(ev.job);
     if (state.running === ev.job) hideJob();
     if (ev.type === 'result') job.resolve(ev.data);
     else if (ev.type === 'cancelled') job.reject({ cancelled: true });
@@ -164,11 +169,19 @@ async function pickMap() {
 
 async function openMap(path) {
   if (state.running) { toast('Wait for the current job to finish, or cancel it.'); return; }
+  const gen = ++state.gen;
+  for (const id of state.quietJobs) api().cancel(id);
+  state.quietJobs.clear();
   state.map = path;
   state.open = null;
-  state.tabsLoaded = {};
+  state.card = state.files = state.reforged = null;
+  state.images = {};
+  state.imageData = {};
   state.results = {};
+  state.portResult = null;
+  state.portPackages = [];
   state.extras = { card: null, translation: null, models: null, singlePlayer: null };
+  TABS.forEach(n => setTabState(n, 'wait'));
   $('#welcome').classList.add('hidden');
   $('#mapview').classList.remove('hidden');
   $('#btnOpen').classList.remove('hidden');
@@ -185,15 +198,26 @@ async function openMap(path) {
   status('Checking the map...');
   try {
     const r = await run('open', {}, { label: 'Checking the map...' });
+    if (gen !== state.gen) return;
     state.open = r;
     remember(path);
     renderHeader();
     renderActions();
     status('Ready.');
-    loadThumb();
-    checkReforgedQuietly();
+    renderTranslation();
+    renderCompare();
+    renderPort();
+    setTabState('translation', 'ready');
+    setTabState('compare', 'ready');
+    setTabState('port', 'ready');
+    loadThumb(gen);
+    checkReforgedQuietly(gen);
+    loadTabsInBackground(gen);
   } catch (e) {
+    if (gen !== state.gen) return;
     $('#badges').replaceChildren(el('span', { class: 'badge bad', text: 'Could not check the map' }));
+    TABS.forEach(n => { tabBody(n, el('div', { class: 'card muted', text: 'The map could not be checked, so ' +
+      'there is nothing to show here.' })); setTabState(n, 'failed'); });
     failed(e, 'Checking the map');
   }
 }
@@ -223,20 +247,27 @@ function reportLines(lines) {
   return el('div', { class: 'report' }, lines.map(([style, text]) => el('div', { class: 'l ' + style, text })));
 }
 
-async function loadThumb() {
-  try {
-    const img = await run('card_image', { which: 'minimap' }, { quiet: true });
-    if (!img) return;
-    const c = rgbaCanvas(img);
-    const ctx = $('#thumb').getContext('2d');
-    ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(c, 0, 0, 96, 96);
-  } catch (e) { /* no minimap: the empty frame stays */ }
+// the map's images, asked once per map (the header thumbnail and the map card share them); null when there is none
+function imageOf(which) {
+  if (!state.images[which]) {
+    state.images[which] = run('card_image', { which }, { quiet: true }).catch(() => null);
+  }
+  return state.images[which];
 }
 
-async function checkReforgedQuietly() {
+async function loadThumb(gen) {
+  const img = await imageOf('minimap');
+  if (gen !== state.gen || !img) return;     // no minimap: the empty frame stays
+  const c = rgbaCanvas(img);
+  const ctx = $('#thumb').getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(c, 0, 0, 96, 96);
+}
+
+async function checkReforgedQuietly(gen) {
   try {
     const r = await run('reforged', {}, { quiet: true });
+    if (gen !== state.gen) return;
     state.reforged = r;
     const v = { 'v-yes': ['good', 'Runs on Reforged'], 'v-probably': ['info', 'Probably runs on Reforged'],
       'v-no': ['bad', 'Does not run on Reforged as it is'], 'v-unknown': ['', 'Runs on Reforged? unknown'] }[r.verdict_code] ||
@@ -244,13 +275,16 @@ async function checkReforgedQuietly() {
     const badge = $('#reforgedBadge');
     if (badge) { badge.className = 'badge ' + v[0]; badge.textContent = v[1]; badge.style.cursor = 'pointer';
       badge.onclick = () => selectTab('reforged'); }
-    if (state.tabsLoaded.reforged) renderReforged();
+    renderReforged();
+    setTabState('reforged', 'ready');
     const sp = r.single_player;
     if (sp && sp.found) { state.extras.singlePlayer = sp; renderActions(); }
     if (r.models && r.models.fixable) { state.extras.models = r.models; renderActions(); }
   } catch (e) {
+    if (gen !== state.gen) return;
     const badge = $('#reforgedBadge');
     if (badge) badge.textContent = 'Runs on Reforged? could not check';
+    tabFailed('reforged', 'Checking whether it runs on Reforged', e);
   }
 }
 
@@ -456,7 +490,8 @@ async function reportProblem() {
   if (state.open) parts.push('Map: ' + state.open.name + ' (' + mb(state.open.size) + ')', '',
     '### Diagnosis', '```', plainReport(state.open.lines), '```');
   for (const [action, r] of Object.entries(state.results)) {
-    parts.push('', '### ' + ACTIONS[action].title, '```', plainReport(r.lines), '```');
+    parts.push('', '### ' + (ACTIONS[action] ? ACTIONS[action].title : 'Port to Reforged'), '```',
+      plainReport(r.lines), '```');
   }
   if (state.lastError) parts.push('', '### Error', state.lastError.what + ': ' + state.lastError.message,
     '```', (state.lastError.trace || '').slice(-2500), '```');
@@ -501,28 +536,49 @@ function offerIndex(release, missing) {
 }
 
 // ------------------------------------------------------------------ tabs
-const TAB_LOADERS = {
-  card: loadCard, reforged: renderReforged, files: loadFiles, script: loadScript, triggers: loadTriggers,
-  translation: renderTranslation, compare: renderCompare,
-};
+// Every tab but Actions stays locked, with a spinner on its button, until ALL of its information is in: the data
+// tabs load in the background as soon as the map is checked, one after the other (a big map in several workers at
+// once would take that much more memory); "Runs on Reforged?" opens when its check ends; Translation and Compare
+// when the map is checked.
+const TABS = ['card', 'reforged', 'files', 'script', 'triggers', 'translation', 'compare', 'port'];
+const TAB_DATA = { card: loadCard, files: loadFiles, script: loadScript, triggers: loadTriggers,
+  reforged: checkReforgedQuietly };
 
-function selectTab(name) {
-  $$('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
-  $$('.tab').forEach(t => t.classList.toggle('hidden', t.id !== 'tab-' + name));
-  if (name !== 'actions' && state.open && !state.tabsLoaded[name] && TAB_LOADERS[name]) {
-    state.tabsLoaded[name] = true;
-    TAB_LOADERS[name]();
+function setTabState(name, st) {
+  state.tabState[name] = st;
+  const b = $('#tabs button[data-tab="' + name + '"]');
+  if (!b) return;
+  b.disabled = st === 'wait';
+  b.classList.toggle('loading', st === 'wait');
+  b.classList.toggle('failed', st === 'failed');
+  b.title = st === 'wait' ? 'Loading: the tab opens when all of its information is in.' :
+    st === 'failed' ? 'Loading failed: open the tab to try again.' : '';
+}
+
+async function loadTabsInBackground(gen) {
+  for (const name of ['card', 'files', 'script', 'triggers']) {
+    if (gen !== state.gen) return;
+    await TAB_DATA[name](gen);
   }
 }
 
+function selectTab(name) {
+  if (name !== 'actions' && state.tabState[name] === 'wait') return;
+  $$('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+  $$('.tab').forEach(t => t.classList.toggle('hidden', t.id !== 'tab-' + name));
+}
+
 function tabBody(name, ...kids) { $('#tab-' + name).replaceChildren(...kids); }
-function loading(name, text) { tabBody(name, el('div', { class: 'card muted', text: text || 'Loading...' })); }
 function tabFailed(name, what, e) {
-  state.tabsLoaded[name] = false;
-  if (e && e.cancelled) { tabBody(name, el('div', { class: 'card muted', text: what + ' was cancelled.' })); return; }
+  setTabState(name, 'failed');
   tabBody(name, el('div', { class: 'card' }, el('div', { class: 'report' },
-    el('div', { class: 'l bad', text: what + ' failed.' }), el('div', { class: 'l info', text: (e && e.message) || '' })),
-  el('button', { class: 'btn small', text: 'Try again', onclick: () => selectTab(name) })));
+    el('div', { class: 'l bad', text: what + (e && e.cancelled ? ' was cancelled.' : ' failed.') }),
+    el('div', { class: 'l info', text: (e && e.message) || '' })),
+  el('button', { class: 'btn small', text: 'Try again', onclick: () => {
+    setTabState(name, 'wait');
+    selectTab('actions');
+    TAB_DATA[name](state.gen);
+  } })));
 }
 
 // ------------------------------------------------------------------ the map card
@@ -568,16 +624,24 @@ function cardChange(path, value) {
   renderActions();
 }
 
-async function loadCard() {
-  loading('card', 'Reading the map card...');
+async function loadCard(gen) {
   try {
-    state.card = await run('card', {}, { quiet: true });
+    const [card, minimap, preview] = await Promise.all([run('card', {}, { quiet: true }), imageOf('minimap'),
+      imageOf('preview')]);
+    if (gen !== state.gen) return;
+    state.card = card;
+    state.imageData = { minimap, preview };
     renderCard();
-  } catch (e) { tabFailed('card', 'Reading the map card', e); }
+    setTabState('card', 'ready');
+  } catch (e) { if (gen === state.gen) tabFailed('card', 'Reading the map card', e); }
 }
 
 function renderCard() {
   const c = state.card;
+  if (c && c.ok === false) {
+    tabBody('card', el('div', { class: 'card muted', text: c.message || 'The map card cannot be read.' }));
+    return;
+  }
   const form = el('div', { class: 'form' });
   for (const [path, label, kind] of CARD_FIELDS) {
     const value = getPath(c, path);
@@ -664,11 +728,10 @@ function describeSave(save) {
 }
 
 function imageSlot(which, name) {
+  // the image came in with the card (loadCard waits for both before the tab opens)
+  const img = state.imageData[which];
   const box = el('div', { class: 'preview', style: 'width:200px;height:200px;min-height:0' },
-    el('span', { class: 'faint', text: name ? 'Loading...' : 'none' }));
-  if (name) run('card_image', { which }, { quiet: true }).then(img => {
-    if (img) box.replaceChildren(rgbaCanvas(img, 180));
-  }).catch(() => box.replaceChildren(el('span', { class: 'faint', text: 'cannot show it' })));
+    img ? rgbaCanvas(img, 180) : el('span', { class: 'faint', text: name ? 'cannot show it' : 'none' }));
   const label = { minimap: 'Minimap', preview: 'Preview' }[which];
   return el('div', {}, el('div', { class: 'muted', text: label + (name ? ' (' + name + ')' : '') }), box,
     el('button', { class: 'btn small', style: 'margin-top:6px', text: 'Replace...', onclick: () => replaceImage(which,
@@ -720,12 +783,14 @@ function renderReforged() {
 }
 
 // ------------------------------------------------------------------ files
-async function loadFiles() {
-  loading('files', 'Listing the files...');
+async function loadFiles(gen) {
   try {
-    state.files = await run('files', {}, { quiet: true });
+    const f = await run('files', {}, { quiet: true });
+    if (gen !== state.gen) return;
+    state.files = f;
     renderFiles();
-  } catch (e) { tabFailed('files', 'Listing the files', e); }
+    setTabState('files', 'ready');
+  } catch (e) { if (gen === state.gen) tabFailed('files', 'Listing the files', e); }
 }
 
 function renderFiles() {
@@ -786,10 +851,10 @@ async function showPreview(file, box) {
 }
 
 // ------------------------------------------------------------------ script
-async function loadScript() {
-  loading('script', 'Reading the script...');
+async function loadScript(gen) {
   try {
     const s = await run('script', {}, { quiet: true });
+    if (gen !== state.gen) return;
     const shown = s.text && s.text.length > 3e6 ? s.text.slice(0, 3e6) + '\n\n(shown up to 3 MB; the export has it all)' :
       s.text;
     tabBody('script', el('div', { class: 'card' },
@@ -802,16 +867,18 @@ async function loadScript() {
       } }) : null),
       s.note ? el('p', { class: 'lead', text: s.note }) : null,
       s.text ? el('pre', { class: 'code', text: shown }) : el('p', { class: 'muted', text: 'No readable script.' })));
-  } catch (e) { tabFailed('script', 'Reading the script', e); }
+    setTabState('script', 'ready');
+  } catch (e) { if (gen === state.gen) tabFailed('script', 'Reading the script', e); }
 }
 
 // ------------------------------------------------------------------ triggers
-async function loadTriggers() {
-  loading('triggers', 'Reading the triggers (this can take a while on big scripts)...');
+async function loadTriggers(gen) {
   try {
     const t = await run('triggers', {}, { quiet: true });
+    if (gen !== state.gen) return;
     renderTriggers(t);
-  } catch (e) { tabFailed('triggers', 'Reading the triggers', e); }
+    setTabState('triggers', 'ready');
+  } catch (e) { if (gen === state.gen) tabFailed('triggers', 'Reading the triggers', e); }
 }
 
 function renderTriggers(t) {
@@ -849,16 +916,12 @@ function renderTranslation() {
     el('p', { class: 'lead', text: 'Export every text a player sees to one file, translate it with any tool, and ' +
       'load it back. The checks the ports use run before anything is applied: color codes, |n, %s and numbers must ' +
       'stay, and texts the script compares are left alone.' }),
+    el('p', { class: 'muted', text: 'Two formats: the JSON file (with instructions, for an AI or a person) and a web ' +
+      'page for a machine translation service such as Google Translate or DeepL (translate the document there, ' +
+      'save the translated page and load it here; the ids and the game codes are marked so the service keeps them).' }),
     el('div', { class: 'row' },
-      el('button', { class: 'btn', text: 'Export texts...', onclick: async () => {
-        const p = await api().pick_save(base(state.map).replace(/\.\w+$/, '') + '.translation.json', 'translation');
-        if (!p) return;
-        try {
-          const r = await run('translation_export', { file: p }, { label: 'Exporting the texts...' });
-          toast('Exported ' + (r.entries || 0) + ' texts to ' + base(p) + '.', { actions: [['Show', () =>
-            api().open_folder(p)]] });
-        } catch (e) { failed(e, 'Exporting the texts'); }
-      } }),
+      el('button', { class: 'btn', text: 'Export texts...', onclick: () => exportTexts('json') }),
+      el('button', { class: 'btn', text: 'Export for machine translation...', onclick: () => exportTexts('html') }),
       el('button', { class: 'btn', text: 'Load a translation...', onclick: async () => {
         const p = await api().pick_file('translation');
         if (!p) return;
@@ -878,6 +941,18 @@ function renderTranslation() {
           text: x.id || x.text }), el('td', { class: 'muted', text: x.reason || x.why || '' })))))) : null,
     el('button', { class: 'btn small', style: 'margin-top:10px', text: 'Forget this translation', onclick: () => {
       state.extras.translation = null; renderTranslation(); renderActions(); } })) : null));
+}
+
+async function exportTexts(kind) {
+  const ext = kind === 'html' ? '.translation.html' : '.translation.json';
+  const p = await api().pick_save(base(state.map).replace(/\.\w+$/, '') + ext,
+    kind === 'html' ? 'translation_html' : 'translation');
+  if (!p) return;
+  try {
+    const r = await run('translation_export', { file: p }, { label: 'Exporting the texts...' });
+    toast('Exported ' + (r.entries || 0) + ' texts to ' + base(p) + '.', { actions: [['Show', () =>
+      api().open_folder(p)]] });
+  } catch (e) { failed(e, 'Exporting the texts'); }
 }
 
 // ------------------------------------------------------------------ compare
@@ -917,6 +992,98 @@ function renderCompare(result) {
 }
 
 // ------------------------------------------------------------------ start
+// ------------------------------------------------------------------ port to Reforged (1.5)
+// A map made for the KK or M16 platform (Chinese and Korean RPGs of patch 1.27/1.28) runs on Reforged only after its
+// platform natives get a body, its save becomes a local save and its menus become Reforged frames. The port does it
+// in one go and saves <map>_reforged.w3x and <map>_reforged.report.txt next to the original.
+function renderPort() {
+  const s = state.open ? state.open.summary : null;
+  const platform = s && /kk|j2b/.test(s.script || '') ? 'This map\'s script is compiled by the KK platform: it is ' +
+    'turned back into JASS first.' : '';
+  const r = state.portResult;
+  tabBody('port',
+    el('div', { class: 'card' },
+      el('h2', { text: 'Port to Reforged' }),
+      el('p', { class: 'lead', text: 'For maps made for the KK or M16 platforms (DzAPI, japi, JN): gives the platform ' +
+        'natives a body, turns the platform save into a local save, the platform menus into Reforged frames, and ' +
+        'checks the result with the Reforged 3.0 compiler. Saves the ported map and a report next to the original.' }),
+      platform ? el('p', { class: 'muted', text: platform }) : null,
+      el('p', { class: 'muted', text: 'Big maps take several minutes. What only a game can prove (the save and the load ' +
+        'with two players, the menus) is listed in the report for you to check.' }),
+      packagesBox(),
+      el('div', { class: 'foot' }, el('button', { class: 'btn primary needs-idle', text: 'Port to Reforged',
+        disabled: !!state.running, onclick: runPort }))),
+    r ? portResult(r) : null);
+}
+
+// the art packages: the platform client loaded models and icons from a package outside the map (.mix, .asi, a plugin
+// .dll or a plain .mpq). They are read as data, never run; the first in the list wins when two have the same file.
+function packagesBox() {
+  const list = state.portPackages || [];
+  return el('div', { style: 'margin:10px 0' },
+    el('h3', { text: 'Art packages (optional)' }),
+    el('p', { class: 'muted', text: 'Models, icons and sounds the map asks for and does not carry often came from a ' +
+      'package of the platform client. Add those files here, newest first: what the map needs and only a package ' +
+      'has goes into the ported map. They are read as data and never run.' }),
+    list.length ? el('ul', { class: 'steps' }, list.map((p, i) => el('li', { class: 'step' },
+      el('div', { class: 'grow mono', text: (i + 1) + '. ' + base(p) }),
+      i ? el('button', { class: 'btn small', text: 'Up', onclick: () => {
+        const l = list.slice(); [l[i - 1], l[i]] = [l[i], l[i - 1]]; state.portPackages = l; renderPort(); } }) : null,
+      el('button', { class: 'btn small ghost', text: 'Remove', onclick: () => {
+        state.portPackages = list.filter((_x, k) => k !== i); renderPort(); } })))) : null,
+    el('button', { class: 'btn small', text: 'Add an art package...', onclick: async () => {
+      const p = await api().pick_file('package');
+      if (!p) return;
+      state.portPackages = list.concat([p]);
+      renderPort();
+    } }));
+}
+
+async function runPort() {
+  if (state.running) return;
+  status('Porting the map...');
+  try {
+    const r = await run('port', { packages: state.portPackages || [] }, { label: 'Porting the map to Reforged...' });
+    state.portResult = r;
+    state.results.port = r;
+    renderPort();
+    status(r.outcome === 'ok' ? 'Ported.' : 'The port stopped.');
+  } catch (e) { failed(e, 'Port to Reforged'); }
+}
+
+function portResult(r) {
+  const p = r.port || {};
+  const badge = r.outcome === 'ok' ? ['good', 'Ported'] : ['bad', 'Stopped'];
+  const stubs = p.stubs || [];
+  return el('div', { class: 'card', id: 'result-port' },
+    el('div', { class: 'row' }, el('h2', { class: 'grow', text: 'Port to Reforged: result' }),
+      el('span', { class: 'badge ' + badge[0], text: badge[1] })),
+    el('div', { class: 'badges' },
+      p.g1 !== undefined && p.g1 !== null ? el('span', { class: 'badge ' + (p.g1 ? 'good' : 'bad'),
+        text: 'Compiler gate G1: ' + (p.g1 ? 'pass' : 'fail') }) : null,
+      p.g2 !== undefined && p.g2 !== null ? el('span', { class: 'badge ' + (p.g2 ? 'good' : 'bad'),
+        text: 'Compiler gate G2: ' + (p.g2 ? 'pass' : 'fail') }) : null,
+      p.declared ? el('span', { class: 'badge', text: p.implemented + ' of ' + p.declared +
+        ' platform natives implemented' }) : null,
+      el('span', { class: 'badge ' + (stubs.length ? 'warn' : 'good'), text: stubs.length + ' called stub' +
+        (stubs.length === 1 ? '' : 's') })),
+    reportLines(r.lines),
+    stubs.length ? el('div', {}, el('h3', { text: 'Stubs the map calls, and who depends on them' }),
+      el('div', { class: 'scroll', style: 'max-height:280px' }, el('table', { class: 'grid' },
+        el('thead', {}, el('tr', {}, el('th', { text: 'Native' }), el('th', { text: 'Calls' }),
+          el('th', { text: 'Functions' }), el('th', { text: 'Triggers' }))),
+        el('tbody', {}, stubs.map(s => el('tr', {}, el('td', { class: 'mono', text: s.nativa }),
+          el('td', { text: String(s.chamadas) }), el('td', { class: 'mono', text: s.funcoes.slice(0, 8).join(', ') +
+            (s.funcoes.length > 8 ? ' ...' : '') }), el('td', { text: (s.gatilhos || []).join(', ') }))))))) : null,
+    el('div', { class: 'foot row', style: 'margin-top:14px' },
+      r.file ? el('button', { class: 'btn', text: 'Show in folder', onclick: () => api().open_folder(r.file) }) : null,
+      r.report ? el('button', { class: 'btn', text: 'Show the report', onclick: () => api().open_folder(r.report) }) :
+        null,
+      el('button', { class: 'btn', text: 'Copy report', onclick: async () => {
+        await copyText(plainReport(r.lines)); toast('The report is in the clipboard.'); } }),
+      el('button', { class: 'btn ghost', text: 'Report a problem', onclick: reportProblem })));
+}
+
 function wire() {
   $('#btnOpen').onclick = pickMap;
   $('#btnOpen2').onclick = pickMap;

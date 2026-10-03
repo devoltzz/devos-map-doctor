@@ -7,7 +7,7 @@ if not getattr(sys, 'frozen', False):
     sys.path.insert(0, os.path.join(HERE, 'engine'))
 import unprotect as D
 
-VERSION = '1.4'
+VERSION = '1.5'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -578,6 +578,25 @@ def unprotection_text(r):
     return out
 
 
+def port_text(r):
+    import map_port
+    out = []
+    for ln in map_port.report_text(r).splitlines():
+        if not ln.strip() or set(ln.strip()) <= {'-', '='}:
+            continue
+        if ln.startswith('- '):
+            out.append(('warning' if 'FAIL' in ln else 'info', '  ' + ln))
+        elif ln.startswith(('Result:', 'Ported map:')):
+            out.append(('ok' if r.get('resultado', '').startswith('ported') else 'invalid', ln))
+        elif ln.startswith('The port stopped'):
+            out.append(('invalid', ln))
+        elif ln.startswith('A stub compiles'):
+            out.append(('info', '  ' + ln))
+        else:
+            out.append(('heading' if not out else 'heading2', ln))
+    return out
+
+
 def editor_text(r):
     d = r['before']
     out = [('heading', 'Open in World Editor: %s' % os.path.basename(d['file_name']))]
@@ -663,6 +682,15 @@ def editor_text(r):
                             'the editor opens the map and saving keeps the same code.'))
     if details.get('w3i_tail'):
         out.append(('info', '  - Restored the cut-off end of the map info file (war3map.w3i).'))
+    if details.get('w3i_raised'):
+        out.append(
+            (
+                'info',
+                '  - The map info file (war3map.w3i) was saved as version 31 with game data version 1 (TFT, '
+                'the map\'s own era): the World Editor 3.0 saves an older one as "Forsaken Kingdom" (2), and '
+                'with that the life edits of units and destructibles come out inflated.',
+            )
+        )
     if str(details.get('w3i') or '').startswith('new_version'):
         out.append(('info', '  - The map info file (war3map.w3i) is from a World Editor newer than this program knows: '
                             'left as it is.'))
