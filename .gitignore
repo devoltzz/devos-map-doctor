@@ -1,5 +1,5 @@
 __pycache__/
-engine/pjass.exe
+doctor/script/pjass.exe
 *.pyc
 .ruff_cache/
 names.npz

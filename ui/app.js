@@ -1014,6 +1014,13 @@ function renderPort() {
       el('p', { class: 'muted', text: 'Big maps take several minutes. What only a game can prove (the save and the load ' +
         'with two players, the menus) is listed in the report for you to check.' }),
       packagesBox(),
+      // 1.5.1: the memory hacks of patch 1.2x (JN maps): the Reforged equivalents always; the rest neutralized when ticked
+      el('label', { class: 'show-na', style: 'display:block;margin:6px 0 10px' },
+        el('input', { type: 'checkbox', checked: state.portMemory !== false, onchange: e => {
+          state.portMemory = e.target.checked; } }),
+        ' Neutralize memory hacks: the map compiles, and what read or wrote the memory of the old game (smart cast, ' +
+        'control groups, exit hooks) stops working. Typecasts and effects with a Reforged equivalent are always ' +
+        'converted.'),
       el('div', { class: 'foot' }, el('button', { class: 'btn primary needs-idle', text: 'Port to Reforged',
         disabled: !!state.running, onclick: runPort }))),
     r ? portResult(r) : null);
@@ -1046,7 +1053,8 @@ async function runPort() {
   if (state.running) return;
   status('Porting the map...');
   try {
-    const r = await run('port', { packages: state.portPackages || [] }, { label: 'Porting the map to Reforged...' });
+    const r = await run('port', { packages: state.portPackages || [], memory: state.portMemory !== false },
+      { label: 'Porting the map to Reforged...' });
     state.portResult = r;
     state.results.port = r;
     renderPort();

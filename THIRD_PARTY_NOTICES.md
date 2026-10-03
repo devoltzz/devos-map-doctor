@@ -4,7 +4,7 @@
 
 https://github.com/ladislav-zezula/StormLib
 
-The MPQ rules this program follows come from StormLib, and `engine/pkware.py` and `engine/mpq_wave.py` are Python
+The MPQ rules this program follows come from StormLib, and `doctor/mpq/pkware.py` and `doctor/mpq/mpq_wave.py` are Python
 ports of its PKWARE DCL ("implode") and WAVE (Huffman/ADPCM) decompressors.
 
 ```

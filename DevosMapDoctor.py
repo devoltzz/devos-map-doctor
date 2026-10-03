@@ -3,11 +3,9 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-if not getattr(sys, 'frozen', False):
-    sys.path.insert(0, os.path.join(HERE, 'engine'))
-import unprotect as D
+from doctor.fix import unprotect as D
 
-VERSION = '1.5.1'
+VERSION = '1.5.2'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -579,7 +577,7 @@ def unprotection_text(r):
 
 
 def port_text(r):
-    import map_port
+    from doctor.port import map_port
     out = []
     for ln in map_port.report_text(r).splitlines():
         if not ln.strip() or set(ln.strip()) <= {'-', '='}:
@@ -900,7 +898,7 @@ def execute(action_code, map_path, progress=None, safe_units=True):
 
 
 def window(initial_map_path=None):
-    import doctor_app
+    from doctor.app import doctor_app
     try:
         import updater
     except ImportError:
@@ -932,7 +930,7 @@ def main(argv=None):
     argv = sys.argv[1:] if argv is None else list(argv)
     _no_console()
     if '--worker' in argv:
-        import doctor_app
+        from doctor.app import doctor_app
         return doctor_app.worker_main(sys.modules[__name__])
     if '--text' in argv:
         log = next((a.split('=', 1)[1] for a in argv if a.startswith('--log=')), None)

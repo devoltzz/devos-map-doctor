@@ -5,7 +5,7 @@ import shutil
 import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-ENGINE = os.path.join(ROOT, 'engine')
+ENGINE = os.path.join(ROOT, 'doctor')
 NAME = 'DevosMapDoctor'
 EXCLUDE = ('cv2', 'lupa', 'matplotlib', 'pytest', 'setuptools', 'pip', 'unittest', 'pydoc_data', 'tkinter')
 # the packages inside the exe, whose licenses go to THIRD_PARTY_NOTICES.txt
@@ -63,24 +63,28 @@ def main():
         f.write(VERSION_FILE.replace('{v}', ', '.join(numbers)).replace('{s}', version).replace('{n}', NAME))
     icon = os.path.join(ROOT, 'assets', 'devos_map_doctor.ico')
     args = [os.path.join(ROOT, 'DevosMapDoctor.py'), '--onefile', '--windowed', '--noconfirm', '--clean',
-            '--name', NAME, '--icon', icon, '--add-data', icon + os.pathsep + '.', '--paths', ENGINE,
+            '--name', NAME, '--icon', icon, '--add-data', icon + os.pathsep + '.',
             '--version-file', version_file, '--workpath', work, '--distpath', os.path.join(ROOT, 'dist'),
             '--specpath', work, '--add-data', os.path.join(ROOT, 'ui') + os.pathsep + 'ui']
-    for module in sorted(f[:-3] for f in os.listdir(ENGINE) if f.endswith('.py')):
-        args += ['--hidden-import', module]
-    for data in sorted(f for f in os.listdir(ENGINE) if f.endswith('.j')):
-        args += ['--add-data', os.path.join(ENGINE, data) + os.pathsep + '.']
-    # the JASS parts of the port layer and the templates it fills
-    for folder in sorted(
-        d for d in os.listdir(ENGINE) if os.path.isdir(os.path.join(ENGINE, d)) and d != '__pycache__'
-    ):
-        args += ['--add-data', os.path.join(ENGINE, folder) + os.pathsep + folder]
-    # pjass checks the ported script; without it the port says the compiler gates were skipped
-    pjass = os.environ.get('PJASS') or os.path.join(ENGINE, 'pjass.exe')
-    if os.path.isfile(pjass):
-        args += ['--add-binary', pjass + os.pathsep + '.']
-    else:
-        print('pjass.exe not found (engine/pjass.exe or PJASS): the exe ports maps without the compiler gates')
+    # every module of the engine package, and its data files where the module reads them (next to it)
+    for folder, dirs, files in os.walk(ENGINE):
+        dirs[:] = [d for d in dirs if d != '__pycache__']
+        rel = os.path.relpath(folder, ROOT)
+        for f in sorted(files):
+            if f.endswith('.py'):
+                name = f[:-3]
+                package = rel.replace(os.sep, '.')
+                args += ['--hidden-import', package if name == '__init__' else package + '.' + name]
+            elif f.endswith('.exe'):
+                args += ['--add-binary', os.path.join(folder, f) + os.pathsep + rel]
+            elif not f.endswith('.pyc'):
+                args += ['--add-data', os.path.join(folder, f) + os.pathsep + rel]
+    # pjass checks the ported script: doctor/script/pjass.exe, or the PJASS variable
+    pjass = os.environ.get('PJASS')
+    if pjass and os.path.isfile(pjass):
+        args += ['--add-binary', pjass + os.pathsep + os.path.join('doctor', 'script')]
+    elif not os.path.isfile(os.path.join(ENGINE, 'script', 'pjass.exe')):
+        print('pjass.exe not found (doctor/script/pjass.exe or PJASS): the exe cannot port maps')
     for module in EXCLUDE:
         args += ['--exclude-module', module]
     PyInstaller.__main__.run(args)
