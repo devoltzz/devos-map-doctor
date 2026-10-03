@@ -260,6 +260,7 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log):
         'KK_SAVE_CH_GEN': pre + '.gen.v1',
         'KK_CAR_LIGADO': 'false',
         'KK_UI_ANCORA': 'true',
+        'KK_Z_4': 'true',
     }
     if diag['jn']:
         found_key = channel_table.jn_ability(extract)
@@ -369,6 +370,20 @@ def pjass_errors(log_cadeia):
         if m.group(1) not in seen:
             seen.append(m.group(1).strip())
     return seen
+
+
+SCRIPTS_FOLDER_FILES = ('Scripts\\war3map.j', 'Scripts\\Blizzard.j', 'Scripts\\common.j', 'Scripts\\common.ai')
+
+
+def scripts_folder_files(original, name_list=()):
+    a = mpqread.Archive(original)
+    out, seen = [], set()
+    for n in list(name_list) + list(SCRIPTS_FOLDER_FILES):
+        n = n.replace('/', '\\')
+        if n.lower().startswith('scripts\\') and n.lower() not in seen and a.find(n):
+            seen.add(n.lower())
+            out.append(n)
+    return sorted(out, key=str.lower)
 
 
 def build_w3x(original, output, r, to_remove, no_dot_list, log, name_list=()):
@@ -650,6 +665,10 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
                 log('6. art from %d package(s): %d file(s) imported, %d still missing'
                     % (len(pacotes), arte['imported'], len(arte['missing_items'])))
         to_remove = ['kkmap.jc'] if forma == 'kkwe' else (['war3map.bin'] if forma == 'j2b' else [])
+        scripts_folder = scripts_folder_files(original, name_list)
+        if scripts_folder:
+            to_remove += scripts_folder
+            log('6. the Scripts folder of the original removed: %s' % ', '.join(scripts_folder))
         sz, slack, entrou = build_w3x(original, output, r, to_remove, listing, log, name_list=name_list)
         if slack < 0 and shrink_large:
             sz, slack = shrinks(output, sz, log)

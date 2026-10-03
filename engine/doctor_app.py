@@ -279,6 +279,17 @@ def run_action(D, G, job, path, task, progress, emit):
             'changes': page_changes(r, task, x)}
 
 
+def write_port_failure(report, message, trace=''):
+    try:
+        with open(report, 'w', encoding='utf-8', newline='\r\n') as f:
+            f.write('Port to Reforged 3.0 - report\n' + '=' * 30 + '\n\nResult: stopped\n\nThe port stopped: %s\n'
+                    % message)
+            if trace:
+                f.write('\nWhat the program saw last:\n' + trace.rstrip() + '\n')
+    except OSError:
+        pass
+
+
 def run_port(D, G, path, progress, emit, packages=()):
     import map_port
     out = D.free_output(path, '_reforged')
@@ -286,7 +297,12 @@ def run_port(D, G, path, progress, emit, packages=()):
     report = os.path.splitext(out)[0] + '.report.txt'
     work = tempfile.mkdtemp(prefix='devos_map_doctor_port_')
     try:
-        r = map_port.map_port(path, os.path.join(work, 'port'), out, report, log=progress, pacotes=list(packages))
+        try:
+            r = map_port.map_port(path, os.path.join(work, 'port'), out, report, log=progress, pacotes=list(packages))
+        except BaseException as e:
+            import traceback
+            write_port_failure(report, '%s: %s' % (type(e).__name__, e), traceback.format_exc()[-3000:])
+            raise
         if r.get('err'):
             chain = os.path.join(work, 'port', 'port', 'out', 'cadeia.log')
             if os.path.isfile(chain):
@@ -573,6 +589,8 @@ class Api:
                 tail = ''
             final = {'type': 'error', 'job': job.ident, 'message': 'The worker stopped (exit code %s).' % code,
                      'trace': tail}
+            if job.task == 'port' and job.output:
+                write_port_failure(os.path.splitext(job.output)[0] + '.report.txt', final['message'], tail)
         final['elapsed'] = round(time.time() - job.started, 1)
         shutil.rmtree(job.tmp, ignore_errors=True)
         self._jobs.pop(job.ident, None)

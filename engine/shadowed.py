@@ -63,9 +63,50 @@ def applies(body_text, expected_count=None, ref_dir=None):
         body_text = re.sub(r'\b%s\b' % re.escape(fname), 'kkm_' + fname, body_text)
     if functions:
         info['functions'] = functions
+    body_text, res = reserved_names(body_text)
+    if res:
+        info['functions'] = info.get('functions', []) + ['%s (reserved in pjass)' % r for r in res]
     if expected_count is not None and len(info['removed_ones']) != expected_count:
         info['failures'].append('redeclared globals: %d, measured is %d' % (expected_count, len(info['removed_ones'])))
     return body_text, info
+
+
+PJASS_RESERVED = ('alias',)
+
+
+def _code_only(ln, rx, new):
+    out, i, n, begin = [], 0, len(ln), 0
+    while i < n:
+        c = ln[i]
+        if c == '"' or c == "'":
+            out.append(rx.sub(new, ln[begin:i]))
+            k = i + 1
+            while k < n and ln[k] != c:
+                k += 2 if ln[k] == '\\' else 1
+            out.append(ln[i:k + 1])
+            i = begin = k + 1
+            continue
+        if ln.startswith('//', i):
+            break
+        i += 1
+    out.append(rx.sub(new, ln[begin:i]) + ln[i:])
+    return ''.join(out)
+
+
+def reserved_names(body_text):
+    hits = [r for r in PJASS_RESERVED if re.search(r'\b%s\b' % r, body_text)]
+    if not hits:
+        return body_text, []
+    rx = re.compile(r'\b(%s)\b' % '|'.join(hits))
+    line_list = body_text.split('\n')
+    used_entries = set()
+    for k, line in enumerate(line_list):
+        if rx.search(line):
+            new = _code_only(line, rx, r'kkm_\1')
+            if new != line:
+                used_entries.update(m.group(1) for m in rx.finditer(line))
+                line_list[k] = new
+    return ('\n'.join(line_list), sorted(used_entries)) if used_entries else (body_text, [])
 
 
 def report_data(info):

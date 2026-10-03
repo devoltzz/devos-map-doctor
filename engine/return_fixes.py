@@ -33,6 +33,30 @@ def null_code(body_text):
     return new, n
 
 
+RX_FUNCTION_TYPE = re.compile(r'^\s*(?:constant\s+)?function\s+\w+\s+takes\s+.*?\s+returns\s+(\w+)\s*(?://.*)?$')
+RX_EMPTY_RETURN = re.compile(r'^(\s*return)(\s*(?://.*)?)$')
+NEUTRAL = {'integer': '0', 'real': '0.0', 'boolean': 'false'}
+
+
+def empty_return(body_text):
+    line_list = body_text.split('\n')
+    kind, n = None, 0
+    for i, ln in enumerate(line_list):
+        s = ln.strip()
+        if s.startswith('function ') or s.startswith('constant function '):
+            m = RX_FUNCTION_TYPE.match(ln.rstrip('\r'))
+            kind = m.group(1) if m and m.group(1) != 'nothing' else None
+        elif s.startswith('endfunction'):
+            kind = None
+        elif kind:
+            m = RX_EMPTY_RETURN.match(ln.rstrip('\r'))
+            if m:
+                line_list[i] = '%s %s%s%s' % (m.group(1), NEUTRAL.get(kind, 'null'), m.group(2),
+                                              '\r' if ln.endswith('\r') else '')
+                n += 1
+    return ('\n'.join(line_list), n) if n else (body_text, 0)
+
+
 RX_GLOBAL_ARRAY = re.compile(r'(?m)^[ \t]*\w+[ \t]+array[ \t]+(\w+)')
 RX_LOCAL = re.compile(r'^[ \t]*local[ \t]+\w+[ \t]+(\w+)')
 
@@ -72,15 +96,16 @@ def shadow_local(body_text):
 def applies(body_text):
     import editor_prep
     body_text, real_blocks = editor_prep.real_literal_return(body_text)
+    body_text, empty_files = empty_return(body_text)
     body_text, codes = null_code(body_text)
     body_text, shadows = shadow_local(body_text)
-    return body_text, {'real_blocks': real_blocks, 'codes': codes, 'shadows': shadows}
+    return body_text, {'real_blocks': real_blocks, 'codes': codes, 'shadows': shadows, 'empty_files': empty_files}
 
 
 def report_data(info):
-    if info['real_blocks'] or info['codes'] or info.get('shadows'):
+    if info['real_blocks'] or info['codes'] or info.get('shadows') or info.get('empty_files'):
         print(
-            '0g returns: %d `return <integer>` in a real function -> real; %d `return null` in a code function -> %s; %d '
-            'local(s) with the name of a global array -> <name>_kkl'
-            % (info['real_blocks'], info['codes'], VAZIA, info.get('shadows', 0))
+            '0g returns: %d `return <integer>` in real function -> real; %d `return` without value -> the neutral of the type; '
+            '%d `return null` in code function -> %s; %d local(s) with the name of a global array -> <name>_kkl'
+            % (info['real_blocks'], info.get('empty_files', 0), info['codes'], VAZIA, info.get('shadows', 0))
         )

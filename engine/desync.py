@@ -191,10 +191,7 @@ def table_text(w, h, ox, oy, runs, idx, mark=DEFAULT_MARK):
         L.append('function %s takes nothing returns nothing' % fname)
         end_pos = min(b0 + BLOCO, len(runs))
         for k in range(b0, end_pos):
-            if k < 32768:
-                L.append('    set DB_zr0[%d]=%d' % (k, runs[k]))
-            else:
-                L.append('    set DB_zr1[%d]=%d' % (k - 32768, runs[k]))
+            L.append('    set DB_zr%d[%d]=%d' % (k // 32768, k % 32768, runs[k]))
         L.append('    set DB_z_n=DB_z_n+%d' % (end_pos - b0))
         L.append('endfunction')
     name_list.append('KK_zt_linhas')
@@ -290,8 +287,10 @@ def applies(body_text, cfg, to_report=False):
             exp_len.get('platform_tilepoints') is not None and n_tilepoints != exp_len['platform_tilepoints']):
         failures.append('platforms: %d above the ground rising %d tilepoints, measured is %s / %s'
                         % (n_platforms, n_tilepoints, exp_len.get('platforms'), exp_len.get('platform_tilepoints')))
-    if len(runs) > 65536:
-        failures.append('table: %d snippets do not fit in two vectors' % len(runs))
+    if len(runs) > 131072:
+        failures.append('table: %d runs do not fit in four arrays' % len(runs))
+    elif len(runs) > 65536:
+        info['vectors'] = 4
     info['wrong_ones'] = verify(runs, idx, w, h, ox, oy, q, failures)
     block_entry, n_funcs = table_text(w, h, ox, oy, runs, idx, cfg.get('mark', DEFAULT_MARK))
     info['functions'] = n_funcs

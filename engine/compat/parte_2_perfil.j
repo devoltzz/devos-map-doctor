@@ -707,6 +707,10 @@ endfunction
 // ==============================================================================================
 integer array DB_zr0
 integer array DB_zr1
+//{{KK_SE:KK_Z_4}}
+integer array DB_zr2
+integer array DB_zr3
+//{{KK_FIMSE:KK_Z_4}}
 integer array DB_zi
 boolean DB_z_pronto=false
 real DB_z_ox=0.0
@@ -721,6 +725,14 @@ function DB_z_run takes integer k returns integer
     if k<32768 then
         return DB_zr0[k]
     endif
+    //{{KK_SE:KK_Z_4}}
+    if k>=65536 then
+        if k<98304 then
+            return DB_zr2[k-65536]
+        endif
+        return DB_zr3[k-98304]
+    endif
+    //{{KK_FIMSE:KK_Z_4}}
     return DB_zr1[k-32768]
 endfunction
 

@@ -9,6 +9,7 @@ RX_READING = re.compile(r'\b(?:RequestExtra\w*Data\s*\(\s*5\s*,|DzAPI_Map_(?:Get
                         r'GetServerArchive\w*)\s*\()')
 RX_ACTION = re.compile(r'\bTriggerAddAction\s*\(\s*(\w+(?:\[[^\]]*\])?)\s*,\s*function\s+(\w+)\s*\)')
 RX_EXEC = re.compile(r'\b(?:ConditionalTriggerExecute|TriggerExecute)\s*\(\s*(\w+(?:\[[^\]]*\])?)\s*\)')
+NEUTRAL = {'integer': '0', 'real': '0.0', 'boolean': 'false'}
 RX_CALLS = re.compile(r'(?<![\w.])([A-Za-z_]\w*)\s*\(|\bfunction\s+([A-Za-z_]\w*)')
 
 
@@ -63,11 +64,14 @@ def applies(body_text):
     for action_code in sorted(action_codes):
         if action_code not in read_data or action_code not in body:
             continue
+        m_ret = re.search(r'\breturns\s+(\w+)', body[action_code].split('\n', 1)[0])
+        kind = m_ret.group(1) if m_ret else 'nothing'
+        out_path = '        return' + ('' if kind == 'nothing' else ' ' + NEUTRAL.get(kind, 'null'))
         if action_codes[action_code] & at_start:
             line_list = [
                 '    if not DB_rede_pronto then ' + MARK + ': the action reads the save; waits for the profiles',
                 '        call KK_perfis_depois(GetTriggeringTrigger())',
-                '        return',
+                out_path,
                 '    endif',
             ]
             info['first_pos'].append(action_code)
@@ -80,7 +84,7 @@ def applies(body_text):
                 '    if not DB_rede_pronto then '
                 + MARK
                 + ': the action reads the save; skip until the profiles arrive',
-                '        return',
+                out_path,
                 '    endif',
             ]
             info['kept_list'].append(action_code)

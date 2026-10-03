@@ -100,6 +100,15 @@ def rebuild(
             if s != chosen:
                 dropped.add(s)
                 decoys.append((fname or '%08x/%08x' % hash_key, s))
+    pair_slot = dict(((ht[s][0], ht[s][1]), s) for s in keep)
+    for origin in (new_ones, replacements):
+        for n in sorted(origin):
+            s = pair_slot.get(pair(n))
+            if s is None or keep[s] == n:
+                continue
+            if keep[s] is None:
+                keep[s] = n
+            replacements[keep[s]] = origin.pop(n)
     missing_items = [n for n in to_remove if not any(known.get((ht[i][0], ht[i][1])) == n for i in live)]
     if missing_items:
         log('warning: names to remove that the map does not have: %s' % missing_items)
@@ -110,11 +119,15 @@ def rebuild(
             continue
         bi = ht[slot][3]
         fl = a.blocks[bi][3]
+        hash_key = None
         if fl & mpqread.FLAG_ENCRYPT and fname is None:
-            raise RebuildError(
-                'slot %d: block %d is ENCRYPTED and has no known name (the key is the hash of the name)' % (slot, bi)
-            )
-        d = a.read(fname if fname is not None else '__unnamed__', bi=bi)
+            hash_key = a.unnamed_key(bi)
+            if hash_key is None:
+                raise RebuildError(
+                    'slot %d: block %d is ENCRYPTED and has no known name (the key is the hash of the name)'
+                    % (slot, bi)
+                )
+        d = a.read(fname if fname is not None else '__unnamed__', bi=bi, hash_key=hash_key)
         if d is None:
             raise RebuildError('slot %d (%s): block %d could not be read' % (slot, fname, bi))
         content[slot] = d

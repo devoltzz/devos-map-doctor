@@ -302,7 +302,8 @@ class Decompiler(object):
                 right = self.read_data(b0)
                 self.write(b2, ('bin', BINOP[o], left, right), dest=body, expr_mode=expr_mode)
             elif o == I2R:
-                self.write(b2, self.read_data(b2), dest=body, expr_mode=expr_mode)
+                if not stray_i2r(bc, k):
+                    self.write(b2, self.read_data(b2), dest=body, expr_mode=expr_mode)
             elif o == NEG:
                 self.write(b2, ('neg', self.read_data(b2)), dest=body, expr_mode=expr_mode)
             elif o == NOT:
@@ -496,6 +497,13 @@ def _reversed_functions(bc, ref):
         raise DecompileError('the boundary between Blizzard.j and the map does not match: Blizzard.j ends at register '
                              '%d and the map (%s) starts at %d' % (before, bc.fname(bc.arg[order[0][0]]), after_diag))
     return order
+
+
+BLOCK_ENDS = (LABEL, JIT, JIF, JUMP, RET, 4)
+
+
+def stray_i2r(bc, k):
+    return bc.op[k] == I2R and bc.b2[k] == 0 and k + 1 < bc.n and bc.op[k + 1] in BLOCK_ENDS
 
 
 def map_functions(bc, ref):
@@ -953,7 +961,7 @@ class Printer(object):
 
 def prove_map(bc, ref, common, blizzard, map_text, maximum=5):
     segments = map_functions(bc, ref)
-    where = [k for begin, end_pos in segments for k in range(begin, end_pos)]
+    where = [k for begin, end_pos in segments for k in range(begin, end_pos) if not stray_i2r(bc, k)]
     c = KC.Compiler()
     for body_text in (common, blizzard):
         c.declare_all(KC.analyze(body_text))
