@@ -1,2 +1,5 @@
 * text=auto eol=lf
 *.ico binary
+# 1.5.7: o dado do `cheatpacks` e os scripts do jogo vao com os BYTES exatos (os packs sao CRLF)
+doctor/cheatpacks/* -text
+doctor/ref/3.0/*.j -text
