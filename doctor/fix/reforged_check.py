@@ -180,6 +180,14 @@ def model_items(path, progress=None):
                 models=portraits[:30],
             )
         )
+    from doctor.fix import model_names
+    enc = model_names.scan(path)
+    if enc.get('renamed'):
+        items.append(_item('model_names', 'info', '%d model names carry the suffix the "Model_Encrypt" tool adds '
+                           '(`体`): the files were renamed and the map cites the new name. The Doctor can give them '
+                           'their name back.' % len(enc['renamed']), 'doctor',
+                           names=[list(x) for x in enc['renamed'][:30]],
+                           collisions=[list(x) for x in enc.get('collisions') or []][:10]))
     return items, r['checked']
 
 

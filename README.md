@@ -43,6 +43,13 @@ Saves `<map>_fixed.w3x`: without the protection (MPQ Editor opens it in edit mod
 longer accepts fixed. The extras, when you tick them: the imported models that crash the game, single player for maps
 that end the game when played alone, your map card changes, a translation, and a smaller map that loses nothing.
 
+New in 1.5.5, offered when the map needs it:
+
+- Give the models their name back: maps protected with the "Model_Encrypt" tool have their imported models renamed
+  (`Foo.mdx` becomes `Foo体.mdx`) and the map rewritten to cite the new name, so a tool that looks for the model by the
+  name it had finds nothing. The Doctor renames them back (the portrait of each model goes along) and rewrites every
+  file that cites them.
+
 New in 1.5.3, offered when the map needs them:
 
 - Fix black portraits: removes the old camera from the portrait models reported to show a black portrait on 3.0

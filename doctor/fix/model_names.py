@@ -1,0 +1,229 @@
+# Gives back the name of the models the "Model_Encrypt" tool renamed, and rewrites the citations.
+import os
+import re
+import shutil
+
+from doctor.fix import unprotect
+from doctor.mpq import mpqnames
+
+
+MARK = '\u4f53'
+MARK_BYTES = (MARK.encode('utf-8'), MARK.encode('gbk'))
+MODEL_EXTS = ('.mdl', '.mdx')
+CITED_EXTS = ('.j', '.lua', '.ini', '.slk', '.txt', '.fdf', '.imp', '.wtg', '.w3u', '.w3t', '.w3b', '.w3d', '.w3a',
+              '.w3h', '.w3q')
+LISTFILE = '(listfile)'
+RX_MARK_B = re.compile(rb'^(?P<base>.+?)(?P<mark>' + b'|'.join(MARK_BYTES) +
+                       rb')(?P<portrait>_portrait)?\.(?P<ext>mdl|mdx)$', re.I)
+_RX_CHARS = rb'A-Za-z0-9_\-\\/\. \[\]\(\)\+!#\$%&@\^~{}=\x80-\xff'
+RX_CITED_B = re.compile(rb'[' + _RX_CHARS + rb']{3,180}?(?:' + b'|'.join(MARK_BYTES) + rb')(?:_portrait)?\.(?:mdl|mdx)',
+                        re.I)
+
+
+def _split_bytes(name):
+    b = name.encode('utf-8', 'surrogateescape')
+    i = max(b.rfind(b'\\'), b.rfind(b'/'))
+    return b[:i + 1], b[i + 1:]
+
+
+def _parts(name):
+    folder, base = _split_bytes(name)
+    m = RX_MARK_B.match(base)
+    if m is None:
+        return None
+    return (folder.decode('utf-8', 'surrogateescape'), m.group('base').decode('utf-8', 'surrogateescape'),
+            (m.group('portrait') or b'').decode('ascii'), m.group('ext').decode('ascii'))
+
+
+def marked(name):
+    return _parts(name) is not None
+
+
+def clean_name(name):
+    part = _parts(name)
+    return None if part is None else '%s%s%s.%s' % part
+
+
+def _readings(raw):
+    s = raw.decode('utf-8', 'surrogateescape').strip('"\' \t\r\n\x00')
+    out = [s]
+    if '=' in s:
+        out.append(s.rsplit('=', 1)[-1].strip())
+    if ' ' in s:
+        pal = s.split(' ')
+        i = next((k for k, p in enumerate(pal) if '\\' in p), None)
+        if i:
+            out.append(' '.join(pal[i:]))
+        out.append(pal[-1])
+    return [x for x in dict.fromkeys(out) if x]
+
+
+def _is_model(name, data):
+    if not data:
+        return False
+    if name.lower().endswith('.mdx'):
+        return data[:4] == b'MDLX'
+    head = data[:4096]
+    return b'\0' not in head and b'Version' in head
+
+
+def _citation_files(a, names=()):
+    out, seen = [], set()
+    candidates = list(names) + unprotect.listfile_names(a) + list(mpqnames.BASE_NAMES) + list(mpqnames.GAME_NAMES)
+    for n in candidates + [LISTFILE]:
+        k = n.lower()
+        if k in seen:
+            continue
+        seen.add(k)
+        if k != LISTFILE and os.path.splitext(n)[1].lower() not in CITED_EXTS:
+            continue
+        data = unprotect._read(a, n)
+        if data:
+            out.append((n, data))
+    return out
+
+
+def _marked_names(a, names=()):
+    out = []
+    for n in names:
+        if marked(n) and a.find(n):
+            out.append(n)
+    for _n, data in _citation_files(a, names):
+        for m in RX_CITED_B.finditer(data):
+            for cand in _readings(m.group(0)):
+                if marked(cand) and a.find(cand):
+                    out.append(cand)
+    return list(dict.fromkeys(out))
+
+
+def _scan_in(a, names=()):
+    out = {'renamed': [], 'collisions': [], 'checked': 0}
+    seen = set()
+    for n in _marked_names(a, names):
+        r = a.find(n)
+        if not r or r[1] in seen:
+            continue
+        seen.add(r[1])
+        data = unprotect._read(a, n)
+        if not _is_model(n, data):
+            continue
+        out['checked'] += 1
+        c = clean_name(n)
+        if a.find(c):
+            out['collisions'].append((n, c))
+            continue
+        out['renamed'].append((n, c))
+    return out
+
+
+def scan(path, progress=None):
+    p = progress or (lambda *_a: None)
+    out = {'renamed': [], 'collisions': [], 'checked': 0, 'error': None}
+    p('Reading the map')
+    try:
+        a = unprotect._open(path)
+    except BaseException as e:
+        out['error'] = unprotect._error(e)
+        return out
+    p('Looking for the encrypted names')
+    out.update(_scan_in(a))
+    return out
+
+
+def _pairs(a, base):
+    pairs = list(base['renamed'])
+    seen = set(pairs)
+    n_port = 0
+    for old, clean in list(pairs):
+        part = _parts(old)
+        if part is None or part[2]:
+            continue
+        folder, base_nome, _port, _ext = part
+        for ext in MODEL_EXTS:
+            po = '%s%s%s_portrait%s' % (folder, base_nome, MARK, ext)
+            pn = '%s%s_portrait%s' % (folder, base_nome, ext)
+            if (po, pn) in seen or not a.find(po) or a.find(pn):
+                continue
+            seen.add((po, pn))
+            pairs.append((po, pn))
+            n_port += 1
+    return pairs, n_port
+
+
+def _cite(data, pairs):
+    out = data
+    for old, clean in pairs:
+        for vo, vn in ((old, clean), (old.replace('\\', '/'), clean.replace('\\', '/'))):
+            b_old = vo.encode('utf-8', 'surrogateescape')
+            if b_old in out:
+                out = out.replace(b_old, vn.encode('utf-8', 'surrogateescape'))
+    return out
+
+
+def fix(path_in, path_out, progress=None):
+    p = progress or (lambda *_a: None)
+    rep = {'renamed': [], 'files': [], 'portraits': 0, 'note': None, 'error': None}
+    try:
+        a = unprotect._open(path_in)
+    except BaseException as e:
+        rep['error'] = unprotect._error(e)
+        return rep
+    p('Looking for the encrypted names')
+    base = _scan_in(a)
+    pairs, rep['portraits'] = _pairs(a, base)
+    if not pairs:
+        rep['note'] = 'no model name carries the mark'
+        shutil.copyfile(path_in, path_out)
+        return rep
+    p('Rewriting the names in the map files')
+    repl, touched = [], []
+    for n, data in _citation_files(a):
+        novo = _cite(data, pairs)
+        if novo != data:
+            repl.append((n, novo))
+            touched.append(n)
+    data = {}
+    for old, clean in pairs:
+        data[old] = unprotect._read(a, old)
+        if data[old] is None:
+            rep['error'] = 'the model %s does not read' % old
+            return rep
+        repl.append((clean, data[old]))
+    p('Writing the map')
+    shutil.copyfile(path_in, path_out)
+    from doctor.mpq import mpqadd
+    with unprotect.quiet():
+        mpqadd.add_files(path_out, repl, to_delete=[old for old, _c in pairs], log=lambda *_a: None)
+    p('Checking the result')
+    problems = []
+    try:
+        b = unprotect._open(path_out)
+    except BaseException as e:
+        problems.append('the output does not open (%s)' % unprotect._error(e))
+        b = None
+    if b is not None:
+        for old, clean in pairs:
+            if b.find(old):
+                problems.append('the marked name %s is still there' % old)
+            if unprotect._read(b, clean) != data[old]:
+                problems.append('%s does not read the same bytes' % clean)
+        for old, _c in pairs:
+            for vo in (old, old.replace('\\', '/')):
+                b_old = vo.encode('utf-8', 'surrogateescape')
+                for n in touched:
+                    if b_old in (unprotect._read(b, n) or b''):
+                        problems.append('%s is still cited in %s' % (old, n))
+        with unprotect.quiet():
+            c = unprotect.check_content(path_in, path_out, exclude=touched)
+        if c['different'] or c['missing_items']:
+            problems.append(
+                'the check: %d file(s) different, %d missing' % (len(c['different']), len(c['missing_items']))
+            )
+    if problems:
+        if os.path.isfile(path_out):
+            os.remove(path_out)
+        rep['error'] = '; '.join(problems[:4])
+        return rep
+    rep['renamed'] = pairs
+    rep['files'] = touched
+    return rep

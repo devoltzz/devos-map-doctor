@@ -211,6 +211,7 @@ def page_changes(r, kind, extras=None):
 
 EXTRA_DONE = {
     'models': 'Fixed the imported models that crash the game.',
+    'model_names': 'Gave the models their name back (the "Model_Encrypt" tool had renamed them).',
     'portraits': 'Removed the cameras of the portrait models (check the portraits in game).',
     'data_pointers': 'Set the data pointers of the levelled fields to the column their other levels use.',
     'uabi': 'Moved the normal ability lists of the unit types to the script (test the map before sharing it).',
@@ -220,7 +221,8 @@ EXTRA_DONE = {
     'translation': 'Applied the translation.',
     'shrink': 'Made the map smaller without losing anything.',
 }
-EXTRA_NAME = {'models': 'the model fixes', 'portraits': 'the portrait cameras', 'data_pointers': 'the data pointers',
+EXTRA_NAME = {'models': 'the model fixes', 'model_names': 'the model names', 'portraits': 'the portrait cameras',
+              'data_pointers': 'the data pointers',
               'uabi': 'the ability lists', 'preload': 'the early preload', 'single_player': 'single player',
               'card': 'the map card changes',
               'translation': 'the translation', 'shrink': 'the shrink'}
@@ -386,6 +388,8 @@ def _reforged(job, progress):
         portraits = pointers = None
         runs = False
     r['portraits'] = {'fixable': len((portraits.get('data') or {}).get('models') or []) if portraits else 0}
+    _mn = items.get('model_names')
+    r['model_names'] = {'fixable': len(((_mn.get('data') or {}).get('names') or [])) if _mn else 0}
     r['data_pointers'] = {'fixable': len((pointers.get('data') or {}).get('fields') or []) if pointers else 0}
     r['uabi'] = {'distinct': (uabi.get('data') or {}).get('distinct', 0) if uabi and uabi.get('fix') == 'doctor' and
                  runs else 0}

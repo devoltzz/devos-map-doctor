@@ -100,7 +100,8 @@ def steps(diag):
     return out
 
 
-EXTRAS = ('models', 'portraits', 'data_pointers', 'uabi', 'preload', 'single_player', 'card', 'translation', 'shrink')
+EXTRAS = ('models', 'model_names', 'portraits', 'data_pointers', 'uabi', 'preload', 'single_player', 'card',
+          'translation', 'shrink')
 
 
 def apply_extras(entry, output, extras, progress=None):
@@ -120,6 +121,9 @@ def apply_extras(entry, output, extras, progress=None):
                     if extra == 'models':
                         from doctor.models import model_check
                         details = model_check.fix(src, t)
+                    elif extra == 'model_names':
+                        from doctor.fix import model_names
+                        details = model_names.fix(src, t)
                     elif extra == 'portraits':
                         from doctor.models import model_check
                         details = model_check.fix(src, t, what=('portrait_camera',))

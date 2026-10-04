@@ -74,8 +74,8 @@ const state = {
   // `gen` counts the maps opened: what a job of an earlier map brings back is dropped; the quiet jobs of the map
   // (the tabs loading in the background) are cancelled when another one opens
   gen: 0, tabState: {}, quietJobs: new Set(), images: {}, imageData: {},
-  extras: { card: null, translation: null, models: null, singlePlayer: null, portraits: null, dataPointers: null,
-    uabi: null, preload: null },
+  extras: { card: null, translation: null, models: null, modelNames: null, singlePlayer: null, portraits: null,
+    dataPointers: null, uabi: null, preload: null },
 };
 
 const api = () => window.pywebview.api;
@@ -181,7 +181,7 @@ async function openMap(path) {
   state.results = {};
   state.portResult = null;
   state.portPackages = [];
-  state.extras = { card: null, translation: null, models: null, singlePlayer: null, portraits: null,
+  state.extras = { card: null, translation: null, models: null, modelNames: null, singlePlayer: null, portraits: null,
     dataPointers: null, uabi: null, preload: null };
   TABS.forEach(n => setTabState(n, 'wait'));
   $('#welcome').classList.add('hidden');
@@ -287,6 +287,8 @@ async function checkReforgedQuietly(gen) {
     if (r.data_pointers && r.data_pointers.fixable) { state.extras.dataPointers = r.data_pointers; renderActions(); }
     if (r.uabi && r.uabi.distinct) { state.extras.uabi = r.uabi; renderActions(); }
     if (r.preload && (r.preload.units || r.preload.abilities)) { state.extras.preload = r.preload; renderActions(); }
+    // 1.5.5: os nomes de modelo que a ferramenta Model_Encrypt renomeou
+    if (r.model_names && r.model_names.fixable) { state.extras.modelNames = r.model_names; renderActions(); }
   } catch (e) {
     if (gen !== state.gen) return;
     const badge = $('#reforgedBadge');
@@ -303,7 +305,8 @@ const ACTIONS = {
     'triggers back as GUI wherever that can be proved.', label: 'Preparing the map for the World Editor...' },
 };
 const EXTRA_STEPS = {
-  fix: ['models', 'portraits', 'dataPointers', 'uabi', 'preload', 'singlePlayer', 'card', 'translation', 'shrink'],
+  fix: ['models', 'modelNames', 'portraits', 'dataPointers', 'uabi', 'preload', 'singlePlayer', 'card', 'translation',
+    'shrink'],
   editor: ['singlePlayer', 'card', 'translation'],
 };
 
@@ -323,6 +326,10 @@ function extraSteps(action) {
     if (k === 'models' && x.models) out.push({ key: 'x:models', label: 'Fix the models that crash the game',
       detail: x.models.fixable + ' imported ' + (x.models.fixable === 1 ? 'model has' : 'models have') +
         ' a problem the Doctor can fix.', on: true, applies: true, group: 'extra' });
+    if (k === 'modelNames' && x.modelNames) out.push({ key: 'x:modelNames', label: 'Give the models their name back',
+      detail: x.modelNames.fixable + ' model ' + (x.modelNames.fixable === 1 ? 'name carries' : 'names carry') +
+        ' the suffix the "Model_Encrypt" tool adds (体): the files were renamed and the map cites the new name. The ' +
+        'Doctor renames them back and rewrites every file that cites them.', on: true, applies: true, group: 'extra' });
     if (k === 'portraits' && x.portraits) out.push({ key: 'x:portraits', label: 'Fix black portraits',
       detail: x.portraits.fixable + ' portrait ' + (x.portraits.fixable === 1 ? 'model has' : 'models have') +
         ' an old camera, reported to show a black portrait in 3.0: the camera is removed. Check them in game.',
@@ -462,6 +469,7 @@ async function runAction(action) {
   const { options, extras } = readChoices(action);
   const params = { options, extras: {} };
   if (extras.models) params.extras.models = true;
+  if (extras.modelNames) params.extras.model_names = true;
   if (extras.singlePlayer) params.extras.single_player = true;
   if (extras.portraits) params.extras.portraits = true;
   if (extras.dataPointers) params.extras.data_pointers = true;
