@@ -1,0 +1,15 @@
+{
+  "id": "nzcp",
+  "title": "NZCP",
+  "language": "jass",
+  "needs": "classic and Reforged (no Blz native)",
+  "options": [{"key": "activator", "label": "Activation string", "default": "easymode", "kind": "text"},
+              {"key": "arrow", "label": "Arrow activation", "default": "UUDDLR", "kind": "text"},
+              {"key": "name", "label": "Player name that activates it", "default": "nuzamacuxe", "kind": "text"}],
+  "finds": {"activator": "StringHash\\(\\s*\"Activator\"\\s*\\)\\s*,\\s*\"([^\"]*)\"",
+            "arrow": "StringHash\\(\\s*\"ArrowActivator\"\\s*\\)\\s*,\\s*\"([^\"]*)\"",
+            "name": "NameEvent\\(\\s*\"([^\"]*)\"\\s*\\)"},
+  "default": true,
+  "prefix": "-",
+  "mark_option": "activator"
+}

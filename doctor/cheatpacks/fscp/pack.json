@@ -1,0 +1,9 @@
+{
+  "id": "fscp",
+  "title": "FSCP v1.0.1",
+  "language": "jass",
+  "needs": "classic and Reforged (no Blz native)",
+  "options": [{"key": "activator", "label": "Activation string", "default": ".FatherSpace", "kind": "text"}],
+  "finds": {"activator": "(?m)^string\\s+FSs=\"([^\"]*)\""},
+  "mark_option": "activator"
+}

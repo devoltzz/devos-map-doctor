@@ -1,0 +1,9 @@
+{
+  "id": "sgguy_menu",
+  "title": "SGGuy's Cheat Menu 1.7 Final",
+  "language": "jass",
+  "needs": "classic and Reforged (no Blz native)",
+  "options": [{"key": "activator", "label": "Password typed to open the menu", "default": "IoI   ", "kind": "text"}],
+  "finds": {"activator": "(?m)^string\\s+sgguy_pass\\s*=\\s*\"([^\"]*)\""},
+  "mark_option": "activator"
+}

@@ -12,48 +12,8 @@ PACKS_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file
 JASS = 'jass'
 LUA = 'lua'
 NO_WINDOW = 0x08000000
-PACKS = (
-    {'id': 'jjcp', 'file': 'JJCP_NewGen.j.txt', 'language': JASS, 'title': 'JJCP NewGen',
-     'needs': 'classic and Reforged (no Blz native)',
-     'options': (('activator', 'Activation string', 'wc3edit', 'text'),
-                 ('arrow', 'Arrow activation', 'UUDDLR', 'text'),
-                 ('name', 'Player name that activates it', 'nuzamacuxe', 'text')),
-     'finds': {'activator': r'(?m)^string\s+activator\s*=\s*"([^"]*)"',
-               'arrow': r'(?m)^string\s+arrowAct\s*=\s*"([^"]*)"',
-               'name': r'Init_NameEvent\(\s*"([^"]*)"\s*\)'}},
-    {'id': 'nzcp', 'file': 'NZCP.j.txt', 'language': JASS, 'title': 'NZCP',
-     'needs': 'classic and Reforged (no Blz native)',
-     'options': (('activator', 'Activation string', 'easymode', 'text'),
-                 ('arrow', 'Arrow activation', 'UUDDLR', 'text'),
-                 ('name', 'Player name that activates it', 'nuzamacuxe', 'text')),
-     'finds': {'activator': r'StringHash\(\s*"Activator"\s*\)\s*,\s*"([^"]*)"',
-               'arrow': r'StringHash\(\s*"ArrowActivator"\s*\)\s*,\s*"([^"]*)"',
-               'name': r'NameEvent\(\s*"([^"]*)"\s*\)'}},
-    {'id': 'dvcp', 'file': 'dvcp.j', 'language': JASS, 'title': "Devo's CP",
-     'needs': 'Reforged only (18 Blz natives and the damage events)',
-     'options': (('act', 'Activation string', 'devo', 'text'),
-                 ('pfx', 'Command prefix', '-', 'text'),
-                 ('arr', 'Arrow activation', 'UUDDLRLR', 'text'),
-                 ('nm', 'Player name that activates it (empty: nobody)', '', 'text')),
-     'finds': {'act': r'(?m)^\s*call DCP_CfgSet\(\s*"act"\s*,\s*"([^"]*)"\s*\)\s*$',
-               'pfx': r'(?m)^\s*call DCP_CfgSet\(\s*"pfx"\s*,\s*"([^"]*)"\s*\)\s*$',
-               'arr': r'(?m)^\s*call DCP_CfgSet\(\s*"arr"\s*,\s*"([^"]*)"\s*\)\s*$',
-               'nm': r'(?m)^\s*call DCP_CfgSet\(\s*"nm"\s*,\s*"([^"]*)"\s*\)\s*$'},
-     'inside': r'(?ms)^function DCP_CfgInit\b.*?^endfunction'},
-    {'id': 'ozzycp', 'file': 'OzzyCP.lua.txt', 'language': LUA, 'title': 'OzzyCP',
-     'needs': 'Reforged only (Blz key/sync natives)',
-     'options': (('greet', 'Message when it is enabled', 'OzzyCP has been enabled', 'text'),
-                 ('activator', 'Activation string', 'ozzy', 'text'),
-                 ('arrow', 'Arrow activation', 'uuddlrlr', 'text'),
-                 ('symbol', 'Command prefix', '-', 'text'),
-                 ('key', 'Key activation (empty: off)', 'ozzy is godlike', 'text'),
-                 ('objectid', 'Search objects by numeric id', 'false', 'bool'),
-                 ('advanced', 'Advanced key input', 'false', 'bool')),
-     'finds': {'greet': r'(?m)^local\s+l\s*=\s*"([^"]*)"', 'activator': r'(?m)^local\s+G\s*=\s*"([^"]*)"',
-               'arrow': r'(?m)^local\s+T\s*=\s*"([^"]*)"', 'symbol': r"(?m)^local\s+Z\s*=\s*'([^']*)'",
-               'key': r'(?m)^local\s+k\s*=\s*"([^"]*)"', 'objectid': r'(?m)^local\s+e\s*=\s*(true|false)',
-               'advanced': r'(?m)^local\s+D\s*=\s*(true|false)'}},
-)
+PACK_FILE = {JASS: 'pack.j', LUA: 'pack.lua'}
+_PACKS = None
 
 
 def _mod():
@@ -99,15 +59,216 @@ def _adiciona(path, repl, apagar):
         return f(path, repl, apagar)
 
 
+MARK_NAME = 'DV_CHEATPACK'
+MARK_HEAD = 'cheatpack:'
+KNOWN = (
+    {
+        'id': 'jjcp',
+        'title': 'JJCP NewGen',
+        'prefix': '-',
+        'evidence': ('NewGenCommandHandler', 'Map cheated by'),
+        'activator': (r'(?m)^string\s+activator\s*=\s*"([^"]*)"',),
+    },
+    {
+        'id': 'nzcp',
+        'title': 'NZCP',
+        'prefix': '-',
+        'evidence': ('CheatPackCommands_Handler', 'NUZAMACUXE', 'CheatPack_Action'),
+        'activator': (r'StringHash\(\s*"Activator"\s*\)\s*,\s*"([^"]*)"',),
+    },
+    {
+        'id': 'ozzycp',
+        'title': 'OzzyCP',
+        'prefix': '-',
+        'evidence': ('OzzyCP', '\\79\\122\\122\\121\\67\\80', 'showbinds'),
+        'activator': (r'n\.WC\s*=\s*"([^"]*)"', r'(?m)^local\s+G\s*=\s*"([^"]*)"'),
+    },
+    {
+        'id': 'jjcp_classic',
+        'title': 'JJCP classic',
+        'prefix': '',
+        'evidence': ('JJ2197', 'SpicePirate', '-cheats'),
+        'activator': (r'"(-cheats\s*)"',),
+    },
+    {
+        'id': 'hke_cp',
+        'title': 'Hke CP (arrow and name activator)',
+        'prefix': '',
+        'evidence': ('whitegun', 'hke_Z0z'),
+        'activator': (r'"(whitegun)"',),
+    },
+    {
+        'id': 'sabrac_cp',
+        'title': "SabRaC's CP",
+        'prefix': '',
+        'evidence': ('SabRaC', 'sbrkw'),
+        'activator': (r'"(SabRaC)"',),
+    },
+    {
+        'id': 'sgguy_menu',
+        'title': "SGGuy's Cheat Menu",
+        'prefix': '',
+        'evidence': ('SgGuy', 'sgguy_pass'),
+        'activator': (r'"(IoI\s*)"',),
+    },
+    {
+        'id': 'cheatscript',
+        'title': 'Cheat Script v0.1 beta (Korean)',
+        'prefix': '',
+        'evidence': ('Cheat Script v0.1 beta', '치트 권한', '치트 사용자'),
+        'activator': (r'TriggerRegisterPlayerChatEvent\([^,]+,[^,]+,\s*"(@[^"]*)"',),
+        'shortest': True,
+    },
+)
+
+
+def marca(pack, opcoes):
+    chave = pack.get('mark_option')
+    if not chave:
+        return None
+    ativador = str((opcoes or {}).get(chave) or '')
+    valor = (MARK_HEAD + pack['id'] + ':' + ativador).replace('\\', '\\\\').replace('"', '\\"')
+    return 'string %s = "%s" + "%s"' % (MARK_NAME, MARK_HEAD, valor[len(MARK_HEAD):])
+
+
+def detect(mapa, progresso=None):
+    from doctor.viewers import map_files
+    out = []
+    try:
+        s = map_files.script(mapa)
+    except BaseException:
+        return out
+    texto = s.get('text') or ''
+    if not texto:
+        return out
+    onde = s.get('name') or '?'
+    m = re.search(r'%s\s*=\s*"([^"]*)"(?:\s*\+\s*"([^"]*)")?' % MARK_NAME, texto)
+    if m:
+        valor = MARK_HEAD + (m.group(2) or '')
+    else:
+        m = re.search(r'(?m)^\s*--\s*%s\s+(\S+)' % MARK_NAME, texto)
+        if m:
+            valor = m.group(1)
+    if m:
+        partes = valor.split(':', 2)
+        prefixo = ''
+        try:
+            prefixo = (_packs().get(partes[1]) or {}).get('prefix') or ''
+        except BaseException:
+            prefixo = ''
+        out.append({'id': 'devo', 'pack': partes[1] if len(partes) > 1 else '',
+                    'title': 'Injected by the Doctor (%s)' % (partes[1] if len(partes) > 1 else '?'),
+                    'activator': (prefixo + partes[2]) if len(partes) > 2 and partes[2] else '?',
+                    'where': onde, 'evidence': 'the Doctor\'s own marker (%s)' % valor, 'confidence': 'high'})
+    ja = set(x.get('pack') for x in out)
+    for k in KNOWN:
+        if k['id'] in ja:
+            continue
+        achados = [e for e in k['evidence'] if e in texto]
+        if not achados:
+            continue
+        ativador = '?'
+        for rx in k['activator']:
+            achados_rx = re.findall(rx, texto)
+            if achados_rx:
+                if k.get('shortest'):
+                    achados_rx = sorted(achados_rx, key=len)
+                ativador = k['prefix'] + achados_rx[0].strip()
+                break
+        out.append({'id': k['id'], 'title': k['title'], 'activator': ativador, 'where': onde,
+                    'evidence': ', '.join(achados[:3]),
+                    'confidence': 'high' if (len(achados) > 1 or ativador != '?') else 'low'})
+    return out
+
+
+def _packs(recarrega=False):
+    global _PACKS
+    if _PACKS is None or recarrega:
+        achados = {}
+        if not os.path.isdir(PACKS_DIR):
+            raise RuntimeError('the cheat pack folder is missing: %s' % PACKS_DIR)
+        for nome in sorted(os.listdir(PACKS_DIR)):
+            pasta = os.path.join(PACKS_DIR, nome)
+            caminho = os.path.join(pasta, 'pack.json')
+            if not (os.path.isdir(pasta) and os.path.isfile(caminho)):
+                continue
+            p = _le_json(caminho, nome)
+            if p['id'] in achados:
+                raise RuntimeError('two cheat pack folders answer to the id %r: %s' % (p['id'], pasta))
+            achados[p['id']] = p
+        if not achados:
+            raise RuntimeError('no cheat pack under %s (a pack is a folder with a `pack.json`)' % PACKS_DIR)
+        _PACKS = achados
+    return _PACKS
+
+
+def _le_json(caminho, pasta):
+    import json
+    try:
+        with io.open(caminho, encoding='utf-8') as f:
+            d = json.load(f)
+    except ValueError as e:
+        raise RuntimeError('%s is not valid JSON: %s' % (caminho, e))
+    if not isinstance(d, dict):
+        raise RuntimeError('%s has to hold a JSON object' % caminho)
+    faltam = [k for k in ('id', 'title', 'language', 'options', 'finds') if not d.get(k)]
+    if faltam:
+        raise RuntimeError('%s is missing the field(s): %s' % (caminho, ', '.join(faltam)))
+    if not isinstance(d['options'], list):
+        raise RuntimeError('%s: `options` has to be a list' % caminho)
+    if not isinstance(d['finds'], dict):
+        raise RuntimeError('%s: `finds` has to be an object (one regex per option)' % caminho)
+    if d['id'] != pasta:
+        raise RuntimeError('%s says id %r, but its folder is named %r' % (caminho, d['id'], pasta))
+    if d['language'] not in PACK_FILE:
+        raise RuntimeError('%s: the language has to be %s or %s, not %r' % (caminho, JASS, LUA, d['language']))
+    arquivo = PACK_FILE[d['language']]
+    if not os.path.isfile(os.path.join(PACKS_DIR, pasta, arquivo)):
+        raise RuntimeError('%s: the %s pack needs its %s' % (caminho, d['language'].upper(), arquivo))
+    opcoes = []
+    for o in d['options']:
+        if not isinstance(o, dict) or [k for k in ('key', 'label', 'default', 'kind') if k not in o]:
+            raise RuntimeError('%s: every option needs key, label, default and kind (%r)' % (caminho, o))
+        if o['kind'] not in ('text', 'bool'):
+            raise RuntimeError('%s: the kind of %r has to be text or bool, not %r' % (caminho, o['key'], o['kind']))
+        opcoes.append((o['key'], o['label'], o['default'], o['kind']))
+    chaves = [o[0] for o in opcoes]
+    if len(set(chaves)) != len(chaves):
+        raise RuntimeError('%s: two options with the same key (%s)' % (caminho, ', '.join(chaves)))
+    sem_find = [k for k in chaves if not d['finds'].get(k)]
+    if sem_find:
+        raise RuntimeError('%s: no `finds` regex for the option(s): %s' % (caminho, ', '.join(sem_find)))
+    sobrando = sorted(k for k in d['finds'] if k not in chaves)
+    if sobrando:
+        raise RuntimeError('%s: `finds` names no option: %s' % (caminho, ', '.join(sobrando)))
+    for k in sorted(d['finds']):
+        try:
+            re.compile(d['finds'][k])
+        except re.error as e:
+            raise RuntimeError('%s: the regex of %r does not compile: %s' % (caminho, k, e))
+    if d.get('inside'):
+        try:
+            re.compile(d['inside'])
+        except re.error as e:
+            raise RuntimeError('%s: the `inside` regex does not compile: %s' % (caminho, e))
+    marca_opt = d.get('mark_option')
+    if marca_opt and marca_opt not in chaves:
+        raise RuntimeError('%s: `mark_option` is %r, which is not one of the options' % (caminho, marca_opt))
+    return {'id': d['id'], 'title': d['title'], 'language': d['language'], 'needs': d.get('needs') or '',
+        'options': opcoes, 'finds': d['finds'], 'inside': d.get('inside'), 'mark_option': marca_opt,
+        'prefix': d.get('prefix') or '', 'default': bool(d.get('default')), 'file': arquivo}
+
+
 def _pack(pack_id):
-    for p in PACKS:
-        if p['id'] == pack_id:
-            return p
-    raise ValueError('unknown cheat pack %r' % pack_id)
+    achados = _packs()
+    p = achados.get(pack_id)
+    if p is None:
+        raise ValueError('unknown cheat pack %r (the archive has: %s)' % (pack_id, ', '.join(sorted(achados))))
+    return p
 
 
 def _path(pack):
-    p = os.path.join(PACKS_DIR, pack['file'])
+    p = os.path.join(PACKS_DIR, pack['id'], pack['file'])
     if not os.path.isfile(p):
         raise RuntimeError('the cheat pack file is missing: %s' % p)
     return p
@@ -115,9 +276,12 @@ def _path(pack):
 
 def catalog():
     out = []
-    for p in PACKS:
-        out.append({'id': p['id'], 'title': p['title'], 'language': p['language'], 'file': p['file'],
-                    'needs': p['needs'],
+    achados = _packs()
+    for pid in sorted(achados, key=lambda x: (not achados[x].get('default'), x)):
+        p = achados[pid]
+        out.append({'id': p['id'], 'title': p['title'], 'language': p['language'],
+                    'file': '%s/%s' % (p['id'], p['file']), 'needs': p['needs'],
+                    'default': bool(p.get('default')),
                     'options': [{'key': k, 'label': l, 'default': d, 'kind': t} for k, l, d, t in p['options']]})
     return out
 
@@ -133,6 +297,7 @@ def list_packs(mapa, progresso=None):
     else:
         out['why'] = ('The map script is %s: a cheat pack needs a JASS or a Lua script the Doctor can read and write.'
                       % (('compiled by the KK platform' if lang in ('kkwe', 'j2b') else 'not readable')))
+    out['found'] = detect(mapa, progresso)
     return out
 
 
@@ -228,7 +393,7 @@ def _descola(script, pack_texto):
     return pack_texto, trocados
 
 
-def _jass_merge(script, pack_texto):
+def _jass_merge(script, pack_texto, linha_marca=None):
     globais, funcoes, principal = _jass_parts(pack_texto)
     if not funcoes:
         raise RuntimeError('the cheat pack has no functions to inject')
@@ -238,6 +403,8 @@ def _jass_merge(script, pack_texto):
         raise RuntimeError('the map script has no globals block (the obfuscator needs one)')
     if globais.strip():
         linhas = linhas[:fim] + globais.split('\n') + linhas[fim:]
+    if linha_marca:
+        linhas = linhas[:fim] + [linha_marca] + linhas[fim:]
     ini_main = None
     for i, l in enumerate(linhas):
         if re.match(r'^\s*function\s+main\s+takes\s+nothing\s+returns\s+nothing\s*$', l):
@@ -278,7 +445,7 @@ def _ofusca_jass(entrada, saida, progresso=None):
     if not (os.path.isfile(common) and os.path.isfile(blizz)):
         raise RuntimeError('the game scripts are missing: %s' % ref)
     args = ['ofusca_jass.py', '--j=' + entrada, '--' + 'sai' + 'da=' + saida, '--output=' + saida,
-            '--common=' + common, '--blizzard=' + blizz]
+            '--common=' + common, '--blizzard=' + blizz, '--manter=' + MARK_NAME]
     velho = list(sys.argv)
     sys.argv = args
     reg = None
@@ -334,36 +501,47 @@ def _pjass_confere(script, mapa=None):
         if r.returncode == 0 and 'error' not in saida.lower():
             return True, 'pjass: %s' % (saida.strip().splitlines()[-1] if saida.strip() else 'ok'), False
         ruins = [x for x in saida.splitlines() if x.strip() and 'Parse successful' not in x]
-        sintaxe = [x for x in ruins if re.search(r'syntax error|expected|unexpected|invalid|unclosed|token',
-                                                 x, re.I)]
-        detalhe = ' | '.join(ruins)[:400]
-        if sintaxe or not ruins:
-            return False, 'pjass: %s' % detalhe, False
-        return True, 'pjass: %s' % detalhe, True
+        do_mapa = [x for x in ruins if 'mapa_' in x]
+        nosso = [x for x in ruins if x not in do_mapa]
+        sintaxe = [
+            x
+            for x in nosso
+            if re.search(
+                r'syntax error|expected|unexpected|invalid|unclosed|token|already defined|allready defined|redefinition|redefined|type mismatch|cannot convert',
+                x,
+                re.I,
+            )
+        ]
+        if sintaxe:
+            return False, 'pjass: %s' % ' | '.join(sintaxe)[:400], False
+        resto = nosso or do_mapa
+        return True, 'pjass: %s' % (' | '.join(resto)[:400] if resto else 'ok'), bool(resto)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
 def _scripts_do_mapa(mapa, tmp):
+    ref = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'ref', '3.0'))
+    do_jogo = [os.path.join(ref, 'common.j'), os.path.join(ref, 'blizzard.j')]
     if not mapa:
-        return None
+        return do_jogo
     try:
         a = _abre(mapa)
     except BaseException:
-        return None
-    achados = []
-    for nome in ('common.j', 'Common.j', 'scripts\\common.j', 'Blizzard.j', 'blizzard.j',
-                 'scripts\\Blizzard.j', 'scripts\\blizzard.j'):
-        dados = _le(a, nome)
-        if dados:
-            destino = os.path.join(tmp, 'mapa_' + os.path.basename(nome).lower())
-            with open(destino, 'wb') as f:
-                f.write(dados)
-            achados.append((os.path.basename(nome).lower(), destino))
-    if len(achados) < 2:
-        return None
-    achados.sort(key=lambda x: 0 if x[0].startswith('common') else 1)
-    return [p for _n, p in achados[:2]]
+        return do_jogo
+    saida = []
+    for i, candidatos in enumerate((('common.j', 'scripts\\common.j', 'Scripts\\common.j'),
+                                    ('Blizzard.j', 'blizzard.j', 'scripts\\Blizzard.j', 'Scripts\\Blizzard.j'))):
+        achado = None
+        for nome in candidatos:
+            dados = _le(a, nome)
+            if dados:
+                achado = os.path.join(tmp, 'mapa_' + os.path.basename(nome).lower())
+                with open(achado, 'wb') as f:
+                    f.write(dados)
+                break
+        saida.append(achado or do_jogo[i])
+    return saida
 
 
 def _lua_obfusca(texto):
@@ -434,13 +612,20 @@ def _injeta(p, pack, texto, nome, bruto, opcoes, mapa, saida, out):
     out['options'] = usados
     out['script'] = nome
     p('Injecting it into the script')
+    linha_marca = marca(pack, usados)
+    if pack['language'] == JASS and re.search(r'(?m)^\s*(?:constant\s+)?\w+\s+%s\b' % MARK_NAME, texto):
+        out['file'] = None
+        out['lines'] = [('ruim', 'The cheat pack was not injected: this map already carries the Doctor\'s mark (%s), '
+                                 'and a second pack would declare it twice.' % MARK_NAME)]
+        return out
     if pack['language'] == JASS:
         texto_pack, trocados = _descola(texto, texto_pack)
         if trocados:
             out['renamed_names'] = trocados
-        novo = _jass_merge(texto, texto_pack)
+        novo = _jass_merge(texto, texto_pack, linha_marca)
     else:
-        novo = _lua_obfusca(texto_pack) + '\n' + texto.replace('\r\n', '\n')
+        novo = ('-- %s %s%s\n' % (MARK_NAME, MARK_HEAD, pack['id'] + ':' + (usados.get('activator') or ''))) \
+            + _lua_obfusca(texto_pack) + '\n' + texto.replace('\r\n', '\n')
     p('Obfuscating the script')
     tmp = tempfile.mkdtemp(prefix='cheatpack_')
     try:

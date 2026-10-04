@@ -1,0 +1,12 @@
+{
+  "id": "fukki_rate",
+  "title": "[Fukki] Rate Editor Final - Fix",
+  "language": "jass",
+  "needs": "classic and Reforged (no Blz native)",
+  "options": [{"key": "activator", "label": "Player name that activates it", "default": "[F]uk[K]i]-", "kind": "text"},
+              {"key": "menu", "label": "Chat string that opens the menu", "default": "E", "kind": "text"}],
+  "finds": {"activator": "(?m)^\\s*call\\s+Fukki_ActiveName\\(\\s*\"([^\"]*)\"\\s*\\)\\s*$",
+            "menu": "(?m)^\\s*call\\s+Fukki_MenuActive\\(\\s*false\\s*,\\s*\"([^\"]*)\"\\s*\\)\\s*$"},
+  "inside": "(?ms)^function\\s+Fukki_CP_Config\\b.*?^endfunction",
+  "mark_option": "menu"
+}

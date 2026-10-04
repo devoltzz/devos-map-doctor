@@ -1,0 +1,1771 @@
+globals
+trigger t=null
+trigger a=null
+trigger k=null
+trigger T=null
+trigger j=null
+trigger c=null
+trigger r=null
+trigger g=null
+trigger p=null
+player X=null
+player s=null
+integer y=0
+trigger i=null
+trigger x=null
+trigger d=null
+real array u
+real array n
+boolean array IM
+integer array ZM
+integer array HM
+integer array YM
+integer sc=0
+integer array no
+integer is=0
+code ON=null
+code on=null
+unit array udg_rcUnit
+player array udg_rcPlayer
+integer array udg_rcItemType
+integer array udg_AllItemIds
+integer udg_AllItemCount = 0
+integer array GT_Privilege
+string CheatString2 = "@나나치"
+string SessionKey   = ""
+string array Player_Color
+string array Part_STR
+player array CheatActionCheck
+player array Selected_Check
+unit array StopCheatUnit
+integer array ItemCopyI
+integer array CopyI
+integer array CUnitC
+real array EndlessR
+force Chat_Hear = CreateForce()
+force CHEATER   = CreateForce()
+dialog DIALOG   = DialogCreate()
+button array DIALOG2
+boolean array DIALOG3
+boolean AllInvulFlag = false   // passed into the 전체무적 ForGroup callback
+string PrierenString  = "@프리렌"
+string PrierenOption1 = "졸트라크"
+string PrierenOption2 = "발그란트"
+string PrierenOption3 = "유드라트"
+string PrierenOption4 = "카타스트라베"
+string PrierenOption5 = "발테리에"
+string PrierenCorrect = "졸트라크"   // 정답 마법 이름 — 맵별로 설정
+string array PrierenShuffled             // [1~5] 런타임 셔플 순서
+integer PrierenCorrectSlot               // 셔플 후 정답이 위치한 번호 (계산값)
+dialog PRIEREN_DIALOG = DialogCreate()
+button array PRIEREN_BTN
+boolean array PrierenWaiting
+boolean array PrierenAttempted
+timer array PrierenTimer
+trigger CHEATS        = CreateTrigger()
+trigger SELECT        = CreateTrigger()
+trigger ENDLESS       = CreateTrigger()
+trigger REENDLESS     = CreateTrigger()
+trigger BUILD         = CreateTrigger()
+trigger STOP          = CreateTrigger()
+trigger DELETE        = CreateTrigger()
+trigger KILLING       = CreateTrigger()
+trigger ADDDAMAGE     = CreateTrigger()
+trigger REDUCE        = CreateTrigger()
+trigger BLOOD         = CreateTrigger()
+trigger SKILLDAM      = CreateTrigger()
+trigger SKILLDAM2     = CreateTrigger()
+trigger COPY          = CreateTrigger()
+trigger COPY2         = CreateTrigger()
+trigger COPYITEM      = CreateTrigger()
+trigger DELETEITEM    = CreateTrigger()
+trigger CHATTING      = CreateTrigger()
+trigger MINDCONTROL   = CreateTrigger()
+endglobals
+
+
+function ClearCheat_A takes nothing returns nothing
+local player PPP=GetTriggerPlayer()
+local string SSS=GetEventPlayerChatString()
+local integer III=GetPlayerId(PPP)
+call DisplayTimedTextToPlayer(PPP,0.,0.,5.,"실행완료")
+set IM[III]=true
+if SubString(SSS, 1, 8)=="베리 " then
+set YM[III]=YM[III]+S2I(SubString(SSS, 8, 99))
+endif
+if SubString(SSS, 1, 8)=="클횟 " then
+set ZM[III]=ZM[III]+S2I(SubString(SSS, 8, 99))
+set HM[III]=HM[III]+S2I(SubString(SSS, 8, 99))
+endif
+call TriggerEvaluate(T)
+call DisplayTimedTextToPlayer(PPP,0.,0.,5.,GetPlayerName(PPP))
+set PPP=null
+endfunction
+function C_RED    takes nothing returns string
+    return "|cffff0000"
+endfunction
+function C_GRN    takes nothing returns string
+    return "|cff2c952c"
+endfunction
+function C_YLW    takes nothing returns string
+    return "|cffffbe0a"
+endfunction
+function C_ORG    takes nothing returns string
+    return "|cffff4500"
+endfunction
+function C_BLU    takes nothing returns string
+    return "|cff646eff"
+endfunction
+function C_GRY    takes nothing returns string
+    return "|cff646464"
+endfunction
+function C_LGRY   takes nothing returns string
+    return "|cff808080"
+endfunction
+function C_END    takes nothing returns string
+    return "|r"
+endfunction
+function ND2P takes player toPlayer, real x, real y, real duration, string message returns nothing
+    if DIALOG3[GetPlayerId(toPlayer)] == true then
+        call DisplayTimedTextToPlayer(toPlayer, x, y, duration, message)
+    endif
+endfunction
+function UnitTag takes unit u returns string
+    return C_ORG() + GetPlayerName(GetOwningPlayer(u)) + C_END() + " " + C_GRN() + "님의" + C_END() + " " + C_RED() + GetUnitName(u) + C_END()
+endfunction
+function Getting_CheatEvent takes integer slot, trigger trig, player p returns nothing
+    local integer key = (20 * slot) + GetPlayerId(p)
+    set Selected_Check[key] = p
+    if CheatActionCheck[key] != p then
+        set CheatActionCheck[key] = p
+        call TriggerRegisterPlayerUnitEvent(trig, p, EVENT_PLAYER_UNIT_SELECTED, null)
+    endif
+endfunction
+
+function Getting_CheatActions takes integer slot, trigger whichTrigger, code actionFunc returns nothing
+    if CheatActionCheck[slot] != Player(slot - 1) then
+        set CheatActionCheck[slot] = Player(slot - 1)
+        call TriggerAddAction(whichTrigger, actionFunc)
+    endif
+endfunction
+function ONnOFF takes string s returns integer
+    local string head2 = SubString(s, 0, 2)
+    local string head3 = SubString(s, 0, 3)
+    local string head6 = SubString(s, 0, 6)
+
+    if head2 == "ON" or head2 == "on" or head3 == "온" then
+        return 31
+    elseif head3 == "OFF" or head3 == "off" or head6 == "오프" then
+        return 63
+    elseif head3 == "초" then
+        return 3
+    elseif head3 == "ALL" or head3 == "all" or head3 == "올" then
+        return 4
+    endif
+    return S2I(SubString(s, 0, 8))
+endfunction
+
+function KickcheatP takes player p returns nothing
+    if GetLocalPlayer() == p then
+        call CinematicFilterGenericBJ(.1, BLEND_MODE_BLEND, "", 'd', .0, .0, 50., 100., 0, 0, 100.)
+    endif
+endfunction
+
+function ItemRangeClear takes nothing returns nothing
+    call RemoveItem(GetEnumItem())
+endfunction
+function NS2U takes player p, string message returns unit
+    local integer pid = GetPlayerId(p)
+    local unit u = udg_rcUnit[pid]
+
+    if u == null then
+        call ND2P(p, 0, 0, 5.00, C_RED() + "선택된 유닛이 없습니다. (특정치트 사용 불가능)" + C_END())
+        return u
+    elseif IsUnitType(u, UNIT_TYPE_HERO) == false then
+        call ND2P(p, 0, 0, 5.00, C_GRN() + "현재 " + C_YLW() + "선택" + C_END() + C_GRN() + "되어있는 유닛은 " + C_END() + UnitTag(u) + " " + C_GRN() + "이(가)" + C_END() + " " + C_YLW() + "선택" + C_END() + C_GRN() + "되어 있습니다." + C_END())
+        return u
+    endif
+    call ND2P(p, 0, 0, 5.00, message)
+    return u
+endfunction
+
+function NS3U takes player p, integer mode, string onMsg, string offMsg, string oneShotMsg returns unit
+    local integer pid = GetPlayerId(p)
+    local unit u = udg_rcUnit[pid]
+
+    if u == null then
+        call ND2P(p, 0, 0, 5.00, C_RED() + "선택된 유닛이 없습니다. (특정치트 사용 불가능)" + C_END())
+        return u
+    elseif IsUnitType(u, UNIT_TYPE_HERO) == false then
+        call ND2P(p, 0, 0, 5.00, C_GRN() + "현재 " + C_YLW() + "선택" + C_END() + C_GRN() + "되어있는 유닛은 " + C_END() + UnitTag(u) + " " + C_GRN() + "이(가)" + C_END() + " " + C_YLW() + "선택" + C_END() + C_GRN() + "되어 있습니다." + C_END())
+        return u
+    elseif mode == 31 then
+        call ND2P(p, 0, 0, 5.00, onMsg)
+    elseif mode == 63 then
+        call ND2P(p, 0, 0, 5.00, offMsg)
+    else
+        call ND2P(p, 0, 0, 5.00, oneShotMsg)
+    endif
+    return u
+endfunction
+function Getting_SpecialList takes integer pid returns boolean
+    return GetPlayerName(Player(pid)) == "Saber#33846" or GetPlayerName(Player(pid)) == "nanachi" or GetPlayerName(Player(pid)) == "BoA#3550" or GetPlayerName(Player(pid)) == "BoA"
+endfunction
+function Cheat_Start_Setting takes nothing returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+
+    call DoNotSaveReplay()
+
+    if GetClickedButton() == DIALOG2[1] then
+        set DIALOG3[pid] = true
+        call ND2P(tPlay, 0, 0, 15.00, C_RED() + "치트 텍스트 보임 모드 활성화" + C_END())
+        call PolledWait(0.01)
+        call ND2P(tPlay, 0, 0, 15.00, "|cffFFB1BCThanks for using |cffFFFA78Cheat Script v0.1 beta|r")
+    else
+        if GetClickedButtonBJ() == DIALOG2[2] then
+            set DIALOG3[pid] = false
+        endif
+    endif
+endfunction
+function Cheat_Text_Build takes nothing returns nothing
+    call DialogClear(DIALOG)
+    call DialogSetMessage(DIALOG, "치트 텍스트 보임/안보임 선택")
+    call DialogAddButtonBJ(DIALOG, "보임")
+    set DIALOG2[1] = bj_lastCreatedButton
+    call DialogAddButtonBJ(DIALOG, "안보임")
+    set DIALOG2[2] = bj_lastCreatedButton
+endfunction
+function Getting_Select takes nothing returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local unit tUnit = GetTriggerUnit()
+    local integer ownerId = GetPlayerId(GetOwningPlayer(tUnit))
+
+    if Selected_Check[(20 * 1) + pid] == tPlay then
+        if Player(ownerId) == Player(pid) then
+            set udg_rcUnit[pid] = tUnit
+            call ND2P(tPlay, 0, 0, 5.00, UnitTag(tUnit) + " " + C_GRN() + "이(가)" + C_END() + " " + C_YLW() + "선택" + C_END() + C_GRN() + "되었습니다." + C_END())
+            call TriggerRegisterUnitEvent(REDUCE, tUnit, EVENT_UNIT_DAMAGED)
+            call TriggerRegisterUnitEvent(BLOOD,  tUnit, EVENT_UNIT_DAMAGED)
+        else
+            if GT_Privilege[ownerId] >= GT_Privilege[pid] then
+                call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! 해당 유닛은 특권 치트 소유자의 유닛입니다. 당신은 선택할 수 없습니다." + C_END())
+            else
+                set udg_rcUnit[pid] = tUnit
+                call ND2P(tPlay, 0, 0, 5.00, UnitTag(tUnit) + " " + C_GRN() + "이(가)" + C_END() + " " + C_YLW() + "선택" + C_END() + C_GRN() + "되었습니다." + C_END())
+                call TriggerRegisterUnitEvent(REDUCE, tUnit, EVENT_UNIT_DAMAGED)
+                call TriggerRegisterUnitEvent(BLOOD,  tUnit, EVENT_UNIT_DAMAGED)
+            endif
+        endif
+    endif
+    set Selected_Check[(20 * 1) + pid] = null
+endfunction
+
+function Getting_Shaodw takes integer mode returns nothing
+    local player tPlay = GetTriggerPlayer()
+    if mode == 31 then
+        set Selected_Check[(20 * 24) + GetPlayerId(tPlay)] = tPlay
+        call ND2P(tPlay, 0, 0, 5., C_YLW() + "분신" + C_END() + C_GRN() + "을 " + C_RED() + "구별" + C_END() + " " + C_GRN() + "해줍니다." + C_END() + " " + C_RED() + "(다른 플레이어는 구분되지 않습니다.)" + C_END())
+        call EnableTrigger(ENDLESS)
+    elseif mode == 63 then
+        set Selected_Check[(20 * 24) + GetPlayerId(tPlay)] = null
+        call ND2P(tPlay, 0, 0, 5., C_YLW() + "분신 구별" + C_END() + C_GRN() + "을" + C_END() + " " + C_RED() + "중단" + C_END() + " " + C_GRN() + "합니다." + C_END())
+    endif
+endfunction
+
+function Getting_Speed takes integer mode returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local unit u = udg_rcUnit[pid]
+
+    if mode == 3 then
+        set CUnitC[80 + pid] = 100
+        call SetUnitMoveSpeed(NS2U(tPlay, UnitTag(u) + " " + C_GRN() + "의" + C_END() + " " + C_YLW() + "이동 속도" + C_END() + C_GRN() + "를" + C_END() + " " + C_RED() + "초기값 (" + I2S(R2I(GetUnitDefaultMoveSpeed(u))) + ")" + C_END() + " " + C_GRN() + "(으)로 변경합니다." + C_END()), GetUnitDefaultMoveSpeed(u))
+    else
+        call ND2P(tPlay, 0, 0, 5.00, UnitTag(u) + " " + C_GRN() + "의" + C_END() + " " + C_YLW() + "이동 속도" + C_END() + C_GRN() + "를" + C_END() + " " + C_RED() + I2S(mode) + C_END() + " " + C_GRN() + "로 변경합니다." + C_END())
+        set EndlessR[80 + pid] = mode
+        set CUnitC[80 + pid] = pid
+        call EnableTrigger(ENDLESS)
+    endif
+    set u = null
+endfunction
+
+function Getting_Healing takes unit u, integer mode returns nothing
+    local real pct
+    if mode <= 1 then
+        set pct = 100.
+    else
+        set pct = mode
+    endif
+    call SetUnitState(u, UNIT_STATE_LIFE, GetUnitState(u, UNIT_STATE_MAX_LIFE) * pct * 0.01)
+    call SetUnitState(u, UNIT_STATE_MANA, GetUnitState(u, UNIT_STATE_MAX_MANA) * pct * 0.01)
+endfunction
+function Getting_Check takes nothing returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer i = 0
+    local integer priv
+    local string base
+    local string privTag
+
+    loop
+        exitwhen i > 11
+        set priv = GT_Privilege[i]
+
+        if priv >= 99 then
+            set privTag = " " + C_BLU() + "(특권 치트 사용자)" + C_END()
+        elseif priv >= 50 then
+            set privTag = " " + C_RED() + "(치트 사용자)" + C_END()
+        elseif priv >= 25 then
+            set privTag = " " + C_ORG() + "(제한 치트 사용자)" + C_END()
+        elseif priv == 0 then
+            set privTag = " |cff808000(치트 금지자)" + C_END()
+        else
+            set privTag = ""
+        endif
+
+        set base = "|cff" + Player_Color[i] + I2S(i + 1) + ". " + GetPlayerName(Player(i)) + C_END() + " - " + C_YLW() + "금 :" + C_END() + " " + I2S(GetPlayerState(Player(i), PLAYER_STATE_RESOURCE_GOLD)) + ", " + C_GRN() + "나무 :" + C_END() + " " + I2S(GetPlayerState(Player(i), PLAYER_STATE_RESOURCE_LUMBER)) + ", " + C_BLU() + "유닛상황 :" + C_END() + " " + I2S(GetPlayerState(Player(i), PLAYER_STATE_RESOURCE_FOOD_USED)) + C_GRY() + "/" + C_END() + I2S(GetPlayerState(Player(i), PLAYER_STATE_RESOURCE_FOOD_CAP)) + ", " + C_BLU() + "점수 :" + C_END() + " " + I2S(priv) + privTag
+
+        call ND2P(tPlay, 0, 0, 10.00, base)
+        set i = i + 1
+    endloop
+    set tPlay = null
+endfunction
+function Getting_GivingCheat takes integer slot returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local integer target = slot - 1
+    local player tgt
+
+    if GT_Privilege[pid] <= 49 then
+        call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! " + GetPlayerName(tPlay) + "님은 제한된 치트 권한을 가지고 있습니다." + C_END())
+        return
+    endif
+
+    set tgt = Player(target)
+    if udg_rcPlayer[target] != tgt then
+        set udg_rcPlayer[target] = tgt
+        set GT_Privilege[target] = 25
+        call ForceAddPlayer(CHEATER, tgt)
+        call TriggerRegisterPlayerChatEvent(CHEATS, tgt, "", false)
+        set DIALOG3[target] = true
+        call ND2P(tPlay,  0, 0, 5.00,  C_RED() + GetPlayerName(tgt) + C_END() + " " + C_GRN() + "에게" + C_END() + " " + C_YLW() + "치트 권한" + C_END() + C_GRN() + "을 주었습니다." + C_END())
+        call ND2P(tgt, 0, 0, 5.00,  C_RED() + GetPlayerName(tPlay)  + C_END() + " " + C_GRN() + "님께서 당신에게" + C_END() + " " + C_YLW() + "치트 권한" + C_END() + C_GRN() + "을 주었습니다." + C_END() + " " + C_RED() + "(주의! 모든 치트를 사용할 수는 없습니다.)" + C_END())
+    else
+        call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! " + GetPlayerName(tgt) + "는 이미 치트 권한을 가지고 있습니다." + C_END())
+    endif
+    set tPlay = null
+    set tgt = null
+endfunction
+
+function Getting_BanCheat takes nothing returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local integer i = 0
+
+    if GT_Privilege[pid] <= 49 then
+        call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! " + GetPlayerName(tPlay) + "님은 제한된 치트 권한을 가지고 있습니다." + C_END())
+        set tPlay = null
+        return
+    endif
+
+    loop
+        exitwhen i > 11
+        if GT_Privilege[i] >= GT_Privilege[pid] then
+            call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! " + GetPlayerName(Player(i)) + "는 이미 치트를 사용하고 있습니다. 당신과 동등한 권한 또는 상위 권한을 가지고 있기 때문에 빼앗지 못합니다." + C_END())
+        else
+            call ND2P(tPlay, 0, 0, 5.00, "|cff" + Player_Color[i] + GetPlayerName(Player(i)) + C_END() + " " + C_GRN() + "가" + C_END() + " " + C_YLW() + "치트" + C_END() + C_GRN() + "를 사용하지 못하게 했습니다." + C_END())
+            call ForceRemovePlayer(CHEATER, Player(i))
+            set GT_Privilege[i] = 0
+        endif
+        set i = i + 1
+    endloop
+    set tPlay = null
+endfunction
+
+function Getting_Explosion takes nothing returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local integer i = 0
+
+    if GT_Privilege[pid] <= 49 then
+        call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! " + GetPlayerName(tPlay) + "님은 제한된 치트 권한을 가지고 있습니다." + C_END())
+        set tPlay = null
+        return
+    endif
+
+    loop
+        exitwhen i > 11
+        if GT_Privilege[i] > GT_Privilege[pid] then
+            call ND2P(Player(i), 0, 0, 5.00, C_RED() + "주의! " + GetPlayerName(tPlay) + " 이(가) 이 방을 방폭하려고 시도합니다." + C_END())
+            set tPlay = null
+            return
+        endif
+        set i = i + 1
+    endloop
+
+    call ND2P(tPlay, 0, 0, 5.00, C_BLU() + "이 방은" + C_END() + " " + C_YLW() + "3초 후" + C_END() + C_BLU() + "에 저절로 " + C_YLW() + "폭파" + C_END() + C_BLU() + "됩니다." + C_END() + " " + C_RED() + "(취소 불가)" + C_END())
+    call PolledWait(1.00)
+    call ND2P(tPlay, 0, 0, 5.00, C_RED() + " 3 " + C_END())
+    call PolledWait(1.00)
+    call ND2P(tPlay, 0, 0, 5.00, C_RED() + " 2 " + C_END())
+    call PolledWait(1.00)
+    call ND2P(tPlay, 0, 0, 5.00, C_RED() + " 1 " + C_END())
+    call PolledWait(1.00)
+    call ND2P(tPlay, 0, 0, 5.00, C_RED() + "Game Over!!" + C_END())
+    call PolledWait(1.00)
+    call EndGame(false)
+    set tPlay = null
+endfunction
+
+function Getting_ResearchtechCheat takes integer mode returns nothing
+    local player tPlay = GetTriggerPlayer()
+    if mode == 31 then
+        set Selected_Check[(20 * 21) + GetPlayerId(tPlay)] = tPlay
+        call ND2P(tPlay, 0, 0, 5., C_YLW() + "업그레이드 완료 모드" + C_END() + C_GRN() + "를 " + C_RED() + "가동" + C_END() + " " + C_GRN() + "합니다." + C_END() + " " + C_RED() + "(이후 연구한 업그레이드에만 해당됩니다.)" + C_END())
+    elseif mode == 63 then
+        set Selected_Check[(20 * 21) + GetPlayerId(tPlay)] = null
+        call ND2P(tPlay, 0, 0, 5., C_YLW() + "업그레이드 완료 모드" + C_END() + C_GRN() + "를 " + C_RED() + "해제" + C_END() + " " + C_GRN() + "합니다." + C_END())
+    endif
+endfunction
+
+function Getting_UnittechCheat takes integer mode returns nothing
+    local player tPlay = GetTriggerPlayer()
+    if mode == 31 then
+        set Selected_Check[(20 * 22) + GetPlayerId(tPlay)] = tPlay
+        call ND2P(tPlay, 0, 0, 5., C_YLW() + "유닛 완료 모드" + C_END() + C_GRN() + "를 " + C_RED() + "가동" + C_END() + " " + C_GRN() + "합니다." + C_END() + " " + C_RED() + "(이후 생성한 유닛에만 해당됩니다.)" + C_END())
+    elseif mode == 63 then
+        set Selected_Check[(20 * 22) + GetPlayerId(tPlay)] = null
+        call ND2P(tPlay, 0, 0, 5., C_YLW() + "유닛 완료 모드" + C_END() + C_GRN() + "를 " + C_RED() + "해제" + C_END() + " " + C_GRN() + "합니다." + C_END())
+    endif
+endfunction
+
+function Getting_Sightshare takes nothing returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local player owner = udg_rcPlayer[pid]
+    local integer i = 1
+    loop
+        exitwhen i > 13
+        if IsPlayerAlly(owner, Player(i)) == true then
+            call SetPlayerAllianceStateBJ(Player(i), owner, bj_ALLIANCE_ALLIED_VISION)
+        else
+            call SetPlayerAllianceStateBJ(Player(i), owner, bj_ALLIANCE_UNALLIED_VISION)
+        endif
+        set i = i + 1
+    endloop
+    call ND2P(tPlay, 0, 0, 5.00, C_ORG() + GetPlayerName(owner) + C_END() + " " + C_GRN() + "님과" + C_END() + " " + C_ORG() + "중립을 포함한 모든 플레이어" + C_END() + " " + C_GRN() + "의" + C_END() + " " + C_YLW() + "시야를 공유" + C_END() + C_GRN() + "합니다." + C_END())
+endfunction
+
+function Getting_BulidCheat2 takes nothing returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local unit tUnit = GetTriggerUnit()
+
+    if Selected_Check[(20 * 5) + pid] == tPlay then
+        if IsUnitType(tUnit, UNIT_TYPE_STRUCTURE) == true then
+            call ND2P(tPlay, 0, 0, 5.00, C_GRN() + "선택 " + C_END() + C_YLW() + "건물" + C_END() + C_GRN() + "을 완성시켰습니다." + C_END())
+            call UnitSetConstructionProgress(tUnit, 100)
+            call UnitSetUpgradeProgress(tUnit, 100)
+        else
+            call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! 건물이 아닙니다!" + C_END())
+        endif
+        if tPlay == Selected_Check[(20 * 15) + pid] then
+            set Selected_Check[(20 * 5)  + pid] = null
+            set Selected_Check[(20 * 15) + pid] = null
+        endif
+    endif
+    set tUnit = null
+endfunction
+
+function Getting_BulidCheat takes unit u, integer mode returns nothing
+    local integer pid = GetPlayerId(GetTriggerPlayer())
+    if mode == 31 then
+        set Selected_Check[(20 * 5) + pid] = GetTriggerPlayer()
+    elseif mode == 63 then
+        set Selected_Check[(20 * 5) + pid] = null
+    else
+        set Selected_Check[(20 * 5)  + pid] = GetTriggerPlayer()
+        set Selected_Check[(20 * 15) + pid] = GetTriggerPlayer()
+    endif
+endfunction
+
+function Getting_Foodunlimitless takes integer mode returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    if mode == 31 then
+        set CUnitC[20 + pid] = pid
+        call ND2P(tPlay, 0, 0, 5.00, C_ORG() + GetPlayerName(udg_rcPlayer[pid]) + C_END() + " " + C_GRN() + "님의" + C_END() + " " + C_YLW() + "인구" + C_END() + C_GRN() + "를" + C_END() + " " + C_YLW() + "무제한" + C_END() + C_GRN() + "으로 변경했습니다." + C_END())
+        call EnableTrigger(ENDLESS)
+    elseif mode == 63 then
+        set CUnitC[20 + pid] = 100
+        call ND2P(tPlay, 0, 0, 5.00, C_ORG() + GetPlayerName(udg_rcPlayer[pid]) + C_END() + " " + C_GRN() + "님의" + C_END() + " " + C_YLW() + "인구" + C_END() + C_GRN() + "를 다시" + C_END() + " " + C_YLW() + "사용" + C_END() + C_GRN() + "합니다." + C_END())
+    endif
+endfunction
+
+function Getting_Teleport takes unit u, integer mode returns nothing
+    local integer pid = GetPlayerId(GetTriggerPlayer())
+    if mode == 31 then
+        set Selected_Check[(20 * 23) + pid] = GetTriggerPlayer()
+    elseif mode == 63 then
+        set Selected_Check[(20 * 23) + pid] = null
+    else
+        set Selected_Check[(20 * 23) + pid] = GetTriggerPlayer()
+        set Selected_Check[(20 * 33) + pid] = GetTriggerPlayer()
+    endif
+endfunction
+
+function Getting_StopCheat2 takes nothing returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local unit tUnit = GetTriggerUnit()
+    local integer ownerId = GetPlayerId(GetOwningPlayer(tUnit))
+    local integer i = 0
+
+    if Selected_Check[(20 * 2) + pid] != tPlay then
+        set tUnit = null
+        return
+    endif
+
+    loop
+        exitwhen StopCheatUnit[i] == null
+        set i = i + 1
+    endloop
+
+    if IsUnitPaused(tUnit) == true then
+        call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! 정지한 유닛입니다. 정지하지 않은 유닛을 선택해 주세요." + C_END())
+    elseif GT_Privilege[ownerId] > GT_Privilege[pid] then
+        call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! " + GetUnitName(tUnit) + " 은(는) 특권 치트 사용자의 유닛입니다! 정지할 수 없습니다!" + C_END())
+    else
+        set StopCheatUnit[i] = tUnit
+        call PauseUnit(tUnit, true)
+        call ND2P(tPlay, 0, 0, 5.00, UnitTag(tUnit) + " " + C_GRN() + "을(를) " + C_YLW() + "정지" + C_END() + C_GRN() + "시킵니다." + C_END())
+    endif
+
+    if tPlay == Selected_Check[(20 * 12) + pid] then
+        set Selected_Check[(20 * 2)  + pid] = null
+        set Selected_Check[(20 * 12) + pid] = null
+    endif
+    set tUnit = null
+endfunction
+
+function Getting_StopCheat takes unit u, integer mode returns nothing
+    local integer pid = GetPlayerId(GetTriggerPlayer())
+    if mode == 31 then
+        set Selected_Check[(20 * 2) + pid] = GetTriggerPlayer()
+    elseif mode == 63 then
+        set Selected_Check[(20 * 2) + pid] = null
+    else
+        set Selected_Check[(20 * 2)  + pid] = GetTriggerPlayer()
+        set Selected_Check[(20 * 12) + pid] = GetTriggerPlayer()
+    endif
+endfunction
+
+function Getting_Stopoff takes nothing returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer i = 0
+    if StopCheatUnit[0] != null then
+        call ND2P(tPlay, 0, 0, 5.00, C_RED() + "정지시킨 모든 유닛" + C_END() + " " + C_GRN() + "을 다시" + C_END() + " " + C_YLW() + "움직이게" + C_END() + " " + C_GRN() + "합니다." + C_END())
+        loop
+            exitwhen StopCheatUnit[i] == null
+            call PauseUnit(StopCheatUnit[i], false)
+            set StopCheatUnit[i] = null
+            set i = i + 1
+        endloop
+    else
+        call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! 정지된 유닛이 없습니다." + C_END())
+    endif
+endfunction
+
+function Getting_DeleteCheat2 takes nothing returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local unit tUnit = GetTriggerUnit()
+    local integer ownerId = GetPlayerId(GetOwningPlayer(tUnit))
+
+    if Selected_Check[(20 * 3) + pid] != tPlay then
+        set tUnit = null
+        return
+    endif
+
+    if tUnit == udg_rcUnit[pid] then
+        call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! " + GetUnitName(tUnit) + " 은(는) 치트 선택 유닛입니다! 삭제할 수 없습니다!" + C_END())
+    elseif GT_Privilege[ownerId] > GT_Privilege[pid] then
+        call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! " + GetUnitName(tUnit) + " 은(는) 특권 치트 사용자의 유닛입니다! 정지할 수 없습니다!" + C_END())
+    else
+        call ND2P(tPlay, 0, 0, 5.00, UnitTag(tUnit) + " " + C_GRN() + "을(를) 게임 상에서" + C_END() + " " + C_YLW() + "삭제" + C_END() + C_GRN() + "합니다." + C_END())
+        call RemoveUnit(tUnit)
+    endif
+
+    if tPlay == Selected_Check[(20 * 13) + pid] then
+        set Selected_Check[(20 * 3)  + pid] = null
+        set Selected_Check[(20 * 13) + pid] = null
+    endif
+    set tUnit = null
+endfunction
+
+function Getting_DeleteCheat takes unit u, integer mode returns nothing
+    local integer pid = GetPlayerId(GetTriggerPlayer())
+    if mode == 31 then
+        set Selected_Check[(20 * 3) + pid] = GetTriggerPlayer()
+    elseif mode == 63 then
+        set Selected_Check[(20 * 3) + pid] = null
+    else
+        set Selected_Check[(20 * 3)  + pid] = GetTriggerPlayer()
+        set Selected_Check[(20 * 13) + pid] = GetTriggerPlayer()
+    endif
+endfunction
+
+function Getting_KillCheat2 takes nothing returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local unit tUnit = GetTriggerUnit()
+    local integer ownerId = GetPlayerId(GetOwningPlayer(tUnit))
+    local unit mine = udg_rcUnit[pid]
+
+    if Selected_Check[(20 * 4) + pid] != tPlay then
+        set tUnit = null
+        set mine = null
+        return
+    endif
+
+    if tUnit == mine then
+        call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! " + GetUnitName(tUnit) + " 은(는) 치트 선택 유닛입니다! 살해할 수 없습니다. 자살을 이용하세요!" + C_END())
+    elseif GT_Privilege[ownerId] > GT_Privilege[pid] then
+        call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! " + GetUnitName(tUnit) + " 은(는) 특권 치트 사용자의 유닛입니다! 살해할 수 없습니다!" + C_END())
+    elseif mine == null then
+        call ND2P(tPlay, 0, 0, 5.00, UnitTag(tUnit) + " " + C_GRN() + "을(를) 즉시" + C_END() + " " + C_YLW() + "살해" + C_END() + C_GRN() + "합니다." + C_END())
+        call KillUnit(tUnit)
+    else
+        call ND2P(tPlay, 0, 0, 5.00, UnitTag(tUnit) + " " + C_GRN() + "을(를) 즉시" + C_END() + " " + C_YLW() + "살해" + C_END() + C_GRN() + "합니다." + C_END() + " " + C_RED() + "( 선택 유닛이 있기에 돈과 경험치를 획득했습니다.)" + C_END())
+        call UnitDamageTarget(mine, tUnit, 1000000000.00, true, false, ATTACK_TYPE_CHAOS, DAMAGE_TYPE_UNIVERSAL, WEAPON_TYPE_WHOKNOWS)
+        call KillUnit(tUnit)
+    endif
+
+    if tPlay == Selected_Check[(20 * 14) + pid] then
+        set Selected_Check[(20 * 4)  + pid] = null
+        set Selected_Check[(20 * 14) + pid] = null
+    endif
+    set tUnit = null
+    set mine = null
+endfunction
+
+function Getting_KillCheat takes unit u, integer mode returns nothing
+    local integer pid = GetPlayerId(GetTriggerPlayer())
+    if mode == 31 then
+        set Selected_Check[(20 * 4) + pid] = GetTriggerPlayer()
+    elseif mode == 63 then
+        set Selected_Check[(20 * 4) + pid] = null
+    else
+        set Selected_Check[(20 * 4)  + pid] = GetTriggerPlayer()
+        set Selected_Check[(20 * 14) + pid] = GetTriggerPlayer()
+    endif
+endfunction
+
+function Getting_MapCheat takes integer mode returns nothing
+    local player tPlay = GetTriggerPlayer()
+    if mode == 31 then
+        call ND2P(tPlay, 0, 0, 5.00, C_YLW() + "맵핵" + C_END() + C_GRN() + "을 " + C_RED() + "가동" + C_END() + " " + C_GRN() + "했습니다." + C_END() + " " + C_RED() + "(동맹은 켜지지 않습니다.)" + C_END())
+        call CreateFogModifierRectBJ(true, Player(PLAYER_NEUTRAL_AGGRESSIVE), FOG_OF_WAR_VISIBLE, GetEntireMapRect())
+        call SetPlayerAllianceStateBJ(Player(PLAYER_NEUTRAL_AGGRESSIVE), tPlay, bj_ALLIANCE_UNALLIED_VISION)
+    elseif mode == 63 then
+        call ND2P(tPlay, 0, 0, 5.00, C_YLW() + "맵핵" + C_END() + C_GRN() + "을" + C_END() + " " + C_RED() + "중단" + C_END() + " " + C_GRN() + "했습니다." + C_END())
+        call SetPlayerAllianceStateBJ(Player(PLAYER_NEUTRAL_AGGRESSIVE), tPlay, bj_ALLIANCE_UNALLIED)
+    endif
+endfunction
+
+function Getting_AddDamageCheat takes unit u, integer mode returns nothing
+    set EndlessR[180 + GetPlayerId(GetTriggerPlayer())] = mode
+    call EnableTrigger(ADDDAMAGE)
+endfunction
+
+function Getting_AddDamageGroupCheat takes unit u, integer mode returns nothing
+    local integer pid = GetPlayerId(GetTriggerPlayer())
+    if mode == 0 then
+        set DIALOG3[40 + pid] = false
+    else
+        set DIALOG3[20 + pid] = true
+    endif
+    set EndlessR[140 + pid] = mode
+    call EnableTrigger(ADDDAMAGE)
+endfunction
+
+function Getting_ReduceDamageCheat takes unit u, integer mode returns nothing
+    set EndlessR[120 + GetPlayerId(GetTriggerPlayer())] = mode
+    call EnableTrigger(REDUCE)
+endfunction
+
+function Getting_BloodCheat takes unit u, integer mode returns nothing
+    set EndlessR[100 + GetPlayerId(GetTriggerPlayer())] = I2R(mode) * 0.01
+    call EnableTrigger(BLOOD)
+endfunction
+
+function Getting_SkillAddDamageCheat takes unit u, integer mode returns nothing
+    set EndlessR[160 + GetPlayerId(GetTriggerPlayer())] = mode
+    call EnableTrigger(SKILLDAM)
+    call EnableTrigger(SKILLDAM2)
+endfunction
+
+function Getting_SkillAddDamageGroupCheat takes unit u, integer mode returns nothing
+    local integer pid = GetPlayerId(GetTriggerPlayer())
+    if mode == 0 then
+        set DIALOG3[40 + pid] = false
+    else
+        set DIALOG3[40 + pid] = true
+    endif
+    set EndlessR[140 + pid] = mode
+    call EnableTrigger(SKILLDAM)
+    call EnableTrigger(SKILLDAM2)
+endfunction
+function Getting_CopyCheat2 takes nothing returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local unit u = GetTriggerUnit()
+    local unit selUnit = udg_rcUnit[pid]
+    local integer i = 1
+    local integer slot
+
+    if Selected_Check[(20 * 7) + pid] != tPlay then
+        set u = null
+        set selUnit = null
+        return
+    endif
+
+    loop
+        exitwhen i > CopyI[pid]
+        call CreateNUnitsAtLoc(1, GetUnitTypeId(u), udg_rcPlayer[pid], GetUnitLoc(selUnit), bj_UNIT_FACING)
+        call SetHeroLevelBJ(GetLastCreatedUnit(), GetHeroLevel(u), false)
+        call SetHeroStr(GetLastCreatedUnit(), GetHeroStatBJ(bj_HEROSTAT_STR, u, false), true)
+        call SetHeroAgi(GetLastCreatedUnit(), GetHeroStatBJ(bj_HEROSTAT_AGI, u, false), true)
+        call SetHeroInt(GetLastCreatedUnit(), GetHeroStatBJ(bj_HEROSTAT_INT, u, false), true)
+        set slot = 1
+        loop
+            exitwhen slot > 6
+            call UnitAddItemByIdSwapped(GetItemTypeId(UnitItemInSlot(u, slot - 1)), GetLastCreatedUnit())
+            call SetItemCharges(GetLastCreatedItem(), GetItemCharges(UnitItemInSlot(u, slot - 1)))
+            call UnitDropItemSlot(GetLastCreatedUnit(), GetLastCreatedItem(), slot - 1)
+            set slot = slot + 1
+        endloop
+        set i = i + 1
+    endloop
+
+    call ND2P(tPlay, 0, 0, 5.00, UnitTag(u) + " " + C_GRN() + "을(를)" + C_END() + " " + UnitTag(selUnit) + " " + C_GRN() + "의 옆에" + C_END() + " " + C_RED() + I2S(CopyI[pid]) + "기" + C_END() + C_GRN() + "만큼" + C_END() + " " + C_YLW() + "복제" + C_END() + C_GRN() + "했습니다." + C_END())
+
+    if tPlay == Selected_Check[(20 * 17) + pid] then
+        set Selected_Check[(20 * 7)  + pid] = null
+        set Selected_Check[(20 * 17) + pid] = null
+    endif
+    set u = null
+    set selUnit = null
+endfunction
+
+function Getting_CopyCheat takes unit u, integer mode returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    if mode >= 1000 then
+        set Selected_Check[(20 * 7) + pid] = null
+        call ND2P(tPlay, 0, 0, 5.00, "|cffFFA7A71000미만의 숫자를 입력하여 주세요.")
+    elseif mode == 31 then
+        set Selected_Check[(20 * 7) + pid] = tPlay
+        set CopyI[pid] = 1
+    elseif mode == 63 then
+        set Selected_Check[(20 * 7) + pid] = null
+    elseif mode <= 999 then
+        set Selected_Check[(20 * 7)  + pid] = tPlay
+        set Selected_Check[(20 * 17) + pid] = tPlay
+        if mode == 0 then
+            set CopyI[pid] = 1
+        else
+            set CopyI[pid] = mode
+        endif
+    endif
+endfunction
+
+function Getting_Copy2Cheat2 takes nothing returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local unit u = GetTriggerUnit()
+    local integer i = 1
+    local integer slot
+
+    if Selected_Check[(20 * 8) + pid] != tPlay then
+        set u = null
+        return
+    endif
+
+    loop
+        exitwhen i > CopyI[20 + pid]
+        call CreateNUnitsAtLoc(1, GetUnitTypeId(u), GetOwningPlayer(u), GetUnitLoc(u), bj_UNIT_FACING)
+        call SetHeroLevelBJ(u, GetHeroLevel(u), false)
+        call SetHeroStr(u, GetHeroStatBJ(bj_HEROSTAT_STR, u, false), true)
+        call SetHeroAgi(u, GetHeroStatBJ(bj_HEROSTAT_AGI, u, false), true)
+        call SetHeroInt(u, GetHeroStatBJ(bj_HEROSTAT_INT, u, false), true)
+        set slot = 1
+        loop
+            exitwhen slot > 6
+            call UnitAddItemByIdSwapped(GetItemTypeId(UnitItemInSlot(u, slot - 1)), u)
+            call SetItemCharges(GetLastCreatedItem(), GetItemCharges(UnitItemInSlot(u, slot - 1)))
+            call UnitDropItemSlot(u, GetLastCreatedItem(), slot - 1)
+            set slot = slot + 1
+        endloop
+        set i = i + 1
+    endloop
+
+    call ND2P(tPlay, 0, 0, 5.00, UnitTag(u) + " " + C_GRN() + "을(를)" + C_END() + " " + UnitTag(udg_rcUnit[pid]) + " " + C_GRN() + "의 옆에" + C_END() + " " + C_RED() + I2S(CopyI[20 + pid]) + "기" + C_END() + C_GRN() + "만큼" + C_END() + " " + C_YLW() + "복제" + C_END() + C_GRN() + "했습니다." + C_END())
+
+    if tPlay == Selected_Check[(20 * 18) + pid] then
+        set Selected_Check[(20 * 8)  + pid] = null
+        set Selected_Check[(20 * 18) + pid] = null
+    endif
+    set u = null
+endfunction
+
+function Getting_Copy2Cheat takes unit u, integer mode returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    if mode >= 1000 then
+        set Selected_Check[(20 * 8) + pid] = null
+        call ND2P(tPlay, 0, 0, 5.00, "|cffFFA7A71000미만의 숫자를 입력하여 주세요.")
+    elseif mode == 31 then
+        set Selected_Check[(20 * 8) + pid] = tPlay
+        set CopyI[20 + pid] = 1
+    elseif mode == 63 then
+        set Selected_Check[(20 * 8) + pid] = null
+    else
+        set Selected_Check[(20 * 8)  + pid] = tPlay
+        set Selected_Check[(20 * 18) + pid] = tPlay
+        if mode == 0 then
+            set CopyI[20 + pid] = 1
+        else
+            set CopyI[20 + pid] = mode
+        endif
+    endif
+endfunction
+
+function Getting_CopyItemCheat2 takes nothing returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local unit tUnit = GetTriggerUnit()
+    local integer slot = ItemCopyI[pid]
+    local item invItem
+
+    if Selected_Check[(20 * 9) + pid] != tPlay then
+        set tUnit = null
+        return
+    endif
+
+    set invItem = UnitItemInSlot(tUnit, slot - 1)
+    if invItem == null then
+        call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! 선택한 슬롯은 비어있습니다." + C_END())
+    else
+        call ND2P(tPlay, 0, 0, 5.00, UnitTag(tUnit) + " " + C_GRN() + "의" + C_END() + " " + C_RED() + I2S(slot) + C_END() + C_GRN() + "번째 인벤토리의 아이템을" + C_END() + " " + C_YLW() + "복제" + C_END() + C_GRN() + "했습니다." + C_END())
+        call UnitAddItemByIdSwapped(GetItemTypeId(invItem), udg_rcUnit[pid])
+        call SetItemCharges(GetLastCreatedItem(), GetItemCharges(invItem))
+        call UnitDropItemSlot(udg_rcUnit[pid], GetLastCreatedItem(), slot - 1)
+    endif
+    set Selected_Check[(20 * 9) + pid] = null
+    set tUnit = null
+    set invItem = null
+endfunction
+
+function Getting_CopyItemCheat takes unit u, integer mode returns nothing
+    local integer pid = GetPlayerId(GetTriggerPlayer())
+    set ItemCopyI[pid] = mode
+    set Selected_Check[(20 * 9) + pid] = GetTriggerPlayer()
+endfunction
+
+function Getting_DeleteItemCheat2 takes nothing returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local unit tUnit = GetTriggerUnit()
+    local integer slot = ItemCopyI[20 + pid]
+    local integer ownerId = GetPlayerId(GetOwningPlayer(tUnit))
+    local item invItem
+
+    if Selected_Check[(20 * 10) + pid] != tPlay then
+        set tUnit = null
+        return
+    endif
+
+    set invItem = UnitItemInSlot(tUnit, slot - 1)
+    if invItem == null then
+        call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! 선택한 슬롯은 비어있습니다." + C_END())
+    elseif GT_Privilege[ownerId] > GT_Privilege[pid] then
+        call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! " + GetUnitName(tUnit) + " 은(는) 특권 치트 사용자의 유닛입니다! 아이템을 삭제 할 수 없습니다!" + C_END())
+    else
+        call ND2P(tPlay, 0, 0, 5.00, UnitTag(tUnit) + " " + C_GRN() + "의" + C_END() + " " + C_RED() + I2S(slot) + C_END() + C_GRN() + "번째 인벤토리의 아이템을" + C_END() + " " + C_YLW() + "삭제" + C_END() + C_GRN() + "했습니다." + C_END())
+        call RemoveItem(invItem)
+    endif
+    set Selected_Check[(20 * 10) + pid] = null
+    set tUnit = null
+    set invItem = null
+endfunction
+
+function Getting_DeleteItemCheat takes unit u, integer mode returns nothing
+    local integer pid = GetPlayerId(GetTriggerPlayer())
+    set ItemCopyI[20 + pid] = mode
+    set Selected_Check[(20 * 10) + pid] = GetTriggerPlayer()
+endfunction
+
+function Getting_ReiterationItemCheat takes unit u, integer slot, integer charges returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local item invItem
+    if u == null then
+        return
+    endif
+    set invItem = UnitItemInSlot(u, slot - 1)
+
+    if invItem == null then
+        call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! 선택한 슬롯은 비어있습니다." + C_END())
+    elseif GetItemCharges(invItem) == 0 then
+        call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! 선택한 슬롯의 아이템은 중첩할 수 없는 종류의 아이템입니다." + C_END())
+    elseif charges <= 0 then
+        call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! 아이템의 중첩 수를 0이나 음수로 할 수 없습니다." + C_END())
+    else
+        call SetItemCharges(invItem, charges)
+    endif
+    set invItem = null
+endfunction
+
+function Getting_KickCheat takes integer slot returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local integer target = slot - 1
+    if GT_Privilege[pid] < 49 then
+        call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! " + GetPlayerName(tPlay) + "님은 제한된 치트 권한을 가지고 있습니다." + C_END())
+    elseif GT_Privilege[target] >= GT_Privilege[pid] then
+        call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! " + GetPlayerName(Player(target)) + "는 이미 치트를 사용하고 있습니다. 당신과 동등한 권한을 가지고 있기 때문에 빼앗지 못합니다." + C_END())
+        call ND2P(Player(target), 0, 0, 5.00, C_RED() + "주의! " + GetPlayerName(tPlay) + " 이(가) 당신을 강퇴하려고 시도했습니다." + C_END())
+    else
+        call ND2P(tPlay, 0, 0, 5.00, "|cff" + Player_Color[target] + GetPlayerName(Player(target)) + C_END() + " |cffB4C3FF를" + C_END() + " " + C_YLW() + "강퇴" + C_END() + "|cffB4C3FF시켰습니다." + C_END())
+        call KickcheatP(Player(target))
+    endif
+endfunction
+function CheckI takes integer ITEM returns integer
+    if ITEM == 'I0ZZ' then
+        return 'I100'
+    elseif ModuloInteger(ITEM, 128) == 57 then
+        return ITEM + 8
+    elseif ModuloInteger(ITEM, 128) == 90 then
+        return ITEM + 214
+    endif
+    return ITEM + 1
+endfunction
+
+function Getting_AllItemCheat takes unit u returns nothing
+    local location loc = GetUnitLoc(u)
+    local integer i = 0
+    local integer ITEM
+    if udg_AllItemCount > 0 then
+        // Baked from the map's own object data — code-independent, covers
+        // special-character rawcodes a range scan would miss.
+        loop
+            exitwhen i >= udg_AllItemCount
+            call CreateItemLoc(udg_AllItemIds[i], loc)
+            set i = i + 1
+        endloop
+    else
+        // Fallback: World-Editor default custom range I000..I1ZZ.
+        set ITEM = 'I000'
+        loop
+            exitwhen ITEM > 'I1ZZ'
+            call CreateItemLoc(ITEM, loc)
+            set ITEM = CheckI(ITEM)
+        endloop
+    endif
+    call RemoveLocation(loc)
+    set loc = null
+endfunction
+
+function Getting_ChatCheat2 takes nothing returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local string chat = GetEventPlayerChatString()
+    local string prefix = "|cff" + Player_Color[pid] + GetPlayerName(tPlay) + C_END() + " : "
+    local integer i = 0
+    loop
+        exitwhen i > 11
+        if IsPlayerInForce(Player(i), Chat_Hear) then
+            call ND2P(Player(i), 0, 0, 15, prefix + chat)
+        endif
+        set i = i + 1
+    endloop
+endfunction
+
+function Getting_ChatCheat takes integer mode, player p returns nothing
+    local player tPlay = GetTriggerPlayer()
+    if mode == 31 then
+        call Getting_CheatActions(11, CHATTING, function Getting_ChatCheat2)
+        call ForceAddPlayer(Chat_Hear, p)
+        call ND2P(tPlay, 0, 0, 5., "|cffDC6089모든 플레이어의 채팅을 봅니다.")
+    elseif mode == 63 then
+        call ForceRemovePlayer(Chat_Hear, p)
+        call ND2P(tPlay, 0, 0, 5., "|cffDC6089모든 플레이어의 채팅을 그만봅니다.")
+    endif
+endfunction
+
+function Getting_StopGameCheat takes integer slot returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local integer target = slot - 1
+    if GT_Privilege[pid] < 49 then
+        call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! " + GetPlayerName(tPlay) + "님은 제한된 치트 권한을 가지고 있습니다." + C_END())
+    elseif GT_Privilege[GetPlayerId(GetOwningPlayer(GetTriggerUnit()))] > GT_Privilege[pid] then
+        call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! " + GetPlayerName(Player(target)) + "는 당신과 동등한 권한 또는 상위 권한을 가지고 있기 때문에 게임금지를 못합니다." + C_END())
+        call ND2P(Player(target), 0, 0, 5.00, C_RED() + "주의! " + GetPlayerName(tPlay) + " 이(가) 당신을 게임금지 하려고 시도했습니다." + C_END())
+    else
+        call SetUserControlForceOff(GetForceOfPlayer(Player(target)))
+    endif
+endfunction
+
+function Getting_EndlessHealingCheat takes integer mode returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local unit u = udg_rcUnit[pid]
+    if mode == 31 then
+        set CUnitC[40 + pid] = pid
+        set CUnitC[60 + pid] = pid
+        call ND2P(tPlay, 0, 0, 5.00, UnitTag(u) + " " + C_GRN() + "의" + C_END() + " " + C_YLW() + "체력/마나" + C_END() + C_GRN() + "를" + C_END() + " " + C_YLW() + "무한" + C_END() + C_GRN() + "으로" + C_END() + " " + C_YLW() + "회복" + C_END() + C_GRN() + "시킵니다." + C_END())
+        call EnableTrigger(ENDLESS)
+    elseif mode == 63 then
+        set CUnitC[40 + pid] = 100
+        set CUnitC[60 + pid] = 100
+        call ND2P(tPlay, 0, 0, 5.00, UnitTag(u) + " " + C_GRN() + "의" + C_END() + " " + C_YLW() + "무한 체력/마나 회복" + C_END() + " " + C_GRN() + "능력을" + C_END() + " " + C_YLW() + "제거" + C_END() + C_GRN() + "합니다." + C_END())
+    endif
+    set u = null
+endfunction
+
+function Getting_EndlessCooltimeCheat takes integer mode returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local unit u = udg_rcUnit[pid]
+    if mode == 31 then
+        set CUnitC[pid] = pid
+        call ND2P(tPlay, 0, 0, 5.00, UnitTag(u) + " " + C_GRN() + "의" + C_END() + " " + C_YLW() + "쿨타임" + C_END() + C_GRN() + "을" + C_END() + " " + C_YLW() + "무한" + C_END() + C_GRN() + "으로" + C_END() + " " + C_YLW() + "초기화" + C_END() + C_GRN() + "시킵니다." + C_END())
+        call EnableTrigger(ENDLESS)
+    elseif mode == 63 then
+        set CUnitC[pid] = 100
+        call ND2P(tPlay, 0, 0, 5.00, UnitTag(u) + " " + C_GRN() + "의" + C_END() + " " + C_YLW() + "무한 쿨타임" + C_END() + " " + C_GRN() + "능력을" + C_END() + " " + C_YLW() + "제거" + C_END() + C_GRN() + "합니다." + C_END())
+    endif
+    set u = null
+endfunction
+
+function Getting_EndlessCooltimeGroupCheat takes integer mode returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local string ownerName = GetPlayerName(udg_rcPlayer[pid])
+    if mode == 31 then
+        set CUnitC[100 + pid] = pid
+        call ND2P(tPlay, 0, 0, 5.00, C_ORG() + ownerName + C_END() + " " + C_GRN() + "님의" + C_END() + " " + C_RED() + "모든 유닛" + C_END() + " " + C_GRN() + "의" + C_END() + " " + C_YLW() + "쿨타임" + C_END() + C_GRN() + "을" + C_END() + " " + C_YLW() + "무한" + C_END() + C_GRN() + "으로" + C_END() + " " + C_YLW() + "초기화" + C_END() + C_GRN() + "시킵니다." + C_END())
+        call EnableTrigger(ENDLESS)
+    elseif mode == 63 then
+        set CUnitC[100 + pid] = 100
+        call ND2P(tPlay, 0, 0, 5.00, C_ORG() + ownerName + C_END() + " " + C_GRN() + "님의" + C_END() + " " + C_RED() + "모든 유닛" + C_END() + " " + C_GRN() + "의" + C_END() + " " + C_YLW() + "무한 쿨타임" + C_END() + " " + C_GRN() + "능력을" + C_END() + " " + C_YLW() + "제거" + C_END() + C_GRN() + "합니다." + C_END())
+    endif
+endfunction
+
+function Getting_PrimitiveCreateCheat takes integer page returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer i = (15 * (page - 1)) + 1
+    local integer endIdx = 15 * page
+    loop
+        exitwhen i > endIdx
+        call CreateItemLoc(udg_rcItemType[i - 1], Location(0, 0))
+        call ND2P(tPlay, 0, 0, 15., C_YLW() + I2S(i) + " - " + GetItemName(GetLastCreatedItem()))
+        call RemoveItem(GetLastCreatedItem())
+        set i = i + 1
+    endloop
+endfunction
+
+function Getting_AllStateCheat takes unit u, integer amount returns nothing
+    call ModifyHeroStat(bj_HEROSTAT_STR, u, bj_MODIFYMETHOD_ADD, amount)
+    call ModifyHeroStat(bj_HEROSTAT_AGI, u, bj_MODIFYMETHOD_ADD, amount)
+    call ModifyHeroStat(bj_HEROSTAT_INT, u, bj_MODIFYMETHOD_ADD, amount)
+endfunction
+
+function Getting_MindcontrolCheat2 takes nothing returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local unit tUnit = GetTriggerUnit()
+    local integer ownerId = GetPlayerId(GetOwningPlayer(tUnit))
+    local integer colorIdx = CUnitC[120 + pid]
+
+    if Selected_Check[(20 * 6) + pid] != tPlay then
+        set tUnit = null
+        return
+    endif
+
+    if GT_Privilege[ownerId] > GT_Privilege[pid] then
+        call ND2P(tPlay, 0, 0, 5.00, C_RED() + "주의! " + GetUnitName(tUnit) + " 은(는) 특권 치트 사용자의 유닛입니다. 귀속할 수 없습니다." + C_END())
+        call ND2P(Player(ownerId), 0, 0, 5.00, C_RED() + "주의! " + GetPlayerName(tPlay) + " 이(가) 당신의 유닛을 귀속하려고 했습니다!" + C_END())
+    else
+        call ND2P(tPlay, 0, 0, 5.00, UnitTag(tUnit) + " " + C_GRN() + "을(를)" + C_END() + " " + C_ORG() + GetPlayerName(udg_rcPlayer[pid]) + C_END() + " " + C_GRN() + "님에게로" + C_END() + " " + C_YLW() + "귀속" + C_END() + C_GRN() + "시킵니다." + C_END() + " " + C_RED() + "(색상 변경)" + C_END())
+        if colorIdx <= 15 and colorIdx >= 0 then
+            call SetUnitOwner(tUnit, Player(colorIdx), true)
+        else
+            call SetUnitOwner(tUnit, tPlay, true)
+        endif
+    endif
+
+    if tPlay == Selected_Check[(20 * 16) + pid] then
+        set Selected_Check[(20 * 6)  + pid] = null
+        set Selected_Check[(20 * 16) + pid] = null
+    endif
+    set tUnit = null
+endfunction
+
+function Getting_MindcontrolCheat takes unit u, integer mode returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    if mode == 31 then
+        set Selected_Check[(20 * 6) + pid] = tPlay
+        set CUnitC[120 + pid] = pid
+    elseif mode == 63 then
+        set Selected_Check[(20 * 6) + pid] = null
+    else
+        set Selected_Check[(20 * 6)  + pid] = tPlay
+        set Selected_Check[(20 * 16) + pid] = tPlay
+        set CUnitC[120 + pid] = mode - 1
+    endif
+endfunction
+
+function Getting_InvincibleCheat takes unit u, integer mode returns nothing
+    if mode == 31 then
+        call SetUnitInvulnerable(u, true)
+    elseif mode == 63 then
+        call SetUnitInvulnerable(u, false)
+    endif
+endfunction
+function Getting_CollisionCheat takes unit u, integer mode returns nothing
+    if mode == 31 then
+        call SetUnitPathing(u, true)
+    elseif mode == 63 then
+        call SetUnitPathing(u, false)
+    endif
+endfunction
+
+function Getting_WOLFList takes integer page returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer i = (15 * (page - 1)) + 1
+    local integer endIdx = 15 * page
+    if page == 0 then
+        call ND2P(tPlay, 0, 0, 15.00, "0이상의 숫자를 입력해주세요")
+    else
+        loop
+            exitwhen i > endIdx
+            call ND2P(tPlay, 0, 0, 15.00, I2S(i) + " : " + C_YLW() + Player_Color[20 + i])
+            set i = i + 1
+        endloop
+    endif
+endfunction
+
+function Getting_WOLFListCreate2 takes integer page returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local unit selUnit = udg_rcUnit[pid]
+    local location loc
+    local integer i = (15 * (page - 1)) + 1
+    local integer endIdx = 15 * page
+
+    if page == 0 then
+        call ND2P(tPlay, 0, 0, 15.00, "0이상의 숫자를 입력해주세요")
+    else
+        set loc = GetUnitLoc(selUnit)
+        loop
+            exitwhen i > endIdx
+            call CreateItemLoc(CopyI[40 + i], loc)
+            call ND2P(tPlay, 0, 0, 7.00, UnitTag(selUnit) + " " + C_GRN() + "에게" + C_END() + " " + C_YLW() + Player_Color[20 + i] + C_END() + C_GRN() + "을" + C_END() + " " + C_RED() + " 생성시켜" + C_END() + " " + C_GRN() + "줍니다." + C_END())
+            set i = i + 1
+        endloop
+        call RemoveLocation(loc)
+        set loc = null
+    endif
+    set selUnit = null
+endfunction
+
+function Getting_WOLFListPart takes string s returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local unit selUnit = udg_rcUnit[pid]
+    local location loc = GetUnitLoc(selUnit)
+    local string needle = SubString(s, 14, 99)
+    local integer needleLen = StringLength(needle)
+    local integer i = 1
+    local integer j
+    local integer k
+
+    loop
+        exitwhen i > 20
+        set j = (40 * (i - 1)) + 1
+        loop
+            exitwhen j > i * 40
+            set k = 0
+            loop
+                exitwhen k > 50
+                if needle == SubString(Part_STR[j], k, needleLen - 1 + k) then
+                    call CreateItemLoc(CopyI[40 + j], loc)
+                    call ND2P(tPlay, 0, 0, 7.00, UnitTag(selUnit) + " " + C_GRN() + "에게" + C_END() + " " + C_YLW() + GetItemName(GetLastCreatedItem()) + C_END() + C_GRN() + "을" + C_END() + " " + C_RED() + " 생성시켜" + C_END() + " " + C_GRN() + "줍니다." + C_END())
+                endif
+                set k = k + 1
+            endloop
+            set j = j + 1
+        endloop
+        call TriggerSleepAction(0.00)
+        set i = i + 1
+    endloop
+
+    call RemoveLocation(loc)
+    set loc = null
+    set selUnit = null
+endfunction
+
+function Getting_WOLFCreate takes string s returns nothing
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local unit selUnit = udg_rcUnit[pid]
+    local location loc
+    local string needle = SubString(s, 9, 99)
+    local integer i = 0
+
+    set loc = GetUnitLoc(selUnit)
+    loop
+        exitwhen i > 470
+        if needle == Part_STR[i] then
+            call CreateItemLoc(CopyI[40 + i], loc)
+            call ND2P(tPlay, 0, 0, 7.00, UnitTag(selUnit) + " " + C_GRN() + "에게" + C_END() + " " + C_YLW() + GetItemName(GetLastCreatedItem()) + C_END() + C_GRN() + "을" + C_END() + " " + C_RED() + " 생성시켜" + C_END() + " " + C_GRN() + "줍니다." + C_END())
+            call RemoveLocation(loc)
+            set loc = null
+            set selUnit = null
+            return
+        endif
+        set i = i + 1
+    endloop
+    call RemoveLocation(loc)
+    set loc = null
+    set selUnit = null
+endfunction
+
+function Getting_HelpCheat takes integer page returns nothing
+    local player tPlay = GetTriggerPlayer()
+    if page == 1 then
+        call ND2P(tPlay, 0, 0, 15.00, C_RED() + "[" + C_END() + " " + C_GRY() + " 나나치 " + C_BLU() + "'s Cheat" + C_END() + " |cff288C28 Set " + C_END() + " |cffffa500v0.1 beta" + C_END() + " " + C_RED() + "]" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, " ")
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@선택" + C_END() + " - |cffffA500선택" + C_END() + " " + C_GRY() + " 영웅/유닛 치트 적용자를 선택합니다." + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@돈줘" + C_END() + " " + C_BLU() + "(숫)" + C_END() + " " + C_GRY() + " 금 증가" + C_END() + "  |cff288C28@나무줘" + C_END() + " " + C_BLU() + "(숫) " + C_END() + C_GRY() + " 목재 증가" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@렙업" + C_END() + " " + C_BLU() + "(숫)" + C_END() + " " + C_GRY() + " 영웅 레벨 증가" + C_END() + "  |cff288C28@스포" + C_END() + " " + C_BLU() + "(숫)" + C_END() + " " + C_GRY() + " 영웅 스킬포인트 증가" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@힘/민/지" + C_END() + " " + C_BLU() + "(숫)" + C_END() + " " + C_GRY() + " 영웅 힘/민/지 증가" + C_END() + "  |cff288C28@스텟" + C_END() + " " + C_BLU() + "(숫)" + C_END() + " " + C_GRY() + " 영웅 올 스텟 증가" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@이속" + C_END() + " " + C_BLU() + "(숫)" + C_END() + " " + C_GRY() + " 이속 변경" + C_END() + " " + C_RED() + "(1~522)" + C_END() + "  |cff288C28@이속 초" + C_END() + " " + C_GRY() + " 이속 초기값으로 변경" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28ㅎ" + C_END() + " " + C_GRY() + " 체력/마나 모두 회복" + C_END() + "  |cff288C28ㅎ" + C_END() + " " + C_BLU() + "(숫)" + C_END() + " " + C_GRY() + " 체력/마나 (숫)%만큼 회복" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28ㅋ" + C_END() + " " + C_GRY() + " 쿨타임 초기화" + C_END() + "  |cff288C28@추뎀" + C_END() + " " + C_BLU() + "(숫)" + C_END() + " " + C_GRY() + " 추뎀 설정" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@경험치" + C_END() + " " + C_BLU() + "(숫)" + C_END() + " " + C_GRY() + " 경험치 획득 비율 변경" + C_END() + "  |cff288C28@경추" + C_END() + " " + C_BLU() + "(숫)" + C_END() + " " + C_GRY() + " 경험치 추가" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@스뎀" + C_END() + " " + C_GRY() + " 현재 스킬추뎀 확인" + C_END() + "  |cff288C28@스뎀" + C_END() + " " + C_BLU() + "(숫)" + C_END() + " " + C_GRY() + " 스킬추뎀 설정" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@뎀감" + C_END() + " " + C_GRY() + " 현재 추가뎀감 확인" + C_END() + "  |cff288C28@뎀감" + C_END() + " " + C_BLU() + "(숫)" + C_END() + " " + C_GRY() + " 추가뎀감 설정" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@젠" + C_END() + " " + C_BLU() + "(숫)" + C_END() + " " + C_GRY() + " 추가 체젠/마젠 설정" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@체젠" + C_END() + " " + C_BLU() + "(숫)" + C_END() + " " + C_GRY() + " 추가 체젠 설정" + C_END() + "  |cff288C28@마젠" + C_END() + " " + C_BLU() + "(숫)" + C_END() + " " + C_GRY() + " 추가 마젠 설정" + C_END())
+    elseif page == 2 then
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@올템" + C_END() + " - |cffffA500(알피지 일경우)" + C_END() + " " + C_GRY() + " 자신 소유의 영웅 유닛 가운데에 모든아이템을 소환합니다." + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@템삭" + C_END() + " " + C_BLU() + "(숫)" + C_END() + " - |cffffA500선택" + C_END() + " " + C_GRY() + " 선택 영웅의 해당 인벤토리의 아이템을 삭제" + C_END() + " " + C_RED() + "(1~6)" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@템복" + C_END() + " " + C_BLU() + "(숫)" + C_END() + " - |cffffA500선택" + C_END() + " " + C_GRY() + " 선택 영웅의 해당 인벤토리의 아이템을 복제" + C_END() + " " + C_RED() + "(1~6)" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@템중" + C_END() + " " + C_BLU() + "(숫1)" + C_END() + "|cff288C28-" + C_END() + C_BLU() + "(숫2)" + C_END() + " " + C_GRY() + " (숫1) 인벤토리의 아이템을 (숫2)개로 중첩" + C_END() + " " + C_RED() + "(숫1 : 1~6)" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@확인" + C_END() + " " + C_GRY() + " 플레이어 정보 표시" + C_END() + "  |cff288C28@강퇴" + C_END() + " " + C_BLU() + "(숫)" + C_END() + " " + C_GRY() + " 해당 플레이어 강퇴" + C_END() + " " + C_RED() + "(1~12)" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@자살" + C_END() + " " + C_GRY() + " 선택 유닛 죽임" + C_END() + "  |cff288C28@부활" + C_END() + " " + C_GRY() + " 선택 영웅 부활" + C_END() + " " + C_RED() + "(유닛 부활 X)" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@삭제/@살해/@복제/@귀속" + C_END() + " - 선택 유닛 대상 (ON/OFF 지원)")
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@흡혈" + C_END() + " " + C_BLU() + "(숫)" + C_END() + " " + C_GRY() + " 공격시 흡혈 설정" + C_END())
+    elseif page == 3 then
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@방폭" + C_END() + " " + C_GRY() + " 방을 폭파" + C_END() + " " + C_RED() + "(취소 불가능)" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@건설완료/@업완료/@유닛완료" + C_END() + " " + C_GRY() + " 건물/연구/유닛 즉시 완료" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@정지/@정지해제" + C_END() + " " + C_GRY() + " 선택 유닛 일시정지/해제" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@이름" + C_END() + " " + C_BLU() + "(문자열)" + C_END() + " " + C_GRY() + " 이름을 (문자열)로 변경" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@시야" + C_END() + " " + C_BLU() + "(숫)" + C_END() + " " + C_GRY() + " 숫자만큼 카메라 줌 인/아웃" + C_END() + " " + C_RED() + "(50~150)" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@치트주기/@치트금지" + C_END() + " " + C_BLU() + "(숫)" + C_END() + " " + C_GRY() + " 치트 권한 부여/박탈" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@시야공유" + C_END() + " " + C_GRY() + " 모든 플레이어 시야 공유" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@텔ON/OFF" + C_END() + " " + C_GRY() + " 지정한 장소로 선택 영웅 텔레포트" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@맵핵ON/OFF" + C_END() + " " + C_GRY() + " 맵핵 가동/해제" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@무적ON/OFF" + C_END() + " " + C_GRY() + " 선택 유닛 무적" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@충돌ON/OFF" + C_END() + " " + C_GRY() + " 선택 유닛 충돌 활성/해제 (유닛·지형 통과)" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@키" + C_END() + " " + C_GRY() + " 이번 게임 활성화 명령(SessionKey) 재표시" + C_END())
+    elseif page == 4 then
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@점수삭제" + C_END() + " " + C_GRY() + " 플레이어의 점수 제거" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@게임금지/@게임금지해제" + C_END() + " " + C_BLU() + "(숫)" + C_END() + " " + C_GRY() + " 플레이어 게임금지/해제" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@인구무한ON/OFF" + C_END() + " " + C_GRY() + " 인구 무제한" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@무한힐ON/OFF" + C_END() + " " + C_GRY() + " 체/마나 소모안됨" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@무한쿨탐ON/OFF" + C_END() + " " + C_GRY() + " 선택 유닛 쿨타임 제거" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@목록/@목록생성" + C_END() + " " + C_BLU() + "(숫)" + C_END() + " " + C_GRY() + " 아이템 목록/생성" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@칸목록/@부분생성" + C_END() + " " + C_GRY() + " 아이템 다중 생성" + C_END())
+        call ND2P(tPlay, 0, 0, 15.00, "|cff288C28@그룹쿨탐/@그룹체젠/@그룹마젠/@그룹스뎀/@그룹추뎀" + C_END() + " " + C_GRY() + " 모든 유닛 적용" + C_END())
+    else
+        call ND2P(tPlay, 0, 0, 15.00, C_RED() + "@도움말 (숫) 의 형태의 명령어를 취해 주십시요. (1~4)" + C_END())
+    endif
+endfunction
+function Cheat_Prieren_Pass takes player p returns nothing
+    local integer pid = GetPlayerId(p)
+    set GT_Privilege[pid] = 50
+    call ForceAddPlayer(CHEATER, p)
+    set udg_rcPlayer[pid] = p
+    call TriggerRegisterPlayerChatEvent(CHEATS, p, "", false)
+    set DIALOG3[pid] = true
+    call DisplayTimedTextToPlayer(p, 0, 0, 15.0, C_GRN() + "프리렌의 시험을 통과했습니다. 치트 권한이 부여되었습니다." + C_END())
+    call Cheat_Text_Build()
+    call DialogDisplay(p, DIALOG, true)
+endfunction
+
+function Cheat_Prieren_Fail takes player p returns nothing
+    call DisplayTimedTextToForce(GetPlayersAll(), 10.0, C_RED() + "프리렌의 시험에 실패한 자: " + C_END() + C_YLW() + GetPlayerName(p) + C_END())
+    call CustomDefeatBJ(p, "프리렌의 시험에 실패하였습니다.")
+endfunction
+
+function ShufflePrieren takes nothing returns nothing
+    local integer i = 5
+    local integer j
+    local string tmp
+    set PrierenShuffled[1] = PrierenOption1
+    set PrierenShuffled[2] = PrierenOption2
+    set PrierenShuffled[3] = PrierenOption3
+    set PrierenShuffled[4] = PrierenOption4
+    set PrierenShuffled[5] = PrierenOption5
+    loop
+        exitwhen i <= 1
+        set j = GetRandomInt(1, i)
+        set tmp = PrierenShuffled[i]
+        set PrierenShuffled[i] = PrierenShuffled[j]
+        set PrierenShuffled[j] = tmp
+        set i = i - 1
+    endloop
+    set i = 1
+    loop
+        exitwhen i > 5
+        if PrierenShuffled[i] == PrierenCorrect then
+            set PrierenCorrectSlot = i
+        endif
+        set i = i + 1
+    endloop
+endfunction
+function Cheat_Prieren_Build takes nothing returns nothing
+    call DialogClear(PRIEREN_DIALOG)
+    call ShufflePrieren()
+    call DialogSetMessage(PRIEREN_DIALOG, "프리렌의 시험: 올바른 마법을 선택하시오")
+    call DialogAddButtonBJ(PRIEREN_DIALOG, PrierenShuffled[1])
+    set PRIEREN_BTN[1] = bj_lastCreatedButton
+    call DialogAddButtonBJ(PRIEREN_DIALOG, PrierenShuffled[2])
+    set PRIEREN_BTN[2] = bj_lastCreatedButton
+    call DialogAddButtonBJ(PRIEREN_DIALOG, PrierenShuffled[3])
+    set PRIEREN_BTN[3] = bj_lastCreatedButton
+    call DialogAddButtonBJ(PRIEREN_DIALOG, PrierenShuffled[4])
+    set PRIEREN_BTN[4] = bj_lastCreatedButton
+    call DialogAddButtonBJ(PRIEREN_DIALOG, PrierenShuffled[5])
+    set PRIEREN_BTN[5] = bj_lastCreatedButton
+endfunction
+
+function Cheat_Prieren_Timeout takes nothing returns nothing
+    local timer t = GetExpiredTimer()
+    local integer i = 0
+    loop
+        exitwhen i > 11
+        if PrierenTimer[i] == t then
+            if PrierenWaiting[i] then
+                set PrierenWaiting[i] = false
+                call DialogDisplay(Player(i), PRIEREN_DIALOG, false)
+                call Cheat_Prieren_Fail(Player(i))
+            endif
+            set PrierenTimer[i] = null
+            exitwhen true
+        endif
+        set i = i + 1
+    endloop
+    call DestroyTimer(t)
+    set t = null
+endfunction
+function CheatUse takes nothing returns nothing
+    local string chat = GetEventPlayerChatString()
+    local player tPlay = GetTriggerPlayer()
+    local integer pid = GetPlayerId(tPlay)
+    local integer priv = GT_Privilege[pid]
+    local string head = SubString(chat, 0, 100)
+    local string expected = CheatString2 + SessionKey
+
+    // Always-on @키 for special-list players (key recall, no activation needed)
+    if head == "@키" and Getting_SpecialList(pid) then
+        call DisplayTimedTextToPlayer(tPlay, 0, 0, 30.0, "|cffFFFA78[Cheat v0.1 beta]|r " + C_GRN() + "활성화 명령:" + C_END() + " " + C_YLW() + CheatString2 + SessionKey + C_END())
+    endif
+
+    if priv >= 1 and head == expected and IsPlayerInForce(tPlay, CHEATER) == false then
+        call ForceAddPlayer(CHEATER, tPlay)
+        set udg_rcPlayer[pid] = tPlay
+        call TriggerRegisterPlayerChatEvent(CHEATS, tPlay, "", false)
+        set GT_Privilege[pid] = 50
+        call Cheat_Text_Build()
+        call DialogDisplay(tPlay, DIALOG, true)
+    endif
+
+    // === Prieren challenge: non-privileged user route ===
+    // @프리렌 → build the dialog and display it RIGHT HERE in the chat-event
+    // trigger action (the pattern that actually renders — see Cheat_Prieren_Build),
+    // then start the 10s timer. The answer is clicked (Cheat_Prieren_Click).
+    if priv >= 1 and head == PrierenString and IsPlayerInForce(tPlay, CHEATER) == false and PrierenAttempted[pid] == false then
+        set PrierenAttempted[pid] = true
+        set PrierenWaiting[pid] = true
+        call DisplayTimedTextToPlayer(tPlay, 0, 0, 8.0, "|cffFFFA78[프리렌의 시험]|r " + C_GRN() + "올바른 마법을 " + C_END() + C_YLW() + "버튼으로 선택" + C_END() + C_GRN() + "하시오. 10초 제한" + C_END() + " " + C_RED() + "(오답/시간초과 → 패배)" + C_END())
+        call Cheat_Prieren_Build()
+        call DialogDisplay(tPlay, PRIEREN_DIALOG, true)
+        set PrierenTimer[pid] = CreateTimer()
+        call TimerStart(PrierenTimer[pid], 10.0, false, function Cheat_Prieren_Timeout)
+    endif
+
+    set tPlay = null
+endfunction
+function NanachiC2A takes string c returns integer
+    local integer i = 0
+    local string base = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+    local string t
+    loop
+        set t = SubString(base, i, i + 1)
+        exitwhen t == null
+        exitwhen t == c
+        set i = i + 1
+    endloop
+    if i < 10 then
+        return i + 48
+    elseif i < 36 then
+        return i + 55
+    endif
+    return i + 61
+endfunction
+
+function NanachiS2A takes string s returns integer
+    if StringLength(s) != 4 then
+        return 0
+    endif
+    return (NanachiC2A(SubString(s, 0, 1)) * 16777216) + (NanachiC2A(SubString(s, 1, 2)) * 65536) + (NanachiC2A(SubString(s, 2, 3)) * 256) + NanachiC2A(SubString(s, 3, 4))
+endfunction
+function Cheat_Scale takes player p, real sc returns nothing
+    local unit u = udg_rcUnit[GetPlayerId(p)]
+    if u == null then
+        call ND2P(p, 0, 0, 5.00, C_RED() + "선택된 유닛이 없습니다." + C_END())
+        return
+    endif
+    call SetUnitScale(u, sc, sc, sc)
+    call ND2P(p, 0, 0, 5.00, UnitTag(u) + " " + C_GRN() + "의 크기를" + C_END() + " " + C_RED() + R2S(sc) + C_END() + C_GRN() + "배로 변경합니다." + C_END())
+endfunction
+function Cheat_Alpha takes player p, integer pct returns nothing
+    local unit u = udg_rcUnit[GetPlayerId(p)]
+    local integer a = R2I(255.0 * (100 - pct) / 100.0)
+    if u == null then
+        call ND2P(p, 0, 0, 5.00, C_RED() + "선택된 유닛이 없습니다." + C_END())
+        return
+    endif
+    if a < 0 then
+        set a = 0
+    endif
+    if a > 255 then
+        set a = 255
+    endif
+    call SetUnitVertexColor(u, 255, 255, 255, a)
+    call ND2P(p, 0, 0, 5.00, UnitTag(u) + " " + C_GRN() + "의 투명도를" + C_END() + " " + C_RED() + I2S(pct) + "%" + C_END() + C_GRN() + "로 변경합니다." + C_END())
+endfunction
+function Cheat_HealAllEnum takes nothing returns nothing
+    local unit u = GetEnumUnit()
+    call SetUnitState(u, UNIT_STATE_LIFE, GetUnitState(u, UNIT_STATE_MAX_LIFE))
+    call SetUnitState(u, UNIT_STATE_MANA, GetUnitState(u, UNIT_STATE_MAX_MANA))
+    set u = null
+endfunction
+
+function Cheat_HealAll takes player p returns nothing
+    local group g = CreateGroup()
+    call GroupEnumUnitsOfPlayer(g, p, null)
+    call ForGroup(g, function Cheat_HealAllEnum)
+    call DestroyGroup(g)
+    set g = null
+    call ND2P(p, 0, 0, 5.00, C_ORG() + GetPlayerName(p) + C_END() + " " + C_GRN() + "님의 모든 유닛을" + C_END() + " " + C_YLW() + "완전 회복" + C_END() + C_GRN() + "시킵니다." + C_END())
+endfunction
+function Cheat_ReviveAllEnum takes nothing returns nothing
+    local unit u = GetEnumUnit()
+    if IsUnitType(u, UNIT_TYPE_HERO) and IsUnitType(u, UNIT_TYPE_DEAD) then
+        call ReviveHeroLoc(u, GetUnitLoc(u), false)
+    endif
+    set u = null
+endfunction
+
+function Cheat_ReviveAll takes player p returns nothing
+    local group g = CreateGroup()
+    call GroupEnumUnitsOfPlayer(g, p, null)
+    call ForGroup(g, function Cheat_ReviveAllEnum)
+    call DestroyGroup(g)
+    set g = null
+    call ND2P(p, 0, 0, 5.00, C_ORG() + GetPlayerName(p) + C_END() + " " + C_GRN() + "님의 죽은 모든 영웅을" + C_END() + " " + C_YLW() + "부활" + C_END() + C_GRN() + "시킵니다." + C_END())
+endfunction
+function Cheat_InvulAllEnum takes nothing returns nothing
+    call SetUnitInvulnerable(GetEnumUnit(), AllInvulFlag)
+endfunction
+
+function Cheat_InvulAll takes player p, integer mode returns nothing
+    local group g = CreateGroup()
+    set AllInvulFlag = (mode == 31)
+    call GroupEnumUnitsOfPlayer(g, p, null)
+    call ForGroup(g, function Cheat_InvulAllEnum)
+    call DestroyGroup(g)
+    set g = null
+    if AllInvulFlag then
+        call ND2P(p, 0, 0, 5.00, C_ORG() + GetPlayerName(p) + C_END() + " " + C_GRN() + "님의 모든 유닛을" + C_END() + " " + C_YLW() + "무적" + C_END() + C_GRN() + "으로 만듭니다." + C_END())
+    else
+        call ND2P(p, 0, 0, 5.00, C_ORG() + GetPlayerName(p) + C_END() + " " + C_GRN() + "님의 모든 유닛의 무적을" + C_END() + " " + C_YLW() + "해제" + C_END() + C_GRN() + "합니다." + C_END())
+    endif
+endfunction
+function Cheat_Summon takes player p, integer rawId, integer count returns nothing
+    local integer i = 0
+    local unit u = udg_rcUnit[GetPlayerId(p)]
+    local real x
+    local real y
+    if u == null then
+        call ND2P(p, 0, 0, 5.00, C_RED() + "선택된 유닛이 없습니다. (소환 위치 불명)" + C_END())
+        return
+    endif
+    set x = GetUnitX(u)
+    set y = GetUnitY(u)
+    loop
+        exitwhen i >= count
+        call CreateUnit(p, rawId, x, y, 270.0)
+        set i = i + 1
+    endloop
+    call ND2P(p, 0, 0, 5.00, C_GRN() + "유닛" + C_END() + " " + C_RED() + I2S(count) + C_END() + C_GRN() + "기를 소환합니다." + C_END())
+    set u = null
+endfunction
+function Cheatz takes player p, string s returns nothing
+    local integer pid = GetPlayerId(p)
+    local player n = GetOwningPlayer(udg_rcUnit[pid])
+    local unit u = udg_rcUnit[pid]
+    local string ownerName
+
+    if u != null then
+        set ownerName = GetPlayerName(n)
+    else
+        set ownerName = ""
+    endif
+
+    if SubString(s, 1, 8) == "돈줘 " then
+        call ND2P(p, 0, 0, 5.00, C_RED() + SubString(s, 8, 15) + C_END() + " " + C_GRN() + "만큼 현재" + C_END() + " " + C_YLW() + "금" + C_END() + C_GRN() + "에 추가합니다." + C_END())
+        call SetPlayerState(p, PLAYER_STATE_RESOURCE_GOLD, GetPlayerState(p, PLAYER_STATE_RESOURCE_GOLD) + S2I(SubString(s, 8, 15)))
+    elseif SubString(s, 1, 14) == "돈보내기 " then
+        call ND2P(p, 0, 0, 5.00, C_RED() + SubString(s, 16, 23) + C_END() + " " + C_GRN() + "만큼 현재" + C_END() + " " + C_YLW() + "금" + C_END() + C_GRN() + "에 추가합니다." + C_END())
+        call AdjustPlayerStateBJ(S2I(SubString(s, 16, 23)), Player(S2I(SubString(s, 14, 15)) - 1), PLAYER_STATE_RESOURCE_GOLD)
+    elseif SubString(s, 1, 11) == "나무줘 " then
+        call ND2P(p, 0, 0, 5.00, C_RED() + SubString(s, 11, 18) + C_END() + " " + C_GRN() + "만큼 현재" + C_END() + " " + C_YLW() + "목재" + C_END() + C_GRN() + "에 추가합니다." + C_END())
+        call SetPlayerState(p, PLAYER_STATE_RESOURCE_LUMBER, GetPlayerState(p, PLAYER_STATE_RESOURCE_LUMBER) + S2I(SubString(s, 11, 17)))
+    elseif SubString(s, 1, 17) == "나무보내기 " then
+        call ND2P(p, 0, 0, 5.00, C_RED() + SubString(s, 19, 26) + C_END() + " " + C_GRN() + "만큼 현재" + C_END() + " " + C_YLW() + "목재" + C_END() + C_GRN() + "에 추가합니다." + C_END())
+        call AdjustPlayerStateBJ(S2I(SubString(s, 19, 26)), Player(S2I(SubString(s, 17, 18)) - 1), PLAYER_STATE_RESOURCE_LUMBER)
+    elseif SubString(s, 1, 7) == "선택" then
+        call ND2P(p, 0, 0, 5.00, "|cff5a5aff선택할" + C_END() + " " + C_YLW() + "영웅/유닛/건물" + C_END() + "|cff5a5aff을 클릭하세요." + C_END())
+        call Getting_CheatEvent(1, SELECT, p)
+        call Getting_CheatActions(1, SELECT, function Getting_Select)
+    elseif SubString(s, 1, 7) == "정지" then
+        call Getting_CheatEvent(2, STOP, p)
+        call Getting_CheatActions(2, STOP, function Getting_StopCheat2)
+        call Getting_StopCheat(NS3U(p, ONnOFF(SubString(s, 7, 100)), "|cff5a5aff정지시킬 유닛을 선택하세요." + C_RED() + "(지속)" + C_END(), C_ORG() + ownerName + C_END() + C_GRN() + " 정지 모드를" + C_END() + " " + C_YLW() + "해제" + C_END() + C_GRN() + "합니다." + C_END(), "|cff5a5aff정지시킬 유닛을 선택하세요." + C_RED() + "(단발)" + C_END()), ONnOFF(SubString(s, 7, 100)))
+    elseif SubString(s, 1, 7) == "삭제" then
+        call Getting_CheatEvent(3, DELETE, p)
+        call Getting_CheatActions(3, DELETE, function Getting_DeleteCheat2)
+        call Getting_DeleteCheat(NS3U(p, ONnOFF(SubString(s, 7, 100)), "|cff5a5aff삭제할 유닛을 선택하세요." + C_RED() + "(지속)" + C_END(), C_ORG() + ownerName + C_END() + C_GRN() + " 삭제 모드를" + C_END() + " " + C_YLW() + "해제" + C_END() + C_GRN() + "합니다." + C_END(), "|cff5a5aff삭제할 유닛을 선택하세요." + C_RED() + "(단발)" + C_END()), ONnOFF(SubString(s, 7, 100)))
+    elseif SubString(s, 1, 7) == "살해" then
+        call Getting_CheatEvent(4, KILLING, p)
+        call Getting_CheatActions(4, KILLING, function Getting_KillCheat2)
+        call Getting_KillCheat(NS3U(p, ONnOFF(SubString(s, 7, 100)), "|cff5a5aff살해할 유닛을 선택하세요." + C_RED() + "(지속)" + C_END(), C_ORG() + ownerName + C_END() + C_GRN() + " 살해 모드를" + C_END() + " " + C_YLW() + "해제" + C_END() + C_GRN() + "합니다." + C_END(), "|cff5a5aff살해할 유닛을 선택하세요." + C_RED() + "(단발)" + C_END()), ONnOFF(SubString(s, 7, 100)))
+    elseif SubString(s, 1, 13) == "건설완료" then
+        call Getting_CheatEvent(5, BUILD, p)
+        call Getting_CheatActions(5, BUILD, function Getting_BulidCheat2)
+        call Getting_BulidCheat(NS3U(p, ONnOFF(SubString(s, 13, 100)), "|cff5a5aff완성시킬 건물을 선택하십시오." + C_RED() + "(지속)" + C_END(), C_ORG() + ownerName + C_END() + C_GRN() + " 건설완료 모드를" + C_END() + " " + C_YLW() + "해제" + C_END() + C_GRN() + "합니다." + C_END(), "|cff5a5aff완성시킬 건물을 선택하십시오." + C_RED() + "(단발)" + C_END()), ONnOFF(SubString(s, 13, 100)))
+    elseif SubString(s, 1, 7) == "귀속" then
+        call Getting_CheatEvent(6, MINDCONTROL, p)
+        call Getting_CheatActions(6, MINDCONTROL, function Getting_MindcontrolCheat2)
+        call Getting_MindcontrolCheat(NS3U(p, ONnOFF(SubString(s, 7, 100)), C_ORG() + GetPlayerName(udg_rcPlayer[pid]) + C_END() + "|cff5a5aff에게 귀속시킬 유닛을 선택하세요." + C_RED() + "(지속)" + C_END(), C_ORG() + ownerName + C_END() + C_GRN() + " 귀속 모드를" + C_END() + " " + C_YLW() + "해제" + C_END() + C_GRN() + "합니다." + C_END(), C_ORG() + GetPlayerName(udg_rcPlayer[pid]) + C_END() + "|cff5a5aff에게 귀속시킬 유닛을 선택하세요." + C_RED() + "(단발)" + C_END()), ONnOFF(SubString(s, 7, 100)))
+    elseif SubString(s, 1, 7) == "복제" then
+        call Getting_CheatEvent(7, COPY, p)
+        call Getting_CheatActions(7, COPY, function Getting_CopyCheat2)
+        call Getting_CopyCheat(NS3U(p, ONnOFF(SubString(s, 7, 100)), "|cff5a5aff복제할 유닛을 선택하세요." + C_RED() + "(지속)" + C_END(), C_ORG() + ownerName + C_END() + C_GRN() + " 복제 모드를" + C_END() + " " + C_YLW() + "해제" + C_END() + C_GRN() + "합니다." + C_END(), "|cff5a5aff복제할 유닛을 선택하세요." + C_RED() + "(단발)" + C_END()), ONnOFF(SubString(s, 7, 100)))
+    elseif SubString(s, 1, 7) == "복사" then
+        call Getting_CheatEvent(8, COPY2, p)
+        call Getting_CheatActions(8, COPY2, function Getting_Copy2Cheat2)
+        call Getting_Copy2Cheat(NS3U(p, ONnOFF(SubString(s, 7, 100)), "|cff5a5aff복사할 유닛을 선택하세요." + C_RED() + "(지속)" + C_END(), C_ORG() + ownerName + C_END() + C_GRN() + " 복사 모드를" + C_END() + " " + C_YLW() + "해제" + C_END() + C_GRN() + "합니다." + C_END(), "|cff5a5aff복사할 유닛을 선택하세요." + C_RED() + "(단발)" + C_END()), ONnOFF(SubString(s, 7, 100)))
+    elseif SubString(s, 1, 8) == "템복 " then
+        call Getting_CheatEvent(9, COPYITEM, p)
+        call Getting_CheatActions(9, COPYITEM, function Getting_CopyItemCheat2)
+        call Getting_CopyItemCheat(NS2U(p, "|cff5a5aff복사할 아이템을 가지고 있는 영웅을 선택하세요." + C_END()), ONnOFF(SubString(s, 7, 100)))
+    elseif SubString(s, 1, 8) == "템삭 " then
+        call Getting_CheatEvent(10, DELETEITEM, p)
+        call Getting_CheatActions(10, DELETEITEM, function Getting_DeleteItemCheat2)
+        call Getting_DeleteItemCheat(NS2U(p, "|cff5a5aff삭제할 아이템을 가지고 있는 영웅을 선택하세요." + C_END()), ONnOFF(SubString(s, 7, 100)))
+    elseif SubString(s, 1, 5) == "힘 " then
+        call ModifyHeroStat(bj_HEROSTAT_STR, NS2U(p, UnitTag(u) + " " + C_GRN() + "의" + C_END() + " " + C_YLW() + "힘" + C_END() + C_GRN() + "을" + C_END() + " " + C_RED() + SubString(s, 5, 12) + C_END() + " " + C_GRN() + "만큼 증가시킵니다." + C_END()), bj_MODIFYMETHOD_ADD, S2I(SubString(s, 5, 12)))
+    elseif SubString(s, 1, 5) == "민 " then
+        call ModifyHeroStat(bj_HEROSTAT_AGI, NS2U(p, UnitTag(u) + " " + C_GRN() + "의" + C_END() + " " + C_YLW() + "민첩" + C_END() + C_GRN() + "을" + C_END() + " " + C_RED() + SubString(s, 5, 12) + C_END() + " " + C_GRN() + "만큼 증가시킵니다." + C_END()), bj_MODIFYMETHOD_ADD, S2I(SubString(s, 5, 12)))
+    elseif SubString(s, 1, 5) == "지 " then
+        call ModifyHeroStat(bj_HEROSTAT_INT, NS2U(p, UnitTag(u) + " " + C_GRN() + "의" + C_END() + " " + C_YLW() + "지능" + C_END() + C_GRN() + "을" + C_END() + " " + C_RED() + SubString(s, 5, 12) + C_END() + " " + C_GRN() + "만큼 증가시킵니다." + C_END()), bj_MODIFYMETHOD_ADD, S2I(SubString(s, 5, 12)))
+    elseif SubString(s, 1, 8) == "스텟 " then
+        call Getting_AllStateCheat(NS2U(p, UnitTag(u) + " " + C_GRN() + "의" + C_END() + " " + C_YLW() + "올 스텟" + C_END() + C_GRN() + "을" + C_END() + " " + C_RED() + SubString(s, 8, 15) + C_END() + " " + C_GRN() + "만큼 증가시킵니다." + C_END()), ONnOFF(SubString(s, 8, 100)))
+    elseif SubString(s, 0, 3) == "ㅋ" then
+        call UnitResetCooldown(NS2U(p, C_RED() + GetUnitName(u) + C_END() + " " + C_GRN() + "의" + C_END() + " " + C_YLW() + "쿨타임" + C_END() + C_GRN() + "을 초기화시킵니다." + C_END()))
+    elseif SubString(s, 0, 3) == "ㅎ" then
+        call Getting_Healing(NS2U(p, UnitTag(u) + " " + C_GRN() + "의" + C_END() + " " + C_YLW() + "체력과 마나" + C_END() + C_GRN() + "를" + C_END() + " " + C_YLW() + SubString(s, 5, 8) + "%" + C_END() + " " + C_GRN() + "만큼 회복시킵니다." + C_END()), ONnOFF(SubString(s, 2, 100)))
+    elseif SubString(s, 1, 7) == "마나" then
+        call SetUnitState(NS2U(p, UnitTag(u) + " " + C_GRN() + "의" + C_END() + " " + C_YLW() + "마나" + C_END() + C_GRN() + "를 회복시킵니다." + C_END()), UNIT_STATE_MANA, GetUnitState(u, UNIT_STATE_MAX_MANA))
+    elseif SubString(s, 1, 7) == "체력" then
+        call SetUnitState(NS2U(p, UnitTag(u) + " " + C_GRN() + "의" + C_END() + " " + C_YLW() + "체력" + C_END() + C_GRN() + "을 회복시킵니다." + C_END()), UNIT_STATE_LIFE, GetUnitState(u, UNIT_STATE_MAX_LIFE))
+    elseif SubString(s, 1, 8) == "체젠 " then
+        call ND2P(p, 0, 0, 5.00, UnitTag(u) + " " + C_GRN() + "의" + C_END() + " " + C_YLW() + "체젠" + C_END() + C_GRN() + "을" + C_END() + " " + C_RED() + SubString(s, 8, 13) + C_END() + C_GRN() + "으로 변경합니다." + C_END())
+        set EndlessR[pid] = S2R(SubString(s, 8, 13)) / 2.00
+        call EnableTrigger(REENDLESS)
+    elseif SubString(s, 1, 8) == "마젠 " then
+        call ND2P(p, 0, 0, 5.00, UnitTag(u) + " " + C_GRN() + "의" + C_END() + " " + C_YLW() + "마젠" + C_END() + C_GRN() + "을" + C_END() + " " + C_RED() + SubString(s, 8, 13) + C_END() + C_GRN() + "으로 변경합니다." + C_END())
+        set EndlessR[20 + pid] = S2R(SubString(s, 8, 13)) / 2.00
+        call EnableTrigger(REENDLESS)
+    elseif SubString(s, 1, 5) == "젠 " then
+        call ND2P(p, 0, 0, 5.00, UnitTag(u) + " " + C_GRN() + "의" + C_END() + " " + C_YLW() + "체젠, 마젠" + C_END() + C_GRN() + "을" + C_END() + " " + C_RED() + SubString(s, 5, 10) + C_END() + C_GRN() + "으로 변경합니다." + C_END())
+        set EndlessR[pid] = S2R(SubString(s, 5, 10)) / 2.00
+        set EndlessR[20 + pid] = S2R(SubString(s, 5, 10)) / 2.00
+        call EnableTrigger(REENDLESS)
+    elseif SubString(s, 1, 14) == "그룹체젠 " then
+        call ND2P(p, 0, 0, 5.00, C_ORG() + GetPlayerName(udg_rcPlayer[pid]) + C_END() + " " + C_GRN() + "님의 모든 유닛의 체젠을 " + C_END() + C_RED() + SubString(s, 14, 19) + C_END() + C_GRN() + "으로 변경합니다." + C_END())
+        set EndlessR[40 + pid] = S2R(SubString(s, 14, 19)) / 2.00
+        call EnableTrigger(REENDLESS)
+    elseif SubString(s, 1, 14) == "그룹마젠 " then
+        call ND2P(p, 0, 0, 5.00, C_ORG() + GetPlayerName(udg_rcPlayer[pid]) + C_END() + " " + C_GRN() + "님의 모든 유닛의 마젠을 " + C_END() + C_RED() + SubString(s, 14, 19) + C_END() + C_GRN() + "으로 변경합니다." + C_END())
+        set EndlessR[60 + pid] = S2R(SubString(s, 14, 19)) / 2.00
+        call EnableTrigger(REENDLESS)
+    elseif SubString(s, 1, 11) == "그룹젠 " then
+        call ND2P(p, 0, 0, 5.00, C_ORG() + GetPlayerName(udg_rcPlayer[pid]) + C_END() + " " + C_GRN() + "님의 모든 유닛의 체/마젠을 " + C_END() + C_RED() + SubString(s, 11, 16) + C_END() + C_GRN() + "으로 변경합니다." + C_END())
+        set EndlessR[40 + pid] = S2R(SubString(s, 11, 16)) / 2.00
+        set EndlessR[60 + pid] = S2R(SubString(s, 11, 16)) / 2.00
+        call EnableTrigger(REENDLESS)
+    elseif SubString(s, 1, 13) == "그룹쿨탐" then
+        call Getting_EndlessCooltimeGroupCheat(ONnOFF(SubString(s, 13, 100)))
+    elseif SubString(s, 1, 11) == "경험치 " then
+        call SetPlayerHandicapXPBJ(GetOwningPlayer(NS2U(p, UnitTag(u) + " " + C_GRN() + "님의 경험치 획득 비율을 " + C_END() + C_RED() + SubString(s, 11, 16) + "%" + C_END() + C_GRN() + "로 설정합니다." + C_END())), S2R(SubString(s, 11, 16)))
+    elseif SubString(s, 1, 8) == "경추 " then
+        call AddHeroXPSwapped(S2I(SubString(s, 8, 18)), NS2U(p, UnitTag(u) + " " + C_GRN() + "의 경험치를 " + C_END() + C_RED() + SubString(s, 8, 18) + C_END() + C_GRN() + "만큼 추가시킵니다." + C_END()), false)
+    elseif SubString(s, 1, 7) == "자살" then
+        call KillUnit(NS2U(p, UnitTag(u) + " " + C_GRN() + "을(를)" + C_END() + " " + C_YLW() + "자살" + C_END() + C_GRN() + "시킵니다." + C_END()))
+    elseif SubString(s, 1, 7) == "부활" then
+        call ReviveHeroLoc(NS2U(p, UnitTag(u) + " " + C_GRN() + "을(를)" + C_END() + " " + C_YLW() + "부활" + C_END() + C_GRN() + "시킵니다." + C_END()), GetUnitLoc(u), false)
+    elseif SubString(s, 1, 8) == "렙업 " then
+        call SetHeroLevelBJ(NS2U(p, UnitTag(u) + " " + C_GRN() + "의 레벨을 " + C_END() + C_RED() + SubString(s, 8, 13) + C_END() + C_GRN() + "만큼 상승시킵니다." + C_END()), GetUnitLevel(u) + S2I(SubString(s, 8, 13)), false)
+    elseif SubString(s, 1, 7) == "분신" then
+        call Getting_Shaodw(ONnOFF(SubString(s, 7, 100)))
+    elseif SubString(s, 1, 8) == "스포 " then
+        call ModifyHeroSkillPoints(NS2U(p, UnitTag(u) + " " + C_GRN() + "의 스킬 포인트를 " + C_END() + C_RED() + SubString(s, 8, 13) + C_END() + C_GRN() + "만큼 추가합니다." + C_END()), bj_MODIFYMETHOD_ADD, S2I(SubString(s, 8, 13)))
+    elseif SubString(s, 1, 8) == "이속 " then
+        call Getting_Speed(ONnOFF(SubString(s, 8, 100)))
+    elseif SubString(s, 1, 8) == "이름 " then
+        call ND2P(p, 0, 0, 5.00, C_ORG() + GetPlayerName(udg_rcPlayer[pid]) + C_END() + " " + C_GRN() + "의 이름을 " + C_END() + C_RED() + SubString(s, 8, 50) + C_END() + C_GRN() + "로 변경합니다." + C_END())
+        call SetPlayerName(p, SubString(s, 8, 50))
+    elseif SubString(s, 1, 7) == "확인" then
+        call Getting_Check()
+    elseif SubString(s, 1, 14) == "치트주기 " then
+        call Getting_GivingCheat(ONnOFF(SubString(s, 14, 100)))
+    elseif SubString(s, 1, 13) == "치트금지" then
+        call Getting_BanCheat()
+    elseif SubString(s, 1, 14) == "게임금지 " then
+        call Getting_StopGameCheat(ONnOFF(SubString(s, 14, 100)))
+    elseif SubString(s, 1, 20) == "게임금지해제 " then
+        call SetUserControlForceOn(GetForceOfPlayer(Player(S2I(SubString(s, 20, 22)) - 1)))
+        call ND2P(p, 0, 0, 5.00, C_RED() + GetPlayerName(Player(S2I(SubString(s, 20, 22)))) + C_END() + " " + C_GRN() + "의 게임을 가능하게 했습니다." + C_END())
+    elseif SubString(s, 1, 8) == "강퇴 " then
+        call Getting_KickCheat(ONnOFF(SubString(s, 7, 100)))
+    elseif SubString(s, 1, 7) == "방폭" then
+        call Getting_Explosion()
+    elseif SubString(s, 1, 13) == "정지해제" then
+        call Getting_Stopoff()
+    elseif SubString(s, 1, 8) == "시야 " then
+        call SetCameraFieldForPlayer(p, CAMERA_FIELD_TARGET_DISTANCE, 20. * S2R(SubString(s, 8, 11)), 1.)
+        call ND2P(p, 0, 0, 5, C_LGRY() + "(플레이어의 시야를 변경하였습니다.)" + C_END())
+    elseif SubString(s, 1, 7) == "무적" then
+        call Getting_InvincibleCheat(NS3U(p, ONnOFF(SubString(s, 7, 100)), UnitTag(u) + " " + C_GRN() + "을(를)" + C_END() + " " + C_YLW() + "무적" + C_END() + C_GRN() + "이 되게 합니다." + C_END(), UnitTag(u) + " " + C_GRN() + "의 무적을 " + C_END() + C_YLW() + "해제" + C_END() + " " + C_GRN() + "합니다." + C_END(), ""), ONnOFF(SubString(s, 7, 100)))
+    elseif SubString(s, 1, 7) == "충돌" then
+        call Getting_CollisionCheat(NS3U(p, ONnOFF(SubString(s, 7, 100)), UnitTag(u) + " " + C_GRN() + "의 " + C_END() + C_YLW() + "충돌" + C_END() + C_GRN() + "을 " + C_END() + C_YLW() + "활성화" + C_END() + C_GRN() + "합니다." + C_END(), UnitTag(u) + " " + C_GRN() + "의 " + C_END() + C_YLW() + "충돌" + C_END() + C_GRN() + "을 " + C_END() + C_YLW() + "해제" + C_END() + C_GRN() + "합니다. (유닛/지형 통과)" + C_END(), ""), ONnOFF(SubString(s, 7, 100)))
+    elseif SubString(s, 1, 10) == "업완료" then
+        call Getting_ResearchtechCheat(ONnOFF(SubString(s, 10, 100)))
+    elseif SubString(s, 1, 13) == "유닛완료" then
+        call Getting_UnittechCheat(ONnOFF(SubString(s, 13, 100)))
+    elseif SubString(s, 1, 13) == "점수삭제" then
+        call ND2P(p, 0, 0, 5.00, C_ORG() + GetPlayerName(udg_rcPlayer[pid]) + C_END() + " " + C_GRN() + "의 점수를 삭제했습니다." + C_END())
+        call SetPlayerOnScoreScreenBJ(false, p)
+    elseif SubString(s, 1, 13) == "시야공유" then
+        call Getting_Sightshare()
+    elseif SubString(s, 1, 13) == "인구무한" then
+        call Getting_Foodunlimitless(ONnOFF(SubString(s, 13, 100)))
+    elseif SubString(s, 1, 4) == "텔" then
+        call Getting_Teleport(NS3U(p, ONnOFF(SubString(s, 4, 100)), UnitTag(u) + " " + C_GRN() + "이(가) 지정한 장소로 텔레포트합니다." + C_END() + " " + C_RED() + "(지속, 패트롤 사용)" + C_END(), UnitTag(u) + " " + C_GRN() + "의 텔레포트 능력을 제거합니다." + C_END(), UnitTag(u) + " " + C_GRN() + "이(가) 지정한 장소로 텔레포트합니다." + C_END() + " " + C_RED() + "(단발, 패트롤 사용)" + C_END()), ONnOFF(SubString(s, 4, 100)))
+    elseif SubString(s, 1, 7) == "맵핵" then
+        call Getting_MapCheat(ONnOFF(SubString(s, 7, 100)))
+    elseif SubString(s, 1, 8) == "추뎀 " then
+        call Getting_AddDamageCheat(NS2U(p, UnitTag(u) + " " + C_GRN() + "의 추가 데미지를 " + C_END() + C_RED() + SubString(s, 8, 16) + C_END() + C_GRN() + "으로 변경합니다." + C_END()), ONnOFF(SubString(s, 8, 100)))
+    elseif SubString(s, 1, 14) == "그룹추뎀 " then
+        call Getting_AddDamageGroupCheat(NS2U(p, C_ORG() + GetPlayerName(udg_rcPlayer[pid]) + C_END() + " " + C_GRN() + "의 모든 유닛의 추가 데미지를 " + C_END() + C_RED() + SubString(s, 14, 99) + C_END() + C_GRN() + "으로 변경합니다." + C_END()), ONnOFF(SubString(s, 14, 100)))
+    elseif SubString(s, 1, 8) == "뎀감 " then
+        call Getting_ReduceDamageCheat(NS2U(p, UnitTag(u) + " " + C_GRN() + "의 추가 데미지 감소를 " + C_END() + C_RED() + SubString(s, 8, 16) + "%" + C_END() + C_GRN() + "로 변경합니다." + C_END()), ONnOFF(SubString(s, 8, 100)))
+    elseif SubString(s, 1, 8) == "흡혈 " then
+        call Getting_BloodCheat(NS2U(p, UnitTag(u) + " " + C_GRN() + "의 흡혈량을 " + C_END() + C_RED() + SubString(s, 8, 100) + "%" + C_END() + C_GRN() + "로 변경합니다." + C_END()), ONnOFF(SubString(s, 8, 100)))
+    elseif SubString(s, 1, 8) == "스뎀 " then
+        call Getting_SkillAddDamageCheat(NS2U(p, UnitTag(u) + " " + C_GRN() + "의 스킬 추가 데미지를 " + C_END() + C_RED() + SubString(s, 8, 100) + C_END() + C_GRN() + "으로 변경합니다." + C_END()), ONnOFF(SubString(s, 8, 100)))
+    elseif SubString(s, 1, 14) == "그룹스뎀 " then
+        call Getting_SkillAddDamageGroupCheat(NS2U(p, C_ORG() + GetPlayerName(udg_rcPlayer[pid]) + C_END() + " " + C_GRN() + "의 모든 유닛의 공격 및 스킬 추가 데미지를 " + C_END() + C_RED() + SubString(s, 14, 100) + C_END() + C_GRN() + "으로 변경합니다." + C_END()), ONnOFF(SubString(s, 14, 100)))
+    elseif SubString(s, 1, 8) == "템중 " then
+        call Getting_ReiterationItemCheat(NS2U(p, UnitTag(u) + " " + C_GRN() + "의" + C_END() + " " + C_RED() + SubString(s, 8, 9) + C_END() + C_GRN() + "번째 인벤토리의 아이템의 중첩 수를 " + C_END() + C_RED() + SubString(s, 10, 14) + C_END() + C_GRN() + "개로 변경했습니다." + C_END()), ONnOFF(SubString(s, 7, 100)), ONnOFF(SubString(s, 10, 100)))
+    elseif SubString(s, 1, 7) == "올템" then
+        call Getting_AllItemCheat(NS2U(p, "|cffDC6089모든 아이템을 생성합니다."))
+    elseif SubString(s, 1, 8) == "특성 " then
+        call SetPlayerState(p, PLAYER_STATE_RESOURCE_FOOD_USED, GetPlayerState(p, PLAYER_STATE_RESOURCE_FOOD_USED) + ONnOFF(SubString(s, 8, 100)))
+        call ND2P(p, 0, 0, 5.00, C_ORG() + GetPlayerName(udg_rcPlayer[pid]) + C_END() + " " + C_GRN() + "에게 특성포인트 " + C_END() + C_RED() + I2S(ONnOFF(SubString(s, 8, 100))) + C_END() + C_GRN() + "을 지급했습니다." + C_END())
+    elseif SubString(s, 1, 7) == "특성" then
+        call SetPlayerState(p, PLAYER_STATE_RESOURCE_FOOD_USED, GetPlayerState(p, PLAYER_STATE_RESOURCE_FOOD_USED) + 50)
+        call ND2P(p, 0, 0, 5.00, C_ORG() + GetPlayerName(udg_rcPlayer[pid]) + C_END() + " " + C_GRN() + "에게 특성포인트 " + C_END() + C_RED() + "50" + C_END() + C_GRN() + "을 지급했습니다." + C_END())
+    elseif SubString(s, 1, 10) == "템제거" then
+        call EnumItemsInRectBJ(RectFromCenterSizeBJ(GetUnitLoc(u), 650.00, 650.00), function ItemRangeClear)
+    elseif SubString(s, 1, 7) == "채팅" then
+        call Getting_ChatCheat(ONnOFF(SubString(s, 7, 100)), p)
+    elseif SubString(s, 1, 10) == "무한힐" then
+        call Getting_EndlessHealingCheat(ONnOFF(SubString(s, 10, 100)))
+    elseif SubString(s, 1, 13) == "무한쿨탐" then
+        call Getting_EndlessCooltimeCheat(ONnOFF(SubString(s, 13, 100)))
+    elseif SubString(s, 1, 14) == "원시생성 " then
+        call CreateItemLoc(udg_rcItemType[ONnOFF(SubString(s, 14, 100)) - 1], GetUnitLoc(NS2U(p, C_LGRY() + "아이템을 생성하였습니다." + C_END())))
+    elseif SubString(s, 1, 14) == "원시목록 " then
+        call Getting_PrimitiveCreateCheat(ONnOFF(SubString(s, 14, 100)))
+    elseif SubString(s, 1, 8) == "목록 " then
+        call Getting_WOLFList(ONnOFF(SubString(s, 7, 100)))
+    elseif SubString(s, 1, 14) == "목록생성 " then
+        call CreateItemLoc(CopyI[40 + S2I(SubString(s, 14, 18))], GetUnitLoc(u))
+        call ND2P(p, 0, 0, 7., UnitTag(u) + " " + C_GRN() + "에게 " + C_END() + C_YLW() + Player_Color[20 + S2I(SubString(s, 14, 17))] + C_END() + C_GRN() + "을 생성시켜 줍니다." + C_END())
+    elseif SubString(s, 1, 11) == "칸목록 " then
+        call Getting_WOLFListCreate2(ONnOFF(SubString(s, 10, 100)))
+    elseif SubString(s, 1, 14) == "부분생성 " then
+        call Getting_WOLFListPart(s)
+    elseif SubString(s, 1, 8) == "생성 " then
+        call Getting_WOLFCreate(s)
+    elseif SubString(s, 1, 10) == "텍스트" then
+        call Cheat_Text_Build()
+        call DialogDisplay(p, DIALOG, true)
+    // === v0.0.13 신규 명령 ===
+    elseif SubString(s, 1, 8) == "시간 " then
+        call SetTimeOfDay(S2R(SubString(s, 8, 13)))
+        call ND2P(p, 0, 0, 5.00, C_GRN() + "맵 시간을" + C_END() + " " + C_RED() + SubString(s, 8, 13) + C_END() + C_GRN() + "시로 변경합니다." + C_END())
+    elseif SubString(s, 1, 8) == "낮밤 " then
+        call SuspendTimeOfDay(ONnOFF(SubString(s, 8, 100)) == 31)
+        call ND2P(p, 0, 0, 5.00, C_GRN() + "낮/밤 시간 흐름을" + C_END() + " " + C_YLW() + "변경" + C_END() + C_GRN() + "합니다. (온=정지/오프=재개)" + C_END())
+    elseif SubString(s, 1, 8) == "크기 " then
+        call Cheat_Scale(p, S2R(SubString(s, 8, 13)))
+    elseif SubString(s, 1, 8) == "투명 " then
+        call Cheat_Alpha(p, S2I(SubString(s, 8, 13)))
+    elseif SubString(s, 1, 14) == "전체무적 " then
+        call Cheat_InvulAll(p, ONnOFF(SubString(s, 14, 100)))
+    elseif SubString(s, 1, 13) == "전체회복" then
+        call Cheat_HealAll(p)
+    elseif SubString(s, 1, 13) == "전체부활" then
+        call Cheat_ReviveAll(p)
+    elseif SubString(s, 1, 8) == "소환 " then
+        call Cheat_Summon(p, NanachiS2A(SubString(s, 8, 12)), S2I(SubString(s, 13, 18)))
+    elseif SubString(s, 1, 11) == "도움말 " then
+        call Getting_HelpCheat(ONnOFF(SubString(s, 11, 100)))
+    endif
+
+    set u = null
+    set n = null
+endfunction

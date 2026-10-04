@@ -5,43 +5,40 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 from doctor.fix import unprotect as D
 
-VERSION = '1.5.7'
+VERSION = '1.5.8'
 
 STAGES = {
     'read_map': 'Reading the map...',
-    'ntfs': 'Undoing the NTFS compression left inside the copied file...',
-    'carver': 'Rebuilding the archive from the file data (its file tables are unreadable)...',
+    'ntfs': 'Undoing the NTFS compression...',
+    'carver': 'Rebuilding the archive from the file data...',
     'tables': 'Checking the MPQ archive...',
-    'fake_files': 'Checking every file entry for fake files...',
-    'counts': 'Checking the editor files for an inflated counter...',
-    'name_list': 'Recovering file names (this can take a few minutes on big maps)...',
-    'sector_bytes': 'Rewriting the archive with normal 4 KB sectors...',
+    'fake_files': 'Checking for fake files...',
+    'counts': 'Checking the editor counters...',
+    'name_list': 'Recovering file names...',
+    'sector_bytes': 'Rewriting the archive with 4 KB sectors...',
     'sprotect': 'Undoing the SProtect scrambling...',
-    'repair': 'Fixing the MPQ header and removing fake files...',
+    'repair': 'Fixing the MPQ header...',
     'listing': 'Writing a real file list...',
-    'ids': 'Restoring the scrambled object IDs...',
-    'data_bytes': 'Fixing the data tables for Warcraft III 3.0...',
-    'script': 'Turning the compiled script back into JASS (this can take a minute)...',
-    'editor': 'Adding what the World Editor needs...',
+    'ids': 'Restoring the object IDs...',
+    'data_bytes': 'Fixing the data tables for 3.0...',
+    'script': 'Turning the script back into JASS...',
+    'editor': 'Preparing the World Editor...',
     'save': 'Saving...',
     'verify': 'Checking the result...',
-    'extra_models': 'Fixing the models that crash the game...',
-    'extra_model_names': 'Giving the models their name back...',
-    'extra_portraits': 'Removing the old cameras of the portrait models...',
-    'extra_data_pointers': 'Aligning the levelled data pointers...',
-    'extra_uabi': 'Moving the unit ability lists to the script...',
-    'extra_preload': 'Loading the first seconds under the loading screen...',
-    'extra_single_player': 'Letting the map run in single player...',
-    'extra_card': 'Writing the map card changes...',
+    'extra_models': 'Fixing the models...',
+    'extra_model_names': 'Naming the models...',
+    'extra_portraits': 'Removing the portrait cameras...',
+    'extra_data_pointers': 'Aligning the data pointers...',
+    'extra_uabi': 'Moving the ability lists to the script...',
+    'extra_preload': 'Preloading the first seconds...',
+    'extra_single_player': 'Allowing single player...',
+    'extra_card': 'Writing the map card...',
     'extra_translation': 'Applying the translation...',
-    'extra_shrink': 'Making the map smaller (this can take a while on big maps)...',
+    'extra_shrink': 'Making the map smaller...',
 }
 
-MARKS = {'vexorian': ' (the mark of the Vexorian map optimizer, "VxOP")', 'w3p': ' (the mark of the w3p protector)',
-         'pg2': ' (the mark of the PG2 protector)', 'sprotect': ' (the mark of SProtect)'}
-NO_ENCRYPTION = ('Ask the author for a copy without the KK encryption. Other versions of a map sometimes reach the '
-                 'platform\'s download folder (Maps\\dz) as plain archives: if you find one of this map there, use '
-                 'that file.')
+MARKS = {'vexorian': ' (VxOP mark)', 'w3p': ' (w3p mark)', 'pg2': ' (PG2 mark)', 'sprotect': ' (SProtect)'}
+NO_ENCRYPTION = 'Ask the author for a copy without the KK encryption (other versions reach Maps\\dz as plain archives).'
 COMPILED = {'kkwe': 'kkmap.jc (KKWE)', 'j2b': 'war3map.bin (j2b)'}
 
 COUNT = {
@@ -71,11 +68,11 @@ def pluralize(n, singular, plural):
 
 def _reason(code, field_value):
     return {
-        'version_num': 'the format version is %d (it must be 0)' % field_value,
-        'bad_header_size': 'the header size is 0x%08X (it must be 0x20)' % (field_value & 0xFFFFFFFF),
-        'hash_position': 'the position of the hash table is invalid',
-        'block_position': 'the position of the block table is invalid (before the header)',
-        'sector_bytes': 'the sector size field has garbage in it',
+        'version_num': 'format version %d, must be 0' % field_value,
+        'bad_header_size': 'header size 0x%08X, must be 0x20' % (field_value & 0xFFFFFFFF),
+        'hash_position': 'bad hash table position',
+        'block_position': 'block table before the header',
+        'sector_bytes': 'garbage in the sector size field',
     }.get(code, code)
 
 
@@ -93,26 +90,22 @@ def _short_names(file_set):
 def describe_data(p):
     c, n, where = p['code'], p.get('n', 0), _short_names(p.get('file_set'))
     if c == 'slk_file_column':
-        return ('%s %s the models of %s in the `file` column. Warcraft III 3.0 reads that column and crashes '
-                'when the first unit or item is created, with nothing in the log. The paths go to UnitSkin.txt and '
-                'ItemSkin.txt.' % (where, 'keeps' if len(p.get('file_set') or []) == 1 else 'keep',
-                                   pluralize(n, 'unit or item', 'units and items')))
+        return ('%s %s %s in the `file` column: 3.0 crashes on it.'
+                % (where, 'keeps' if len(p.get('file_set') or []) == 1 else 'keep',
+                   pluralize(n, 'model', 'models')))
     if c == 'slk_levels':
-        return ('%s has no columns for ability levels 5 and 6. In 3.0 every value of those levels reads as 0: hero '
-                'skills vanish from the command card and damage drops to 0. They are added as copies of level 4, '
-                'which is what older patches used.' % where)
+        return '%s has no columns for ability levels 5 and 6: in 3.0 their values read as 0.' % where
     if c == 'slk_buttonpos':
-        return ('%s half written (like Buttonpos=,2) in %s. They are completed (0,2).'
-                % (pluralize(n, 'command button position is', 'command button positions are'), where))
+        return ('%s half written in %s (like Buttonpos=,2): completed to (0,2).'
+                % (pluralize(n, 'command button position', 'command button positions'), where))
     if c == 'fdf_stray_comment':
-        return ('%s in %s that closes no /*: 3.0 rejects it and closes on the loading screen. It is removed.'
+        return ('%s in %s that closes no /*: 3.0 rejects the file on the loading screen.'
                 % (pluralize(n, 'stray */', 'stray */'), where))
     if c == 'slk_id_list':
-        return ('%s in %s end in |n (like "A07Y|n", a line break left in the field). 3.0 reads it as part of the '
-                'code, so the item or unit has an ability that does not exist. The |n is removed.'
+        return ('%s in %s end in |n: 3.0 reads an ability that does not exist.'
                 % (pluralize(n, 'list of abilities', 'lists of abilities'), where))
     if c == 'slk_quoted_numbers':
-        return ('%s stored as text in %s (like walk="280."). Not a crash, cleaned up as well.'
+        return ('%s stored as text in %s: not a crash, cleaned up as well.'
                 % (pluralize(n, 'number', 'numbers'), where))
     return c
 
@@ -122,11 +115,11 @@ def data_done(steps):
     out = []
     x = details.get('file_column')
     if x:
-        out.append('Moved %s out of the `file` column of %s into UnitSkin.txt and ItemSkin.txt: the column that '
-                   'crashes 3.0 is gone.' % (pluralize(sum(x.values()), 'model path', 'model paths'), _short_names(x)))
+        out.append('Moved %s in %s to UnitSkin.txt and ItemSkin.txt.'
+                   % (pluralize(sum(x.values()), 'model path', 'model paths'), _short_names(x)))
     x = details.get('levels')
     if x:
-        out.append('Added the columns for ability levels 5 and 6 to %s (%s, copies of level 4).'
+        out.append('Added the columns for ability levels 5 and 6 to %s (%s).'
                    % (_short_names(x), pluralize(sum(x.values()), 'column', 'columns')))
     x = details.get('buttonpos')
     if x:
@@ -143,9 +136,8 @@ def data_done(steps):
         )
     x = details.get('quoted_numbers')
     if x:
-        n = sum(x.values())
-        out.append('Turned %s back into %s in %s.' % (pluralize(n, 'value stored as text', 'values stored as text'),
-                                                      'a number' if n == 1 else 'numbers', _short_names(x)))
+        out.append('Turned %s back into numbers in %s.'
+                   % (pluralize(sum(x.values()), 'value stored as text', 'values stored as text'), _short_names(x)))
     return out
 
 
@@ -153,63 +145,47 @@ def describe(p):
     c = p['code']
     if c == 'ntfs_copy':
         lost = p.get('lost') or 0
-        extra = ''
-        if lost:
-            extra = (' The copy stopped %s short, at the end of the file tables: %s rebuilt from the files themselves.'
-                     % (pluralize(lost, 'byte', 'bytes'),
-                        pluralize(p.get('tables_rebuilt') or 0, 'table entry was', 'table entries were')))
-        return ('Not a protection: this file was copied from a compressed NTFS folder without being decompressed, so '
-                'the compressed data of its last part is still inside it. The map is read from the decompressed data.'
-                + extra)
+        if not lost:
+            return 'Not a protection: a copy of a compressed NTFS file.'
+        pieces = ['%s short' % pluralize(lost, 'byte', 'bytes')]
+        if p.get('tables_rebuilt'):
+            pieces.append('%s rebuilt' % pluralize(p['tables_rebuilt'], 'table entry', 'table entries'))
+        return 'Not a protection: a compressed NTFS copy (%s).' % '; '.join(pieces)
     if c == 'fake_header':
         return ('%s before the real one: tools that stop at the first header read garbage.'
                 % ('A fake MPQ header sits' if p['n'] == 1 else '%s fake MPQ headers sit' % num(p['n'])))
     if c == 'missing_hm3w':
-        return {
-            'mpq_at_zero': 'The map header (HM3W) is missing: the archive starts at the very first byte.',
-            'user_data': 'The map header (HM3W) was replaced by an MPQ "user data" block.',
-        }.get(
-            p.get('first_pos'), 'The map header (HM3W) is missing.'
-        ) + ' The World Editor and the map list of the game read it.'
+        return {'mpq_at_zero': 'The map header (HM3W) is missing: the archive starts at byte 0.',
+                'user_data': 'The map header (HM3W) was replaced by an MPQ "user data" block.'}.get(
+            p.get('first_pos'), 'The map header (HM3W) is missing.')
     if c == 'read_only':
-        return ('The MPQ header was tampered with, so the MPQ Editor opens the map read-only%s: %s.'
+        return ('MPQ Editor read-only: the header was tampered with%s (%s).'
                 % (MARKS.get(p.get('mark'), ''), '; '.join(_reason(k, v) for k, v in p['reasons'])))
     if c == 'virtual_tables':
-        return ('Virtual file tables (the PG2 protector): the file tables do not really exist, and every file name is '
-                'repeated several times as decoys.')
+        return 'Virtual file tables (PG2): the index names are decoys.'
     if c == 'sprotect':
         return 'SProtect: %s of the %s file entries are scrambled.' % (num(p['marked']), num(p['used_entries']))
     if c == 'kk_encrypted':
-        return ('Encrypted by the KK platform: %s of the real map (script, terrain, objects, models) is stored '
-                'encrypted outside the MPQ archive, and only the KK client can decrypt it. What the archive holds is '
-                'a loader: an empty script and a few small files.' % mb(p.get('outside', 0)))
+        return ('Encrypted by the KK platform: %s of the map is stored outside the MPQ archive.'
+                % mb(p.get('outside', 0)))
     if c == 'script_kkwe':
-        return ('The script is compiled (KKWE): war3map.j is only a stub, and the whole script is in kkmap.jc (%s) as '
-                'the bytecode of the game\'s script engine, which the World Editor cannot read. "Open in World '
-                'Editor" turns it '
-                'back into JASS.' % mb(p.get('byte_size', 0)))
+        return ('Compiled script (KKWE): the real script is kkmap.jc (%s) as bytecode.' % mb(p.get('byte_size', 0)))
     if c == 'script_j2b':
-        return ('The script is compiled and encrypted (j2b): war3map.j is only a shell that loads war3map.bin (%s), '
-                'the real script as encrypted bytecode of the game\'s script engine, which the World Editor cannot '
-                'read. "Open in World Editor" decrypts it and turns it back into JASS.' % mb(p.get('byte_size', 0)))
+        return ('Compiled script (j2b): the real script is war3map.bin (%s) as bytecode.' % mb(p.get('byte_size', 0)))
     if c == 'full_hash_table':
         return 'The file index is 100%% full (%s entries): the MPQ Editor cannot add files.' % num(p['hash_entries'])
     if c == 'unreadable_tables':
         cv = p.get('carver') or {}
         if cv.get('w3i') and cv.get('script'):
-            return ('The file tables of this map are scrambled (none of the %s entries leads to a readable file), but '
-                    'the files themselves are intact: %s found by their content (%s encrypted). "Fix map" '
-                    'rebuilds the map around them with new file tables.'
+            return ('File tables scrambled (%s entries), but %s found by content (%s encrypted).'
                     % (num(p.get('hash_entries', 0)), pluralize(cv.get('file_set') or 0, 'file was', 'files were'),
                        num(cv.get('encrypted_count') or 0)))
-        return ('The file tables of this map are scrambled: none of the %s entries points to a file that can be read, '
-                'and not even a search by content finds the map info and the script. Nothing can be recovered from it.'
+        return ('File tables scrambled (%s entries): nothing is readable, not even by content.'
                 % num(p.get('hash_entries', 0)))
     if c == 'alias':
         if p['block_list'] == 1:
-            return ('1 file has extra fake names pointing to it (%s in all): the MPQ Editor lists every one.'
-                    % num(p['maximum']))
-        return ('%s files have extra fake names pointing to them (up to %s each): the MPQ Editor lists every one.'
+            return '1 file also answers to %s fake names.' % num(p['maximum'])
+        return ('%s files also answer to extra fake names (up to %s each).'
                 % (num(p['block_list']), num(p['maximum'])))
     if c == 'fake_entries':
         return '%s to data that does not exist.' % pluralize(p['n'], 'file entry points', 'file entries point')
@@ -217,56 +193,47 @@ def describe(p):
         return ('At least %s that the game never reads: they make the MPQ Editor slow or freeze.'
                 % pluralize(p['n'], 'fake file', 'fake files'))
     if c == 'game_only_reads':
-        return ('%s that only the game can read: their stored size or a sector is broken on purpose, so the MPQ '
-                "Editor can't open or compact them." % pluralize(p['n'], 'File', 'Files'))
+        return ('%s that only the game can read: the size or a sector is broken on purpose.'
+                % pluralize(p['n'], 'File', 'Files'))
     if c == 'script_decoy':
         return 'A decoy scripts\\war3map.j (unreadable) sits next to the real script.'
     if c == 'sector512':
-        return ('The MPQ sectors are 512 bytes (wSectorSize 0): the game loads the map, but the MPQ Editor and every '
-                'tool built on StormLib refuse to open it ("bad format").')
+        return 'The MPQ sectors are 512 bytes (wSectorSize 0): StormLib refuses to open the map.'
     if c == 'locale_decoy':
         name_list = p.get('name_list') or []
-        return ('%s hidden behind language entries: the real %s stored only under the game\'s language codes, and a '
-                'decoy that nothing can read sits under the neutral entry that the World Editor and MPQ tools open%s.'
-                % (pluralize(p['n'], 'file is', 'files are'), 'file is' if p['n'] == 1 else 'files are',
-                   ' (%s)' % ', '.join(name_list[:4]) if name_list else ''))
+        return ('%s stored only under the language codes, with a decoy under the neutral entry%s.'
+                % (pluralize(p['n'], 'file is', 'files are'), ' (%s)' % ', '.join(name_list[:2]) if name_list else ''))
     if c == 'scrambled_ids':
-        return ('%s object IDs (units, items, abilities) were scrambled into unreadable characters, and the script '
-                'reaches them through %s disguised sums.%s'
+        return ('%s object IDs were scrambled; the script reaches them by %s disguised sums.%s'
                 % (num(p['n']), num(p.get('sums', 0)),
                    '' if p.get('fixable') else ' (This is a Lua map: they cannot be restored.)'))
     if c == 'invalid_doodad':
-        return ('%s an object ID that does not exist in the game data nor in the map\'s own object data (%s%s). '
-                'The game draws nothing for them and the World Editor reports "Invalid object ID" and crashes while '
-                'opening the map. "Open in World Editor" removes them.'
-                % (pluralize(p.get('n', 0), 'doodad placed in the map uses', 'doodads placed in the map use'),
-                   ', '.join(p.get('examples') or []) or '?', '...' if len(p.get('ids') or []) > 5 else ''))
+        return ('%s an object ID that does not exist (%s): the World Editor crashes on it.'
+                % (pluralize(p.get('n', 0), 'doodad uses', 'doodads use'),
+                   ', '.join((p.get('examples') or [])[:3]) or '?'))
     if c in D.DATA_ONLY:
         return describe_data(p)
     if c == 'inflated_counts':
-        label, singular, plural, where = COUNT.get(p['file_name'], ('file', 'record', 'records', p['file_name']))
+        _, singular, plural, _where = COUNT.get(p['file_name'], ('file', 'record', 'records', p['file_name']))
         if p.get('reason') == 'odd_version':
-            return ('The %s (%s) is in a format no real map uses (%s): the World Editor hangs or shows no %s. '
-                    'It is rebuilt from the script.' % (label, p['file_name'], p.get('detail') or '?', plural))
+            return ('%s is in a format no real map uses (%s): the editor hangs.'
+                    % (p['file_name'], p.get('detail') or '?'))
         if p.get('declared') is None or p.get('reason') == 'empty':
-            return ('The %s (%s) is empty or truncated: the map has no usable %s in it, and the World Editor '
-                    'cannot read it.' % (label, p['file_name'], plural))
-        d = 'The %s (%s) claims %s %s' % (label, p['file_name'], num(p['declared']), plural)
-        if p.get('mark'):
-            d += ' (the old "%s" count)' % p['mark']
+            return 'The %s is empty or truncated: the editor cannot read it.' % p['file_name']
+        d = '%s claims %s %s' % (p['file_name'], num(p['declared']), plural)
         if p.get('read_count'):
-            d += ', and only %s read cleanly' % pluralize(p['read_count'], singular, plural)
-        d += ': the World Editor hangs on "%s".' % where
+            d += ', only %s read' % pluralize(p['read_count'], singular, plural)
+        d += ': the editor hangs.'
         if p.get('game'):
-            d += ' The game reads this file too, so it is not repaired here.'
+            d += ' Not repaired: the game reads it.'
         return d
     return c
 
 
 def incomplete(inc):
     if not inc:
-        return 'it ends before its file tables'
-    return ('its MPQ header says the file tables end at byte %s, but the file has %s bytes -- %s bytes are missing'
+        return 'the file ends before its file tables'
+    return ('the file tables end at byte %s and the file has %s (%s missing)'
             % (num(inc.get('end_of_tables', 0)), num(inc.get('byte_size', 0)), num(inc.get('missing_items', 0))))
 
 
@@ -278,16 +245,10 @@ def diagnosis_text(d):
     out = [('heading', 'Diagnosis: %s' % os.path.basename(d['file_name'])),
            ('info', 'Map: %s  (%s)' % (name_of(d), mb(d['byte_size'])))]
     if d['fixable'] == 'not_a_map':
-        return out + [('invalid', 'This file is not a Warcraft III map: there is no MPQ archive inside it.')]
+        return out + [('invalid', 'Not a Warcraft III map: no MPQ archive inside.')]
     if d['fixable'] == 'incomplete':
-        return out + [
-            (
-                'invalid',
-                'This map file is incomplete: %s. That is a cut download (or a copy that was cut short), '
-                'not a protection, and nothing in it can be fixed: get a complete copy of the map.'
-                % incomplete(d.get('incomplete')),
-            )
-        ]
+        return out + [('invalid', 'Incomplete map file: %s.' % incomplete(d.get('incomplete'))),
+                      ('info', 'Get a complete copy of the map.')]
     if d['fixable'] == 'cannot_read':
         return out + [('invalid', 'The MPQ archive could not be read (%s).' % d.get('err'))]
     out.append(('', ''))
@@ -301,23 +262,21 @@ def diagnosis_text(d):
             out.append(('warning', '  - ' + describe(p)))
         out.append(('', ''))
         if d['fixable'] == 'impossible':
-            out.append(('invalid', "This map can't be unprotected, and no button here can help: the real map is not "
-                                   'inside this file, and nothing is tried on it. ' + NO_ENCRYPTION))
+            out.append(('invalid', "This map can't be unprotected: the real map is not inside this file."))
+            out.append(('info', NO_ENCRYPTION))
         elif set(p['code'] for p in protections) <= set(D.BUTTON3_ONLY):
-            out.append(('ok', 'Devo\'s Map Doctor can fix it: click "Open in World Editor".'))
+            out.append(('ok', 'Can be fixed: click "Open in World Editor".'))
         else:
-            out.append(('ok', 'Devo\'s Map Doctor can remove it: click "Fix map".'))
+            out.append(('ok', 'Can be fixed: click "Fix map".'))
     if d.get('slk'):
-        out.append(('info', 'SLK mode: the map ships its own data tables (%s).'
-                    % pluralize(len(d['slk']), 'file', 'files')))
+        out.append(('info', 'SLK mode: %s data table files.' % num(len(d['slk']))))
     if data_bytes:
         out.append(('', ''))
-        out.append(('heading2', 'Needs fixing for Warcraft III 3.0:'))
+        out.append(('heading2', 'Needs fixing for 3.0:'))
         for p in data_bytes:
             out.append(('warning', '  - ' + describe(p)))
         out.append(('', ''))
-        out.append(('ok', 'Both actions fix it: "Fix map" saves a copy to play, "Open in World '
-                          'Editor" one for the editor.'))
+        out.append(('ok', 'Both actions fix it.'))
     lf = d.get('listfile')
     if lf:
         if lf['status'] == 'ok':
@@ -334,10 +293,10 @@ def diagnosis_text(d):
     map_list = (d.get('campaign_info') or {}).get('map_list') or []
     if d.get('kind') == 'campaign_info':
         ready_count = sum(1 for m in map_list if m.get('editor') == 'ready')
-        out.append(('info', 'Campaign: %s inside (%s already open%s in the World Editor).'
-                    % (pluralize(len(map_list), 'map', 'maps'), num(ready_count), 's' if ready_count == 1 else '')))
+        out.append(('info', 'Campaign: %s inside, %s ready for the editor.'
+                    % (pluralize(len(map_list), 'map', 'maps'), num(ready_count))))
     if status == 'ready':
-        out.append(('ok', 'World Editor: the %s already has everything the editor needs.'
+        out.append(('ok', 'World Editor: the %s already opens.'
                     % ('campaign' if d.get('kind') == 'campaign_info' else 'map')))
     elif status == 'campaign_needs_work':
         for m in map_list:
@@ -354,28 +313,27 @@ def diagnosis_text(d):
                         ),
                     )
                 )
-        out.append(('ok', 'Click "Open in World Editor": each map above is prepared inside the campaign.'))
+        out.append(('ok', 'Click "Open in World Editor".'))
     elif status == 'needs_work':
         gaps = []
         blocking = set(p['code'] for p in d['protections']) & set(D.EDITOR_BLOCKERS)
         if blocking - {'script_kkwe', 'script_j2b'}:
-            gaps.append('the protection has to go first')
+            gaps.append('the protection removed')
         if blocking & {'script_kkwe', 'script_j2b'}:
-            gaps.append('the compiled script has to be turned back into JASS')
+            gaps.append('the script back into JASS')
         if ed.get('w3i') == 'truncated':
-            gaps.append('the end of the map info file (war3map.w3i) was cut off')
-        if ed.get('missing_items'):
-            gaps.append('these editor files are missing: %s' % ', '.join(ed['missing_items']))
+            gaps.append('war3map.w3i restored')
         if ed.get('trigger_list'):
-            gaps.append('the map\'s triggers use functions the World Editor 3.0 does not have (made with YDWE or '
-                        'another extended editor), so the editor cannot read them')
+            gaps.append('the YDWE triggers rewritten')
         if ed.get('duplicate_textures'):
             copies = sum(len(g) - 1 for g in ed['duplicate_textures'])
-            gaps.append('%s an exact copy of another one under a different name (%s)'
-                        % (pluralize(copies, 'imported texture is', 'imported textures are'),
-                           ', '.join(os.path.basename(g[-1].replace('\\', '/')) for g in ed['duplicate_textures'][:3]) +
-                           ('...' if len(ed['duplicate_textures']) > 3 else '')))
-        out.append(('warning', 'World Editor: the map will not open yet (%s).' % '; '.join(gaps or ['see above'])))
+            gaps.append('%s deduplicated' % pluralize(copies, 'imported texture', 'imported textures'))
+        for missing in gaps or ['see above']:
+            out.append(('warning', 'World Editor: needs %s.' % missing))
+        if ed.get('missing_items'):
+            missing_items = list(ed['missing_items'])
+            extra = ' (+%d more)' % (len(missing_items) - 4) if len(missing_items) > 4 else ''
+            out.append(('warning', 'World Editor: missing %s%s.' % (', '.join(missing_items[:4]), extra)))
         out.append(('ok', 'Click "Open in World Editor".'))
     else:
         out.append(('invalid', 'World Editor: ' + editor_reason(status)))
@@ -384,17 +342,15 @@ def diagnosis_text(d):
 
 def editor_reason(status):
     return {
-        'script_kkwe': 'the script is compiled by KKWE (kkmap.jc), which the World Editor cannot read.',
-        'script_j2b': 'the script is compiled and encrypted (j2b, war3map.bin), which the World Editor cannot read.',
+        'script_kkwe': 'the script is compiled (KKWE) and the editor cannot read it.',
+        'script_j2b': 'the script is compiled and encrypted (j2b) and the editor cannot read it.',
         'script_none': 'the map has no script.',
-        'script_cut_off': 'the map script is cut off before its end (the map file is incomplete), so there is nothing '
-        'to put in the trigger editor.',
+        'script_cut_off': 'the map script is cut off (the map file is incomplete).',
         'script_kk_encrypted': 'the real map is encrypted outside this file (KK platform).',
         'impossible': 'the real map is encrypted outside this file (KK platform).',
-        'unreadable': 'the file tables of this map are scrambled: nothing in it can be read (no file name resolves), so '
-        'there is nothing to fix here.',
-        'w3i_unreadable': 'the map info file (war3map.w3i) is in a format this tool cannot read.',
-        'w3i_missing': 'the map info file (war3map.w3i) is missing.',
+        'unreadable': 'the file tables are scrambled and no name resolves.',
+        'w3i_unreadable': 'war3map.w3i is in a format this tool cannot read.',
+        'w3i_missing': 'war3map.w3i is missing.',
     }.get(status, status)
 
 
@@ -403,40 +359,25 @@ def _fixes_done(details, steps, before):
     if steps.get('ntfs'):
         nt = steps['ntfs']
         tab = nt.get('tables') or {}
-        out.append(
-            'Decompressed the NTFS data left inside the file%s.'
-            % (
-                '; the file tables cut by the copy were rebuilt (%s)'
-                % pluralize(tab.get('rebuilt') or 0, 'entry', 'entries')
-                if tab.get('rebuilt')
-                else ''
-            )
-        )
+        out.append('Decompressed the NTFS data inside the file%s.'
+                   % ('; rebuilt the %s cut by the copy' % pluralize(tab.get('rebuilt') or 0, 'table entry',
+                                                                     'table entries')
+                      if tab.get('rebuilt') else ''))
     if steps.get('carver'):
         cv = steps['carver']
         name_list = cv.get('name_list') or {}
-        out.append(
-            'Rebuilt the map from its files, found by their content: %s (%s named by content, %s by their '
-            'encryption key, %s from the map\'s own lists%s).'
-            % (
-                pluralize(cv.get('file_set') or 0, 'file', 'files'),
-                num(name_list.get('content', 0)),
-                num(name_list.get('hash_key', 0)),
-                num(name_list.get('listing', 0) + name_list.get('imp_order', 0)),
-                '; %s kept with a placeholder name under war3mapImported\\carved' % num(name_list['unnamed'])
-                if name_list.get('unnamed')
-                else '',
-            )
-        )
+        extra = ', %s unnamed' % num(name_list['unnamed']) if name_list.get('unnamed') else ''
+        out.append('Rebuilt the map from its files: %s found by content%s.'
+                   % (pluralize(cv.get('file_set') or 0, 'file', 'files'), extra))
     if steps.get('sprotect'):
-        out.append('Undid the SProtect scrambling of the file entries.')
+        out.append('Undid the SProtect scrambling.')
     if details.get('new_tables'):
-        out.append('Rebuilt the file tables with the %s (the decoys are gone).'
+        out.append('Rebuilt the file tables with %s (no decoys).'
                    % pluralize(details['new_tables'], 'real file', 'real files'))
     if steps.get('sector_bytes'):
-        out.append('Rewrote the archive with normal 4 KB sectors: the MPQ Editor can open it now.')
+        out.append('Rewrote the archive with 4 KB sectors.')
     if details.get('locale_decoys'):
-        out.append('Brought back %s hidden behind language entries: every program now reads the real one.'
+        out.append('Brought back %s hidden behind language entries.'
                    % pluralize(details['locale_decoys'], 'file', 'files'))
     if details.get('fake_zeroed'):
         out.append('Disabled the fake MPQ header.' if details['fake_zeroed'] == 1 else
@@ -444,7 +385,7 @@ def _fixes_done(details, steps, before):
     fields = [c[0] for c in details.get('fields') or []]
     if 'dwHeaderSize' in fields or 'wFormatVersion' in fields or 'wSectorSize' in fields or \
             details.get('block_table_moved') or details.get('hash_table_moved'):
-        out.append('Fixed the MPQ header: the MPQ Editor opens the map in edit mode now.')
+        out.append('Fixed the MPQ header.')
     if details.get('hm3w') in ('written', 'prefixed'):
         out.append('Added the map header (HM3W).')
     if details.get('junk_blocks'):
@@ -460,10 +401,9 @@ def _fixes_done(details, steps, before):
     if listing.get('listfile'):
         out.append('Wrote a real file list with %s.' % pluralize(listing['listfile'], 'name', 'names'))
     if listing.get('rewritten'):
-        out.append('Rewrote %s that only the game could read, so the MPQ Editor opens and compacts them.'
-                   % pluralize(len(listing['rewritten']), 'file', 'files'))
+        out.append('Rewrote %s that only the game could read.' % pluralize(len(listing['rewritten']), 'file', 'files'))
     if steps.get('ids'):
-        out.append('Replaced %s with clean ones (the script was updated to match).'
+        out.append('Replaced %s with clean ones (the script was updated).'
                    % pluralize(steps['ids'], 'scrambled object ID', 'scrambled object IDs'))
     return out or ['Fixed the MPQ archive.']
 
@@ -471,44 +411,27 @@ def _fixes_done(details, steps, before):
 def _common_failures(r, verb):
     e = r['status']
     if e == 'not_a_map':
-        return [('invalid', 'This file is not a Warcraft III map: there is no MPQ archive inside it.')]
+        return [('invalid', 'Not a Warcraft III map: no MPQ archive inside.')]
     if e == 'cannot_read':
         return [('invalid', 'The MPQ archive could not be read (%s).' % (r['before'] or {}).get('err'))]
     if e == 'impossible':
-        return [
-            (
-                'invalid',
-                "This map can't be %s: the real map (script, terrain, objects, models) is encrypted outside "
-                'the MPQ archive by the KK platform, so there is nothing here to work on. No file was '
-                'written. ' % verb + NO_ENCRYPTION,
-            )
-        ]
+        return [('invalid', "This map can't be %s: the real map is encrypted outside it (KK platform)." % verb),
+                ('info', 'No file was written.'),
+                ('info', NO_ENCRYPTION)]
     if e == 'incomplete':
-        return [('invalid', "This map can't be %s: the file is incomplete (%s). Get a complete copy of the map."
-                 % (verb, incomplete((r.get('before') or {}).get('incomplete'))))]
+        return [('invalid', "This map can't be %s: the file is incomplete." % verb),
+                ('info', '%s.' % incomplete((r.get('before') or {}).get('incomplete'))),
+                ('info', 'Get a complete copy.')]
     if e == 'unreadable':
         return [('invalid', "This map can't be %s: %s" % (verb, editor_reason('unreadable')))]
     if e == 'failed':
-        out = [('invalid', 'Something went wrong, so nothing was saved. Your original map was not changed.')]
+        out = [('invalid', 'Something went wrong: nothing was saved, your map is unchanged.')]
         err = r.get('err') or ''
         content = r.get('content') or {}
         if content.get('different') or content.get('missing_items'):
-            out.append(
-                (
-                    'warning',
-                    'The final check caught a problem: after the fix, a file no longer read back identical '
-                    'to the original. This map uses a trick this version does not handle yet. Please post '
-                    'the diagnosis text so it can be added.',
-                )
-            )
+            out.append(('warning', 'The final check found a changed file: post the diagnosis text to add this case.'))
         if 'PermissionError' in err:
-            out.append(
-                (
-                    'warning',
-                    'The new copy could not be written next to the map. Copy the map to a folder you can '
-                    'write to (your Desktop, for example) and try again.',
-                )
-            )
+            out.append(('warning', 'The copy could not be written there: try another folder.'))
         return out + [('info', 'Details: %s' % r.get('err'))]
     return None
 
@@ -522,17 +445,17 @@ def unprotection_text(r):
     if r['status'] == 'nothing_to_do':
         if r.get('for_button3'):
             return out + [('ok', 'Nothing to remove in the MPQ archive. No file was written.'),
-                          ('info', 'The World Editor problems found above are fixed by "Open in World Editor".')]
+                          ('info', 'The World Editor problems above are fixed by "Open in World Editor".')]
         return out + [('ok', 'No protection found: nothing to remove. No file was written.')]
     if r['status'] == 'nothing_selected':
-        return out + [('ok', 'Every step this map needs was turned off: nothing to do. No file was written.')]
+        return out + [('ok', 'All steps turned off: nothing to do. No file was written.')]
     data_only = [k for k in r['steps'] if k != 'data_bytes'] == []
     if data_only:
-        out.append(('ok', 'Fixed for Warcraft III 3.0.' if r['status'] == 'done' else
-                    'Fixed for Warcraft III 3.0, with some leftovers (see below).'))
+        out.append(('ok', 'Fixed for 3.0.' if r['status'] == 'done' else
+                    'Fixed for 3.0, with leftovers (see below).'))
     else:
         out.append(('ok', 'Protection removed.' if r['status'] == 'done' else
-                    'Protection removed, with some leftovers (see below).'))
+                    'Protection removed, with leftovers (see below).'))
     out.append(('file_path', 'Saved as: %s' % r['output']))
     out.append(('', ''))
     if not data_only:
@@ -544,12 +467,12 @@ def unprotection_text(r):
     if c.get('identical'):
         on_purpose = []
         if r['steps'].get('ids'):
-            on_purpose.append('the object data and the script changed on purpose: the new IDs')
+            on_purpose.append('the new object ids')
         if (r['steps'].get('data_bytes') or {}).get('modified'):
-            on_purpose.append('the data tables above changed on purpose')
-        out.append(('info', '  - Checked: %s identical to the original%s.'
-                    % (pluralize(c['identical'], 'file reads back', 'files read back'),
-                       ' (%s)' % '; '.join(on_purpose) if on_purpose else '')))
+            on_purpose.append('the data tables')
+        out.append(('info', '  - Checked: %s identical%s.'
+                    % (pluralize(c['identical'], 'file', 'files'),
+                       ' (%s changed on purpose)' % '; '.join(on_purpose) if on_purpose else '')))
     after_diag = (r.get('after_diag') or {}).get('protections') or []
     button3 = [p for p in after_diag if p['code'] in D.BUTTON3_ONLY]
     deixados = set(r.get('deixados') or [])
@@ -562,22 +485,16 @@ def unprotection_text(r):
             out.append(('warning', '  - Not fixed: ' + describe(p)))
     if button3:
         out.append(('', ''))
-        out.append(('info', 'Left for "Open in World Editor" (this action keeps every map file identical):'))
+        out.append(('info', 'Left for "Open in World Editor":'))
         for p in button3:
             out.append(('info', '  - ' + describe(p)))
     if unresolved:
         out.append(('', ''))
-        out.append(('warning', 'Still present (these need file names that the map does not reveal):'))
+        out.append(('warning', 'Still present:'))
         for p in unresolved:
             out.append(('warning', '  - ' + describe(p)))
         if any(p['code'] == 'alias' for p in unresolved):
-            out.append(
-                (
-                    'info',
-                    '  These names were kept on purpose: without the real file name there is no way to tell '
-                    'which one the game uses, and removing the wrong one would break the map.',
-                )
-            )
+            out.append(('info', '  Kept: without the real name, dropping the wrong one breaks the map.'))
     return out
 
 
@@ -607,22 +524,16 @@ def editor_text(r):
     if failure:
         return out + failure
     if r['status'] == 'nothing_to_do':
-        return out + [('ok', 'The map already opens in the World Editor: nothing to do. No file was written.')]
+        return out + [('ok', 'Nothing to do: the map already opens. No file was written.')]
     if r['status'] == 'script_not_restored':
-        return out + [
-            (
-                'invalid',
-                'Not possible: the compiled script of this map, %s, could not be turned back into JASS. '
-                'Nothing was saved, and your original map was not changed.'
-                % COMPILED.get(d.get('script'), 'the bytecode'),
-            ),
-            ('info', 'Why: %s' % r.get('err')),
-        ]
+        return out + [('invalid', 'Not possible: the compiled script (%s) cannot be turned back into JASS. '
+                                  'Nothing was saved.' % COMPILED.get(d.get('script'), 'the bytecode')),
+                      ('info', 'Why: %s' % r.get('err'))]
     if r['status'] in ('script_lua', 'script_kkwe', 'script_j2b', 'script_none', 'script_cut_off', 'w3i_unreadable',
                        'w3i_missing', 'unreadable'):
         return out + [('invalid', 'Not possible: ' + editor_reason(r['status']))]
     out.append(('ok', 'Ready for the World Editor.' if r['status'] == 'done' else
-                'Prepared for the World Editor, with some leftovers (see below).'))
+                'Ready for the World Editor, with leftovers (see below).'))
     out.append(('file_path', 'Saved as: %s' % r['output']))
     out.append(('', ''))
     if (r.get('editor') or {}).get('campaign_info'):
@@ -633,7 +544,7 @@ def editor_text(r):
                     '  - %s: %s'
                     % (
                         m['fname'],
-                        {'done': 'prepared for the World Editor', 'partial': 'prepared, with some leftovers'}.get(
+                        {'done': 'prepared for the editor', 'partial': 'prepared, with leftovers'}.get(
                             m['status'], 'not possible (%s)' % editor_reason(m['status'])
                         ),
                     ),
@@ -651,102 +562,70 @@ def editor_text(r):
     details = r.get('editor') or {}
     sv = details.get('script_restore') or {}
     if sv:
-        kkwe = sv.get('kind') == 'kkwe'
-        out.append(('info', '  - Turned the map script back into JASS. It was %s, the bytecode of the game\'s script '
-                            'engine, and war3map.j was only %s. The copy has the script itself in war3map.j (%s, %s) '
-                            'and no longer carries %s, which was the compiled form of the same script.'
-                    % ('compiled (kkmap.jc, KKWE)' if kkwe else 'compiled and encrypted (war3map.bin, j2b)',
-                       'a stub' if kkwe else 'a shell that loaded it',
+        out.append(('info', '  - Turned the script back into JASS (%s): %s, %s.'
+                    % ('KKWE' if sv.get('kind') == 'kkwe' else 'j2b',
                        pluralize(sv.get('functions', 0), 'function', 'functions'),
-                       pluralize(sv.get('globals_block', 0), 'global', 'globals'), sv.get('file_name'))))
+                       pluralize(sv.get('globals_block', 0), 'global', 'globals'))))
         pj = str(sv.get('pjass') or '')
-        out.append(('info', '      Proved: compiled again, the text gives the same %s instructions the map had, one by '
-                            'one%s.' % (num(sv.get('instructions', 0)),
-                                        '' if pj.startswith('skipped') else
-                                        '; and the Reforged compiler (pjass) finds no error in it')))
+        out.append(('info', '      Proved: compiled again, it gives the same %s instructions%s.'
+                    % (num(sv.get('instructions', 0)),
+                       '' if pj.startswith('skipped') else '; pjass finds no error')))
         if sv.get('hooks'):
-            out.append(('info', '      %s that the map\'s plugin runs from outside the script came back as native '
-                                'declarations: in the compiled script each one was an empty function the plugin '
-                                'takes over while the game runs.' % pluralize(sv['hooks'], 'function', 'functions')))
+            out.append(('info', '      %s plugin functions came back as native declarations.'
+                        % pluralize(sv['hooks'], 'function', 'functions')))
         if sv.get('hooks_left_out'):
             outside = sv['hooks_left_out']
-            out.append(('info', '      Left out the declaration of %s of those, which the map never calls and whose '
-                                'name Reforged uses for a native of its own (%s%s).'
-                        % (num(len(outside)), ', '.join(outside[:4]), '...' if len(outside) > 4 else '')))
+            out.append(('info', '      Left out %s whose name Reforged declares itself (%s%s).'
+                        % (num(len(outside)), ', '.join(outside[:2]), '...' if len(outside) > 2 else '')))
         if sv.get('clashes'):
             ch = sv['clashes']
-            out.append(('warning', '      %s the script defines %s also defined by Reforged (%s%s): the World Editor '
-                                   'reports them as redeclared when you save, until they are renamed in the script.'
-                        % (pluralize(len(ch), 'name', 'names'), 'is' if len(ch) == 1 else 'are', ', '.join(ch[:4]),
-                           '...' if len(ch) > 4 else '')))
+            out.append(('warning', '      %s the script defines %s also defined by Reforged (%s%s).'
+                        % (pluralize(len(ch), 'name', 'names'), 'is' if len(ch) == 1 else 'are', ', '.join(ch[:2]),
+                           '...' if len(ch) > 2 else '')))
     if details.get('regenerated_triggers'):
-        out.append(('info', '  - The map\'s triggers used functions the World Editor 3.0 does not have (YDWE or '
-                            'another extended editor): they were replaced by the map script in the custom script, so '
-                            'the editor opens the map and saving keeps the same code.'))
+        out.append(('info', '  - The YDWE triggers went to the map script in the custom script.'))
     if details.get('w3i_tail'):
-        out.append(('info', '  - Restored the cut-off end of the map info file (war3map.w3i).'))
+        out.append(('info', '  - Restored the cut end of war3map.w3i.'))
     if details.get('w3i_raised'):
-        out.append(
-            (
-                'info',
-                '  - The map info file (war3map.w3i) was saved as version 31 with game data version 1 (TFT, '
-                'the map\'s own era): the World Editor 3.0 saves an older one as "Forsaken Kingdom" (2), and '
-                'with that the life edits of units and destructibles come out inflated.',
-            )
-        )
+        out.append(('info', '  - war3map.w3i saved as version 31 (TFT).'))
     if str(details.get('w3i') or '').startswith('new_version'):
-        out.append(('info', '  - The map info file (war3map.w3i) is from a World Editor newer than this program knows: '
-                            'left as it is.'))
+        out.append(('info', '  - war3map.w3i is newer: left as it is.'))
     mentioned = set()
     for x in details.get('count') or []:
         label, singular, plural, _where = COUNT.get(x['file_name'], ('file', 'record', 'records', ''))
         mentioned.add(x['file_name'])
         where = x.get('where') or ''
         if x.get('pair'):
-            out.append(('info', '  - Rebuilt the trigger files (war3map.wtg and war3map.wct) from the map script: the '
-                                'counter the editor was reading was broken.'))
+            out.append(('info', '  - Rebuilt war3map.wtg and war3map.wct from the map script.'))
         elif x.get('from_script'):
             where = x.get('where') or ''
             before = x.get('in_file')
             if x.get('reason') == 'odd_version':
-                out.append(('info', '  - Rebuilt the %s (%s) from the %s in the map script: it was in a format no '
-                                    'real map uses (%s), which is what made the editor hang on it. The %s are there '
-                                    'now.' % (label, x['file_name'], where, x.get('detail') or '?', plural)))
+                out.append(('info', '  - Rebuilt %s from the %s in the script (a format no real map uses).'
+                            % (x['file_name'], where)))
             elif x.get('reason') in ('does_not_fit', 'short_read'):
-                out.append(('info', '  - Rebuilt the %s (%s) from the %s in the map script: it claimed %s. The editor '
-                                    'shows the %s now.'
-                            % (label, x['file_name'], where, num(x['declared']) if x.get('declared') is not None
-                               else 'none', plural)))
+                out.append(('info', '  - Rebuilt %s from the %s in the script: it claimed %s.'
+                            % (x['file_name'], where, num(x['declared']) if x.get('declared') is not None else 'none')))
             elif before is None:
-                out.append(('info', '  - Added the %s the map script creates (%s): the editor shows them now.'
-                            % (plural, where)))
+                out.append(('info', '  - Added the %s from the script (%s).' % (plural, where)))
             else:
-                out.append(('info', '  - Placed the %s the map script creates (%s): the file only had %s. The World '
-                                    'Editor shows them now.'
+                out.append(('info', '  - Placed the %s from the script (%s): the file had %s.'
                             % (pluralize(x['new'], singular, plural), where,
                                pluralize(before, singular, plural) if before else 'none')))
             if x.get('placed_items') or x.get('with_abilities'):
                 pieces = []
                 if x.get('placed_items'):
-                    pieces.append(
-                        pluralize(x['placed_items'], 'item placed on the ground', 'items placed on the ground')
-                    )
+                    pieces.append(pluralize(x['placed_items'], 'item on the ground', 'items on the ground'))
                 if x.get('with_abilities'):
-                    pieces.append('%s with the learned abilities, levels and inventory the script gives them'
+                    pieces.append('%s with the abilities and inventory the script gives them'
                                   % pluralize(x['with_abilities'], 'hero', 'heroes'))
                 out.append(('info', '      Among them, %s.' % ' and '.join(pieces)))
             if x.get('removed_risky'):
                 n = sum(x['removed_risky'].values())
-                out.append(('info', '  - Left out %s of those, whose model is a file inside this map that no doodad '
-                                    'uses (%s): the World Editor 3.0 crashes while it reads a map file right after '
-                                    'opening the map a second time, and those are the units that make it read one '
-                                    'that late. The map itself does not change: the game creates every unit from '
-                                    'the script.'
-                            % (pluralize(n, 'unit', 'units'),
-                               ', '.join('%s x%d' % (k, v) for k, v in sorted(x['removed_risky'].items())[:4]) +
-                               ('...' if len(x['removed_risky']) > 4 else ''))))
+                out.append(('info', '  - Left out %s: their model (a map file no doodad uses) crashes 3.0.'
+                            % pluralize(n, 'unit', 'units')))
         elif x.get('declared') is None or x.get('reason') == 'empty':
-            out.append(('info', '  - Replaced the empty/truncated %s (%s) with an empty one the editor can read.'
+            out.append(('info', '  - Replaced the empty/truncated %s (%s) with an empty one.'
                         % (label, x['file_name'])))
         else:
             out.append(('info', '  - Rewrote the %s (%s) with the %s that read cleanly: it claimed %s.'
@@ -757,64 +636,47 @@ def editor_text(r):
     others = [n for n in details.get('new_ones') or []
               if n not in ('war3map.wtg', 'war3map.wct', 'war3map.imp') and n not in mentioned]
     if others:
-        out.append(('info', '  - Added the editor-only files: %s.' % ', '.join(others)))
+        out.append(('info', '  - Editor-only files: %s.' % ', '.join(others)))
     if details.get('no_slot'):
         outside = list(details['no_slot'])
         essential = [n for n in outside if n in ('war3map.wtg', 'war3map.wct', 'war3map.imp')]
-        out.append(
-            ('warning', '  - The file index of this map is 100%% full: there was no room for %s.' % ', '.join(outside))
-        )
+        out.append(('warning', '  - The file index is 100%% full: no room for %s.' % ', '.join(outside)))
         if essential:
-            out.append(('invalid', '      %s is needed for the editor to open (and to keep the imported files when you '
-                                   'save): send me this map.' % ', '.join(essential)))
+            out.append(('invalid', '      Send me this map: the editor needs %s.' % ', '.join(essential)))
         else:
-            out.append(('info', '      The editor creates these files by itself when you save, so the map opens and '
-                                'saves without them.'))
+            out.append(('info', '      The editor creates them when you save.'))
     lua = bool(details.get('lua'))
     restoration = details.get('restoration') or {}
     restored = bool(generated and restoration.get('used'))
     if restored:
-        out.append(('info', '  - Restored the map\'s triggers in the trigger editor: %s as GUI triggers (events, '
-                            'conditions and actions you can click) and %s as custom text (code that is not in the '
-                            'editor\'s pattern), with %s. Every GUI trigger was proved: written back to script, it '
-                            'gives the same code the map had.'
+        out.append(('info', '  - Restored the triggers: %s as GUI, %s as custom text, %s.'
                     % (pluralize(restoration.get('gui', 0), 'trigger', 'triggers'),
                        pluralize(restoration.get('as_text', 0), 'trigger', 'triggers'),
                        pluralize(restoration.get('variable_count', 0), 'variable', 'variables'))))
         if restoration.get('names_obfuscated'):
-            out.append(('info', '      The script had its names scrambled (an obfuscator): the triggers are named '
-                                'after what fires them (the chat command, the event and the object it checks, the '
-                                'region) or T001, T002... when nothing tells, and the variables by their new names.'))
+            out.append(('info', '      The script names were scrambled: the triggers are named after what fires them.'))
         for ln in (restoration.get('summary') or [])[1:]:
             out.append(('info', '      ' + ln.strip()))
         if restoration.get('helpers'):
-            out.append(('info', '      %s the triggers call went to the custom script header.'
+            out.append(('info', '      %s went to the custom script header.'
                         % pluralize(len(restoration['helpers']), 'helper function', 'helper functions')))
-        out.append(('info', '  - The rest of the script (the header) is in the custom script of the trigger editor%s.'
-                    % (', inside do ... end; the last line keeps the map\'s own main and config running' if lua else
-                       ' (//! inject main / config): saving with JassHelper enabled builds the same script again')))
+        out.append(('info', '  - The rest of the script is in the custom script of the trigger editor%s.'
+                    % (', inside do ... end' if lua else '')))
     elif generated and restoration.get('reason'):
-        out.append(('info', '  - The triggers could not be restored as GUI triggers (%s), so the whole script went to '
-                            'the custom script:' % restoration['reason']))
+        out.append(('info', '  - The triggers went to the custom script (not restorable as GUI).'))
+        out.append(('info', '      Because: %s' % restoration['reason']))
     if generated and lua and not restored:
-        out.append(('info', '  - Placed the whole map script (Lua) in the custom script of the trigger editor, inside '
-                            'do ... end. When you save, the editor adds its own main and config after it; the last '
-                            'line of the custom script keeps the map\'s own ones running.'))
-    elif generated and not restored:
-        out.append(('info', '  - Placed the whole map script in the custom script of the trigger editor (//! inject '
-                            'main / config): saving with JassHelper enabled builds the same script again. The '
-                            'functions the editor also creates (InitGlobals, CreateAllUnits, the unit creation of '
-                            'each player...) are named "devo_..." there: two functions with the same name do not '
-                            'compile, and the editor refused to open the script with "Function redeclared".'))
+        out.append(('info', '  - The whole Lua script went to the custom script (do ... end).'))
+    elif generated and not restored and not restoration.get('reason'):
+        out.append(('info', '  - The whole script went to the custom script.'))
     if generated and not restored:
         for ln in (details.get('optimizer') or {}).get('line_list') or []:
             out.append(('info', '  - ' + ln))
     if 'war3map.imp' in (details.get('new_ones') or []):
-        out.append(('info', '  - Listed %s, so the editor keeps them when you save.'
+        out.append(('info', '  - Listed %s, so the editor keeps them.'
                     % pluralize(details.get('imported', 0), 'imported file', 'imported files')))
     elif details.get('imp_added'):
-        out.append(('info', '  - Added %s to the map\'s own list of imported files (war3map.imp), which left them out: '
-                            'the editor only keeps the listed files when you save.'
+        out.append(('info', '  - Added %s to war3map.imp: the editor keeps only listed files.'
                     % pluralize(details['imp_added'], 'file', 'files')))
     unnamed = details.get('unnamed') or {}
     if sum(unnamed.values()):
@@ -822,54 +684,29 @@ def editor_text(r):
             ('models', 'model', 'models'), ('images', 'image', 'images'), ('others', 'other file', 'other files'))
             if unnamed.get(k)]
         n = sum(unnamed.values())
-        out.append(
-            (
-                'warning',
-                '  - %s in the map %s no name that could be recovered (%s), and the World Editor does not '
-                'keep a file without a name when you save. No file of the map cites them by name: either '
-                'the author imported them and stopped using them, or the script builds their path while '
-                'the game runs -- and then the map saved by the editor misses them.'
-                % (pluralize(n, 'file', 'files'), 'has' if n == 1 else 'have', ', '.join(pieces)),
-            )
-        )
+        out.append(('warning', '  - %s in the map %s no recoverable name (%s): the editor drops them.'
+                    % (pluralize(n, 'file', 'files'), 'has' if n == 1 else 'have', ', '.join(pieces))))
     out.append(('', ''))
     out.append(('info', 'Good to know:'))
     if lua:
-        out.append(('info', '  - Lua maps are new since version 1.1: after saving from the editor, test the map, and '
-                            'please report anything that breaks.'))
+        out.append(('info', '  - Test the map after saving it from the editor.'))
     else:
         out.append(('info', '  - Keep JassHelper enabled (the default) when you save the map.'))
     if sv.get('natives') or sv.get('hooks'):
-        out.append(('info', '  - This map was made for the KK platform: its script declares %s that only that platform '
-                            '(or the map\'s own plugin) provides. The World Editor opens and saves it, but Warcraft '
-                            'III does not run it until the calls to them are ported.'
-                    % pluralize(sv.get('natives', 0) + sv.get('hooks', 0), 'native', 'natives')))
+        out.append(('info', '  - The script declares %s only the KK platform provides: the map will not run until they '
+                            'are ported.' % pluralize(sv.get('natives', 0) + sv.get('hooks', 0), 'native', 'natives')))
     if generated:
         placed_files = set(x['file_name'] for x in details.get('count') or [] if x.get('from_script'))
-        if placed_files:
-            out.append(
-                (
-                    'info',
-                    '  - Units, regions, cameras and sounds that the script creates used to stay out of the '
-                    'editor: the ones listed above are there now.',
-                )
-            )
-        else:
-            out.append(('info', '  - Units, regions and sounds that the script creates do not show in the editor, but '
-                                'the game still creates them.'))
+        if not placed_files:
+            out.append(('info', '  - Units, regions and sounds the script creates do not show in the editor.'))
     if details.get('doodads_outside'):
-        out.append(('info', '  - Removed %s whose object ID does not exist in the game data (%s): the game '
-                            'draws nothing for them and they made the World Editor crash while opening the map.'
+        out.append(('info', '  - Removed %s whose object ID does not exist (%s).'
                     % (pluralize(details['doodads_outside'], 'doodad', 'doodads'),
-                       ', '.join('%s x%d' % (x['id'], x['n']) for x in (details.get('doodads') or [])[:4]))))
+                       ', '.join('%s x%d' % (x['id'], x['n']) for x in (details.get('doodads') or [])[:2]))))
     if details.get('skin'):
-        out.append(('info', '  - Moved the model of the unit and item types to the skin files (%s), the way the World '
-                            'Editor 3.0 writes them when it saves: the editor then places every unit without crashing '
-                            'while it opens the map. The game reads both files, so nothing changes in the game.'
-                    % ', '.join(details['skin'])))
+        out.append(('info', '  - Moved the models to the skin files (%s).' % ', '.join(details['skin'])))
     if details.get('engine_textures'):
-        out.append(('info', '  - Left out of the editor copy the map\'s %s: it is the same plain white as the game\'s '
-                            'own, and the World Editor 3.0 read it while loading the units and crashed.'
+        out.append(('info', '  - Left the map\'s %s out of the editor copy (3.0 crashed on it).'
                     % ', '.join(details['engine_textures'])))
     clusters = details.get('duplicate_textures') or []
     changed_textures = [m for g in clusters for m in g['modified']]
@@ -879,12 +716,10 @@ def editor_text(r):
             b = os.path.basename(m.replace('\\', '/'))
             if b not in seen:
                 seen.append(b)
-        out.append(('info', '  - Rewrote %s in %s (%s), each one with a few zero bytes at the end, so no two imported '
-                            'textures are the same file under different names. Neither the game nor the editor reads '
-                            'the extra bytes: the image is exactly the same.'
+        out.append(('info', '  - Rewrote %s in %s (%s): no two are the same file now.'
                     % (pluralize(len(changed_textures), 'imported texture', 'imported textures'),
                        pluralize(len(clusters), 'group', 'groups'),
-                       ', '.join(seen[:4]) + ('...' if len(seen) > 4 else ''))))
+                       ', '.join(seen[:2]) + ('...' if len(seen) > 2 else ''))))
     unresolved = (r.get('after_diag') or {}).get('protections') or []
     if unresolved:
         out.append(('warning', 'Still present:'))

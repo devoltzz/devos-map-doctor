@@ -1,5 +1,7 @@
 * text=auto eol=lf
 *.ico binary
-# 1.5.7: o dado do `cheatpacks` e os scripts do jogo vao com os BYTES exatos (os packs sao CRLF)
+# 1.5.8: o dado do `cheatpacks` e os scripts do jogo vao com os BYTES exatos (os packs sao CRLF). Os packs moram em
+# SUBPASTA (uma por pack): o `*` sozinho nao atravessa a barra, entao o `**` leva a pasta inteira.
 doctor/cheatpacks/* -text
+doctor/cheatpacks/** -text
 doctor/ref/3.0/*.j -text

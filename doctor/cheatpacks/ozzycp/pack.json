@@ -1,0 +1,22 @@
+{
+  "id": "ozzycp",
+  "title": "OzzyCP",
+  "language": "lua",
+  "needs": "Reforged only (Blz key/sync natives)",
+  "options": [{"key": "greet", "label": "Message when it is enabled", "default": "OzzyCP has been enabled", "kind": "text"},
+              {"key": "activator", "label": "Activation string", "default": "ozzy", "kind": "text"},
+              {"key": "arrow", "label": "Arrow activation", "default": "uuddlrlr", "kind": "text"},
+              {"key": "symbol", "label": "Command prefix", "default": "-", "kind": "text"},
+              {"key": "key", "label": "Key activation (empty: off)", "default": "ozzy is godlike", "kind": "text"},
+              {"key": "objectid", "label": "Search objects by numeric id", "default": "false", "kind": "bool"},
+              {"key": "advanced", "label": "Advanced key input", "default": "false", "kind": "bool"}],
+  "finds": {"greet": "(?m)^local\\s+l\\s*=\\s*\"([^\"]*)\"",
+            "activator": "(?m)^local\\s+G\\s*=\\s*\"([^\"]*)\"",
+            "arrow": "(?m)^local\\s+T\\s*=\\s*\"([^\"]*)\"",
+            "symbol": "(?m)^local\\s+Z\\s*=\\s*'([^']*)'",
+            "key": "(?m)^local\\s+k\\s*=\\s*\"([^\"]*)\"",
+            "objectid": "(?m)^local\\s+e\\s*=\\s*(true|false)",
+            "advanced": "(?m)^local\\s+D\\s*=\\s*(true|false)"},
+  "prefix": "-",
+  "mark_option": "activator"
+}

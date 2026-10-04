@@ -102,38 +102,32 @@ VERDICT = {'yes': 'v-yes', 'probably': 'v-probably', 'node': 'v-no', 'unknown': 
 SCRIPT_LABEL = {'jass': 'JASS', 'lua': 'Lua', 'kkwe': 'KK compiled (KKWE)', 'j2b': 'KK compiled and encrypted (j2b)',
                 'kk_encrypted': 'KK encrypted outside the map', 'none': 'none'}
 STEP_TEXT = {
-    'mpq': ('Remove the MPQ protection',
-            'The header, the file tables and the tricks that make MPQ Editor open the map read-only, or not at all.'),
-    'fake_list': ('Remove the fake files', 'The junk entries and copies a protector adds so that editors choke.'),
-    'listing': ('Write a real file list', 'A (listfile) with every name the map uses, so MPQ Editor shows real names.'),
-    'ids': ('Restore the object ids', 'The ids a protector scrambled in the object data and in the script.'),
-    'dados:file_column': ('Move the models out of the file column',
-                          'Warcraft III 3.0 crashes on the first unit when UnitUI.slk or ItemData.slk has it.'),
-    'dados:levels': ('Add ability levels 5 and 6', 'Copies of level 4, so skills above level 4 keep their values.'),
-    'dados:buttonpos': ('Complete half-written button positions', 'Like Buttonpos=,2, which 3.0 no longer completes.'),
-    'dados:fdf_comment': ('Remove the stray */ in frame files', '3.0 closes on the loading screen when it finds one.'),
-    'dados:id_lists': ('Remove the |n from ability lists',
-                       'A line break left in the field makes 3.0 read an ability that does not exist.'),
+    'mpq': ('Remove the MPQ protection', 'Header, file tables and the read-only tricks.'),
+    'fake_list': ('Remove the fake files', 'Junk the protector added.'),
+    'listing': ('Write a real file list', 'A (listfile) with every real name.'),
+    'ids': ('Restore the object ids', 'The ids scrambled in the map data.'),
+    'dados:file_column': ('Move the models out of the file column', 'Crashes 3.0 on the first unit.'),
+    'dados:levels': ('Add ability levels 5 and 6', 'Copies of level 4.'),
+    'dados:buttonpos': ('Complete half-written button positions', 'Like Buttonpos=,2.'),
+    'dados:fdf_comment': ('Remove the stray */ in frame files', '3.0 closes on the loading screen.'),
+    'dados:id_lists': ('Remove the |n from ability lists', '3.0 reads a nonexistent ability.'),
     'dados:quoted_numbers': ('Turn numbers stored as text back into numbers', 'Not a crash, cleaned up as well.'),
-    'unprotection': ('Remove the protection first', 'The steps of "Fix map" the World Editor needs.'),
-    'script_restore': ('Turn the compiled script back into JASS', 'The World Editor cannot read the KK bytecode.'),
+    'unprotection': ('Remove the protection first', 'The steps of "Fix map" the editor needs.'),
+    'script_restore': ('Turn the compiled script back into JASS', 'The editor cannot read the KK bytecode.'),
     'editor_only_files': ('Add the files only the editor reads',
-                          'The map info repaired, the trigger files, the import list and JassHelper turned on.'),
-    'inflated_counts': ('Fix the counters that hang the editor',
-                        'A protector writes huge counts in files only the World Editor reads.'),
-    'invalid_doodads': ('Remove the doodads whose id does not exist',
-                        'The World Editor 3.0 crashes on them, and the game never drew them.'),
-    'gui_triggers': ('Restore the triggers as GUI', 'Off: the whole script goes into the custom script, as text.'),
+                          'Map info, triggers, import list and JassHelper.'),
+    'inflated_counts': ('Fix the counters that hang the editor', 'Huge counts in the editor files.'),
+    'invalid_doodads': ('Remove the doodads whose id does not exist', 'The editor 3.0 crashes on them.'),
+    'gui_triggers': ('Restore the triggers as GUI', 'Off: the whole script goes to the custom script.'),
     'script_objects': ('Place what the script creates',
-                       'The units, items, regions, cameras and sounds the script creates show in the editor.'),
-    'safe_units': ('Leave out the units that crash the editor',
-                   'Off: every unit is placed, also those whose model makes the World Editor 3.0 crash.'),
+                       'Units, items, regions, cameras and sounds the script creates.'),
+    'safe_units': ('Leave out the units that crash the editor', 'Off: every unit is placed, also the bad ones.'),
 }
 REASON_TEXT = {
-    'editor_requires': 'Required: the World Editor cannot open the map without it.',
-    'editor_crashes': 'Required: the World Editor 3.0 crashes or hangs without it.',
-    'editor_is_ready': 'Not needed: the map already opens in the World Editor.',
-    'no_protection': 'Not needed: the map has no MPQ protection.',
+    'editor_requires': 'Required: the editor cannot open the map without it.',
+    'editor_crashes': 'Required: the editor 3.0 crashes or hangs without it.',
+    'editor_is_ready': 'Not needed: the map already opens.',
+    'no_protection': 'Not needed: no MPQ protection.',
     'no_fakes': 'Not needed: no fake files.',
     'no_ids': 'Not needed: no scrambled ids.',
     'not_compiled': 'Not needed: the script is not compiled.',
@@ -190,36 +184,36 @@ def page_changes(r, kind, extras=None):
         data = steps.get('data_bytes') or {}
         for name in data.get('modified') or []:
             files.append({'file': name, 'how': 'added' if name in (data.get('new_ones') or []) else 'changed',
-                          'why': 'Warcraft III 3.0 data fix'})
+                          'why': '3.0 data fix'})
         if steps.get('ids'):
             files.append({'file': 'object data and script', 'how': 'changed', 'why': 'object ids restored'})
         if steps.get('listing'):
             files.append({'file': '(listfile)', 'how': 'added', 'why': 'the real file list'})
         same = (r.get('content') or {}).get('identical')
         if same is not None:
-            notes.append('%d files read back identical to the original.' % same)
+            notes.append('%d files identical to the original.' % same)
     else:
         rep = r.get('editor') or {}
         for name in rep.get('replaced') or []:
-            files.append({'file': name, 'how': 'changed', 'why': 'for the World Editor'})
+            files.append({'file': name, 'how': 'changed', 'why': 'for the editor'})
         for name in rep.get('new_ones') or []:
-            files.append({'file': name, 'how': 'added', 'why': 'only the World Editor reads it'})
+            files.append({'file': name, 'how': 'added', 'why': 'editor-only'})
     for extra in ((extras or {}).get('relatos') or {}):
-        files.append({'file': EXTRA_NAME.get(extra, extra), 'how': 'applied', 'why': 'an extra you ticked'})
+        files.append({'file': EXTRA_NAME.get(extra, extra), 'how': 'applied', 'why': 'an extra'})
     return {'files': files, 'notes': notes}
 
 
 EXTRA_DONE = {
     'models': 'Fixed the imported models that crash the game.',
-    'model_names': 'Gave the models their name back (the "Model_Encrypt" tool had renamed them).',
-    'portraits': 'Removed the cameras of the portrait models (check the portraits in game).',
-    'data_pointers': 'Set the data pointers of the levelled fields to the column their other levels use.',
-    'uabi': 'Moved the normal ability lists of the unit types to the script (test the map before sharing it).',
-    'preload': 'Loaded the models and abilities of the first seconds under the loading screen.',
-    'single_player': 'The map no longer ends the game when played alone (single player).',
+    'model_names': 'Gave the models their name back.',
+    'portraits': 'Removed the portrait cameras (check the portraits in game).',
+    'data_pointers': 'Aligned the data pointers of the levelled fields.',
+    'uabi': 'Moved the unit ability lists to the script (test the map before sharing it).',
+    'preload': 'Preloaded the models and abilities of the first seconds.',
+    'single_player': 'The map no longer ends the game in single player.',
     'card': 'Wrote the map card changes.',
     'translation': 'Applied the translation.',
-    'shrink': 'Made the map smaller without losing anything.',
+    'shrink': 'Made the map smaller.',
 }
 EXTRA_NAME = {'models': 'the model fixes', 'model_names': 'the model names', 'portraits': 'the portrait cameras',
               'data_pointers': 'the data pointers',
@@ -420,6 +414,12 @@ def _preview(job, progress):
     return map_files.preview(job['map'], job['name'])
 
 
+def _rawcodes(job, progress):
+    from doctor.data import rawcodes
+    progress('Reading the raw codes')
+    return rawcodes.extract(job['map'])
+
+
 def _extract(job, progress):
     from doctor.viewers import map_files
     return map_files.extract(job['map'], job['names'], job['folder'], progress)
@@ -477,6 +477,7 @@ def _compare(job, progress):
 TOOLS = {'card': _card, 'card_image': _card_image, 'gradient': _gradient, 'reforged': _reforged, 'files': _files,
          'preview': _preview, 'extract': _extract, 'script': _script, 'script_checks': _script_checks,
          'triggers': _triggers, 'cheatpacks': _cheatpacks, 'cheatpack_inject': _cheatpack_inject,
+         'rawcodes': _rawcodes,
          'translation_export': _translation_export, 'translation_check': _translation_check, 'compare': _compare}
 
 

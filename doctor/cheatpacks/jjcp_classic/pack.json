@@ -1,0 +1,9 @@
+{
+  "id": "jjcp_classic",
+  "title": "JJCP classic",
+  "language": "jass",
+  "needs": "classic and Reforged (no Blz native)",
+  "options": [{"key": "activator", "label": "Activation string", "default": "-cheats  ", "kind": "text"}],
+  "finds": {"activator": "(?m)^string\\s+Activator\\s*=\\s*\"([^\"]*)\""},
+  "mark_option": "activator"
+}

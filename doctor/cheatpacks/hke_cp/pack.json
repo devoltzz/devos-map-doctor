@@ -1,0 +1,11 @@
+{
+  "id": "hke_cp",
+  "title": "Hke CP (Arrow+Name Activator Edition)",
+  "language": "jass",
+  "needs": "classic and Reforged (no Blz native)",
+  "options": [{"key": "activator", "label": "Arrow activation (U/D/L/R, E = ESC)", "default": "UUDDE", "kind": "text"},
+              {"key": "name", "label": "Player name that activates it", "default": "whitegun", "kind": "text"}],
+  "finds": {"activator": "(?m)^string\\s+hke_activator\\s*=\\s*\"([^\"]*)\"",
+            "name": "(?m)^\\s*if\\s+StringCase\\(GetPlayerName\\(Player\\(i\\)\\),false\\)==\\s*\"([^\"]*)\""},
+  "mark_option": "activator"
+}

@@ -79,6 +79,8 @@ const state = {
   // the Cheatpacks tab: the answer of the backend (the packs this map's script language can take) and what the page
   // picked (the pack id, the value of each option of it, and the result of the last injection)
   cheatpacks: null, cheatPack: { id: null, options: {}, result: null },
+  // the Files tab: the answer of "Read the raw codes", and null until the button is pressed (nothing is read on its own)
+  rawcodes: null,
 };
 
 const api = () => window.pywebview.api;
@@ -188,6 +190,7 @@ async function openMap(path) {
     dataPointers: null, uabi: null, preload: null };
   state.cheatpacks = null;
   state.cheatPack = { id: null, options: {}, result: null };
+  state.rawcodes = null;
   TABS.forEach(n => setTabState(n, 'wait'));
   $('#welcome').classList.add('hidden');
   $('#mapview').classList.remove('hidden');
@@ -223,8 +226,8 @@ async function openMap(path) {
   } catch (e) {
     if (gen !== state.gen) return;
     $('#badges').replaceChildren(el('span', { class: 'badge bad', text: 'Could not check the map' }));
-    TABS.forEach(n => { tabBody(n, el('div', { class: 'card muted', text: 'The map could not be checked, so ' +
-      'there is nothing to show here.' })); setTabState(n, 'failed'); });
+    TABS.forEach(n => { tabBody(n, el('div', { class: 'card muted', text: 'The map could not be checked.' }));
+      setTabState(n, 'failed'); });
     failed(e, 'Checking the map');
   }
 }
@@ -304,10 +307,11 @@ async function checkReforgedQuietly(gen) {
 
 // ------------------------------------------------------------------ the two actions
 const ACTIONS = {
-  fix: { title: 'Fix map', suffix: '_fixed', lead: 'Saves a copy to play and to edit in MPQ Editor: without the ' +
-    'protection, and with what Warcraft III 3.0 no longer accepts fixed.', label: 'Fixing the map...' },
-  editor: { title: 'Open in World Editor', suffix: '_editor', lead: 'Saves a copy the World Editor opens, with the ' +
-    'triggers back as GUI wherever that can be proved.', label: 'Preparing the map for the World Editor...' },
+  fix: { title: 'Fix map', suffix: '_fixed', label: 'Fixing the map...',
+    lead: 'Saves a copy without the protection and with the 3.0 fixes.' },
+  editor: { title: 'Open in World Editor', suffix: '_editor',
+    label: 'Preparing the map for the World Editor...',
+    lead: 'Saves a copy the World Editor opens, triggers back as GUI.' },
 };
 const EXTRA_STEPS = {
   fix: ['models', 'modelNames', 'portraits', 'dataPointers', 'uabi', 'preload', 'singlePlayer', 'card', 'translation',
@@ -331,33 +335,36 @@ function extraSteps(action) {
     if (k === 'models' && x.models) out.push({ key: 'x:models', label: 'Fix the models that crash the game',
       detail: x.models.fixable + ' imported ' + (x.models.fixable === 1 ? 'model has' : 'models have') +
         ' a problem the Doctor can fix.', on: true, applies: true, group: 'extra' });
-    if (k === 'modelNames' && x.modelNames) out.push({ key: 'x:modelNames', label: 'Give the models their name back',
-      detail: x.modelNames.fixable + ' model ' + (x.modelNames.fixable === 1 ? 'name carries' : 'names carry') +
-        ' the suffix the "Model_Encrypt" tool adds (体): the files were renamed and the map cites the new name. The ' +
-        'Doctor renames them back and rewrites every file that cites them.', on: true, applies: true, group: 'extra' });
+    if (k === 'modelNames' && x.modelNames) out.push({ key: 'x:modelNames',
+      label: 'Give the models their name back',
+      detail: x.modelNames.fixable + ' model ' + (x.modelNames.fixable === 1 ? 'name carries' :
+        'names carry') + ' the suffix the "Model_Encrypt" tool adds (体): they are renamed back.',
+      on: true, applies: true, group: 'extra' });
     if (k === 'portraits' && x.portraits) out.push({ key: 'x:portraits', label: 'Fix black portraits',
       detail: x.portraits.fixable + ' portrait ' + (x.portraits.fixable === 1 ? 'model has' : 'models have') +
-        ' an old camera, reported to show a black portrait in 3.0: the camera is removed. Check them in game.',
+        ' an old camera that shows black in 3.0; it is removed. Check in game.',
       on: false, applies: true, group: 'extra' });
     if (k === 'dataPointers' && x.dataPointers) out.push({ key: 'x:dataPointers', label: 'Fix the levelled data pointers',
       detail: x.dataPointers.fixable + ' levelled ' + (x.dataPointers.fixable === 1 ? 'field points' : 'fields point') +
         ' to another data column on some levels.', on: true, applies: true, group: 'extra' });
     if (k === 'uabi' && x.uabi) out.push({ key: 'x:uabi', label: 'Move the unit ability lists to the script',
-      detail: x.uabi.distinct + ' distinct abilities in the unit lists; reported to drop games on Reforged. Test the ' +
-        'map before sharing it.', on: false, applies: true, group: 'extra' });
-    if (k === 'preload' && x.preload) out.push({ key: 'x:preload', label: 'Load the first seconds under the loading screen',
-      detail: x.preload.units + ' unit types and ' + x.preload.abilities + ' abilities the map uses right after the ' +
-        'start are loaded before play begins, so the game does not freeze then.', on: false, applies: true,
-      group: 'extra' });
-    if (k === 'singlePlayer' && x.singlePlayer) out.push({ key: 'x:singlePlayer', label: 'Let it run in single player',
-      detail: 'The map ends the game when played alone; there is no LAN since 3.0, so alone means single player.',
+      detail: x.uabi.distinct + ' distinct abilities in the unit lists; reported to drop games on ' +
+        'Reforged. Test it before sharing.', on: false, applies: true, group: 'extra' });
+    if (k === 'preload' && x.preload) out.push({ key: 'x:preload',
+      label: 'Load the first seconds under the loading screen',
+      detail: x.preload.units + ' unit types and ' + x.preload.abilities +
+        ' abilities are loaded before play starts, so the game does not freeze.',
+      on: false, applies: true, group: 'extra' });
+    if (k === 'singlePlayer' && x.singlePlayer) out.push({ key: 'x:singlePlayer',
+      label: 'Let it run in single player',
+      detail: 'The map ends the game when played alone.',
       on: false, applies: true, group: 'extra' });
     if (k === 'card' && x.card) out.push({ key: 'x:card', label: 'Apply the map card changes',
       detail: Object.keys(x.card).length + ' changed in the Map card tab.', on: true, applies: true, group: 'extra' });
     if (k === 'translation' && x.translation) out.push({ key: 'x:translation', label: 'Apply the translation',
       detail: base(x.translation.file) + ', from the Translation tab.', on: true, applies: true, group: 'extra' });
     if (k === 'shrink') out.push({ key: 'x:shrink', label: 'Make the map smaller, losing nothing',
-      detail: 'Recompresses every file and stores duplicates once; images stay pixel for pixel. Slow on big maps.',
+      detail: 'Recompresses every file and stores duplicates once. Slow on big maps.',
       on: false, applies: true, group: 'extra' });
   }
   return out;
@@ -395,7 +402,7 @@ function renderAction(action) {
         onclick: () => runAction(action) }),
       hidden ? el('label', { class: 'show-na' }, el('input', { type: 'checkbox', checked: showNa, onchange: e => {
         state.settings.showNa = Object.assign({}, state.settings.showNa, { [action]: e.target.checked });
-        saveSettings(); renderActions(); } }), ' show the ' + hidden + ' steps this map does not need') : null));
+        saveSettings(); renderActions(); } }), ' show the ' + hidden + ' steps not needed') : null));
   return card;
 }
 
@@ -537,9 +544,8 @@ async function reportProblem() {
   const body = parts.join('\n');
   const title = 'Problem with ' + (state.open ? state.open.name : 'the Doctor');
   const text = el('textarea', {}, body);
-  const where = state.hello && state.hello.repository ? 'It opens a new GitHub issue in your browser with this ' +
-    'text filled in. Nothing is sent until you submit it there; the map itself is never attached.' :
-    'Copy this text and send it with your report.';
+  const where = state.hello && state.hello.repository ? 'Opens a GitHub issue with this text; the map is ' +
+    'never attached.' : 'Copy this text into your report.';
   const v = await dialog('Report a problem', el('div', {}, el('p', { class: 'muted', text: where }), text),
     [['Cancel', null], ['Copy', 'copy'], state.hello && state.hello.repository ? ['Open GitHub issue', 'gh', true] :
       null].filter(Boolean));
@@ -555,8 +561,8 @@ function offerUpdate(release) {
   u.textContent = 'Version ' + v + ' is out';
   u.style.cursor = 'pointer';
   u.onclick = async () => {
-    const ok = await dialog('Update', el('p', { text: 'Version ' + v + ' of Devo\'s Map Doctor is available (you have ' +
-      state.hello.version + '). Download and install it now? The program restarts.' }),
+    const ok = await dialog('Update', el('p', { text: 'Version ' + v + ' is available (you have ' +
+      state.hello.version + '). Install it now? The program restarts.' }),
       [['Not now', null], ['Install', true, true]]);
     if (ok) {
       status('Downloading the new version...');
@@ -568,7 +574,7 @@ function offerUpdate(release) {
 
 function offerIndex(release, missing) {
   toast('The file name index (names.npz, ' + mb(release.index_size || 0) + ') is ' + (missing ? 'missing' :
-    'out of date') + '. With it, the Doctor names more files in maps with damaged file tables.',
+    'out of date') + '. It names more files in maps with damaged file tables.',
   { sticky: true, actions: [['Download', () => { api().download_index(release); toast('Downloading the index...'); }],
     ['Later', () => {}]] });
 }
@@ -589,7 +595,7 @@ function setTabState(name, st) {
   b.disabled = st === 'wait';
   b.classList.toggle('loading', st === 'wait');
   b.classList.toggle('failed', st === 'failed');
-  b.title = st === 'wait' ? 'Loading: the tab opens when all of its information is in.' :
+  b.title = st === 'wait' ? 'Loading: the tab opens when its information is in.' :
     st === 'failed' ? 'Loading failed: open the tab to try again.' : '';
 }
 
@@ -721,19 +727,31 @@ function renderCard() {
   const images = el('div', { class: 'row wrap', style: 'gap:18px' },
     ['minimap', 'preview'].map(which => imageSlot(which, (c.images || {})[which])));
   const info = c.info || {};
+  // the commands as plain text, ONE PER LINE: the empty match ("any message") is not a command to type, and the "..."
+  // of a prefix match is not part of the command
+  const chatCommandText = (list) => (list || [])
+    .map(x => typeof x === 'string' ? x : String(x.text || ''))
+    .map(t => t.trim()).filter(t => t).join('\n');
   const infoCard = el('div', { class: 'card' }, el('h2', { text: 'What the map says about itself' }),
     el('div', { class: 'form' },
       el('label', { text: 'Language' }), el('div', { style: 'padding-top:7px', text: describeLanguage(info.language) }),
       el('label', { text: 'Save' }), el('div', { style: 'padding-top:7px', text: describeSave(info.save) }),
       el('label', { text: 'Chat commands' }), el('div', { style: 'padding-top:7px' },
-        (info.chat_commands || []).length ? el('div', { class: 'mono', style: 'white-space:pre-wrap',
-          text: info.chat_commands.map(x => typeof x === 'string' ? x : x.text === '' ? '(any message)' :
-            x.text + (x.exact === false ? '...' : '')).join('   ') }) :
+        (info.chat_commands || []).length ? el('div', {},
+          el('div', { class: 'mono', style: 'white-space:pre-wrap',
+            text: info.chat_commands.map(x => typeof x === 'string' ? x : x.text === '' ? '(any message)' :
+              x.text + (x.exact === false ? '...' : '')).join('   ') }),
+          chatCommandText(info.chat_commands) ? el('button', { class: 'btn small ghost', style: 'margin-top:6px',
+            text: 'Copy all (one per line)', onclick: async () => {
+              await copyText(chatCommandText(info.chat_commands));
+              toast('The commands are in the clipboard.');
+            } }) : null) :
           el('span', { class: 'muted', text: 'none found in the script' }))));
   tabBody('card',
     el('div', { class: 'card' }, el('h2', { text: 'Map card' }),
-      el('p', { class: 'lead', text: 'Changes go into the copy the next action saves ("Apply the map card ' +
-        'changes" in Actions). Color codes like |cffff0000red|r show below each field.' }), form, players, forces,
+      el('p', { class: 'lead', text: 'Changes go into the next copy ("Apply the map card changes" in ' +
+        'Actions).' }),
+      form, players, forces,
       el('h3', { text: 'Images' }), images),
     infoCard);
 }
@@ -815,8 +833,7 @@ function renderReforged() {
   const fix = { doctor: '"Fix map" or "Open in World Editor" takes care of it.', port: 'It needs a port, not a fix.',
     none: '' };
   tabBody('reforged', el('div', { class: 'card' }, el('h2', { text: verdict }),
-    el('p', { class: 'lead', text: 'Only what was measured on real maps is checked: a "yes" means none of those ' +
-      'problems is there, not that every trigger was played.' }),
+    el('p', { class: 'lead', text: 'A "yes" means none of the measured problems is there.' }),
     (r.items || []).length ? el('div', { class: 'report' }, r.items.map(it => el('div', { class: 'step' },
       el('span', { class: 'badge ' + (sev[it.severity] || ''), text: it.severity }),
       el('div', {}, el('div', { text: it.text }), fix[it.fix] ? el('div', { class: 'd muted', text: fix[it.fix] }) :
@@ -857,7 +874,7 @@ function renderFiles() {
   };
   filter.addEventListener('input', draw);
   draw();
-  tabBody('files', el('div', { class: 'card' },
+  tabBody('files', rawcodesCard(), el('div', { class: 'card' },
     el('div', { class: 'row' }, el('h2', { class: 'grow', text: f.files.length + ' files' +
       (f.unnamed && f.unnamed.length ? ', ' + f.unnamed.length + ' without a name' : '') }), filter,
       el('button', { class: 'btn', text: 'Extract selected...', onclick: async () => {
@@ -879,8 +896,8 @@ function renderFiles() {
 
 // 1.5.3: the import checks of a file (import_lint)
 const LINT_TEXT = {
-  not_in_imp: ['not in the import list', 'The World Editor drops it the next time it saves the map.'],
-  odd_extension: ['not a game file', 'The game does not load this type of file: it travels with the map for nothing.'],
+  not_in_imp: ['not in the import list', 'The World Editor drops it on the next save.'],
+  odd_extension: ['not a game file', 'The game does not load this type of file.'],
   game_file: ['replaces a game file', 'The game shows this file instead of its own.'],
 };
 
@@ -912,6 +929,88 @@ async function showPreview(file, box) {
   } catch (e) { box.replaceChildren(el('span', { class: 'bad', text: 'Cannot show it: ' + (e.message || e) })); }
 }
 
+// ------------------------------------------------------------------ the raw codes
+// The four-character ids the map's object data uses (units, items, abilities, buffs, upgrades, doodads). The ids that
+// are not ASCII are the PG family: a protector renamed the objects to hide what they are. Nothing is read until the
+// user presses the button; the answer stays in the state, so the card is the same when the tab is drawn again.
+function rawcodesCard() {
+  const body = el('div', {});
+  if (state.rawcodes) drawRawcodes(body, state.rawcodes);
+  const btn = el('button', { class: 'btn', text: 'Read the raw codes', onclick: async () => {
+    if (state.running) return;
+    btn.disabled = true;
+    body.replaceChildren(el('span', { class: 'faint', text: 'Reading the raw codes...' }));
+    try {
+      const r = await run('rawcodes', {}, { quiet: true });
+      state.rawcodes = r;
+      drawRawcodes(body, r);
+    } catch (e) {
+      // the job itself failed: the red line the other tabs show, and the reason under it
+      body.replaceChildren(el('div', { class: 'report' },
+        el('div', { class: 'l bad', text: 'Reading the raw codes failed.' }),
+        el('div', { class: 'l info', text: (e && e.message) || String(e) })));
+    }
+    btn.disabled = false;
+  } });
+  return el('div', { class: 'card' },
+    el('div', { class: 'row' }, el('h2', { class: 'grow', text: 'Raw codes' }), btn),
+    el('p', { class: 'lead', text: 'The four-character ids the object data uses. Non-ASCII ones are the PG ' +
+      'family.' }),
+    body);
+}
+
+// how many of the ids are not printable ASCII (the PG family). It counts the UNIQUE ids of the kinds: the per-source
+// "ansii" can repeat the same id under two sources, and the "text" escapes the bytes Python reads as a line break, so
+// counting it would say less than the truth. The test catches both the control bytes of the PG family and the
+// surrogates of the ids above ASCII.
+function nonAsciiIds(text, kinds) {
+  const ids = new Set();
+  (kinds || []).forEach(k => (k.ids || []).forEach(i => ids.add(i)));
+  let n = 0;
+  for (const id of ids) {
+    for (let i = 0; i < id.length; i++) {
+      const c = id.charCodeAt(i);
+      if (c < 0x20 || c > 0x7e) { n += 1; break; }
+    }
+  }
+  if (ids.size) return n;
+  return (kinds || []).reduce((a, k) => a + (k.ansii || 0), 0);
+}
+
+// the answer of the backend: the summary line, one table row per kind (its first ids as a preview), the note, and the
+// two buttons that hand over the whole list the same way the Script tab exports its script
+function drawRawcodes(body, r) {
+  if (r.error) {
+    body.replaceChildren(el('div', { class: 'report' }, el('div', { class: 'l bad', text: r.error })));
+    return;
+  }
+  const kinds = r.kinds || [];
+  const total = r.total === undefined || r.total === null ? kinds.reduce((n, k) => n + (k.count || 0), 0) : r.total;
+  const ansii = nonAsciiIds(r.text, kinds);
+  body.replaceChildren(
+    el('p', { class: 'lead', text: total + ' raw codes, ' + ansii + ' of them not ASCII (the PG family).' }),
+    kinds.length ? el('div', { class: 'scroll', style: 'max-height:320px' }, el('table', { class: 'grid' },
+      el('thead', {}, el('tr', {}, el('th', { text: 'Kind' }), el('th', { text: 'From' }), el('th', { text: 'Count' }),
+        el('th', { text: 'Not ASCII' }), el('th', { text: 'First ids' }))),
+      el('tbody', {}, kinds.map(k => {
+        const ids = k.ids || [];
+        return el('tr', {}, el('td', { class: 'mono', text: k.kind }), el('td', { class: 'muted', text: k.source }),
+          el('td', { text: String(k.count === undefined || k.count === null ? ids.length : k.count) }),
+          el('td', { class: k.ansii ? 'warn' : 'faint', text: String(k.ansii || 0) }),
+          el('td', { class: 'mono', text: ids.slice(0, 8).join('  ') + (ids.length > 8 ? '  ...' : '') }));
+      })))) : el('p', { class: 'muted', text: 'No object data to read in this map.' }),
+    r.note ? el('p', { class: 'muted', text: r.note }) : null,
+    r.text ? el('div', { class: 'row', style: 'margin-top:12px' },
+      el('button', { class: 'btn', text: 'Copy all', onclick: async () => {
+        await copyText(r.text);
+        toast('The raw codes are in the clipboard.');
+      } }),
+      el('button', { class: 'btn', text: 'Save as...', onclick: async () => {
+        const p = await api().pick_save(base(state.map).replace(/\.\w+$/, '') + '_rawcodes.txt', 'text');
+        if (p) { await api().write_text(p, r.text); toast('Saved ' + base(p) + '.'); }
+      } })) : null);
+}
+
 // ------------------------------------------------------------------ script
 async function loadScript(gen) {
   try {
@@ -941,8 +1040,8 @@ const RULE_TEXT = { discarded: 'created and thrown away', inline: 'created insid
   never_destroyed: 'kept in a local, never destroyed' };
 
 function scriptChecksCard() {
-  const box = el('div', { class: 'muted', text: 'Looks for handle leaks (weighed by how often the code runs), ' +
-    'start-up functions nothing calls and globals that are read and never set.' });
+  const box = el('div', { class: 'muted', text: 'Handle leaks, start-up functions nothing calls, globals ' +
+    'read and never set.' });
   const btn = el('button', { class: 'btn', text: 'Script checks', onclick: async () => {
     btn.disabled = true;
     box.replaceChildren(el('span', { class: 'faint', text: 'Checking...' }));
@@ -992,19 +1091,42 @@ function renderCheatpacks() {
   const packs = d.packs || [];
   const head = el('div', { class: 'card' },
     el('h2', { text: 'Cheat packs' }),
-    el('p', { class: 'lead', text: 'Puts one of the archive\'s cheat packs into the map\'s own script: the pack is ' +
-      'obfuscated, the options below are frozen in the map, and the edited script goes back into a copy of the map ' +
-      '(the file is not rebuilt). The packs the Doctor carries are read as data and never run.' }),
+    el('p', { class: 'lead', text: 'Puts one cheat pack into the map\'s script, obfuscated, with the ' +
+      'options below. Saves an edited copy.' }),
     el('div', { class: 'badges' },
       el('span', { class: 'badge ' + (d.language ? 'info' : 'warn'), text: d.language ?
         'The map script is ' + (d.language === 'lua' ? 'Lua' : 'JASS') : 'The map script cannot be written' }),
       d.script ? el('span', { class: 'badge', text: d.script + (d.size ? ' (' + mb(d.size) + ')' : '') }) : null),
-    packs.length ? el('p', { class: 'muted', text: packs.length + (packs.length === 1 ? ' pack fits' : ' packs fit') +
-      ' this map: pick one, set its options and inject it.' }) :
+    packs.length ? el('p', { class: 'muted', text: packs.length +
+      (packs.length === 1 ? ' pack fits' : ' packs fit') + ' this map: pick one and inject it.' }) :
       el('p', { class: 'muted', text: d.why || 'The map script is not one the Doctor can write.' }),
     d.note ? el('p', { class: 'faint', text: d.note }) : null);
-  tabBody('cheatpacks', head, packs.map(cheatpackCard),
+  // what the map already carries comes first: that card only reads, the cards under it inject a pack
+  tabBody('cheatpacks', head, cheatpackFound(d), packs.map(cheatpackCard),
     state.cheatPack.result ? cheatpackResult(state.cheatPack.result) : null);
+}
+
+// The packs the map's OWN script already carries (the "found" of the backend). Read-only: nothing here is injected,
+// the pack is only named, with what the player types to call it, where it was found and what gave it away.
+function cheatpackFound(d) {
+  const found = d.found || [];
+  return el('div', { class: 'card', id: 'cheatpacks-found' },
+    el('h2', { text: 'Cheat packs already in this map' }),
+    found.length ? el('p', { class: 'lead', text: found.length +
+      (found.length === 1 ? ' cheat pack' : ' cheat packs') + ' in the map\'s own script.' }) : null,
+    found.length ? el('ul', { class: 'steps' }, found.map(cheatpackFoundItem)) :
+      el('p', { class: 'muted', text: 'No cheat pack found in this map\'s script.' }));
+}
+
+// one detection: the name, the activator the player types (in mono, highlighted: it is the thing to try in game), where
+// it was found and the line of evidence, with the confidence as a badge ("certain", or "guess" when it is not proved)
+function cheatpackFoundItem(f) {
+  return el('li', { class: 'step' }, el('div', { class: 'grow' },
+    el('div', { class: 'row' }, el('span', { class: 'grow t', text: f.title || f.id }),
+      el('span', { class: 'badge ' + (f.confidence === 'low' ? 'warn' : 'good'),
+        text: f.confidence === 'low' ? 'guess' : 'certain' })),
+    f.activator ? el('div', { style: 'margin-top:2px' }, el('span', { class: 'mono badge', text: f.activator })) : null,
+    el('div', { class: 'faint', text: [f.where, f.evidence].filter(Boolean).join('  -  ') })));
 }
 
 function cheatpackCard(p) {
@@ -1059,7 +1181,7 @@ async function runCheatpack() {
     state.results.cheatpacks = r;
     renderCheatpacks();
     status(r.outcome === 'ok' ? 'Cheat pack injected.' : 'The injection stopped.');
-    if (r.outcome !== 'ok') toast('The cheat pack was not injected. The result card says why.', { bad: true });
+    if (r.outcome !== 'ok') toast('The cheat pack was not injected.', { bad: true });
   } catch (e) {
     failed(e, 'Injecting the cheat pack');
     if (e && e.cancelled) { renderCheatpacks(); return; }
@@ -1109,8 +1231,7 @@ function renderTriggers(t) {
       (g.enabled === false ? '  (off)' : ''), onclick: e => {
       $$('.trig.sel', tree).forEach(x => x.classList.remove('sel')); e.target.classList.add('sel'); showTrigger(g, view);
     } })))));
-  const src = t.source === 'map' ? 'the map\'s own trigger files' : 'restored from the script, as "Open in World ' +
-    'Editor" would';
+  const src = t.source === 'map' ? 'the map\'s own trigger files' : 'restored from the script';
   tabBody('triggers', el('div', { class: 'split' }, el('div', {}, el('p', { class: 'muted', text: 'From ' + src + '.' }),
     tree), view));
 }
@@ -1128,12 +1249,10 @@ function showTrigger(g, view) {
 function renderTranslation() {
   const tr = state.extras.translation;
   tabBody('translation', el('div', { class: 'card' }, el('h2', { text: 'Translate the map' }),
-    el('p', { class: 'lead', text: 'Export every text a player sees to one file, translate it with any tool, and ' +
-      'load it back. The checks the ports use run before anything is applied: color codes, |n, %s and numbers must ' +
-      'stay, and texts the script compares are left alone.' }),
-    el('p', { class: 'muted', text: 'Two formats: the JSON file (with instructions, for an AI or a person) and a web ' +
-      'page for a machine translation service such as Google Translate or DeepL (translate the document there, ' +
-      'save the translated page and load it here; the ids and the game codes are marked so the service keeps them).' }),
+    el('p', { class: 'lead', text: 'Export every text a player sees, translate it, load it back. The ' +
+      'checks run before anything is applied.' }),
+    el('p', { class: 'muted', text: 'Two formats: JSON, or a web page for Google Translate or DeepL; load ' +
+      'the translated page back here.' }),
     el('div', { class: 'row' },
       el('button', { class: 'btn', text: 'Export texts...', onclick: () => exportTexts('json') }),
       el('button', { class: 'btn', text: 'Export for machine translation...', onclick: () => exportTexts('html') }),
@@ -1148,8 +1267,7 @@ function renderTranslation() {
       } })),
     tr ? el('div', { style: 'margin-top:14px' }, el('div', { class: 'notice info', text: base(tr.file) + ': ' +
       (tr.check.ok || 0) + ' texts pass the checks' + (tr.check.rejected && tr.check.rejected.length ? ', ' +
-      tr.check.rejected.length + ' do not and will be left out' : '') + '. Run "Fix map" or "Open in World Editor" ' +
-      'with "Apply the translation" ticked.' }),
+      tr.check.rejected.length + ' left out' : '') + '. Tick "Apply the translation" in Actions.' }),
     tr.check.rejected && tr.check.rejected.length ? el('div', { class: 'scroll', style: 'margin-top:10px;max-height:300px' },
       el('table', { class: 'grid' }, el('thead', {}, el('tr', {}, el('th', { text: 'Text' }), el('th', { text: 'Why' }))),
         el('tbody', {}, tr.check.rejected.slice(0, 500).map(x => el('tr', {}, el('td', { class: 'mono',
@@ -1202,8 +1320,7 @@ function renderCompare(result) {
         (result.strings[k] || []).map(x => k + '  ' + (x.id || x))))));
   }
   tabBody('compare', el('div', { class: 'card' }, el('h2', { text: 'Compare two versions' }),
-    el('p', { class: 'lead', text: 'What changed between this map and another version of it: files, map info, ' +
-      'objects, script functions and strings.' }), pick, ...parts));
+    el('p', { class: 'lead', text: 'What changed against another version of this map.' }), pick, ...parts));
 }
 
 // ------------------------------------------------------------------ start
@@ -1213,26 +1330,22 @@ function renderCompare(result) {
 // in one go and saves <map>_reforged.w3x and <map>_reforged.report.txt next to the original.
 function renderPort() {
   const s = state.open ? state.open.summary : null;
-  const platform = s && /kk|j2b/.test(s.script || '') ? 'This map\'s script is compiled by the KK platform: it is ' +
-    'turned back into JASS first.' : '';
+  const platform = s && /kk|j2b/.test(s.script || '') ? 'The KK script is turned back into JASS first.' : '';
   const r = state.portResult;
   tabBody('port',
     el('div', { class: 'card' },
       el('h2', { text: 'Port to Reforged' }),
-      el('p', { class: 'lead', text: 'For maps made for the KK or M16 platforms (DzAPI, japi, JN): gives the platform ' +
-        'natives a body, turns the platform save into a local save, the platform menus into Reforged frames, and ' +
-        'checks the result with the Reforged 3.0 compiler. Saves the ported map and a report next to the original.' }),
+      el('p', { class: 'lead', text: 'For KK or M16 maps (DzAPI, japi, JN): fills in the platform natives, ' +
+        'makes the save local and ports the menus. Saves the map and a report next to it.' }),
       platform ? el('p', { class: 'muted', text: platform }) : null,
-      el('p', { class: 'muted', text: 'Big maps take several minutes. What only a game can prove (the save and the load ' +
-        'with two players, the menus) is listed in the report for you to check.' }),
+      el('p', { class: 'muted', text: 'Big maps take minutes.' }),
       packagesBox(),
       // 1.5.1: the memory hacks of patch 1.2x (JN maps): the Reforged equivalents always; the rest neutralized when ticked
       el('label', { class: 'show-na', style: 'display:block;margin:6px 0 10px' },
         el('input', { type: 'checkbox', checked: state.portMemory !== false, onchange: e => {
           state.portMemory = e.target.checked; } }),
-        ' Neutralize memory hacks: the map compiles, and what read or wrote the memory of the old game (smart cast, ' +
-        'control groups, exit hooks) stops working. Typecasts and effects with a Reforged equivalent are always ' +
-        'converted.'),
+        ' Neutralize memory hacks: what read the old game\'s memory (smart cast, control groups, ' +
+        'exit hooks) breaks.'),
       el('div', { class: 'foot' }, el('button', { class: 'btn primary needs-idle', text: 'Port to Reforged',
         disabled: !!state.running, onclick: runPort }))),
     r ? portResult(r) : null);
@@ -1244,9 +1357,8 @@ function packagesBox() {
   const list = state.portPackages || [];
   return el('div', { style: 'margin:10px 0' },
     el('h3', { text: 'Art packages (optional)' }),
-    el('p', { class: 'muted', text: 'Models, icons and sounds the map asks for and does not carry often came from a ' +
-      'package of the platform client. Add those files here, newest first: what the map needs and only a package ' +
-      'has goes into the ported map. They are read as data and never run.' }),
+    el('p', { class: 'muted', text: 'Add the platform client\'s art packages the map needs (models, icons, ' +
+      'sounds), newest first.' }),
     list.length ? el('ul', { class: 'steps' }, list.map((p, i) => el('li', { class: 'step' },
       el('div', { class: 'grow mono', text: (i + 1) + '. ' + base(p) }),
       i ? el('button', { class: 'btn small', text: 'Up', onclick: () => {
@@ -1300,7 +1412,7 @@ function portResult(r) {
       el('span', { class: 'badge ' + (stubs.length ? 'warn' : 'good'), text: stubs.length + ' called stub' +
         (stubs.length === 1 ? '' : 's') })),
     reportLines(r.lines),
-    stubs.length ? el('div', {}, el('h3', { text: 'Stubs the map calls, and who depends on them' }),
+    stubs.length ? el('div', {}, el('h3', { text: 'Stubs the map calls' }),
       el('div', { class: 'scroll', style: 'max-height:280px' }, el('table', { class: 'grid' },
         el('thead', {}, el('tr', {}, el('th', { text: 'Native' }), el('th', { text: 'Calls' }),
           el('th', { text: 'Functions' }), el('th', { text: 'Triggers' }))),

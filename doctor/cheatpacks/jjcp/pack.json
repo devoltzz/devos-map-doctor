@@ -1,0 +1,14 @@
+{
+  "id": "jjcp",
+  "title": "JJCP NewGen",
+  "language": "jass",
+  "needs": "classic and Reforged (no Blz native)",
+  "options": [{"key": "activator", "label": "Activation string", "default": "wc3edit", "kind": "text"},
+              {"key": "arrow", "label": "Arrow activation", "default": "UUDDLR", "kind": "text"},
+              {"key": "name", "label": "Player name that activates it", "default": "nuzamacuxe", "kind": "text"}],
+  "finds": {"activator": "(?m)^string\\s+activator\\s*=\\s*\"([^\"]*)\"",
+            "arrow": "(?m)^string\\s+arrowAct\\s*=\\s*\"([^\"]*)\"",
+            "name": "Init_NameEvent\\(\\s*\"([^\"]*)\"\\s*\\)"},
+  "prefix": "-",
+  "mark_option": "activator"
+}

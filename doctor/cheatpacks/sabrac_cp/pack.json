@@ -1,0 +1,9 @@
+{
+  "id": "sabrac_cp",
+  "title": "SabRaC's CP v0.51",
+  "language": "jass",
+  "needs": "classic 1.24+ and Reforged (no Blz native; uses a hashtable)",
+  "options": [{"key": "activator", "label": "Boss/activation word (the password needs 5+ words)", "default": "SabRaC", "kind": "text"}],
+  "finds": {"activator": "(?m)^string\\s+sabrac_boss\\s*=\\s*\"([^\"]*)\""},
+  "mark_option": "activator"
+}

@@ -1,0 +1,9 @@
+{
+  "id": "haxoricos_cp",
+  "title": "haxorico's jew cp",
+  "language": "jass",
+  "needs": "classic and Reforged (no Blz native)",
+  "options": [{"key": "activator", "label": "Activation string", "default": "-jew pawah", "kind": "text"}],
+  "finds": {"activator": "(?m)^string\\s+jew_activator=\"([^\"]*)\""},
+  "mark_option": "activator"
+}

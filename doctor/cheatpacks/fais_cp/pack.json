@@ -1,0 +1,9 @@
+{
+  "id": "fais_cp",
+  "title": "Fai's Cheat Pack 4.3c",
+  "language": "jass",
+  "needs": "classic and Reforged (no Blz native)",
+  "options": [{"key": "activator", "label": "Activation string", "default": "lIlIIllIll", "kind": "text"}],
+  "finds": {"activator": "(?m)^\\s*set\\s+vfai_col7\\[12\\]\\s*=\\s*\"([^\"]*)\"\\s*$"},
+  "mark_option": "activator"
+}
