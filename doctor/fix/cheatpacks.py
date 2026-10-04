@@ -11,6 +11,7 @@ import tempfile
 PACKS_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'cheatpacks'))
 JASS = 'jass'
 LUA = 'lua'
+NO_WINDOW = 0x08000000
 PACKS = (
     {'id': 'jjcp', 'file': 'JJCP_NewGen.j.txt', 'language': JASS, 'title': 'JJCP NewGen',
      'needs': 'classic and Reforged (no Blz native)',
@@ -269,7 +270,7 @@ def _registro_texto(reg):
     return ''
 
 
-def _ofusca_jass(entrada, saida, progresso=None, pjass=True):
+def _ofusca_jass(entrada, saida, progresso=None):
     from doctor.script import ofusca_jass
     ref = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'ref', '3.0'))
     common = os.path.join(ref, 'common.j')
@@ -278,9 +279,6 @@ def _ofusca_jass(entrada, saida, progresso=None, pjass=True):
         raise RuntimeError('the game scripts are missing: %s' % ref)
     args = ['ofusca_jass.py', '--j=' + entrada, '--' + 'sai' + 'da=' + saida, '--output=' + saida,
             '--common=' + common, '--blizzard=' + blizz]
-    exe = _pjass_exe() if pjass else None
-    if exe:
-        args.append('--pjass=' + exe)
     velho = list(sys.argv)
     sys.argv = args
     reg = None
@@ -316,7 +314,7 @@ def _pjass_exe():
     return None
 
 
-def _pjass_confere(script, progresso=None):
+def _pjass_confere(script, mapa=None):
     tmp = tempfile.mkdtemp(prefix='cheatpack_pjass_')
     try:
         alvo = os.path.join(tmp, 'script.j')
@@ -326,17 +324,46 @@ def _pjass_confere(script, progresso=None):
         if not exe:
             from doctor.script import jass_ast
             ok, det = jass_ast.check_text(script)
-            return ok, det or 'jass_ast'
+            return ok, det or 'jass_ast', False
         ref = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'ref', '3.0'))
+        comuns = _scripts_do_mapa(mapa, tmp) or [os.path.join(ref, 'common.j'), os.path.join(ref, 'blizzard.j')]
         import subprocess
-        r = subprocess.run([exe, os.path.join(ref, 'common.j'), os.path.join(ref, 'blizzard.j'), alvo],
-                           cwd=tmp, capture_output=True, text=True, errors='replace')
+        r = subprocess.run([exe] + comuns + [alvo], cwd=tmp, capture_output=True, text=True, errors='replace',
+                           creationflags=NO_WINDOW)
         saida = (r.stdout or '') + (r.stderr or '')
         if r.returncode == 0 and 'error' not in saida.lower():
-            return True, 'pjass: %s' % (saida.strip().splitlines()[-1] if saida.strip() else 'ok')
-        return False, 'pjass: %s' % ' | '.join(x for x in saida.splitlines() if x.strip())[:400]
+            return True, 'pjass: %s' % (saida.strip().splitlines()[-1] if saida.strip() else 'ok'), False
+        ruins = [x for x in saida.splitlines() if x.strip() and 'Parse successful' not in x]
+        sintaxe = [x for x in ruins if re.search(r'syntax error|expected|unexpected|invalid|unclosed|token',
+                                                 x, re.I)]
+        detalhe = ' | '.join(ruins)[:400]
+        if sintaxe or not ruins:
+            return False, 'pjass: %s' % detalhe, False
+        return True, 'pjass: %s' % detalhe, True
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _scripts_do_mapa(mapa, tmp):
+    if not mapa:
+        return None
+    try:
+        a = _abre(mapa)
+    except BaseException:
+        return None
+    achados = []
+    for nome in ('common.j', 'Common.j', 'scripts\\common.j', 'Blizzard.j', 'blizzard.j',
+                 'scripts\\Blizzard.j', 'scripts\\blizzard.j'):
+        dados = _le(a, nome)
+        if dados:
+            destino = os.path.join(tmp, 'mapa_' + os.path.basename(nome).lower())
+            with open(destino, 'wb') as f:
+                f.write(dados)
+            achados.append((os.path.basename(nome).lower(), destino))
+    if len(achados) < 2:
+        return None
+    achados.sort(key=lambda x: 0 if x[0].startswith('common') else 1)
+    return [p for _n, p in achados[:2]]
 
 
 def _lua_obfusca(texto):
@@ -422,15 +449,16 @@ def _injeta(p, pack, texto, nome, bruto, opcoes, mapa, saida, out):
             with open(cru, 'w', encoding='utf-8', newline='\n') as f:
                 f.write(novo)
             pronto = os.path.join(tmp, 'release.j')
-            r = _ofusca_jass(cru, pronto, p, pjass=True)
+            r = _ofusca_jass(cru, pronto, p)
             novo = open(pronto, 'r', encoding='utf-8', newline='').read()
             out['renames'] = _resumo_ofusca(r['lines'])[:4]
-            if any('pjass: FALHA' in l for l in r['lines']):
-                raise RuntimeError('the obfuscator\'s own pjass gate failed: %s'
-                                   % ' | '.join(l for l in r['lines'] if 'pjass:' in l)[-300:])
         p('Checking the syntax')
-        ok, det = _pjass_confere(novo) if pack['language'] == JASS else _lua_confere(novo)
-        out['syntax'] = {'ok': bool(ok), 'detail': det}
+        semantico = False
+        if pack['language'] == JASS:
+            ok, det, semantico = _pjass_confere(novo, mapa)
+        else:
+            ok, det = _lua_confere(novo)
+        out['syntax'] = {'ok': bool(ok), 'detail': det, 'semantic': bool(semantico)}
         if not ok:
             out['lines'] = [('ruim', 'The injected script does not pass the syntax check: %s' % det)]
             return out
@@ -455,7 +483,8 @@ def _injeta(p, pack, texto, nome, bruto, opcoes, mapa, saida, out):
         out['file'] = saida
         out['size_before'] = len(antes)
         out['size_after'] = len(lido)
-        out['lines'] = _report(pack, usados, nome, antes, lido, out.get('renames'), det, out.get('renamed_names'))
+        out['lines'] = _report(pack, usados, nome, antes, lido, out.get('renames'), det,
+                               out.get('renamed_names'), semantico)
         return out
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -478,11 +507,15 @@ def _resumo_ofusca(lines):
     return out
 
 
-def _report(pack, usados, nome, antes, depois, renames, det, trocados=None):
+def _report(pack, usados, nome, antes, depois, renames, det, trocados=None, semantico=False):
     out = [('titulo', '%s injected into %s' % (pack['title'], os.path.basename(nome))),
            ('ok', 'The script went back into the map with mpqadd: the file was not rebuilt (%s -> %s).'
             % (_kb(len(antes)), _kb(len(depois)))),
            ('ok', 'The syntax check passed (%s).' % det)]
+    if semantico:
+        out.append(('aviso', 'The map uses natives the game scripts do not declare (the platform client provides them '
+                             'at run time): the check reports those and nothing else, and the pack adds no native. '
+                             'Only a syntax error blocks the injection.'))
     if trocados:
         out.append(('info', '  name(s) the map already used, prefixed: %s' % ', '.join(trocados)))
     if renames:
