@@ -76,7 +76,7 @@ def format(path):
         with open(path, 'rb') as f:
             f.seek(off)
             return struct.unpack('<4sIIH', f.read(14))[3]
-    except Exception:
+    except (Exception, SystemExit):
         return None
 
 

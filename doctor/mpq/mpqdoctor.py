@@ -106,6 +106,7 @@ def overlaps(begin, end_pos, regions):
 def analyze_tables(a):
     free_slots = deleted = valid_entries = 0
     by_block = collections.Counter()
+    pairs = set()
     for i in range(a.hash_n_read):
         bi = a.ht[i * 4 + 3]
         if bi == HASH_FREE:
@@ -114,7 +115,10 @@ def analyze_tables(a):
             deleted += 1
         elif bi < len(a.blocks):
             valid_entries += 1
-            by_block[bi] += 1
+            pair = (a.ht[i * 4], a.ht[i * 4 + 1], bi)
+            if pair not in pairs:
+                pairs.add(pair)
+                by_block[bi] += 1
     live = [(off, off + cs, bi, fs) for bi, (off, cs, fs, fl) in enumerate(a.blocks) if fl & 0x80000000 and cs]
     live.sort()
     overlap_count = 0

@@ -20,7 +20,7 @@ def other_lado(ln, pos, lit):
         m = re.match(r'(?:==|!=)\s*(.{0,160})', after_diag)
         return m.group(1) if m else ''
     if before.endswith(('==', '!=')):
-        left = before[:-2]
+        left = before[:-2][-400:]
         m = re.search(r'(?:\bif\b|\band\b|\bor\b|\breturn\b|=|\()\s*([^()]*(?:\([^()]*\))*[^()]*)$', left)
         return (m.group(1) if m else left[-160:])
     return ''
