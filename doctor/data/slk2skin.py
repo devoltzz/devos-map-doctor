@@ -81,7 +81,11 @@ def main():
             source = p_orig
             print('%s of extract_en already lacks the column; reading from port/extract' % slk)
         models, col = read_models(source, id_column, 'file')
-        n = write_skin(os.path.join(EN, dest), models, heading)
+        tgt = os.path.join(EN, dest)
+        if not models and os.path.isfile(tgt) and os.path.getsize(tgt):
+            print('%-14s has no model column and %s is already written: kept' % (slk, dest))
+            continue
+        n = write_skin(tgt, models, heading)
         print('%-14s -> %-14s %d models' % (slk, dest, n))
         keep_names = set(v for v in col.values() if v.lower() != 'file')
         cols = C.filter_columns(source, p_en, keep_names)
