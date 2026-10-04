@@ -227,6 +227,8 @@ def detect_content_key(data_bytes, file_size):
 
 
 class Archive:
+    VALIDATED_LIMIT = 1 << 17
+
     def __init__(self, path):
         self.path = path
         self.d = open(path, 'rb').read()
@@ -247,6 +249,7 @@ class Archive:
             off, cs, fs, fl = self.bt[i * 4:i * 4 + 4]
             self.blocks.append((off, cs, fs, fl & bitmask))
         self._idx = None
+        self._validated = {}
 
     @property
     def sector_size(self):
@@ -513,7 +516,13 @@ class Archive:
             return 'invalid', 'the 1st sector does not decompress (%s)' % str(e)[:60]
 
     def validate(self, bi, fname=None):
-        return _validate_block(self, bi, fname)
+        k = (bi, fname)
+        r = self._validated.get(k)
+        if r is None:
+            r = _validate_block(self, bi, fname)
+            if len(self._validated) < self.VALIDATED_LIMIT:
+                self._validated[k] = r
+        return r
 
 
 def end_by_sector_table(a, bi, fname):

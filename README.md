@@ -10,6 +10,15 @@ them in the same folder. There is nothing to install, and the program lets you k
 `names.npz` is the file name index: with it, the Doctor names more of the files it finds in maps whose file tables are
 damaged (the program offers to download it when it's missing).
 
+## Speed
+
+1.5.5 decodes the sound compression of the archive (the Huffman tables of the imported music and sounds) with a
+lookup table instead of one bit at a time, and every archive block is checked once per job instead of several times.
+A map whose content is mostly imported sound (a 94 MB map of music) takes about half the time it took in 1.5.4.
+
+1.5.4 counts a file name repeated in the file table as one name, so maps whose table the Doctor itself grew no
+longer end up as "partially fixed", and the translation export no longer slows down on maps with very long lines.
+
 ## Usage
 
 Open a map, or drag it onto the window or onto the exe. It is checked right away, and the header shows what was

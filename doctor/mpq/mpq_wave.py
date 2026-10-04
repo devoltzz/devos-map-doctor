@@ -115,6 +115,9 @@ _AFTER, _BEFORE = 1, 2
 _END = 0x100
 _NEW_BYTE = 0x101
 _ERROR = 0x1FF
+BITS = 10
+STABLE = 64
+_LONG = -1
 
 
 class _Tree(object):
@@ -257,6 +260,28 @@ class _Tree(object):
         return True
 
 
+def _table(tree, bits=BITS):
+    child, prev_item, field_value, next_item = tree.child, tree.prev_item, tree.field_value, tree.next_item
+    tab = [_LONG] * (1 << bits)
+    root = next_item[_HEAD]
+    if root == _HEAD:
+        return tab
+    stack = [(root, 0, 0)]
+    while stack:
+        i, code_part, n = stack.pop()
+        lo = child[i]
+        if lo == _NULL:
+            if n <= bits:
+                e = field_value[i] | (n << 12)
+                tab[code_part::(1 << n)] = [e] * ((1 << bits) >> n)
+            continue
+        n += 1
+        if n <= bits:
+            stack.append((lo, code_part, n))
+            stack.append((prev_item[lo], code_part | (1 << (n - 1)), n))
+    return tab
+
+
 def decompress_huffman(data_bytes, cap=None):
     if cap is not None and cap <= 0:
         raise WaveError('huffman: output buffer of %r bytes' % cap)
@@ -273,24 +298,47 @@ def decompress_huffman(data_bytes, cap=None):
     next_item, prev_item, child, field_value = tree.next_item, tree.prev_item, tree.child, tree.field_value
     out_limit = cap if cap is not None else -1
     out = bytearray()
+    tab = None
+    since = 0
+    bitmask = (1 << BITS) - 1
     while True:
-        it = next_item[_HEAD]
-        if it == _HEAD:
+        v = _LONG
+        if tab is not None:
+            while nb < BITS and pos < n:
+                buf |= data_bytes[pos] << nb
+                pos += 1
+                nb += 8
+            if nb >= BITS:
+                e = tab[buf & bitmask]
+                if e >= 0:
+                    q = e >> 12
+                    buf >>= q
+                    nb -= q
+                    v = e & 0xFFF
+                    if v < 0x100:
+                        if len(out) == out_limit:
+                            break
+                        out.append(v)
+                        continue
+        if v < 0:
+            it = next_item[_HEAD]
             v = _ERROR
-        else:
-            while child[it] != _NULL:
-                if nb == 0:
-                    if pos >= n:
-                        it = _NULL
-                        break
-                    buf = data_bytes[pos]
-                    pos += 1
-                    nb = 8
-                bit = buf & 1
-                buf >>= 1
-                nb -= 1
-                it = prev_item[child[it]] if bit else child[it]
-            v = _ERROR if it == _NULL else field_value[it]
+            if it != _HEAD:
+                lo = child[it]
+                while lo != _NULL:
+                    if nb == 0:
+                        if pos >= n:
+                            it = _NULL
+                            break
+                        buf = data_bytes[pos]
+                        pos += 1
+                        nb = 8
+                    it = prev_item[lo] if buf & 1 else lo
+                    buf >>= 1
+                    nb -= 1
+                    lo = child[it]
+                if it != _NULL:
+                    v = field_value[it]
         if v == _END:
             break
         if v == _ERROR:
@@ -309,11 +357,17 @@ def decompress_huffman(data_bytes, cap=None):
                 raise WaveError('huffman: the tree is full (%d items)' % _ITEMS)
             if not sparse_data:
                 tree.increment(tree.by_byte[v])
+                tab = None
+                since = 0
         if len(out) == out_limit:
             break
         out.append(v & 0xFF)
         if sparse_data:
             tree.increment(tree.by_byte[v])
+        else:
+            since += 1
+            if tab is None and since >= STABLE:
+                tab = _table(tree, BITS)
     return bytes(out)
 
 
