@@ -76,6 +76,9 @@ const state = {
   gen: 0, tabState: {}, quietJobs: new Set(), images: {}, imageData: {},
   extras: { card: null, translation: null, models: null, modelNames: null, singlePlayer: null, portraits: null,
     dataPointers: null, uabi: null, preload: null },
+  // the Cheatpacks tab: the answer of the backend (the packs this map's script language can take) and what the page
+  // picked (the pack id, the value of each option of it, and the result of the last injection)
+  cheatpacks: null, cheatPack: { id: null, options: {}, result: null },
 };
 
 const api = () => window.pywebview.api;
@@ -183,6 +186,8 @@ async function openMap(path) {
   state.portPackages = [];
   state.extras = { card: null, translation: null, models: null, modelNames: null, singlePlayer: null, portraits: null,
     dataPointers: null, uabi: null, preload: null };
+  state.cheatpacks = null;
+  state.cheatPack = { id: null, options: {}, result: null };
   TABS.forEach(n => setTabState(n, 'wait'));
   $('#welcome').classList.add('hidden');
   $('#mapview').classList.remove('hidden');
@@ -573,9 +578,9 @@ function offerIndex(release, missing) {
 // tabs load in the background as soon as the map is checked, one after the other (a big map in several workers at
 // once would take that much more memory); "Runs on Reforged?" opens when its check ends; Translation and Compare
 // when the map is checked.
-const TABS = ['card', 'reforged', 'files', 'script', 'triggers', 'translation', 'compare', 'port'];
-const TAB_DATA = { card: loadCard, files: loadFiles, script: loadScript, triggers: loadTriggers,
-  reforged: checkReforgedQuietly };
+const TABS = ['card', 'reforged', 'files', 'script', 'cheatpacks', 'triggers', 'translation', 'compare', 'port'];
+const TAB_DATA = { card: loadCard, files: loadFiles, script: loadScript, cheatpacks: loadCheatpacks,
+  triggers: loadTriggers, reforged: checkReforgedQuietly };
 
 function setTabState(name, st) {
   state.tabState[name] = st;
@@ -589,7 +594,7 @@ function setTabState(name, st) {
 }
 
 async function loadTabsInBackground(gen) {
-  for (const name of ['card', 'files', 'script', 'triggers']) {
+  for (const name of ['card', 'files', 'script', 'cheatpacks', 'triggers']) {
     if (gen !== state.gen) return;
     await TAB_DATA[name](gen);
   }
@@ -959,6 +964,126 @@ function scriptChecksCard() {
   } });
   return el('div', { class: 'card', style: 'margin:10px 0' }, el('div', { class: 'row' },
     el('h3', { class: 'grow', text: 'Script checks' }), btn), box);
+}
+
+// ------------------------------------------------------------------ cheat packs
+// A cheat pack (JJCP, NZCP, Devo's CP, OzzyCP) is a script of its own that goes INTO the map's script: the archive
+// keeps the packs in common/cheatpacks/ and reads them as data, never runs them. The backend hands back only the packs
+// of the language the map's script is written in (a Lua map gets the Lua packs, a JASS map the JASS ones), with the
+// options of each pack; this tab lists them, sets the options and injects the chosen one (always obfuscated), which
+// writes an edited copy of the map next to the original.
+async function loadCheatpacks(gen) {
+  try {
+    const s = await run('cheatpacks', {}, { quiet: true });
+    if (gen !== state.gen) return;
+    if (s.error) { tabFailed('cheatpacks', 'Reading the cheat packs', { message: s.error }); return; }
+    state.cheatpacks = s;
+    // the page starts on the first pack; a pack the map still offers stays picked (this runs again on "Try again")
+    const packs = s.packs || [];
+    if (!packs.some(p => p.id === state.cheatPack.id)) state.cheatPack.id = packs.length ? packs[0].id : null;
+    renderCheatpacks();
+    setTabState('cheatpacks', 'ready');
+  } catch (e) { if (gen === state.gen) tabFailed('cheatpacks', 'Reading the cheat packs', e); }
+}
+
+function renderCheatpacks() {
+  const d = state.cheatpacks;
+  if (!d) return;
+  const packs = d.packs || [];
+  const head = el('div', { class: 'card' },
+    el('h2', { text: 'Cheat packs' }),
+    el('p', { class: 'lead', text: 'Puts one of the archive\'s cheat packs into the map\'s own script: the pack is ' +
+      'obfuscated, the options below are frozen in the map, and the edited script goes back into a copy of the map ' +
+      '(the file is not rebuilt). The packs the Doctor carries are read as data and never run.' }),
+    el('div', { class: 'badges' },
+      el('span', { class: 'badge ' + (d.language ? 'info' : 'warn'), text: d.language ?
+        'The map script is ' + (d.language === 'lua' ? 'Lua' : 'JASS') : 'The map script cannot be written' }),
+      d.script ? el('span', { class: 'badge', text: d.script + (d.size ? ' (' + mb(d.size) + ')' : '') }) : null),
+    packs.length ? el('p', { class: 'muted', text: packs.length + (packs.length === 1 ? ' pack fits' : ' packs fit') +
+      ' this map: pick one, set its options and inject it.' }) :
+      el('p', { class: 'muted', text: d.why || 'The map script is not one the Doctor can write.' }),
+    d.note ? el('p', { class: 'faint', text: d.note }) : null);
+  tabBody('cheatpacks', head, packs.map(cheatpackCard),
+    state.cheatPack.result ? cheatpackResult(state.cheatPack.result) : null);
+}
+
+function cheatpackCard(p) {
+  const chosen = p.id === state.cheatPack.id;
+  const radio = el('input', { type: 'radio', name: 'cheatpack', checked: chosen, title: 'Inject this one',
+    'aria-label': 'Choose ' + p.title, onchange: () => { state.cheatPack.id = p.id; renderCheatpacks(); } });
+  return el('div', { class: 'card', id: 'cheatpack-' + p.id },
+    el('div', { class: 'row' }, radio, el('h2', { class: 'grow', text: p.title }),
+      el('span', { class: 'badge', text: p.language === 'lua' ? 'Lua' : 'JASS' })),
+    p.file ? el('div', { class: 'faint mono', text: p.file }) : null,
+    p.needs ? el('div', { class: 'muted', style: 'margin-top:4px', text: 'Works on: ' + p.needs }) : null,
+    chosen ? el('div', { class: 'form', style: 'margin-top:12px' }, (p.options || []).map(cheatpackField).flat(),
+      el('div', { style: 'grid-column:1 / -1' }, el('button', { class: 'btn primary needs-idle',
+        text: 'Inject the cheat pack', disabled: !!state.running, onclick: runCheatpack }))) : null);
+}
+
+// one option: a text field, or a tick box that spans the two columns of the form; the value is kept in the state as the
+// string the backend reads ('true'/'false' for a bool, as the pack's own default comes)
+function cheatpackField(o) {
+  const v = state.cheatPack.options[o.key];
+  const value = v === undefined ? o.default : v;
+  if (o.kind === 'bool') {
+    return [el('label', { class: 'show-na', style: 'grid-column:1 / -1;padding-top:0' },
+      el('input', { type: 'checkbox', checked: String(value).toLowerCase() === 'true', onchange: e => {
+        state.cheatPack.options[o.key] = e.target.checked ? 'true' : 'false'; } }), ' ' + o.label)];
+  }
+  return [el('label', { text: o.label }),
+    el('input', { class: 'field', type: 'text', value: value === null || value === undefined ? '' : String(value),
+      oninput: e => { state.cheatPack.options[o.key] = e.target.value; } })];
+}
+
+// the options of the chosen pack, each one with its default when the page never touched it
+function cheatpackOptions() {
+  const p = ((state.cheatpacks || {}).packs || []).find(x => x.id === state.cheatPack.id);
+  const out = {};
+  ((p && p.options) || []).forEach(o => {
+    const v = state.cheatPack.options[o.key];
+    out[o.key] = v === undefined ? o.default : v;
+  });
+  return out;
+}
+
+async function runCheatpack() {
+  if (state.running) return;
+  const pack = state.cheatPack.id;
+  if (!pack) { toast('Pick a cheat pack first.'); return; }
+  status('Injecting the cheat pack...');
+  try {
+    const r = await run('cheatpack_inject', { pack, options: cheatpackOptions() },
+      { label: 'Injecting the cheat pack...' });
+    state.cheatPack.result = r;
+    state.results.cheatpacks = r;
+    renderCheatpacks();
+    status(r.outcome === 'ok' ? 'Cheat pack injected.' : 'The injection stopped.');
+    if (r.outcome !== 'ok') toast('The cheat pack was not injected. The result card says why.', { bad: true });
+  } catch (e) {
+    failed(e, 'Injecting the cheat pack');
+    if (e && e.cancelled) { renderCheatpacks(); return; }
+    // the worker itself failed: the result card says what, with the trace, so it can be copied and reported
+    const msg = (e && e.message) || String(e);
+    const lines = [['bad', 'The injection stopped: ' + msg]];
+    if (e && e.trace) e.trace.split('\n').filter(l => l.trim()).forEach(l => lines.push(['info', '  ' + l]));
+    state.cheatPack.result = { outcome: 'failed', lines, pack, file: null };
+    renderCheatpacks();
+  }
+}
+
+function cheatpackResult(r) {
+  const ok = r.outcome === 'ok';
+  return el('div', { class: 'card' + (ok ? '' : ' bad'), id: 'result-cheatpacks' },
+    el('div', { class: 'row' }, el('h2', { class: 'grow', text: 'Cheat pack: result' }),
+      el('span', { class: 'badge ' + (ok ? 'good' : 'bad'), text: ok ? 'Injected' : 'Stopped' })),
+    ok ? null : el('div', { class: 'report' }, el('div', { class: 'l bad',
+      text: 'The cheat pack was not injected.' })),
+    reportLines(r.lines || []),
+    el('div', { class: 'foot row', style: 'margin-top:14px' },
+      r.file ? el('span', { class: 'faint mono grow', text: r.file }) : null,
+      r.file ? el('button', { class: 'btn', text: 'Show in folder', onclick: () => api().open_folder(r.file) }) : null,
+      ok ? null : el('button', { class: 'btn ghost', text: 'Report a problem', onclick: reportProblem })));
 }
 
 // ------------------------------------------------------------------ triggers

@@ -5,7 +5,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 from doctor.fix import unprotect as D
 
-VERSION = '1.5.6'
+VERSION = '1.5.7'
 
 STAGES = {
     'read_map': 'Reading the map...',

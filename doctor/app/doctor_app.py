@@ -441,6 +441,22 @@ def _triggers(job, progress):
     return map_files.triggers(job['map'], progress)
 
 
+def _cheatpacks(job, progress):
+    from doctor.fix import cheatpacks
+    progress('Reading the cheat packs')
+    return cheatpacks.list_packs(job['map'])
+
+
+def _cheatpack_inject(job, progress):
+    from doctor.fix import cheatpacks
+    from doctor.fix import unprotect as D
+    out = D.free_output(job['map'], '_' + str(job.get('pack') or 'cheat'))
+    r = cheatpacks.inject(job['map'], out, job.get('pack'), job.get('options') or {}, progress)
+    return {'lines': page_lines(r.get('lines') or []), 'file': r.get('file'), 'pack': r.get('pack'),
+            'outcome': 'ok' if r.get('file') else 'failed', 'syntax': r.get('syntax'),
+            'script': r.get('script'), 'options': r.get('options')}
+
+
 def _translation_export(job, progress):
     from doctor.translation import translation_io
     if job['file'].lower().endswith(('.html', '.htm')):
@@ -460,7 +476,7 @@ def _compare(job, progress):
 
 TOOLS = {'card': _card, 'card_image': _card_image, 'gradient': _gradient, 'reforged': _reforged, 'files': _files,
          'preview': _preview, 'extract': _extract, 'script': _script, 'script_checks': _script_checks,
-         'triggers': _triggers,
+         'triggers': _triggers, 'cheatpacks': _cheatpacks, 'cheatpack_inject': _cheatpack_inject,
          'translation_export': _translation_export, 'translation_check': _translation_check, 'compare': _compare}
 
 

@@ -1097,9 +1097,39 @@ def canonical(text_or_node):
     return _canonical_tokens(text) if fast is None else fast
 
 
+_COMMENT_RE = re.compile(r'''"[^"\\]*(?:\\.[^"\\]*)*"|'[^'\\]*(?:\\.[^'\\]*)*'|/(/[^\r\n]*+)''', re.S)
+
+
+def comments_of(text):
+    return ['/' + c for c in _COMMENT_RE.findall(text) if c]
+
+
 def read_script(path):
     with open(path, 'rb') as fh:
         return fh.read().decode('utf-8', 'surrogateescape')
+
+
+def _first_difference(a, b):
+    la, lb = a.split('\n'), b.split('\n')
+    k = next((k for k in range(min(len(la), len(lb))) if la[k] != lb[k]), min(len(la), len(lb)))
+    return k + 1, la[k] if k < len(la) else '<end>', lb[k] if k < len(lb) else '<end>'
+
+
+def check_text(text):
+    try:
+        s = parse(text)
+    except JassSyntaxError as e:
+        return False, 'syntax error at ' + str(e)
+    out = unparse(s)
+    a, b = canonical(text), canonical(out)
+    if a != b:
+        return False, 'canonical line %d differs: %r != %r' % _first_difference(a, b)
+    ca, cb = comments_of(text), comments_of(out)
+    if ca != cb:
+        k = next((k for k in range(min(len(ca), len(cb))) if ca[k] != cb[k]), min(len(ca), len(cb)))
+        return False, 'comment %d differs (%d comments, %d after the round trip)' % (k + 1, len(ca), len(cb))
+    return True, '%d functions, %d natives, %d globals, %d comments' % (len(s.functions), len(s.natives),
+                                                                        len(s.globals), len(ca))
 
 
 def _load_pjass():

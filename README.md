@@ -43,6 +43,24 @@ Saves `<map>_fixed.w3x`: without the protection (MPQ Editor opens it in edit mod
 longer accepts fixed. The extras, when you tick them: the imported models that crash the game, single player for maps
 that end the game when played alone, your map card changes, a translation, and a smaller map that loses nothing.
 
+New in 1.5.7: the "Cheatpacks" tab.
+
+- It injects one of the cheat packs of `common/cheatpacks` (JJCP NewGen, NZCP, Devo's CP and OzzyCP) into the map
+  script, always obfuscated, and writes the edited script back into the map with `mpqadd` (the file is not rebuilt).
+  A Lua map is only offered the Lua packs, a JASS map only the JASS ones.
+- The activation of each pack is yours: the page shows the options the pack itself documents (the activation string, the
+  arrow sequence, the player name that activates it, the command prefix, the key sequence...) with the pack's own
+  defaults, and the ones you set are written into the pack before it goes in.
+- JASS: the pack goes into the map's globals, its functions before the map's `main` and its start-up call inside `main`
+  (pjass is not able to call a function declared further down, so the order matters), and the whole script then goes
+  through the release obfuscator (`ofusca_jass.py`: no comment, every name renamed, every string and raw code
+  encrypted and decrypted as the first instruction of `main`), with pjass checking the result.
+- Lua: the OzzyCP body already is an obfuscated build; the comments (including the header that explains the options,
+  which the page shows instead) are taken out, and the code is proved untouched by comparing the parsed form before and
+  after.
+- The syntax of the injected script is checked either way, and the map is only written when it passes. Test the map in
+  game before sharing it: the Doctor does not run the game.
+
 New in 1.5.6, offered when the map needs it:
 
 - Give the models their name back: maps protected with the "Model_Encrypt" tool have their imported models renamed
