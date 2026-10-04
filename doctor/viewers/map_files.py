@@ -207,6 +207,16 @@ def _dictionary_names(a, unnamed, known):
     return dict((n, bi) for n, bi in accepted.items() if bi in wanted)
 
 
+def _about(name):
+    from doctor.data import map_formats
+    d = map_formats.describe(name)
+    if d is None:
+        return None
+    who = {'game': 'read by the game', 'editor': 'read only by the World Editor', 'both': 'read by the game and the '
+           'World Editor', 'tools': 'read by the archive tools'}.get(d['read_by'], '')
+    return '%s (%s%s)' % (d['what'], who, ', Reforged %s' % d['era'] if d['era'] in ('1.32', '2.0') else '')
+
+
 def list_files(path, progress=None, dictionary=True, classify=False):
     say = progress or _quiet
     out = {'files': [], 'unnamed': [], 'total': 0, 'map': None, 'notes': [], 'error': None}
@@ -225,7 +235,7 @@ def list_files(path, progress=None, dictionary=True, classify=False):
                 continue
             known.setdefault(n, bi)
             out['files'].append({'name': n, 'size': a.blocks[bi][2], 'stored': _stored(a, bi, n), 'kind': kind_of(n),
-                                 'known_name': True, 'block': bi})
+                                 'known_name': True, 'block': bi, 'about': _about(n)})
         unnamed = mpqnames.unnamed_blocks(a, set(known.values()))
         if dictionary and unnamed:
             say('Looking up the unnamed files in the name list')

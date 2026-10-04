@@ -70,6 +70,16 @@ def _known_pairs(name_list):
     return out
 
 
+def format(path):
+    try:
+        off = _ML.header_offset(path)
+        with open(path, 'rb') as f:
+            f.seek(off)
+            return struct.unpack('<4sIIH', f.read(14))[3]
+    except Exception:
+        return None
+
+
 def add_files(
     path,
     repl,
@@ -90,7 +100,9 @@ def add_files(
         f.seek(0)
         head = f.read(off + 32)
     magic, hsize, asize, ver, bshift, hoff, boff, hcount, bcount = struct.unpack_from('<4sIIHHIIII', head, off)
-    assert ver == 0, 'MPQ v1 only'
+    if ver != 0:
+        f.close()
+        raise AssertionError('MPQ v1 only')
     f.seek((off + hoff) & 0xFFFFFFFF)
     htab = bytearray(m.decrypt(f.read(hcount * 16), m.hash_string('(hash table)', 3)))
     f.seek((off + boff) & 0xFFFFFFFF)

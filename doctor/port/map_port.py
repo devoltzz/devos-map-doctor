@@ -528,6 +528,10 @@ def report_text(details):
               % (', '.join(tm['types']), len(tm['functions']), len(tm['globals_block']), len(tm['natives']))]
     if details.get('warnings'):
         L += ['', 'Warnings', '-' * 8] + ['- ' + a for a in details['warnings']]
+    if details.get('checks'):
+        L += ['', 'Script checks of the ported script (handle leaks, start-up, globals never set)', '-' * 30] + [
+            '- ' + a for a in details['checks']
+        ]
     st = details.get('stubs')
     if st is not None:
         L += ['', 'Natives left as STUBS that the map CALLS (%d)' % len(st), '-' * 44]
@@ -550,6 +554,25 @@ def report_text(details):
 
 RX_VERSION = re.compile(r'(?i)[\s_.-]+(?:v?\d[\w.]*|fix\w*|beta\w*|test\w*|event|ver\w*|final|kr\w*|cn|en|e\d\w*|'
                         r'\[[^\]]*\]|\([^)]*\))$')
+
+
+def port_checks(original, output, details):
+    try:
+        from doctor.fix import uabi_runtime
+        u = uabi_runtime.scan(original)
+        if u.get('risky'):
+            WARNINGS.append('the unit types carry %d distinct abilities in their normal ability lists (uabi): players '
+                            'report that about 2,000 drop games on Reforged; "Fix map" can move the lists to the script'
+                            % u['distinct'])
+    except Exception:
+        pass
+    try:
+        from doctor.script import script_checks
+        sc = script_checks.check(output)
+        if sc.get('language') == 'jass' and not sc.get('error'):
+            details['checks'] = sc['lines']
+    except Exception:
+        pass
 
 
 def memory_warnings(info):
@@ -708,6 +731,7 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
         sz, slack, entrou = build_w3x(original, output, r, to_remove, listing, log, name_list=name_list)
         if slack < 0 and shrink_large:
             sz, slack = shrinks(output, sz, log)
+        port_checks(original, output, details)
         details.update(output=output, bytes=sz, slack=slack, file_set=entrou,
                        resultado='ported' if slack >= 0 else 'ported, but above the 512 MiB the game opens')
     except Aborts as e:

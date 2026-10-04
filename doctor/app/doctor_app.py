@@ -211,12 +211,18 @@ def page_changes(r, kind, extras=None):
 
 EXTRA_DONE = {
     'models': 'Fixed the imported models that crash the game.',
+    'portraits': 'Removed the cameras of the portrait models (check the portraits in game).',
+    'data_pointers': 'Set the data pointers of the levelled fields to the column their other levels use.',
+    'uabi': 'Moved the normal ability lists of the unit types to the script (test the map before sharing it).',
+    'preload': 'Loaded the models and abilities of the first seconds under the loading screen.',
     'single_player': 'The map no longer ends the game when played alone (single player).',
     'card': 'Wrote the map card changes.',
     'translation': 'Applied the translation.',
     'shrink': 'Made the map smaller without losing anything.',
 }
-EXTRA_NAME = {'models': 'the model fixes', 'single_player': 'single player', 'card': 'the map card changes',
+EXTRA_NAME = {'models': 'the model fixes', 'portraits': 'the portrait cameras', 'data_pointers': 'the data pointers',
+              'uabi': 'the ability lists', 'preload': 'the early preload', 'single_player': 'single player',
+              'card': 'the map card changes',
               'translation': 'the translation', 'shrink': 'the shrink'}
 BEFORE_EDITOR = ('models', 'single_player', 'card', 'translation')
 
@@ -372,12 +378,37 @@ def _reforged(job, progress):
     r['single_player'] = {'found': bool(lock and lock.get('fix') == 'doctor')}
     r['models'] = {'fixable': len((groups.get('data') or {}).get('models') or []) if groups and
                    groups.get('fix') == 'doctor' else 0}
+    portraits, pointers, uabi = items.get('portrait_camera'), items.get('data_pointers'), items.get('uabi_distinct')
+    runs = r.get('verdict') != 'node'
+    from doctor.mpq import mpqadd
+    if mpqadd.format(job['map']) != 0 and 'protected_archive' not in items:
+        r['models'] = {'fixable': 0}
+        portraits = pointers = None
+        runs = False
+    r['portraits'] = {'fixable': len((portraits.get('data') or {}).get('models') or []) if portraits else 0}
+    r['data_pointers'] = {'fixable': len((pointers.get('data') or {}).get('fields') or []) if pointers else 0}
+    r['uabi'] = {'distinct': (uabi.get('data') or {}).get('distinct', 0) if uabi and uabi.get('fix') == 'doctor' and
+                 runs else 0}
+    r['preload'] = {'units': 0, 'abilities': 0}
+    if r.get('script') == 'jass' and runs:
+        from doctor.fix import early_preload
+        try:
+            pr = early_preload.scan(job['map'])
+            r['preload'] = {'units': len(pr.get('units') or []), 'abilities': len(pr.get('abilities') or [])}
+        except Exception:
+            pass
     return r
 
 
 def _files(job, progress):
+    from doctor.mpq import import_lint
     from doctor.viewers import map_files
-    return map_files.list_files(job['map'], progress)
+    r = map_files.list_files(job['map'], progress)
+    if not r.get('error'):
+        lint = import_lint.lint(job['map'], progress)
+        r['lint'] = lint.get('files') or {}
+        r['lint_counts'] = lint.get('counts') or {}
+    return r
 
 
 def _preview(job, progress):
@@ -393,6 +424,12 @@ def _extract(job, progress):
 def _script(job, progress):
     from doctor.viewers import map_files
     return map_files.script(job['map'])
+
+
+def _script_checks(job, progress):
+    from doctor.script import script_checks
+    progress('Checking the script')
+    return script_checks.check(job['map'])
 
 
 def _triggers(job, progress):
@@ -418,7 +455,8 @@ def _compare(job, progress):
 
 
 TOOLS = {'card': _card, 'card_image': _card_image, 'gradient': _gradient, 'reforged': _reforged, 'files': _files,
-         'preview': _preview, 'extract': _extract, 'script': _script, 'triggers': _triggers,
+         'preview': _preview, 'extract': _extract, 'script': _script, 'script_checks': _script_checks,
+         'triggers': _triggers,
          'translation_export': _translation_export, 'translation_check': _translation_check, 'compare': _compare}
 
 

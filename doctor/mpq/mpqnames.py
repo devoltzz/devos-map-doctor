@@ -277,6 +277,8 @@ def referenced_closure(a, seeds=None, log=None):
     if seeds is None:
         seeds = list(BASE_NAMES) + ['scripts\\war3map.j', 'war3map.imp', 'war3mapSkin.txt', 'war3mapMisc.txt',
                                     'war3mapPath.tga', 'war3map.w3s', 'war3mapUnits.doo']
+        from doctor.data import map_formats
+        seeds += [n for n in map_formats.standard_names() if n.startswith(map_formats.LOCALE_DIR)]
     seen = {}
     work_queue = []
     keys = set()
@@ -575,6 +577,7 @@ BASE_NAMES = (
     'war3mapExtra.txt', 'war3MapUnits.doo', 'war3mapMap.blp', 'war3mapPreview.tga',
     'war3mapSkin.w3u', 'war3mapSkin.w3t', 'war3mapSkin.w3a', 'war3mapSkin.w3b', 'war3mapSkin.w3d', 'war3mapSkin.w3h',
     'war3mapSkin.w3q',
+    'conversation.json', 'war3map.w3l', 'war3mapPostProcessing.txt', 'war3map.w3grp', 'war3map.soundasset',
 )
 
 GAME_NAMES = tuple(

@@ -14,6 +14,8 @@ from doctor.mpq import mpqadd
 MODEL_EXTS = ('.mdx', '.mdl')
 MAGICS = mdxcheck.MAGICS
 TETO = 512 << 20
+FIXES = ('matrix_groups',)
+PORTRAIT_VERSION = 900
 
 
 def _nothing(*_a, **_k):
@@ -91,11 +93,78 @@ def _check(data):
                                          'is over this model.' % worst}], fixed
 
 
+def model_version(data):
+    chunks, _err = mdxcheck.walk(bytes(data))
+    return next((struct.unpack_from('<I', data, off)[0] for tag, size, off in chunks if tag == b'VERS' and size >= 4),
+                None)
+
+
+def camera_at_risk(data):
+    data = bytes(data)
+    chunks, err = mdxcheck.walk(data)
+    if err or data[:4] != b'MDLX':
+        return False
+    v = model_version(data)
+    return v is not None and v < PORTRAIT_VERSION and any(t == b'CAMS' for t, _s, _o in chunks)
+
+
+def drop_cameras(data):
+    data = bytes(data)
+    chunks, err = mdxcheck.walk(data)
+    if err:
+        return None
+    cut = [(off - 8, off + size) for tag, size, off in chunks if tag == b'CAMS']
+    if not cut:
+        return None
+    out, p = [], 0
+    for a, b in cut:
+        out.append(data[p:a])
+        p = b
+    out.append(data[p:])
+    new = b''.join(out)
+    chunks2, err2 = mdxcheck.walk(new)
+    if err2 or any(t == b'CAMS' for t, _s, _o in chunks2) or len(chunks2) != len(chunks) - len(cut):
+        return None
+    return new
+
+
+def portrait_models(a):
+    from doctor.fix import inflated_counts
+    out = {}
+    try:
+        with unprotect.quiet():
+            paths = inflated_counts._map_models(a)
+    except Exception:
+        return out
+    for vals in paths.values():
+        for v in vals:
+            v = v.replace('/', '\\').strip()
+            root, ext = os.path.splitext(v)
+            if ext.lower() not in MODEL_EXTS and ext:
+                continue
+            for c in (root + '_Portrait.mdx', root + '.mdx', root + '.mdl'):
+                try:
+                    if a.find(c):
+                        out.setdefault(c, v)
+                        break
+                except Exception:
+                    pass
+    return out
+
+
 def check_model(data):
     return _check(data)[0]
 
 
-def fix_model(data):
+def fix_model(data, what=FIXES):
+    if 'portrait_camera' in what:
+        if not camera_at_risk(data):
+            return None, {'problems': [], 'fixed': []}
+        new = drop_cameras(data)
+        if new is None or camera_at_risk(new) or _structure(new):
+            return None, {'problems': ['portrait_camera'], 'fixed': [], 'error': 'the camera could not be removed'}
+        return new, {'problems': ['portrait_camera'], 'fixed': ['portrait_camera'], 'method': 'camera_removed',
+                     'version': model_version(data), 'size_before': len(data), 'size_after': len(new)}
     problems, fixed = _check(data)
     details = {'problems': [p['code'] for p in problems], 'fixed': []}
     if fixed is None:
@@ -162,7 +231,9 @@ def scan(path, progress=None):
         out['error'] = err
         return out
     p('Finding the file names')
-    for name, _bi, data in _models(a, _names(a), p):
+    portraits = dict((k.lower(), k) for k in portrait_models(a))
+    out['portraits'] = []
+    for name, _bi, data in _models(a, sorted(set(_names(a)) | set(portraits.values())), p):
         if data is None:
             out['skipped'].append({'file': name, 'reason': 'cannot be read'})
             continue
@@ -174,6 +245,8 @@ def scan(path, progress=None):
         out['checked'] += 1
         if problems:
             out['models'].append({'file': name, 'problems': problems})
+        if name.lower() in portraits and camera_at_risk(data):
+            out['portraits'].append(name)
     p('Done')
     return out
 
@@ -189,8 +262,9 @@ def _same_except(a, b, blocks, slots):
     for j in range(a.hash_n_read):
         if j not in slots and a.ht[j * 4:j * 4 + 4] != b.ht[j * 4:j * 4 + 4]:
             return 'hash table entry %d changed' % j
+    vivos = unprotect._live_blocks(a)
     for i, blk in enumerate(a.blocks):
-        if i in blocks:
+        if i in blocks or i not in vivos:
             continue
         if i >= len(b.blocks) or b.blocks[i] != blk:
             return 'block %d changed' % i
@@ -202,7 +276,7 @@ def _same_except(a, b, blocks, slots):
     return ''
 
 
-def fix(path_in, path_out, files=None, progress=None):
+def fix(path_in, path_out, files=None, progress=None, what=FIXES):
     p = progress or _nothing
     res = {'state': 'failed', 'fixed': [], 'not_fixed': [], 'checked': 0}
     if os.path.abspath(path_in) == os.path.abspath(path_out):
@@ -216,6 +290,14 @@ def fix(path_in, path_out, files=None, progress=None):
     p('Finding the file names')
     names = _names(a)
     wanted = None if files is None else dict((f.replace('/', '\\').lower(), f) for f in files)
+    if 'portrait_camera' in what:
+        pm = portrait_models(a)
+        names = sorted(set(names) | set(pm))
+        if wanted is None:
+            wanted = dict((f.lower(), f) for f in pm)
+            if not wanted:
+                res['state'] = 'nothing_to_do'
+                return res
     repl, blocks, slots, seen = [], set(), set(), set()
     for name, bi, data in _models(a, names, p):
         if wanted is not None and name.lower() not in wanted:
@@ -226,12 +308,14 @@ def fix(path_in, path_out, files=None, progress=None):
                 res['not_fixed'].append({'file': name, 'reason': 'cannot be read'})
             continue
         try:
-            new, details = fix_model(data)
+            new, details = fix_model(data, what)
         except ValueError as e:
             if wanted is not None:
                 res['not_fixed'].append({'file': name, 'reason': str(e)})
             continue
         if new is None:
+            if 'portrait_camera' in what and files is None and not details['problems']:
+                continue
             if details['problems'] or wanted is not None:
                 res['not_fixed'].append({'file': name, 'reason': details.get('error') or (
                     'no fixer for: %s' % ', '.join(details['problems']) if details['problems'] else 'nothing to fix')})
@@ -249,17 +333,18 @@ def fix(path_in, path_out, files=None, progress=None):
     try:
         p('Writing the new map')
         shutil.copyfile(path_in, part)
-        sem_slot = []
+        no_room = []
         with unprotect.quiet():
-            mpqadd.add_files(part, repl, log=_nothing, sem_slot=sem_slot)
-        if sem_slot:
-            raise RuntimeError('no room in the hash table for %s' % ', '.join(sem_slot))
+            mpqadd.add_files(part, repl, log=_nothing, no_slot=no_room)
+        if no_room:
+            raise RuntimeError('no room in the hash table for %s' % ', '.join(no_room))
         p('Checking the new map')
         b, err = _open(part)
         if b is None:
             raise RuntimeError(err)
         for name, new in repl:
-            if unprotect._read(b, name) != new or check_model(new):
+            left = camera_at_risk(new) if 'portrait_camera' in what else check_model(new)
+            if unprotect._read(b, name) != new or left:
                 raise RuntimeError('%s was not read back fixed' % name)
         why = _same_except(a, b, blocks, slots)
         if why:
@@ -278,8 +363,11 @@ def fix(path_in, path_out, files=None, progress=None):
         if os.path.getsize(path_out) > TETO:
             res['warning'] = 'The new map is over 512 MiB: the game does not list it. Shrink it.'
     except Exception as e:
-        if os.path.exists(part):
+        a = b = None
+        try:
             os.remove(part)
+        except OSError:
+            pass
         res['error'] = 'The check of the new map failed (%s).' % (str(e) or type(e).__name__)
         res['fixed'] = []
         return res

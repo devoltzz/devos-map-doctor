@@ -1355,3 +1355,17 @@ def _dump_param(p, indent, out):
         out.append(indent + '  [index]')
         _dump_param(p.index, indent + '    ', out)
 
+
+def describe(match):
+    if match.trigger is None:
+        return 'no model: %s' % match.reason
+    t = match.trigger
+    out = ['trigger %r%s%s' % (t.name, ' (initially off)' if t.initially_off else '',
+                               '\n  description %r' % t.description if t.description else '')]
+    for f in t.functions:
+        _dump(f, '  ', out)
+    out.append('helpers: %s' % ', '.join(match.helpers))
+    if match.external:
+        out.append('external: %s' % ', '.join(match.external))
+    out.append('custom script lines: %d' % match.custom_lines)
+    return '\n'.join(out)

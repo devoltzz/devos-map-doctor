@@ -34,6 +34,18 @@ Saves `<map>_fixed.w3x`: without the protection (MPQ Editor opens it in edit mod
 longer accepts fixed. The extras, when you tick them: the imported models that crash the game, single player for maps
 that end the game when played alone, your map card changes, a translation, and a smaller map that loses nothing.
 
+New in 1.5.3, offered when the map needs them:
+
+- Fix black portraits: removes the old camera from the portrait models reported to show a black portrait on 3.0
+  (check in game).
+- Fix the levelled data pointers: an object field whose levels point to different data columns gets the column its
+  other levels use.
+- Move the unit ability lists to the script: the normal ability lists of the unit types are given to each unit by the
+  script as it is created. Players report that lists with about 2,000 distinct abilities drop games on Reforged (check
+  in game, and test the map before sharing it).
+- Load the first seconds under the loading screen: the units and abilities the map uses right after the start are
+  loaded before play begins, so the game does not freeze then (check in game).
+
 ### Open in World Editor
 
 Saves `<map>_editor.w3x`. The triggers come back as GUI triggers you can click through (events, conditions and
@@ -54,8 +66,12 @@ defaults are the recommended ones, and presets keep your own choices.
 
 - Map card: name, author, description, loading screen, players and teams, minimap and preview, with a preview of the
   color codes and a gradient tool. What the map says about itself: chat commands, where it saves, its language.
-- Runs on Reforged?: what the archive has measured that stops a map on Warcraft III 3.0.
+- Runs on Reforged?: what the archive has measured that stops a map on Warcraft III 3.0, now also the portrait models
+  with an old camera, the levelled data pointers, long unit ability lists and the imported files to look at.
 - Files, Script and Triggers: the map's files with a preview and extract, the script with export, the trigger tree.
+  The files tab marks each imported file the World Editor would drop, the game would never load, or that replaces a
+  game file. Script checks lists the handle leaks of a JASS script by how often the code runs, the start-up functions
+  it never calls and the globals it never sets.
 - Translation: every text a player sees in one file to translate, and the translation loaded back with the checks.
   The export can also be an HTML page for machine translation (Google Translate, DeepL): the color codes and line
   breaks are marked so the translator leaves them alone, and the translated page loads back with the same checks.
@@ -87,6 +103,8 @@ What the port does:
 - the memory hacks of patch 1.2x (JN maps that read and write the memory of the old game): the typecasts and the
   special effect functions get their Reforged equivalent; with "Neutralize memory hacks" ticked (the default), what
   only the old game's memory did stops working and the map compiles, and the report lists what was neutralized
+- the report warns when the unit ability lists are long enough to drop games, and lists the Script checks of the
+  ported script
 
 Some platform functions have no equivalent on 3.0 (the platform shop, the online ranking): they stay as stubs that
 compile and return an empty value. The report lists each stub the map calls, with the functions and triggers that

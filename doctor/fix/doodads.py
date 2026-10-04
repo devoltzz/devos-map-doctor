@@ -152,16 +152,21 @@ def without_invalid_ids(b, valid_ids, d=None):
     d = d or read_data(b)
     if not d.get('on_close'):
         return b, []
-    bad_ones, kept = {}, []
-    for r in d['regs']:
-        if r['id'] in valid_ids:
-            kept.append(r)
-        else:
-            bad_ones[r['id']] = bad_ones.get(r['id'], 0) + 1
+    from doctor.data import map_formats
+    try:
+        t = map_formats.read_doo(b)
+    except map_formats.Unreadable:
+        return b, []
+    bad_ones = {}
+
+    def keep(tab, i):
+        ident = bytes(tab.records[i][:4])
+        if ident in valid_ids:
+            return True
+        bad_ones[ident] = bad_ones.get(ident, 0) + 1
+        return False
+
+    t.remove(keep)
     if not bad_ones:
         return b, []
-    out = [b'W3do' + struct.pack('<iiI', d['version_num'], d['subversion'], len(kept))]
-    for r in kept:
-        out.append(b[r['begin']:r['begin'] + r['sz']])
-    out.append(d['tail'])
-    return b''.join(out), sorted(bad_ones.items(), key=lambda kv: -kv[1])
+    return t.write(), sorted(bad_ones.items(), key=lambda kv: -kv[1])

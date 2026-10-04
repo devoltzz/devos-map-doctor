@@ -1957,3 +1957,8 @@ def building_hints(script):
             out.setdefault(m.group(1).encode('latin-1'), building)
     return out
 
+
+ERAS = ((6105, 'classic'), (6117, '1.32'), (7000, '2.0'), (1 << 30, '3.0'))
+def era(editor):
+    return next(name for limit, name in ERAS if editor < limit)
+

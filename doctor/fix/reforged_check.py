@@ -167,7 +167,60 @@ def model_items(path, progress=None):
     if broken:
         items.append(_item('model_broken', 'blocker', '%d models have a broken file structure: the game crashes when '
                            'it loads them.' % len(broken), 'none', models=broken[:30]))
+    portraits = r.get('portraits') or []
+    if portraits:
+        items.append(
+            _item(
+                'portrait_camera',
+                'info',
+                '%d portrait models have a camera from a model version below 900: '
+                'reported to show a black portrait in 3.0. The Doctor can remove those cameras (check the '
+                'portraits in game).' % len(portraits),
+                'doctor',
+                models=portraits[:30],
+            )
+        )
     return items, r['checked']
+
+
+def object_items(path):
+    from doctor.fix import data_pointers
+    from doctor.fix import uabi_runtime
+    items = []
+    dp = data_pointers.scan(path)
+    if dp.get('fixable'):
+        rows = [{'file': f, 'object': x['object'], 'field': x['field']} for f, xs in dp['files'].items() for x in xs
+                if x['fix'] is not None]
+        items.append(_item('data_pointers', 'warning', '%d levelled fields of the object data point to another data '
+                           'column on some levels: on those levels the field the author meant keeps its base value. '
+                           'The Doctor sets them to the column the other levels use.' % dp['fixable'], 'doctor',
+                           fields=rows[:30]))
+    ua = uabi_runtime.scan(path)
+    if ua.get('risky'):
+        items.append(_item('uabi_distinct', 'warning', 'The unit types carry %d distinct abilities in their normal '
+                           'ability lists. Players report that a map with about 2,000 drops almost every game on '
+                           'Reforged, and that the same abilities added by the script do not. %s' % (
+                               ua['distinct'], 'The Doctor can move the lists to the script.' if not ua['slk'] else
+                               'The lists are in the SLK tables, which the Doctor does not move.'),
+                           'none' if ua['slk'] else 'doctor', distinct=ua['distinct'], references=ua['references']))
+    return items
+
+
+def import_items(path):
+    from doctor.mpq import import_lint
+    r = import_lint.lint(path)
+    c = r.get('counts') or {}
+    if r.get('error') or not any(c.values()):
+        return []
+    parts = []
+    if c.get('not_in_imp'):
+        parts.append('%d are not in the import list, so the World Editor drops them when it saves' % c['not_in_imp'])
+    if c.get('odd_extension'):
+        parts.append('%d are of a type the game does not load' % c['odd_extension'])
+    if c.get('game_file'):
+        parts.append('%d replace a file of the game' % c['game_file'])
+    return [_item('import_lint', 'info', 'Of the imported files, %s.' % '; '.join(parts), 'none', counts=c,
+                  files=sorted(r['files'])[:30])]
 
 
 _ARCHIVE = {
@@ -327,4 +380,8 @@ def check(path, progress=None, diag=None):
     if res['script'] != 'kk_encrypted' and not unknown:
         found, res['models'] = model_items(src, p)
         items += found
+        p('Checking the object data')
+        items += object_items(src)
+        p('Checking the imported files')
+        items += import_items(src)
     return _finish(res, unknown)

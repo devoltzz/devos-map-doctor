@@ -74,7 +74,8 @@ const state = {
   // `gen` counts the maps opened: what a job of an earlier map brings back is dropped; the quiet jobs of the map
   // (the tabs loading in the background) are cancelled when another one opens
   gen: 0, tabState: {}, quietJobs: new Set(), images: {}, imageData: {},
-  extras: { card: null, translation: null, models: null, singlePlayer: null },
+  extras: { card: null, translation: null, models: null, singlePlayer: null, portraits: null, dataPointers: null,
+    uabi: null, preload: null },
 };
 
 const api = () => window.pywebview.api;
@@ -180,7 +181,8 @@ async function openMap(path) {
   state.results = {};
   state.portResult = null;
   state.portPackages = [];
-  state.extras = { card: null, translation: null, models: null, singlePlayer: null };
+  state.extras = { card: null, translation: null, models: null, singlePlayer: null, portraits: null,
+    dataPointers: null, uabi: null, preload: null };
   TABS.forEach(n => setTabState(n, 'wait'));
   $('#welcome').classList.add('hidden');
   $('#mapview').classList.remove('hidden');
@@ -280,6 +282,11 @@ async function checkReforgedQuietly(gen) {
     const sp = r.single_player;
     if (sp && sp.found) { state.extras.singlePlayer = sp; renderActions(); }
     if (r.models && r.models.fixable) { state.extras.models = r.models; renderActions(); }
+    // 1.5.3: the extras of the new checks
+    if (r.portraits && r.portraits.fixable) { state.extras.portraits = r.portraits; renderActions(); }
+    if (r.data_pointers && r.data_pointers.fixable) { state.extras.dataPointers = r.data_pointers; renderActions(); }
+    if (r.uabi && r.uabi.distinct) { state.extras.uabi = r.uabi; renderActions(); }
+    if (r.preload && (r.preload.units || r.preload.abilities)) { state.extras.preload = r.preload; renderActions(); }
   } catch (e) {
     if (gen !== state.gen) return;
     const badge = $('#reforgedBadge');
@@ -296,7 +303,7 @@ const ACTIONS = {
     'triggers back as GUI wherever that can be proved.', label: 'Preparing the map for the World Editor...' },
 };
 const EXTRA_STEPS = {
-  fix: ['models', 'singlePlayer', 'card', 'translation', 'shrink'],
+  fix: ['models', 'portraits', 'dataPointers', 'uabi', 'preload', 'singlePlayer', 'card', 'translation', 'shrink'],
   editor: ['singlePlayer', 'card', 'translation'],
 };
 
@@ -316,6 +323,20 @@ function extraSteps(action) {
     if (k === 'models' && x.models) out.push({ key: 'x:models', label: 'Fix the models that crash the game',
       detail: x.models.fixable + ' imported ' + (x.models.fixable === 1 ? 'model has' : 'models have') +
         ' a problem the Doctor can fix.', on: true, applies: true, group: 'extra' });
+    if (k === 'portraits' && x.portraits) out.push({ key: 'x:portraits', label: 'Fix black portraits',
+      detail: x.portraits.fixable + ' portrait ' + (x.portraits.fixable === 1 ? 'model has' : 'models have') +
+        ' an old camera, reported to show a black portrait in 3.0: the camera is removed. Check them in game.',
+      on: false, applies: true, group: 'extra' });
+    if (k === 'dataPointers' && x.dataPointers) out.push({ key: 'x:dataPointers', label: 'Fix the levelled data pointers',
+      detail: x.dataPointers.fixable + ' levelled ' + (x.dataPointers.fixable === 1 ? 'field points' : 'fields point') +
+        ' to another data column on some levels.', on: true, applies: true, group: 'extra' });
+    if (k === 'uabi' && x.uabi) out.push({ key: 'x:uabi', label: 'Move the unit ability lists to the script',
+      detail: x.uabi.distinct + ' distinct abilities in the unit lists; reported to drop games on Reforged. Test the ' +
+        'map before sharing it.', on: false, applies: true, group: 'extra' });
+    if (k === 'preload' && x.preload) out.push({ key: 'x:preload', label: 'Load the first seconds under the loading screen',
+      detail: x.preload.units + ' unit types and ' + x.preload.abilities + ' abilities the map uses right after the ' +
+        'start are loaded before play begins, so the game does not freeze then.', on: false, applies: true,
+      group: 'extra' });
     if (k === 'singlePlayer' && x.singlePlayer) out.push({ key: 'x:singlePlayer', label: 'Let it run in single player',
       detail: 'The map ends the game when played alone; there is no LAN since 3.0, so alone means single player.',
       on: false, applies: true, group: 'extra' });
@@ -442,6 +463,10 @@ async function runAction(action) {
   const params = { options, extras: {} };
   if (extras.models) params.extras.models = true;
   if (extras.singlePlayer) params.extras.single_player = true;
+  if (extras.portraits) params.extras.portraits = true;
+  if (extras.dataPointers) params.extras.data_pointers = true;
+  if (extras.uabi) params.extras.uabi = true;
+  if (extras.preload) params.extras.preload = true;
   if (extras.card && state.extras.card) params.extras.card = state.extras.card;
   if (extras.translation && state.extras.translation) params.extras.translation = state.extras.translation.file;
   if (extras.shrink) params.extras.shrink = { recompress: true, blp: true, dedup: true };
@@ -811,7 +836,8 @@ function renderFiles() {
           if (e.target.checked) selected.add(x.name); else selected.delete(x.name); } });
         const tr = el('tr', { class: 'click', onclick: () => {
           $$('tr.sel', rows).forEach(r => r.classList.remove('sel')); tr.classList.add('sel'); showPreview(x, preview);
-        } }, el('td', {}, box), el('td', { class: 'mono', text: x.name }), el('td', { text: x.kind }),
+        } }, el('td', {}, box), el('td', { class: 'mono', text: x.name, title: x.about || '' },
+          ...lintBadges(x.name)), el('td', { text: x.kind }),
         el('td', { style: 'text-align:right', text: (x.size / 1024).toFixed(x.size < 10240 ? 1 : 0) + ' KB' }));
         return tr;
       }));
@@ -831,10 +857,30 @@ function renderFiles() {
             api().open_folder(dir)]] });
         } catch (e) { failed(e, 'Extracting'); }
       } })),
+    lintSummary(f),
     el('div', { class: 'split', style: 'margin-top:12px' },
       el('div', { class: 'scroll' }, el('table', { class: 'grid' }, el('thead', {}, el('tr', {}, el('th', {}),
         el('th', { text: 'Name' }), el('th', { text: 'Kind' }), el('th', { text: 'Size', style: 'text-align:right' }))),
       rows)), preview)));
+}
+
+// 1.5.3: the import checks of a file (import_lint)
+const LINT_TEXT = {
+  not_in_imp: ['not in the import list', 'The World Editor drops it the next time it saves the map.'],
+  odd_extension: ['not a game file', 'The game does not load this type of file: it travels with the map for nothing.'],
+  game_file: ['replaces a game file', 'The game shows this file instead of its own.'],
+};
+
+function lintBadges(name) {
+  const codes = ((state.files || {}).lint || {})[name] || [];
+  return codes.map(c => el('span', { class: 'badge' + (c === 'game_file' ? '' : ' warn'), style: 'margin-left:6px',
+    text: (LINT_TEXT[c] || [c])[0], title: (LINT_TEXT[c] || ['', ''])[1] }));
+}
+
+function lintSummary(f) {
+  const c = f.lint_counts || {};
+  const parts = Object.keys(LINT_TEXT).filter(k => c[k]).map(k => c[k] + ' ' + LINT_TEXT[k][0]);
+  return parts.length ? el('p', { class: 'lead', text: 'Imported files: ' + parts.join(', ') + '.' }) : null;
 }
 
 async function showPreview(file, box) {
@@ -869,9 +915,42 @@ async function loadScript(gen) {
         if (p) { await api().write_text(p, s.text); toast('Saved ' + base(p) + '.'); }
       } }) : null),
       s.note ? el('p', { class: 'lead', text: s.note }) : null,
+      s.language === 'jass' && s.text ? scriptChecksCard() : null,
       s.text ? el('pre', { class: 'code', text: shown }) : el('p', { class: 'muted', text: 'No readable script.' })));
     setTabState('script', 'ready');
   } catch (e) { if (gen === state.gen) tabFailed('script', 'Reading the script', e); }
+}
+
+// 1.5.3: "Script checks" (script_checks.py): the handle leaks by how often they run, the start-up the script never
+// calls, the globals it reads and never sets
+const HEAT_TEXT = { hot: 'periodic timer', repeat: 'event', once: 'start', unused: 'never runs' };
+const RULE_TEXT = { discarded: 'created and thrown away', inline: 'created inside a call, never destroyed',
+  never_destroyed: 'kept in a local, never destroyed' };
+
+function scriptChecksCard() {
+  const box = el('div', { class: 'muted', text: 'Looks for handle leaks (weighed by how often the code runs), ' +
+    'start-up functions nothing calls and globals that are read and never set.' });
+  const btn = el('button', { class: 'btn', text: 'Script checks', onclick: async () => {
+    btn.disabled = true;
+    box.replaceChildren(el('span', { class: 'faint', text: 'Checking...' }));
+    try {
+      const r = await run('script_checks', {}, { quiet: true });
+      const kids = (r.lines || []).map((l, i) => el(i ? 'div' : 'p', { class: i ? 'mono' : 'lead', text: l }));
+      if (r.leaks && r.leaks.length) {
+        const rows = r.leaks.slice(0, 200).map(x => el('tr', {}, el('td', { class: 'mono', text: String(x.line) }),
+          el('td', { class: 'mono', text: x['function'] }), el('td', { text: x.creator }),
+          el('td', { text: RULE_TEXT[x.rule] || x.rule }), el('td', { text: HEAT_TEXT[x.heat] || x.heat })));
+        kids.push(el('div', { class: 'scroll', style: 'max-height:260px;margin-top:8px' }, el('table', { class: 'grid' },
+          el('thead', {}, el('tr', {}, el('th', { text: 'Line' }), el('th', { text: 'Function' }),
+            el('th', { text: 'Creates' }), el('th', { text: 'Leak' }), el('th', { text: 'Runs on' }))),
+          el('tbody', {}, ...rows))));
+      }
+      box.replaceChildren(...kids);
+    } catch (e) { box.replaceChildren(el('span', { class: 'bad', text: 'The checks failed: ' + (e.message || e) })); }
+    btn.disabled = false;
+  } });
+  return el('div', { class: 'card', style: 'margin:10px 0' }, el('div', { class: 'row' },
+    el('h3', { class: 'grow', text: 'Script checks' }), btn), box);
 }
 
 // ------------------------------------------------------------------ triggers
