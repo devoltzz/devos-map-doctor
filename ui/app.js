@@ -287,7 +287,7 @@ async function checkReforgedQuietly(gen) {
     if (r.data_pointers && r.data_pointers.fixable) { state.extras.dataPointers = r.data_pointers; renderActions(); }
     if (r.uabi && r.uabi.distinct) { state.extras.uabi = r.uabi; renderActions(); }
     if (r.preload && (r.preload.units || r.preload.abilities)) { state.extras.preload = r.preload; renderActions(); }
-    // 1.5.5: os nomes de modelo que a ferramenta Model_Encrypt renomeou
+    // 1.5.6: os nomes de modelo que a ferramenta Model_Encrypt renomeou
     if (r.model_names && r.model_names.fixable) { state.extras.modelNames = r.model_names; renderActions(); }
   } catch (e) {
     if (gen !== state.gen) return;
