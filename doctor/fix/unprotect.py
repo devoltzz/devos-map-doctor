@@ -755,7 +755,8 @@ def map_names(a):
         derived = {}
     for n in sorted(derived):
         name_list.setdefault(n.upper(), n)
-    return sorted((n for n in name_list.values() if n.lower() not in SPECIAL_FILES), key=lambda n: (n.lower(), n))
+    return sorted((n.replace('/', '\\') for n in name_list.values() if n.lower() not in SPECIAL_FILES),
+                  key=lambda n: (n.lower(), n))
 
 
 def game_only_reads(a, name_list):
@@ -784,7 +785,7 @@ def _listfile_and_fake(file_path, name_list):
     lf = _read(a, '(listfile)')
     if lf:
         for line in lf.decode('utf-8', 'surrogateescape').splitlines():
-            n = line.strip()
+            n = line.strip().replace('/', '\\')
             if n and a.find(n):
                 current_names.setdefault(n.upper(), n)
     all_items = dict(current_names)
@@ -822,11 +823,15 @@ def check_content(original, output, exclude=()):
     lf = _read(b, '(listfile)') or b''
     name_list = [line.strip() for line in lf.decode('utf-8', 'surrogateescape').splitlines() if line.strip()]
     name_list += list(mpqdoctor.PROBES) + list(mpqnames.BASE_NAMES)
-    outside = set(x.lower() for x in exclude) | set(SPECIAL_FILES)
+
+    def _key(n):
+        return n.replace('/', '\\').lower()
+
+    outside = set(_key(x) for x in exclude) | set(SPECIAL_FILES)
     out = {'identical': 0, 'different': [], 'missing_items': [], 'empty_files': [], 'unreadable_items': 0}
     with quiet():
         for n in dict.fromkeys(name_list):
-            if n.lower() in outside:
+            if _key(n) in outside:
                 continue
             try:
                 r = a.find_locale(n) if a.find(n) else None

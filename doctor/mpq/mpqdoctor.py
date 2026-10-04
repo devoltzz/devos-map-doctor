@@ -257,7 +257,8 @@ def _new_tables(d, a, name_list=(), leftovers=False):
                              % (bi, block_name[bi]))
         new[bi] = len(bt) // 4
         bt += [off, end_pos - begin, fs, fl]
-    listing = ('\r\n'.join(sorted(chosen, key=lambda n: (n.lower(), n))) + '\r\n').encode('utf-8', 'surrogateescape')
+    listing = ('\r\n'.join(sorted((n.replace('/', '\\') for n in chosen), key=lambda n: (n.lower(), n))) + '\r\n'
+               ).encode('utf-8', 'surrogateescape')
     body, fl_listing = RC.pack_file(listing, a.sector_size, 9)
     hash_entries = [(n, new[bi]) for n, bi in chosen.items()] + [('(listfile)', len(bt) // 4)]
     bt += [len(d) - hdr, len(body), len(listing), fl_listing]
