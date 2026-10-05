@@ -11,18 +11,28 @@ RX_ACTION = re.compile(r'\bTriggerAddAction\s*\(\s*(\w+(?:\[[^\]]*\])?)\s*,\s*fu
 RX_EXEC = re.compile(r'\b(?:ConditionalTriggerExecute|TriggerExecute)\s*\(\s*(\w+(?:\[[^\]]*\])?)\s*\)')
 NEUTRAL = {'integer': '0', 'real': '0.0', 'boolean': 'false'}
 RX_CALLS = re.compile(r'(?<![\w.])([A-Za-z_]\w*)\s*\(|\bfunction\s+([A-Za-z_]\w*)')
+_RX_W = re.compile(r'\w')
+
+
+def _uses(fname, body_text):
+    c, n, i = 0, len(fname), body_text.find(fname)
+    while i >= 0:
+        if not (i and _RX_W.match(body_text[i - 1])) and not (i + n < len(body_text) and _RX_W.match(body_text[i + n])):
+            c += 1
+        i = body_text.find(fname, i + 1)
+    return c
 
 
 def readers(body_text, fs):
     body = dict((n, body_text[i:f]) for n, i, f in fs)
     name_list = set(body)
-    chama = dict((n, set(m.group(1) or m.group(2) for m in RX_CALLS.finditer(c.split('\n', 1)[-1])) & name_list)
-                 for n, c in body.items())
+    called = dict((n, set(m.group(1) or m.group(2) for m in RX_CALLS.finditer(c.split('\n', 1)[-1])) & name_list)
+                  for n, c in body.items())
     read_data = set(n for n, c in body.items() if RX_READING.search(dead_type._without_text(c)))
     changed = True
     while changed:
         changed = False
-        for n, cs in chama.items():
+        for n, cs in called.items():
             if n not in read_data and cs & read_data:
                 read_data.add(n)
                 changed = True
@@ -41,7 +51,7 @@ def _insert(body_text, fs, fname, line_list):
 
 
 def applies(body_text):
-    info = {'readers': 0, 'first_pos': [], 'esperam': [], 'kept_list': [], 'failures': []}
+    info = {'readers': 0, 'first_pos': [], 'waiting': [], 'kept_list': [], 'failures': []}
     if MARK in body_text:
         return body_text, info
     fs = dead_type.functions(body_text)
@@ -58,8 +68,7 @@ def applies(body_text):
         if n in body:
             at_start |= set(m.group(1) for m in RX_EXEC.finditer(body[n]))
     action_only = dict(
-        (action_code, len(re.findall(r'\b%s\b' % re.escape(action_code), body_text)) == 2)
-        for action_code in action_codes
+        (action_code, _uses(action_code, body_text) == 2) for action_code in action_codes if action_code in read_data
     )
     for action_code in sorted(action_codes):
         if action_code not in read_data or action_code not in body:
@@ -78,7 +87,7 @@ def applies(body_text):
         elif action_only.get(action_code):
             line_list = ['    loop ' + MARK + ': the action reads the save; waits for the profiles in its own thread',
                          '        exitwhen DB_rede_pronto', '        call TriggerSleepAction(0.10)', '    endloop']
-            info['esperam'].append(action_code)
+            info['waiting'].append(action_code)
         else:
             line_list = [
                 '    if not DB_rede_pronto then '
@@ -107,6 +116,6 @@ def report_data(info):
     if info['readers']:
         print('save wiring: %d function(s) read the storage; %d initialization action(s) deferred, %d wait '
               'in its own thread, %d held until the profiles arrive' % (info['readers'], len(info['first_pos']),
-                                                                        len(info['esperam']), len(info['kept_list'])))
+                                                                        len(info['waiting']), len(info['kept_list'])))
     else:
         print('save wiring: the map does not read the platform storage')

@@ -33,7 +33,7 @@ def walk(d):
         tag = d[p:p + 4]
         size = struct.unpack_from('<I', d, p + 4)[0]
         if p + 8 + size > n:
-            return chunks, 'chunk %r em %d estoura o arquivo: size=%d, restam=%d' % (
+            return chunks, 'chunk %r at %d runs past the file: size=%d, left=%d' % (
                 tag, p, size, n - p - 8)
         chunks.append((tag, size, p + 8))
         p += 8 + size

@@ -48,14 +48,14 @@ def _holds(data, out):
 def _fixed(data):
     try:
         out, info = mdxgroups.fix_matrix_groups(data, so_dedup=True)
-        if not info.get('above_do_limit') and _holds(data, out):
+        if not info.get('above_the_limit') and _holds(data, out):
             info['method'] = 'merged'
             return out, info
         if mdxdeep.deep(data).get('max_objid', -1) >= 256:
             fewer, ninfo = mdxnodes.reduce_nodes(data, 250)
             if 'err' not in ninfo:
                 out, info = mdxgroups.fix_matrix_groups(fewer, so_dedup=True)
-                if not info.get('above_do_limit') and _holds(data, out):
+                if not info.get('above_the_limit') and _holds(data, out):
                     info.update(method='nodes_merged', nodes_before=ninfo.get('nodes_before'),
                                 nodes_after=ninfo.get('nodes_after'))
                     return out, info

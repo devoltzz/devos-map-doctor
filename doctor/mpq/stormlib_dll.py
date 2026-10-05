@@ -82,7 +82,7 @@ def opens(file_path, dll_path=None):
         return {'opens': None, 'err': _error_dll or 'no_dll'}
     h, err = _open_handle(d, file_path)
     if h is None:
-        return {'opens': False, 'err': 'SFileOpenArchive: erro %d' % err}
+        return {'opens': False, 'err': 'SFileOpenArchive: error %d' % err}
     try:
         flags = _info(d, h, SFileMpqFlags, '<I')
         sector_bytes = _info(d, h, SFileMpqSectorSize, '<I')
@@ -116,9 +116,9 @@ def read_data(file_path, name_list, dll_path=None, cap=256 << 20):
                 out[n] = None
                 continue
             try:
-                alto = ctypes.c_uint(0)
-                sz = d.SFileGetFileSize(f, ctypes.byref(alto))
-                if sz == 0xFFFFFFFF or alto.value or sz > cap:
+                high = ctypes.c_uint(0)
+                sz = d.SFileGetFileSize(f, ctypes.byref(high))
+                if sz == 0xFFFFFFFF or high.value or sz > cap:
                     out[n] = None
                     continue
                 buf = ctypes.create_string_buffer(max(sz, 1))

@@ -9,7 +9,8 @@ from doctor.data import slk_patch
 FILES = (('w3u', 'unam', False), ('w3t', 'unam', False), ('w3a', 'anam', True), ('w3q', 'gnam', True),
          ('w3h', 'fnam', False), ('w3b', 'bnam', False))
 RX_GAME_STRINGS = re.compile(r'_locales\\enus\.w3mod:units\\\w+strings\.txt$')
-RX_WTS = re.compile(rb'STRING\s+(\d+)\s*(?://[^\n]*\n\s*)?\{\r?\n(.*?)\r?\n\}', re.S)
+RX_WTS = re.compile(rb'^(?:\xef\xbb\xbf)?STRING[ \t]+(\d+)[^\n]*\n(?:[ \t]*(?://[^\n]*)?\r?\n)*[ \t]*\{[^\n]*\n'
+                    rb'(.*?)\r?\n?^\}', re.S | re.M)
 RX_COLOR = re.compile(r'\|c[0-9a-fA-F]{8}|\|r|\|n', re.I)
 _GAME = None
 

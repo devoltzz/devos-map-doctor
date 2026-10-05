@@ -5,7 +5,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 from doctor.fix import unprotect as D
 
-VERSION = '1.5.8'
+VERSION = '1.5.9'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -475,11 +475,11 @@ def unprotection_text(r):
                        ' (%s changed on purpose)' % '; '.join(on_purpose) if on_purpose else '')))
     after_diag = (r.get('after_diag') or {}).get('protections') or []
     button3 = [p for p in after_diag if p['code'] in D.BUTTON3_ONLY]
-    deixados = set(r.get('deixados') or [])
+    left_out = set(r.get('left_out') or [])
     unresolved = [p for p in after_diag if p['code'] not in D.BUTTON3_ONLY and p['code'] not in D.DATA_ONLY and
-                  p['code'] not in deixados]
+                  p['code'] not in left_out]
     for p in after_diag:
-        if p['code'] in deixados:
+        if p['code'] in left_out:
             out.append(('info', '  - Left as you chose: ' + describe(p)))
         elif p['code'] in D.DATA_ONLY:
             out.append(('warning', '  - Not fixed: ' + describe(p)))

@@ -88,7 +88,7 @@ REASONS = (('empty', 'empty translation'), ('CJK restante', 'Chinese, Japanese o
            ('aspas sem escape', 'a double quote without a backslash in a script text'),
            ('barra invertida solta', 'a lone backslash in a script text'),
            ('muito longo', 'much longer than the original'), ('numeros diferentes', 'numbers changed'),
-           ('level_list', 'level commas changed'), ('nao e string', 'not a string'))
+           ('level_list', 'level commas changed'), ('not a string', 'not a string'))
 
 
 def _nothing(*_a, **_k):
@@ -293,11 +293,11 @@ def _collect_profiles(mt, read, names):
     for name in sorted(files, key=lambda n: n.lower()):
         if not name.lower().endswith('.txt'):
             continue
-        texto = _decode(files[name])
+        text = _decode(files[name])
         found = []
-        tr_extract.extract_txt_text(name, texto, found, collections.Counter(), collections.Counter(),
+        tr_extract.extract_txt_text(name, text, found, collections.Counter(), collections.Counter(),
                                     tem_text=is_text)
-        lines = tr_extract.quebra(texto)[0]
+        lines = tr_extract.line_break(text)[0]
         sections = _sections(lines)
         for ln, line in enumerate(lines):
             m = RX_KEY.match(line)
@@ -314,10 +314,10 @@ def _collect_profiles(mt, read, names):
         b = read(name)
         if not b:
             continue
-        texto = _decode(b)
+        text = _decode(b)
         found = []
-        tr_extract.extract_misc_text(name, texto, found, collections.Counter(), tem_text=is_text)
-        lines = tr_extract.quebra(texto)[0]
+        tr_extract.extract_misc_text(name, text, found, collections.Counter(), tem_text=is_text)
+        lines = tr_extract.line_break(text)[0]
         sections = _sections(lines)
         for ln, line in enumerate(lines):
             m = RX_KEY.match(line)
@@ -376,7 +376,7 @@ def _collect_script(mt, a, read):
     src = _decode(b)
     found = []
     tr_extract.extract_script_text(src, found, collections.Counter(), (), tem_text=_script_candidate)
-    lines = tr_extract.quebra(src, jass=True)[0]
+    lines = tr_extract.line_break(src, jass=True)[0]
     functions = _functions_by_line(lines)
     screen = dict((e['text'], e) for e in found if e['kind'] == 'script')
     cats = collections.defaultdict(collections.Counter)
@@ -433,13 +433,13 @@ def _comparison_rules(mt, src, script_entries, wts_texts):
     linked, keyed = {}, set()
     if src is not None:
         fake = [{'id': e['id'], 'src': e['file'], 'kind': e['_kind'], 'text': e['text'], 'key': ''} for e in data]
-        por = tr_compared.measure(src, list(script_entries) + fake, dict((e['id'], e['text']) for e in data))
-        for lit, d in por.items():
+        by = tr_compared.measure(src, list(script_entries) + fake, dict((e['id'], e['text']) for e in data))
+        for lit, d in by.items():
             if d['rec'] == 'all_entries' and d['clusters'].get('hash_key'):
                 keyed.add(lit)
             elif d['rec'] == 'all_entries':
                 linked[lit] = 'script'
-        window = sorted(lit for lit, d in por.items() if d['rec'] == 'window')
+        window = sorted(lit for lit, d in by.items() if d['rec'] == 'window')
     else:
         window = []
     for n in mt.compared_trigstr:
@@ -493,7 +493,7 @@ def collect(a, progress=None):
     m = RX_TRIGSTR.match(mt.map_name)
     if m:
         mt.map_name = wts_texts.get(int(m.group(1)), mt.map_name)
-    mt.map_name = object_names.clean(mt.map_name)
+    mt.map_name = object_names.clean(_encode(mt.map_name).decode('utf-8', 'replace'))
     good = []
     for e in mt.entries:
         if _bad_utf8(e['text']) or _bad_utf8(e['id']):
@@ -594,11 +594,11 @@ def export_html(path, out_file, progress=None):
         os.remove(tmp)
     rows = []
     for e in doc['entries']:
-        texto = e['text'].replace('\r\n', '\n')
+        text = e['text'].replace('\r\n', '\n')
         rows.append('<tr data-id="%s"%s><td translate="no" class="id">%s</td>'
                     '<td translate="no" class="src">%s</td><td class="t">%s</td></tr>'
                     % (html.escape(e['id'], True), ' data-crlf="1"' if '\r\n' in e['text'] else '',
-                       html.escape(e['id']), html.escape(texto), _html_text(texto)))
+                       html.escape(e['id']), html.escape(text), _html_text(text)))
     body = (
         '<!doctype html>\n<html lang="%s"><head><meta charset="utf-8"><meta name="format" content="%s;%d">'
         '<title>%s</title><style>td{border:1px solid #ccc;padding:4px;vertical-align:top}.id,.src{color:#777;'
@@ -615,15 +615,19 @@ def export_html(path, out_file, progress=None):
         )
     )
     part = out_file + '.part'
-    with open(part, 'w', encoding='utf-8', newline='\n') as f:
-        f.write(body)
-    back = _load_html(part)
-    if [x['id'] for x in back['entries']] != [e['id'] for e in doc['entries']] or \
-            any(x['translation'] != e['text'] for x, e in zip(back['entries'], doc['entries'])):
-        os.remove(part)
-        rep.update(state='failed', error='the HTML file did not read back the same')
+    try:
+        with open(part, 'w', encoding='utf-8', newline='\n') as f:
+            f.write(body)
+        back = _load_html(part)
+        if [x['id'] for x in back['entries']] != [e['id'] for e in doc['entries']] or \
+                any(x['translation'] != e['text'] for x, e in zip(back['entries'], doc['entries'])):
+            raise ValueError('the HTML file did not read back the same')
+        os.replace(part, out_file)
+    except Exception as e:
+        if os.path.exists(part):
+            os.remove(part)
+        rep.update(state='failed', file=None, error='cannot write the file (%s)' % _error(e))
         return rep
-    os.replace(part, out_file)
     rep['file'] = out_file
     return rep
 
@@ -632,7 +636,7 @@ def _load_html(translation_file):
     import html
     import html.parser
 
-    class Leitor(html.parser.HTMLParser):
+    class Reader(html.parser.HTMLParser):
         def __init__(self):
             super().__init__(convert_charrefs=True)
             self.rows, self.cell, self.buf, self.lang = [], None, [], ''
@@ -659,17 +663,17 @@ def _load_html(translation_file):
             if self.cell:
                 self.buf.append(data)
 
-    r = Leitor()
+    r = Reader()
     with open(translation_file, encoding='utf-8-sig') as f:
         r.feed(f.read())
     if not r.rows:
         raise ValueError('not a Devo\'s Map Doctor translation file')
     lang = r.lang if r.lang and r.lang != 'und' else ''
-    def volta(s, crlf):
+    def back(s, crlf):
         s = s.replace('\r\n', '\n')
         return s.replace('\n', '\r\n') if crlf else s
     return {'format': FORMAT, 'language': lang,
-            'entries': [{'id': x['id'], 'text': volta(x['src'], x['crlf']), 'translation': volta(x['t'], x['crlf'])}
+            'entries': [{'id': x['id'], 'text': back(x['src'], x['crlf']), 'translation': back(x['t'], x['crlf'])}
                         for x in r.rows]}
 
 
@@ -696,12 +700,19 @@ def check_entry(e, translation, language=''):
     if not isinstance(translation, str):
         return ['not a string']
     tx = e.get('_tx') or {}
-    entrada = {'text': e['text'], 'kind': e['_kind'], 'src': e['file'], 'quoted': tx.get('quoted', False),
+    entry_ = {'text': e['text'], 'kind': e['_kind'], 'src': e['file'], 'quoted': tx.get('quoted', False),
                'comma': tx.get('comma', False)}
     item = {'t': e['text']}
     if tx.get('comma') and not tx.get('quoted'):
         item['level_list'] = e['text'].count(',') + 1
-    errs = tr_pair_check.errors_de(item, entrada, translation)
+    errs = tr_pair_check.errors_of(item, entry_, translation)
+    if tx.get('quoted') and '","' in e['text']:
+        expected = len(tr_pair_check.level_commas('"%s"' % e['text'], True))
+        found = len(tr_pair_check.level_commas('"%s"' % translation, True))
+        if found != expected:
+            errs.append('niveis: %d virgulas, esperado %d' % (found, expected))
+        elif translation.count('"') % 2 != e['text'].count('"') % 2:
+            errs.append('niveis: %d aspas, esperado %d' % (translation.count('"'), e['text'].count('"')))
     if not _cjk(e['text']) or _is_cjk_language(language):
         errs = [x for x in errs if not x.startswith('CJK restante')]
     out = [_english(x) for x in errs]
@@ -709,7 +720,7 @@ def check_entry(e, translation, language=''):
         out.append('a NUL character')
     if sorted(RX_FORMAT.findall(e['text'])) != sorted(RX_FORMAT.findall(translation)):
         out.append('format codes (%s, %d) changed')
-    if e['source'] == 'wts' and re.search(r'\n\}', translation):
+    if e['source'] == 'wts' and re.search(r'^\}', translation, re.M):
         out.append('a line starting with } (it ends a wts string)')
     if e['source'] == 'profile' and ('\r' in translation or '\n' in translation):
         out.append('a real line break in a profile value')
@@ -720,8 +731,8 @@ def check_entry(e, translation, language=''):
 
 def _written(e, translation):
     if e['source'] == 'profile' and not e.get('_misc'):
-        return tr_apply.fix_value(translation, e['_tx'])
-    if e['source'] in ('object', 'profile'):
+        return tr_apply.fix_value(translation, dict(e['_tx'], text=e['text']))
+    if e['source'] == 'profile':
         return translation.replace('"', "'")
     return translation
 
@@ -764,23 +775,23 @@ def _build(mt, wanted, linked):
             new = w3i.write(m)
         elif name == mt.script_file:
             src = _decode(orig)
-            lines = tr_extract.quebra(src, jass=True)[0]
+            lines = tr_extract.line_break(src, jass=True)[0]
             seps = separators(src, lines)
             by_text = dict((e['text'], tr) for e, tr in items)
             by_text.update(linked)
-            cats, detail, n = tr_apply.apply_por_occurrence_lines(lines, by_text, False, linked, protected=())
+            cats, detail, n = tr_apply.apply_by_occurrence_lines(lines, by_text, False, linked, protected=())
             script.update(replaced=n, categories=dict(cats), per_literal=dict(
                 (lit, d['screen'] + d['all_entries']) for lit, d in detail.items()))
             new = _encode(join_lines(lines, seps))
         elif items[0][0]['source'] == 'object':
             change = dict((e['_where'], _encode(_written(e, tr))) for e, tr in items)
-            new, n = objbin.reescreve(orig, items[0][0]['_levels'], lambda ti, oi, mi, _f, _v: change.get((ti, oi, mi)))
+            new, n = objbin.rewrite(orig, items[0][0]['_levels'], lambda ti, oi, mi, _f, _v: change.get((ti, oi, mi)))
             if n != len(change):
                 raise RuntimeError('%s: %d of %d values written' % (name, n, len(change)))
         else:
-            texto = _decode(orig)
-            lines = tr_extract.quebra(texto)[0]
-            seps = separators(texto, lines)
+            text = _decode(orig)
+            lines = tr_extract.line_break(text)[0]
+            seps = separators(text, lines)
             for e, tr in items:
                 m = RX_KEY.match(lines[e['_where']])
                 if not m or m.group(1) != e['_key']:
@@ -793,7 +804,7 @@ def _build(mt, wanted, linked):
 
 
 def _script_counts(text, watch):
-    lines = tr_extract.quebra(text, jass=True)[0]
+    lines = tr_extract.line_break(text, jass=True)[0]
     return collections.Counter(lit for _ln, lit, _c in tr_screen_cjk.occurrences(lines, lambda x: x in watch,
                                                                                   protected=()))
 
@@ -819,7 +830,7 @@ def _readback(a, mt, wanted, linked, script):
             elif e['source'] == 'object':
                 v = objbin.read_data(b, e['_levels'])[1]
             else:
-                v = tr_extract.quebra(_decode(b))[0]
+                v = tr_extract.line_break(_decode(b))[0]
             parsed[e['file']] = v
         return parsed[e['file']]
     for e, tr in wanted:
@@ -875,12 +886,12 @@ def _load(translation_file):
 
 
 def _plan(mt, doc):
-    language = doc.get('language') or ''
+    language = str(doc.get('language') or '')
     current = dict((e['id'], e) for e in mt.entries)
     wanted, rejected, unknown, seen = [], [], [], set()
     empty = 0
     for t in doc['entries']:
-        ident = t.get('id') if isinstance(t, dict) else None
+        ident = t.get('id') if isinstance(t, dict) and isinstance(t.get('id'), str) else None
         tr = t.get('translation') if isinstance(t, dict) else None
         if tr is None or tr == '':
             empty += 1

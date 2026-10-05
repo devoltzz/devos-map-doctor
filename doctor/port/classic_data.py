@@ -31,7 +31,7 @@ def _text(v):
     return v.decode('utf-8') if isinstance(v, (bytes, bytearray)) else v
 
 
-def applies(regras, root, data_bytes, expected_count=None, gravar=True, current=None, classic=None):
+def applies(regras, root, data_bytes, expected_count=None, write_out=True, current=None, classic=None):
     failures = []
     info = {'regras': [], 'counts': {}, 'medido': {}}
     if current is None:
@@ -91,7 +91,7 @@ def applies(regras, root, data_bytes, expected_count=None, gravar=True, current=
         if rest:
             failures.append('%s: after the fix the rule still gives %d: %s' % (rot, len(rest), rest[:3]))
         output = os.path.join(data_bytes, file_)
-        igual = os.path.exists(output) and open(output, 'rb').read() == file_data_bytes
+        equal = os.path.exists(output) and open(output, 'rb').read() == file_data_bytes
         info['regras'].append(
             {
                 'file_name': file_,
@@ -105,15 +105,15 @@ def applies(regras, root, data_bytes, expected_count=None, gravar=True, current=
                 'bytes': len(file_data_bytes),
                 'sha': _sha(file_data_bytes),
                 'output': os.path.relpath(output, root),
-                'status': 'was already written' if igual else ('saved' if gravar else 'to write'),
+                'status': 'was already written' if equal else ('saved' if write_out else 'to write'),
             }
         )
-        if not igual:
+        if not equal:
             to_write.append((output, file_data_bytes))
     info['medidas'] = dict(info['counts'])
     if expected_count is not None and info['counts'] != dict(expected_count):
         failures.append('counts %s, the kk_monta expected ones are %s' % (info['counts'], dict(expected_count)))
-    if failures or not gravar:
+    if failures or not write_out:
         return failures, info
     os.makedirs(data_bytes, exist_ok=True)
     for output, file_data_bytes in to_write:

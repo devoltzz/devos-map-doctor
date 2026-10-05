@@ -24,6 +24,8 @@ WITH_NAME = {3, 5, 6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 21, 22}
 def read_container(data_bytes):
     if not data_bytes.startswith(MARK):
         raise ValueError('not a kkmap.jc (missing the marker %r)' % MARK)
+    if len(data_bytes) < 48:
+        raise ValueError('kkmap.jc: truncated header (%d B; the fields read go up to byte 48)' % len(data_bytes))
     if struct.unpack_from('<H', data_bytes, 26)[0] != len(MARK):
         raise ValueError('kkmap.jc: the marker size does not match')
     header, total, _one, decomp_size, nchunks = struct.unpack_from('<IIIII', data_bytes, 28)
@@ -54,8 +56,10 @@ SOURCE_ORDER, REVERSE_ORDER = 'source', 'reverse'
 class Bytecode(object):
     def __init__(self, payload, order=SOURCE_ORDER):
         self.order = order
+        if len(payload) < 8:
+            raise ValueError('bytecode: %d B are not enough for the header' % len(payload))
         rest, dw = struct.unpack_from('<II', payload, 0)
-        if rest + 4 != len(payload) or dw % 2:
+        if rest + 4 != len(payload) or dw % 2 or 8 + dw * 4 + 4 > len(payload):
             raise ValueError('bytecode: header %d/%d does not add up to %d B' % (rest, dw, len(payload)))
         self.n = dw // 2
         code_part = payload[8:8 + dw * 4]

@@ -2,6 +2,7 @@
 import collections
 import os
 import re
+import unicodedata
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -12,7 +13,7 @@ from doctor.translation import tr_validate as tv
 from doctor.translation import tr_gradient as tg
 
 RX_COLOR = re.compile(r'\|[cC][0-9a-fA-F]{8}|\|[rRnN]')
-RX_NUM = re.compile(r'\d+(?:\.\d+)?')
+RX_NUMBER = re.compile(r'\d+(?:\.\d+)?')
 RX_MULT = re.compile(r'(\d+(?:\.\d+)?)[ \t]*([百千万亿]|[wW](?![A-Za-z]))')
 MULT = {'百': 100, '千': 1000, '万': 10000, '亿': 100000000, 'w': 10000, 'W': 10000,
         '백': 100, '천': 1000, '만': 10000, '억': 100000000}
@@ -22,13 +23,16 @@ def _expande_mult(m):
     return ' %d ' % round(v) if abs(v - round(v)) < 1e-6 else ' %s ' % v
 
 
-RX_CADA1_ZH = re.compile(r'每\s*1(?![\d.])')
-RX_CADA1_EN = re.compile(r'\b(every|each|per)\s+1(?![\d.])', re.I)
+RX_EACH1_ZH = re.compile(r'每\s*1(?![\d.])')
+RX_EACH1_EN = re.compile(r'\b(every|each|per)\s+1(?![\d.])', re.I)
 
 
-def numeros(t):
-    t = RX_CADA1_EN.sub(r'\1', RX_CADA1_ZH.sub('每', t))
-    return sorted(RX_NUM.findall(RX_MULT.sub(_expande_mult, RX_COLOR.sub(' ', t))))
+def numbers(t, origin=True):
+    t = unicodedata.normalize('NFKC', t)
+    t = RX_COLOR.sub(' ', RX_EACH1_EN.sub(r'\1', RX_EACH1_ZH.sub('每', t)))
+    if origin:
+        t = RX_MULT.sub(_expande_mult, t)
+    return sorted(RX_NUMBER.findall(t))
 
 
 def _value_ko(m):
@@ -38,7 +42,7 @@ def _value_ko(m):
     return ' %d ' % round(v) if abs(v - round(v)) < 1e-6 else ' %s ' % v
 
 
-def leituras_ko(t, out_limit=8):
+def readings_ko(t, out_limit=8):
     ms = list(RX_MULT_KO.finditer(t))
     clusters = sorted(set(m.group(0) for m in ms))
     if not ms or len(clusters) > out_limit:
@@ -53,23 +57,23 @@ def leituras_ko(t, out_limit=8):
                 pieces.append(_value_ko(m))
                 end_pos = m.end()
         pieces.append(t[end_pos:])
-        out.append(numeros(''.join(pieces)))
+        out.append(numbers(''.join(pieces)))
     return out
 
 
 RX_COMPOSTO_KO = re.compile(r'(\d+)\s*억((?:\s*\d+\s*[천백십만])+)')
 RX_DECIMAL_VIRGULA = re.compile(r'(?<![\d,])(\d+),(\d{1,2})(?![\d,])')
 RX_PART_KO = re.compile(r'(\d+)\s*([천백십만])')
-VALUE_PART_KO = {'fala': {'천': 10 ** 7, '백': 10 ** 6, '십': 10 ** 5, '만': 10 ** 4},
+VALUE_PART_KO = {'mentions': {'천': 10 ** 7, '백': 10 ** 6, '십': 10 ** 5, '만': 10 ** 4},
                  'literal': {'천': 1000, '백': 100, '십': 10, '만': 10000}}
 
 
-def leituras_compostas_ko(t, out_limit=4):
+def compound_readings_ko(t, out_limit=4):
     ms = list(RX_COMPOSTO_KO.finditer(t))
     if not ms or len(ms) > out_limit:
         return []
     out = []
-    for method in ('fala', 'literal'):
+    for method in ('mentions', 'literal'):
         pieces, end_pos = [], 0
         for m in ms:
             v = int(m.group(1)) * 10 ** 8
@@ -79,15 +83,15 @@ def leituras_compostas_ko(t, out_limit=4):
             end_pos = m.end()
         pieces.append(t[end_pos:])
         s = ''.join(pieces)
-        out.append(numeros(s))
-        out.extend(leituras_ko(s))
+        out.append(numbers(s))
+        out.extend(readings_ko(s))
     return out
 
 
-RX_FAIXA_MULT_KO = re.compile(r'(\d+(?:\.\d+)?)(\s*~\s*)(\d+(?:\.\d+)?)([천백]?[만억]|[천백])')
+RX_RANGE_MULT_KO = re.compile(r'(\d+(?:\.\d+)?)(\s*~\s*)(\d+(?:\.\d+)?)([천백]?[만억]|[천백])')
 
 
-RX_MAN_RESTO_KO = re.compile(r'(\d+)만\s*(\d{1,4})(?![\d.만천백억])')
+RX_MAN_REST_KO = re.compile(r'(\d+)만\s*(\d{1,4})(?![\d.만천백억])')
 RX_MAN_CHEON_KO = re.compile(r'(\d+)만\s*(\d)천(?![\d.만])')
 
 
@@ -95,27 +99,27 @@ def texts_ko(t):
     out = [t]
     if RX_DECIMAL_VIRGULA.search(t):
         out.append(RX_DECIMAL_VIRGULA.sub(r'\1.\2', t))
-    if RX_FAIXA_MULT_KO.search(t):
-        out += [RX_FAIXA_MULT_KO.sub(r'\1\4\2\3\4', x) for x in list(out)]
-    if RX_MAN_RESTO_KO.search(t) or RX_MAN_CHEON_KO.search(t):
+    if RX_RANGE_MULT_KO.search(t):
+        out += [RX_RANGE_MULT_KO.sub(r'\1\4\2\3\4', x) for x in list(out)]
+    if RX_MAN_REST_KO.search(t) or RX_MAN_CHEON_KO.search(t):
         def whole(x):
             x = RX_MAN_CHEON_KO.sub(lambda m: ' %d ' % (int(m.group(1)) * 10000 + int(m.group(2)) * 1000), x)
-            return RX_MAN_RESTO_KO.sub(lambda m: ' %d ' % (int(m.group(1)) * 10000 + int(m.group(2))), x)
+            return RX_MAN_REST_KO.sub(lambda m: ' %d ' % (int(m.group(1)) * 10000 + int(m.group(2))), x)
         out += [whole(x) for x in list(out)]
     return out
 
 
-RX_QUOTE_SOLTA = re.compile(r'(?<!\\)"')
+RX_LOOSE_QUOTE = re.compile(r'(?<!\\)"')
 RX_SEP_LEVEL = re.compile(r',(?=\|[cC][0-9a-fA-F]{8})')
 RX_OPEN_COLOR = re.compile(r'\|[cC][0-9a-fA-F]{8}')
 RX_LEVEL_BETWEEN_QUOTES = re.compile(r'(?:^|,)"')
 
 
-def list_com_quotes(t):
+def list_with_quotes(t):
     return bool(RX_LEVEL_BETWEEN_QUOTES.search(t))
 
 
-def virgulas_de_level(s, quoted):
+def level_commas(s, quoted):
     if not quoted:
         return [i for i, c in enumerate(s) if c == ',']
     pos, inside = [], False
@@ -127,24 +131,24 @@ def virgulas_de_level(s, quoted):
     return pos
 
 
-def levels_de(t, quoted):
-    cuts = virgulas_de_level(t, quoted)
+def levels_of(t, quoted):
+    cuts = level_commas(t, quoted)
     return [t[a + 1:b] for a, b in zip([-1] + cuts, cuts + [len(t)])]
 
 
 def fix_levels(item, en):
     n = item.get('level_list')
-    quoted = list_com_quotes(item['t'])
+    quoted = list_with_quotes(item['t'])
     if n and quoted:
-        n = len(virgulas_de_level(item['t'], True)) + 1
-    if not n or len(virgulas_de_level(en, quoted)) == n - 1:
+        n = len(level_commas(item['t'], True)) + 1
+    if not n or len(level_commas(en, quoted)) == n - 1:
         return en
-    zh = levels_de(item['t'], quoted)
+    zh = levels_of(item['t'], quoted)
     if len(zh) != n:
         return en
     if quoted:
         if all(p.startswith('"') for p in zh[1:]):
-            virg = virgulas_de_level(en, True)
+            virg = level_commas(en, True)
             cuts = [i for i in virg if en[i + 1:i + 2] == '"']
             if len(cuts) == n - 1:
                 swap = set(virg) - set(cuts)
@@ -156,19 +160,19 @@ def fix_levels(item, en):
                 cuts = [i for i, c in enumerate(en) if c == ',' and en[:i].rstrip().endswith('.')]
                 if len(cuts) == n - 1:
                     pieces = [en[a + 1:b] for a, b in zip([-1] + cuts, cuts + [len(en)])]
-                    if all(_mesmos_numbers(z, p) for z, p in zip(zh, pieces)):
+                    if all(_same_numbers(z, p) for z, p in zip(zh, pieces)):
                         return ','.join('"%s"' % p if z.startswith('"') else p.replace(',', ';')
                                         for p, z in zip(pieces, zh))
-        return fix_levels_por_numbers(item, en)
+        return fix_levels_by_numbers(item, en)
     if not all(RX_OPEN_COLOR.match(p) for p in zh[1:]):
-        return fix_levels_por_point(zh, en, fix_levels_por_numbers(item, en))
+        return fix_levels_by_point(zh, en, fix_levels_by_numbers(item, en))
     pieces = RX_SEP_LEVEL.split(en)
     if len(pieces) != n:
-        return fix_levels_por_point(zh, en, fix_levels_por_numbers(item, en))
+        return fix_levels_by_point(zh, en, fix_levels_by_numbers(item, en))
     return ','.join(p.replace(',', ';') for p in pieces)
 
 
-def fix_levels_por_point(zh, en, done):
+def fix_levels_by_point(zh, en, done):
     if done != en or not all(z.rstrip().endswith('.') for z in zh[:-1]):
         return done
     virg = [i for i, c in enumerate(en) if c == ',']
@@ -179,43 +183,43 @@ def fix_levels_por_point(zh, en, done):
     return ''.join(';' if i in swap else ch for i, ch in enumerate(en))
 
 
-def _mesmos_numbers(a, b):
-    ca, field_bytes = collections.Counter(numeros(a)), collections.Counter(numeros(b))
+def _same_numbers(a, b):
+    ca, field_bytes = collections.Counter(numbers(a)), collections.Counter(numbers(b, origin=False))
     return set((ca - field_bytes) + (field_bytes - ca)) <= {'1'}
 
 
-def fix_levels_por_numbers(item, en):
+def fix_levels_by_numbers(item, en):
     n = item.get('level_list')
-    quoted = list_com_quotes(item['t'])
-    zh = levels_de(item['t'], quoted)
+    quoted = list_with_quotes(item['t'])
+    zh = levels_of(item['t'], quoted)
     if n and quoted:
         n = len(zh)
-    virg = virgulas_de_level(en, quoted)
+    virg = level_commas(en, quoted)
     if not n or len(zh) != n or len(virg) < n - 1 or len(virg) > 400:
         return en
     tgt = zh
     sols = []
 
-    def busca(k, begin, cuts):
+    def lookup(k, begin, cuts):
         if len(sols) > 8:
             return
         if k == n - 1:
-            if _mesmos_numbers(tgt[k], en[begin:]):
+            if _same_numbers(tgt[k], en[begin:]):
                 sols.append(list(cuts))
             return
         for c in virg:
             if c < begin:
                 continue
             seg = en[begin:c]
-            if _mesmos_numbers(tgt[k], seg):
+            if _same_numbers(tgt[k], seg):
                 cuts.append(c)
-                busca(k + 1, c + 1, cuts)
+                lookup(k + 1, c + 1, cuts)
                 cuts.pop()
-            elif collections.Counter(numeros(seg)) - collections.Counter(numeros(tgt[k])) - collections.Counter(
-                    {'1': 99}):
+            elif collections.Counter(numbers(seg, origin=False)) - collections.Counter(numbers(tgt[k])) - \
+                    collections.Counter({'1': 99}):
                 break
 
-    busca(0, 0, [])
+    lookup(0, 0, [])
     if len(sols) > 1:
         def ok_color(c, z):
             mz = RX_OPEN_COLOR.match(z)
@@ -251,8 +255,8 @@ def fixable(item, entry, en):
     if any(e.startswith('color codes') for e in tv.check(entry, en)) and tg.e_gradient(item['t']):
         en = tg.recolore(item['t'], en)
         done.append('gradient')
-    if '"' not in entry['text'] and RX_QUOTE_SOLTA.search(en):
-        en = RX_QUOTE_SOLTA.sub("'", en)
+    if '"' not in entry['text'] and RX_LOOSE_QUOTE.search(en):
+        en = RX_LOOSE_QUOTE.sub("'", en)
         done.append('quoted')
     if '\n' not in entry['text'] and '\r' not in entry['text'] and ('\n' in en or '\r' in en):
         en = re.sub(r'\s*[\r\n]+\s*', ' ', en)
@@ -260,7 +264,7 @@ def fixable(item, entry, en):
     new = fix_simbolos(entry['text'], en)
     if new != en:
         en = new
-        done.append('simbolos')
+        done.append('symbols')
     new = fix_levels(item, en)
     if new != en:
         en = new
@@ -275,7 +279,7 @@ def fixable(item, entry, en):
     return en, done
 
 
-def errors_de(item, entry, en):
+def errors_of(item, entry, en):
     errs = tv.check(entry, en)
     if entry['kind'] == 'command' and not entry['text'].startswith('-'):
         errs = [e for e in errs if not e.startswith(('the command is not there', 'espaco final'))]
@@ -283,9 +287,9 @@ def errors_de(item, entry, en):
         errs = [e for e in errs if not e.startswith('muito longo')]
     if isinstance(en, str):
         if tg.e_gradient(item['t']):
-            zh_n, en_n = numeros(RX_COLOR.sub('', item['t'])), numeros(RX_COLOR.sub('', en))
+            zh_n, en_n = numbers(RX_COLOR.sub('', item['t'])), numbers(RX_COLOR.sub('', en), origin=False)
         else:
-            zh_n, en_n = numeros(item['t']), numeros(en)
+            zh_n, en_n = numbers(item['t']), numbers(en, origin=False)
         a, b = collections.Counter(zh_n), collections.Counter(en_n)
         if set((a - b) + (b - a)) <= {'1'}:
             zh_n = en_n
@@ -293,7 +297,7 @@ def errors_de(item, entry, en):
             text_ko = RX_COLOR.sub('', item['t']) if tg.e_gradient(item['t']) else item['t']
             for tk in texts_ko(text_ko):
                 achou = False
-                for listing in [numeros(tk)] + leituras_ko(tk) + leituras_compostas_ko(tk):
+                for listing in [numbers(tk)] + readings_ko(tk) + compound_readings_ko(tk):
                     ko = collections.Counter(listing)
                     if set((ko - b) + (b - ko)) <= {'1'}:
                         achou = True
@@ -302,12 +306,12 @@ def errors_de(item, entry, en):
                     zh_n = en_n
                     break
         if zh_n != en_n:
-            errs.append('numeros diferentes (%s -> %s)' % (' '.join(numeros(item['t']))[:40],
-                                                           ' '.join(numeros(en))[:40]))
+            errs.append('numbers differ (%s -> %s)' % (' '.join(numbers(item['t']))[:40],
+                                                       ' '.join(numbers(en, origin=False))[:40]))
         if item.get('level_list'):
-            quoted = list_com_quotes(item['t'])
-            expected_len = len(virgulas_de_level(item['t'], True)) if quoted else item['level_list'] - 1
-            finding = len(virgulas_de_level(en, quoted))
+            quoted = list_with_quotes(item['t'])
+            expected_len = len(level_commas(item['t'], True)) if quoted else item['level_list'] - 1
+            finding = len(level_commas(en, quoted))
             if finding != expected_len:
                 errs.append('niveis: %d virgulas, esperado %d' % (finding, expected_len))
             elif quoted and en.count('"') % 2 != item['t'].count('"') % 2:

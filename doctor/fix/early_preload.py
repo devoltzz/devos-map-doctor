@@ -1,4 +1,5 @@
 # Preloads, under the loading screen, the units and abilities a map uses in its first seconds.
+import re
 
 from doctor.fix import unprotect
 from doctor.script import jass_ast
@@ -9,6 +10,7 @@ CHUNK = 60
 PREFIX = 'dmd_preload'
 CARRIER = 'hpea'
 NEUTRAL = 'Player(PLAYER_NEUTRAL_PASSIVE)'
+RX_ID = re.compile(r'\A[\x21-\x7e]{4}\Z')
 
 
 def _nothing(*_a, **_k):
@@ -206,10 +208,15 @@ def fix(path_in, path_out, progress=None):
     if tree is None:
         return stop('refused', s['reason'])
     rep['units'], rep['abilities'], rep['entries'] = s['units'], s['abilities'], s['entries']
-    if not s['units'] and not s['abilities']:
+    units = [x for x in s['units'] if RX_ID.match(x)]
+    abilities = [x for x in s['abilities'] if RX_ID.match(x)]
+    skipped = [x for x in s['units'] + s['abilities'] if not RX_ID.match(x)]
+    if skipped:
+        rep['skipped'] = {'ids': skipped, 'why': 'not 4 printable ASCII characters, so no rawcode can name them'}
+    if not units and not abilities:
         return stop('nothing_to_do', 'Nothing the map defines is used in its first seconds.')
     try:
-        g, f, top = script_parts(s['units'], s['abilities'])
+        g, f, top = script_parts(units, abilities)
         new_text = map_rewrite.insert(text, tree, g, f, top)
         jass_ast.parse(new_text)
     except (ValueError, jass_ast.JassSyntaxError) as e:
@@ -226,5 +233,8 @@ def fix(path_in, path_out, progress=None):
         return stop('failed', 'The map could not be written (%s).' % unprotect._error(e))
     rep.update(state='done', same_files=done['same_files'])
     rep['lines'] = ['%d unit types and %d abilities used in the first %g seconds are loaded under the loading '
-                    'screen. Test the map before sharing it.' % (len(s['units']), len(s['abilities']), WINDOW)]
+                    'screen. Test the map before sharing it.' % (len(units), len(abilities), WINDOW)]
+    if skipped:
+        rep['lines'].append('%d id(s) stay out: not 4 printable ASCII characters, so no rawcode can name them.'
+                            % len(skipped))
     return rep

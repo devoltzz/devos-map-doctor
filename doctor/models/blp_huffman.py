@@ -83,7 +83,7 @@ def _segmentos(d):
             return segs, p
 
 
-def _tabelas_dht(seg):
+def _dht_tables(seg):
     q = 0
     while q < len(seg):
         tc, th = seg[q] >> 4, seg[q] & 15
@@ -113,7 +113,7 @@ def analyze(d):
                 cid, hv, _tq = seg[6 + 3 * i:9 + 3 * i]
                 comps[cid] = (hv >> 4, hv & 15)
         elif mk == 0xC4:
-            for key, counts, syms, _ in _tabelas_dht(seg):
+            for key, counts, syms, _ in _dht_tables(seg):
                 dht[key] = _tab_decod(counts, syms)
         elif mk == 0xDD:
             dri = struct.unpack_from('>H', seg, 0)[0]
@@ -165,7 +165,7 @@ def analyze(d):
                         break
                     k += (rs >> 4) + 1
                 if k > 64:
-                    raise ValueError('coeficientes demais no bloco')
+                    raise ValueError('too many coefficients in the block')
     lb.alinha()
     q = lb.p
     while q + 1 < len(d) and d[q] == 0xFF and d[q + 1] == 0xFF:
@@ -242,7 +242,7 @@ def _otima(freq):
     return bits[1:17], huffval
 
 
-def tabelas_otimas(freq):
+def optimal_tables(freq):
     return {k: _otima(v) for k, v in freq.items()}
 
 
@@ -259,7 +259,7 @@ def _codes(bits, huffval):
     return tab
 
 
-def reescreve(a, tables):
+def rewrite(a, tables):
     d, segs, seq = a['d'], a['segs'], a['seq']
     code_part = {k: _codes(*v) for k, v in tables.items()}
     out = bytearray()
@@ -302,7 +302,7 @@ def reescreve(a, tables):
     body = bytearray()
     for mk, p, q in segs:
         if mk == 0xC4:
-            for key, _, _, raw_data in _tabelas_dht(d[p + 4:q]):
+            for key, _, _, raw_data in _dht_tables(d[p + 4:q]):
                 if key not in tables:
                     body += raw_data
     for key in sorted(tables):
@@ -322,7 +322,7 @@ def reescreve(a, tables):
     return bytes(res)
 
 
-def mesmos_pixels(j1, j2):
+def same_pixels(j1, j2):
     from PIL import Image
     a = Image.open(io.BytesIO(j1))
     b = Image.open(io.BytesIO(j2))
@@ -342,13 +342,13 @@ def same_texture(a, b):
     if not (a and b and a[:8] == b'BLP1\x00\x00\x00\x00' == b[:8] and a[8:28] == b[8:28]):
         return False
     ma, mb = mipmaps_jpeg(a), mipmaps_jpeg(b)
-    return len(ma) == len(mb) and all(mesmos_pixels(x, y) for x, y in zip(ma, mb))
+    return len(ma) == len(mb) and all(same_pixels(x, y) for x, y in zip(ma, mb))
 
 
-def otimiza_blp(c, prova=True):
+def otimiza_blp(c, proof=True):
     c = bytes(c)
     if len(c) < 160 or c[:4] != b'BLP1' or struct.unpack_from('<I', c, 4)[0] != 0:
-        return None, 'nao e BLP1 JPEG'
+        return None, 'not a BLP1 JPEG'
     mo = list(struct.unpack_from('<16I', c, 28))
     ms = list(struct.unpack_from('<16I', c, 92))
     hsz = struct.unpack_from('<I', c, 156)[0]
@@ -370,29 +370,29 @@ def otimiza_blp(c, prova=True):
         return None, 'decodificacao: %s' % ex
     if any(a is None for a in an.values()):
         return None, 'not baseline'
-    no_cab = [q <= hsz for a in an.values() for mk, p, q in a['segs'] if mk == 0xC4]
-    if not no_cab:
+    in_header = [q <= hsz for a in an.values() for mk, p, q in a['segs'] if mk == 0xC4]
+    if not in_header:
         return None, 'no DHT'
-    if all(no_cab):
-        tab = tabelas_otimas(frequencias(an.values()))
-        new_ones = {e: reescreve(a, tab) for e, a in an.items()}
+    if all(in_header):
+        tab = optimal_tables(frequencias(an.values()))
+        new_ones = {e: rewrite(a, tab) for e, a in an.items()}
         old = sum(q - p for mk, p, q in next(iter(an.values()))['segs'] if mk == 0xC4)
         first = next(iter(new_ones.values()))
         new = sum(q - p for mk, p, q in _segmentos(first)[0] if mk == 0xC4)
         nhsz = hsz + new - old
-        method = 'tabela conjunta'
-    elif not any(no_cab):
-        new_ones = {e: reescreve(a, tabelas_otimas(frequencias([a]))) for e, a in an.items()}
+        method = 'joint table'
+    elif not any(in_header):
+        new_ones = {e: rewrite(a, optimal_tables(frequencias([a]))) for e, a in an.items()}
         nhsz = hsz
-        method = 'tabela por mipmap'
+        method = 'table per mipmap'
     else:
         return None, 'DHT parte no cabecalho, parte no mipmap'
     nhdr = next(iter(new_ones.values()))[:nhsz]
     if any(nj[:nhsz] != nhdr for nj in new_ones.values()):
         return None, 'the header is no longer a common one'
-    if prova:
+    if proof:
         for e in ent:
-            if not mesmos_pixels(jpegs[e], new_ones[e]):
+            if not same_pixels(jpegs[e], new_ones[e]):
                 return None, 'PIXEL DIFFERENT (not written)'
     out = bytearray(c[:156]) + struct.pack('<I', nhsz) + nhdr
     new_pos = {}

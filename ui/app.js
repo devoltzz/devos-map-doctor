@@ -85,13 +85,21 @@ const state = {
 
 const api = () => window.pywebview.api;
 
-function run(task, params, opts) {
+// the events of a job whose id the bridge has not returned yet (a worker that ends before `start` comes back): kept
+// here and replayed when the job registers; one that nobody claims is dropped after a while
+const pendingEvents = {};
+
+// `start` is awaited outside the Promise: when it throws (TEMP full, the worker blocked) the caller's catch gets the
+// error instead of a job that never ends
+async function run(task, params, opts) {
   opts = opts || {};
-  return new Promise(async (resolve, reject) => {
-    const id = await api().start(task, Object.assign({ map: state.map }, params || {}));
+  const id = await api().start(task, Object.assign({ map: state.map }, params || {}));
+  return new Promise((resolve, reject) => {
     state.jobs[id] = { task, resolve, reject, started: Date.now(), label: opts.label, quiet: opts.quiet };
     if (opts.quiet) state.quietJobs.add(id);
     else showJob(id, opts.label || 'Working...');
+    const early = pendingEvents[id];
+    if (early) { delete pendingEvents[id]; early.forEach(ev => window.doctor.onEvent(ev)); }
   });
 }
 
@@ -104,7 +112,13 @@ window.doctor = {
     if (ev.type === 'index_failed') return toast('The file name index could not be downloaded: ' + ev.message,
       { bad: true });
     const job = state.jobs[ev.job];
-    if (!job) return;
+    if (!job) {
+      if (!ev.job) return;
+      const list = pendingEvents[ev.job] || (pendingEvents[ev.job] = []);
+      list.push(ev);
+      setTimeout(() => { if (pendingEvents[ev.job] === list) delete pendingEvents[ev.job]; }, 60000);
+      return;
+    }
     if (ev.type === 'progress') {
       if (!job.quiet && state.running === ev.job) $('#jobLabel').textContent = ev.label;
       if (job.onProgress) job.onProgress(ev.label);
@@ -114,7 +128,8 @@ window.doctor = {
     state.quietJobs.delete(ev.job);
     if (state.running === ev.job) hideJob();
     if (ev.type === 'result') job.resolve(ev.data);
-    else if (ev.type === 'cancelled') job.reject({ cancelled: true });
+    // `kept`: the output already had its name when the cancel came (a "Fix map" cancelled during the extras)
+    else if (ev.type === 'cancelled') job.reject({ cancelled: true, kept: !!ev.kept, output: ev.output || null });
     else job.reject({ message: ev.message, trace: ev.trace });
   },
 };
@@ -137,12 +152,19 @@ function hideJob() {
   setBusy(false);
 }
 function setBusy(busy) {
-  $$('.needs-idle').forEach(b => { b.disabled = busy; });
+  // a button that is off for a reason of its own (nothing to do for this map) carries data-off and stays off
+  $$('.needs-idle').forEach(b => { b.disabled = busy || b.hasAttribute('data-off'); });
   $('#btnOpen').disabled = busy;
 }
 
 function failed(e, what) {
-  if (e && e.cancelled) { status('Cancelled.'); toast(what + ' was cancelled. Nothing was saved.'); return; }
+  if (e && e.cancelled) {
+    status('Cancelled.');
+    if (e.kept) toast(what + ' was cancelled. The map without the extras was saved as ' + base(e.output) + '.',
+      e.output ? { actions: [['Show in folder', () => api().open_folder(e.output)]] } : {});
+    else toast(what + ' was cancelled. Nothing was saved.');
+    return;
+  }
   status(what + ' failed.');
   const msg = (e && e.message) || String(e);
   state.lastError = { what, message: msg, trace: e && e.trace };
@@ -180,6 +202,7 @@ async function openMap(path) {
   state.quietJobs.clear();
   state.map = path;
   state.open = null;
+  state.lastError = null;                   // the problem report of this map must not carry the error of the last one
   state.card = state.files = state.reforged = null;
   state.images = {};
   state.imageData = {};
@@ -361,7 +384,9 @@ function extraSteps(action) {
       on: false, applies: true, group: 'extra' });
     if (k === 'card' && x.card) out.push({ key: 'x:card', label: 'Apply the map card changes',
       detail: Object.keys(x.card).length + ' changed in the Map card tab.', on: true, applies: true, group: 'extra' });
-    if (k === 'translation' && x.translation) out.push({ key: 'x:translation', label: 'Apply the translation',
+    // a translation whose check failed (`error`) is shown in its tab, never offered here
+    if (k === 'translation' && x.translation && !x.translation.check.error) out.push({ key: 'x:translation',
+      label: 'Apply the translation',
       detail: base(x.translation.file) + ', from the Translation tab.', on: true, applies: true, group: 'extra' });
     if (k === 'shrink') out.push({ key: 'x:shrink', label: 'Make the map smaller, losing nothing',
       detail: 'Recompresses every file and stores duplicates once. Slow on big maps.',
@@ -399,7 +424,7 @@ function renderAction(action) {
     any ? list : el('p', { class: 'muted', text: 'Nothing to do here for this map.' }),
     el('div', { class: 'foot' },
       el('button', { class: 'btn primary needs-idle', text: a.title, disabled: !any || !!state.running,
-        onclick: () => runAction(action) }),
+        'data-off': !any, onclick: () => runAction(action) }),
       hidden ? el('label', { class: 'show-na' }, el('input', { type: 'checkbox', checked: showNa, onchange: e => {
         state.settings.showNa = Object.assign({}, state.settings.showNa, { [action]: e.target.checked });
         saveSettings(); renderActions(); } }), ' show the ' + hidden + ' steps not needed') : null));
@@ -534,9 +559,10 @@ async function reportProblem() {
   const parts = ['Version: ' + (state.hello ? state.hello.version : '?')];
   if (state.open) parts.push('Map: ' + state.open.name + ' (' + mb(state.open.size) + ')', '',
     '### Diagnosis', '```', plainReport(state.open.lines), '```');
+  const otherTitles = { port: 'Port to Reforged', cheatpacks: 'Cheat pack' };
   for (const [action, r] of Object.entries(state.results)) {
-    parts.push('', '### ' + (ACTIONS[action] ? ACTIONS[action].title : 'Port to Reforged'), '```',
-      plainReport(r.lines), '```');
+    parts.push('', '### ' + (ACTIONS[action] ? ACTIONS[action].title : otherTitles[action] || action), '```',
+      plainReport(r.lines || []), '```');
   }
   if (state.lastError) parts.push('', '### Error', state.lastError.what + ': ' + state.lastError.message,
     '```', (state.lastError.trace || '').slice(-2500), '```');
@@ -820,6 +846,9 @@ async function replaceImage(which, box) {
     box.replaceChildren(c);
     renderActions();
   };
+  // a file the browser cannot decode (corrupt, or cut at the 32 MB the bridge reads): nothing changes, and it says so
+  img.onerror = () => toast('The image ' + base(p) + ' could not be read: pick a valid PNG, JPG or BMP under 32 MB.',
+    { bad: true });
   img.src = 'data:image/' + (ext === 'jpg' ? 'jpeg' : ext) + ';base64,' + b64;
 }
 
@@ -877,16 +906,27 @@ function renderFiles() {
   tabBody('files', rawcodesCard(), el('div', { class: 'card' },
     el('div', { class: 'row' }, el('h2', { class: 'grow', text: f.files.length + ' files' +
       (f.unnamed && f.unnamed.length ? ', ' + f.unnamed.length + ' without a name' : '') }), filter,
-      el('button', { class: 'btn', text: 'Extract selected...', onclick: async () => {
-        if (!selected.size) { toast('Tick the files to extract first.'); return; }
-        const dir = await api().pick_folder();
-        if (!dir) return;
-        try {
-          const r = await run('extract', { names: Array.from(selected), folder: dir }, { label: 'Extracting...' });
-          toast('Extracted ' + (r.written || selected.size) + ' files.', { actions: [['Show', () =>
-            api().open_folder(dir)]] });
-        } catch (e) { failed(e, 'Extracting'); }
-      } })),
+      el('button', { class: 'btn needs-idle', text: 'Extract selected...', disabled: !!state.running,
+        onclick: async () => {
+          if (state.running) return;
+          if (!selected.size) { toast('Tick the files to extract first.'); return; }
+          const dir = await api().pick_folder();
+          if (!dir) return;
+          try {
+            const r = await run('extract', { names: Array.from(selected), folder: dir }, { label: 'Extracting...' });
+            if (r.error) { failed({ message: r.error }, 'Extracting'); return; }
+            // `written` is a list of {name, path, size}; `failed` of {name, reason}; `exists` the ones left as they were
+            const n = (r.written || []).length, bad = r.failed || [], kept = (r.exists || []).length;
+            if (bad.length) toast(bad.length + (bad.length === 1 ? ' file' : ' files') + ' could not be extracted: ' +
+              bad.slice(0, 5).map(x => x.name + (x.reason ? ' (' + x.reason + ')' : '')).join(', ') +
+              (bad.length > 5 ? ', ...' : ''), { bad: true, sticky: true });
+            toast('Extracted ' + n + (n === 1 ? ' file' : ' files') + (kept ? ', ' + kept + ' already there' : '') +
+              '.', { actions: [['Show', () => api().open_folder(dir)]] });
+          } catch (e) { failed(e, 'Extracting'); }
+        } })),
+    // the module never raises: when the map could not be read, its reason is here (and the list is empty)
+    f.error ? el('div', { class: 'report' }, el('div', { class: 'l bad', text: f.error })) : null,
+    (f.notes || []).map(n => el('p', { class: 'muted', text: n })),
     lintSummary(f),
     el('div', { class: 'split', style: 'margin-top:12px' },
       el('div', { class: 'scroll' }, el('table', { class: 'grid' }, el('thead', {}, el('tr', {}, el('th', {}),
@@ -914,10 +954,14 @@ function lintSummary(f) {
 }
 
 async function showPreview(file, box) {
+  // one request counter per box: the answer of an earlier click (a slow model) must not replace the one shown
+  const seq = box.previewSeq = (box.previewSeq || 0) + 1;
   box.replaceChildren(el('span', { class: 'faint', text: 'Loading...' }));
   try {
     const p = await run('preview', { name: file.name }, { quiet: true });
-    if (p.kind === 'image' && p.rgba) box.replaceChildren(rgbaCanvas(p, 420));
+    if (box.previewSeq !== seq) return;
+    if (p.error) box.replaceChildren(el('span', { class: 'bad', text: 'Cannot show it: ' + p.error }));
+    else if (p.kind === 'image' && p.rgba) box.replaceChildren(rgbaCanvas(p, 420));
     else if (p.kind === 'image' && p.data) box.replaceChildren(el('img', { src: 'data:' + p.mime + ';base64,' + p.data }));
     else if (p.kind === 'sound') box.replaceChildren(el('audio', { controls: true, src: 'data:' + p.mime + ';base64,' +
       p.data }));
@@ -926,7 +970,10 @@ async function showPreview(file, box) {
     else if (p.kind === 'model') box.replaceChildren(el('pre', { class: 'code', style: 'width:100%',
       text: JSON.stringify(p.info, null, 1) }));
     else box.replaceChildren(el('pre', { class: 'code', style: 'width:100%', text: p.hex || '(empty)' }));
-  } catch (e) { box.replaceChildren(el('span', { class: 'bad', text: 'Cannot show it: ' + (e.message || e) })); }
+  } catch (e) {
+    if (box.previewSeq !== seq) return;
+    box.replaceChildren(el('span', { class: 'bad', text: 'Cannot show it: ' + (e.message || e) }));
+  }
 }
 
 // ------------------------------------------------------------------ the raw codes
@@ -1028,7 +1075,9 @@ async function loadScript(gen) {
       } }) : null),
       s.note ? el('p', { class: 'lead', text: s.note }) : null,
       s.language === 'jass' && s.text ? scriptChecksCard() : null,
-      s.text ? el('pre', { class: 'code', text: shown }) : el('p', { class: 'muted', text: 'No readable script.' })));
+      s.text ? el('pre', { class: 'code', text: shown }) :
+        s.error ? el('div', { class: 'report' }, el('div', { class: 'l bad', text: s.error })) :
+          el('p', { class: 'muted', text: 'No readable script.' })));
     setTabState('script', 'ready');
   } catch (e) { if (gen === state.gen) tabFailed('script', 'Reading the script', e); }
 }
@@ -1219,8 +1268,14 @@ async function loadTriggers(gen) {
 }
 
 function renderTriggers(t) {
+  // the module never raises: `error` is why nothing was read, `notes` what it saw on the way (the map's own trigger
+  // files the editor 3.0 cannot read, the game's data missing)
+  const notes = (t.notes || []).map(n => el('p', { class: 'muted', text: n }));
   if (!t.categories || !t.categories.length) {
-    tabBody('triggers', el('div', { class: 'card muted', text: t.reason || 'No triggers to show.' }));
+    tabBody('triggers', el('div', { class: 'card' },
+      t.error ? el('div', { class: 'report' }, el('div', { class: 'l bad', text: t.error })) :
+        el('p', { class: 'muted', text: t.reason || 'No triggers to show.' }),
+      notes));
     return;
   }
   const view = el('div', { class: 'card', style: 'min-height:200px' }, el('span', { class: 'faint',
@@ -1233,7 +1288,7 @@ function renderTriggers(t) {
     } })))));
   const src = t.source === 'map' ? 'the map\'s own trigger files' : 'restored from the script';
   tabBody('triggers', el('div', { class: 'split' }, el('div', {}, el('p', { class: 'muted', text: 'From ' + src + '.' }),
-    tree), view));
+    notes, tree), view));
 }
 
 function showTrigger(g, view) {
@@ -1254,17 +1309,26 @@ function renderTranslation() {
     el('p', { class: 'muted', text: 'Two formats: JSON, or a web page for Google Translate or DeepL; load ' +
       'the translated page back here.' }),
     el('div', { class: 'row' },
-      el('button', { class: 'btn', text: 'Export texts...', onclick: () => exportTexts('json') }),
-      el('button', { class: 'btn', text: 'Export for machine translation...', onclick: () => exportTexts('html') }),
-      el('button', { class: 'btn', text: 'Load a translation...', onclick: async () => {
-        const p = await api().pick_file('translation');
-        if (!p) return;
-        try {
-          const r = await run('translation_check', { file: p }, { label: 'Checking the translation...' });
-          state.extras.translation = { file: p, check: r };
-          renderTranslation(); renderActions();
-        } catch (e) { failed(e, 'Checking the translation'); }
-      } })),
+      el('button', { class: 'btn needs-idle', text: 'Export texts...', disabled: !!state.running,
+        onclick: () => exportTexts('json') }),
+      el('button', { class: 'btn needs-idle', text: 'Export for machine translation...', disabled: !!state.running,
+        onclick: () => exportTexts('html') }),
+      el('button', { class: 'btn needs-idle', text: 'Load a translation...', disabled: !!state.running,
+        onclick: async () => {
+          if (state.running) return;
+          const p = await api().pick_file('translation');
+          if (!p) return;
+          try {
+            const r = await run('translation_check', { file: p }, { label: 'Checking the translation...' });
+            // a check with `error` (the file or the map cannot be read) is kept to be shown, never applied
+            state.extras.translation = { file: p, check: r };
+            renderTranslation(); renderActions();
+          } catch (e) { failed(e, 'Checking the translation'); }
+        } })),
+    tr && tr.check.error ? el('div', { style: 'margin-top:14px' }, el('div', { class: 'report' },
+      el('div', { class: 'l bad', text: base(tr.file) + ': ' + tr.check.error })),
+    el('button', { class: 'btn small', style: 'margin-top:10px', text: 'Forget this translation', onclick: () => {
+      state.extras.translation = null; renderTranslation(); renderActions(); } })) :
     tr ? el('div', { style: 'margin-top:14px' }, el('div', { class: 'notice info', text: base(tr.file) + ': ' +
       (tr.check.ok || 0) + ' texts pass the checks' + (tr.check.rejected && tr.check.rejected.length ? ', ' +
       tr.check.rejected.length + ' left out' : '') + '. Tick "Apply the translation" in Actions.' }),
@@ -1277,12 +1341,19 @@ function renderTranslation() {
 }
 
 async function exportTexts(kind) {
+  if (state.running) return;
   const ext = kind === 'html' ? '.translation.html' : '.translation.json';
   const p = await api().pick_save(base(state.map).replace(/\.\w+$/, '') + ext,
     kind === 'html' ? 'translation_html' : 'translation');
   if (!p) return;
   try {
     const r = await run('translation_export', { file: p }, { label: 'Exporting the texts...' });
+    // the module never raises: 'failed' comes with `error`, 'no_text' writes nothing
+    if (r.state !== 'done') {
+      failed({ message: r.error || (r.state === 'no_text' ? 'The map has no text to export.' :
+        'The export did not finish.') }, 'Exporting the texts');
+      return;
+    }
     toast('Exported ' + (r.entries || 0) + ' texts to ' + base(p) + '.', { actions: [['Show', () =>
       api().open_folder(p)]] });
   } catch (e) { failed(e, 'Exporting the texts'); }
@@ -1290,17 +1361,21 @@ async function exportTexts(kind) {
 
 // ------------------------------------------------------------------ compare
 function renderCompare(result) {
-  const pick = el('button', { class: 'btn', text: 'Pick the other version...', onclick: async () => {
-    const p = await api().pick_file('map');
-    if (!p) return;
-    try {
-      const r = await run('compare', { other: p }, { label: 'Comparing the two maps...' });
-      renderCompare(Object.assign(r, { other: p }));
-    } catch (e) { failed(e, 'Comparing'); }
-  } });
+  const pick = el('button', { class: 'btn needs-idle', text: 'Pick the other version...', disabled: !!state.running,
+    onclick: async () => {
+      if (state.running) return;
+      const p = await api().pick_file('map');
+      if (!p) return;
+      try {
+        const r = await run('compare', { other: p }, { label: 'Comparing the two maps...' });
+        renderCompare(Object.assign(r, { other: p }));
+      } catch (e) { failed(e, 'Comparing'); }
+    } });
   const parts = [];
   if (result) {
     const f = result.files || {};
+    // the module never raises: `error` is why the comparison stopped (the other map cannot be read)
+    if (result.error) parts.push(el('div', { class: 'report' }, el('div', { class: 'l bad', text: result.error })));
     const list = (title, items, fmt) => items && items.length ? el('div', {}, el('h3', { text: title + ' (' +
       items.length + ')' }), el('div', { class: 'scroll', style: 'max-height:220px;padding:6px 10px' },
       items.slice(0, 2000).map(x => el('div', { class: 'mono', text: fmt ? fmt(x) : (typeof x === 'string' ? x :

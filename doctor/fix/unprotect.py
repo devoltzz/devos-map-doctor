@@ -106,7 +106,10 @@ EXTRAS = ('models', 'model_names', 'portraits', 'data_pointers', 'uabi', 'preloa
 
 def apply_extras(entry, output, extras, progress=None):
     p = progress or _nothing
-    out = {'relatos': {}, 'failures': {}, 'output': None}
+    out = {'reports': {}, 'failures': {}, 'output': None}
+    if _same_file(entry, output):
+        out['failures']['output'] = 'the output is the input itself: the original is never written'
+        return out
     tmp = tempfile.mkdtemp(prefix='devos_map_doctor_extras_')
     src = entry
     try:
@@ -152,7 +155,7 @@ def apply_extras(entry, output, extras, progress=None):
                     raise RuntimeError(
                         (details or {}).get('error') or (details or {}).get('reason') or 'nothing was written'
                     )
-                out['relatos'][extra] = details
+                out['reports'][extra] = details
                 src = t
             except (Exception, SystemExit) as e:
                 out['failures'][extra] = _error(e)
@@ -164,7 +167,7 @@ def apply_extras(entry, output, extras, progress=None):
     return out
 
 
-def deixados_de_proposito(codes, options):
+def left_out_on_purpose(codes, options):
     out = set(SLK_CODE[x] for x in slk_patch.PROBLEMS if not step_on(options, 'dados:' + x))
     if not step_on(options, 'mpq'):
         out |= set(codes) - set(BUTTON3_ONLY) - set(DATA_ONLY)
@@ -733,7 +736,31 @@ def scrambled_ids(a, j):
     return len(outside), sums
 
 
+def _memo_key(a):
+    try:
+        file_path = getattr(a, 'path', None)
+        if not file_path or not os.path.isfile(file_path) or len(a.d) != os.path.getsize(file_path):
+            return None
+        from doctor.data import memo
+        return memo.file_key(file_path, a.d[:65536] + a.d[-65536:])
+    except (OSError, TypeError, ValueError):
+        return None
+
+
 def map_names(a):
+    hash_key = _memo_key(a)
+    if hash_key:
+        from doctor.data import memo
+        stored_value = memo.load('names', hash_key)
+        if isinstance(stored_value, list):
+            return stored_value
+    name_list = _map_names(a)
+    if hash_key:
+        memo.save('names', hash_key, name_list)
+    return name_list
+
+
+def _map_names(a):
     with quiet():
         closure = mpqnames.referenced_closure(a)
     canon = dict((n.upper(), n) for n in tuple(mpqnames.BASE_NAMES) + EDITOR_FILES)
@@ -900,6 +927,18 @@ def _part(output):
     return base + '.part' + (ext or '.w3x')
 
 
+def _same_file(a, b):
+    return os.path.normcase(os.path.abspath(a)) == os.path.normcase(os.path.abspath(b))
+
+
+def _remove_quietly(file_path):
+    try:
+        if file_path and os.path.isfile(file_path):
+            os.remove(file_path)
+    except OSError:
+        pass
+
+
 def unprotect(file_path, output, progress=None, diag=None, options=None):
     p = progress or _nothing
     diag = diag or diagnose(file_path, p)
@@ -912,13 +951,16 @@ def unprotect(file_path, output, progress=None, diag=None, options=None):
         'content': None,
         'err': None,
     }
+    if _same_file(file_path, output):
+        res['status'], res['err'] = 'failed', 'the output is the input map itself: the original is never written'
+        return res
     if diag['fixable'] != 'yes':
         res['status'] = {'nothing': 'nothing_to_do'}.get(diag['fixable'], diag['fixable'])
         return res
     codes = set(x['code'] for x in diag['protections'])
     res['for_button3'] = sorted(codes & set(BUTTON3_ONLY))
     if 'ntfs_copy' in codes:
-        return _unprotect_ntfs_copy(file_path, output, p, diag, res)
+        return _unprotect_ntfs_copy(file_path, output, p, diag, res, options)
     if not codes - set(BUTTON3_ONLY):
         res['status'] = 'nothing_to_do'
         return res
@@ -1029,22 +1071,21 @@ def unprotect(file_path, output, progress=None, diag=None, options=None):
                                % (len(c['different']), len(c['missing_items'])))
         os.replace(part, output)
         res['output'] = res['after_diag']['file_name'] = os.path.abspath(output)
-        deixados = deixados_de_proposito(codes, options)
-        res['deixados'] = sorted(set(x['code'] for x in res['after_diag']['protections']) & deixados)
+        left_out = left_out_on_purpose(codes, options)
+        res['left_out'] = sorted(set(x['code'] for x in res['after_diag']['protections']) & left_out)
         res['status'] = 'partial' if [x for x in res['after_diag']['protections'] if x['code'] not in BUTTON3_ONLY and
-                                      x['code'] not in deixados] else 'done'
+                                      x['code'] not in left_out] else 'done'
     except (Exception, SystemExit) as e:
         res['status'] = 'failed'
         res['err'] = _error(e)
-        if res['output'] and os.path.isfile(res['output']):
-            os.remove(res['output'])
+        _remove_quietly(res['output'])
         res['output'] = None
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     return res
 
 
-def _unprotect_ntfs_copy(file_path, output, p, diag, res):
+def _unprotect_ntfs_copy(file_path, output, p, diag, res, options=None):
     p('ntfs')
     t, details = restore_copy(file_path)
     if t is None:
@@ -1052,7 +1093,7 @@ def _unprotect_ntfs_copy(file_path, output, p, diag, res):
         res['err'] = 'ntfs_desfaz: %s' % details.get('err')
         return res
     res['steps']['ntfs'] = dict((k, v) for k, v in details.items() if k in ('lznt1', 'lost', 'grown', 'tables'))
-    r2 = unprotect(t, output, p, diagnose(t, _ntfs=False))
+    r2 = unprotect(t, output, p, diagnose(t, _ntfs=False), options)
     if r2['status'] == 'nothing_to_do':
         try:
             p('save')
@@ -1069,12 +1110,13 @@ def _unprotect_ntfs_copy(file_path, output, p, diag, res):
         except (Exception, SystemExit) as e:
             res['status'] = 'failed'
             res['err'] = _error(e)
-            if res['output'] and os.path.isfile(res['output']):
-                os.remove(res['output'])
+            _remove_quietly(res['output'])
             res['output'] = None
         return res
     for k in ('status', 'output', 'after_diag', 'content', 'err'):
         res[k] = r2.get(k)
+    if 'left_out' in r2:
+        res['left_out'] = r2['left_out']
     res['steps'].update(r2.get('steps') or {})
     return res
 
@@ -1121,8 +1163,7 @@ def _unprotect_by_carving(file_path, output, p, diag, res):
     except (Exception, SystemExit) as e:
         res['status'] = 'failed'
         res['err'] = _error(e)
-        if res['output'] and os.path.isfile(res['output']):
-            os.remove(res['output'])
+        _remove_quietly(res['output'])
         res['output'] = None
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -1137,12 +1178,15 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
         safe_units = step_on(options, 'safe_units')
     res = {'status': None, 'output': None, 'before': diag, 'unprotection': None, 'editor': None, 'after_diag': None,
            'err': None}
+    if _same_file(file_path, output):
+        res['status'], res['err'] = 'failed', 'the output is the input map itself: the original is never written'
+        return res
     if diag['fixable'] in ('not_a_map', 'cannot_read', 'impossible', 'unreadable', 'incomplete'):
         res['status'] = diag['fixable']
         return res
     status = diag['editor'].get('status')
     if status == 'campaign_needs_work':
-        return _prepare_campaign_for_editor(file_path, output, p, diag, res, safe_units, unprotection)
+        return _prepare_campaign_for_editor(file_path, output, p, diag, res, safe_units, unprotection, options)
     data_bytes = set(SLK_CODE[x] for x in slk_patch.PROBLEMS if step_on(options, 'dados:' + x)) & \
         set(x['code'] for x in diag['protections'])
     if status != 'needs_work' and not (status == 'ready' and data_bytes):
@@ -1203,22 +1247,21 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
         res['status'] = 'script_cut_off' if isinstance(e, editor_prep.ScriptCutOff) else \
             'script_not_restored' if isinstance(e, editor_prep.ScriptNotRestored) else 'failed'
         res['err'] = str(e) if isinstance(e, editor_prep.ScriptNotRestored) else _error(e)
-        if res['output'] and os.path.isfile(res['output']):
-            os.remove(res['output'])
+        _remove_quietly(res['output'])
         res['output'] = None
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     return res
 
 
-def _prepare_campaign_for_editor(file_path, output, p, diag, res, safe_units, unprotection):
+def _prepare_campaign_for_editor(file_path, output, p, diag, res, safe_units, unprotection, options=None):
     tmp = tempfile.mkdtemp(prefix='devos_map_doctor_')
     try:
         src = file_path
         if [x for x in diag['protections'] if x['code'] not in BUTTON3_ONLY]:
             r1 = unprotection
             if r1 is None:
-                r1 = unprotect(file_path, os.path.join(tmp, '1_unprotected.w3n'), p, diag)
+                r1 = unprotect(file_path, os.path.join(tmp, '1_unprotected.w3n'), p, diag, options)
             res['unprotection'] = r1
             if r1['status'] in ('done', 'partial'):
                 src = r1['output']
@@ -1271,8 +1314,7 @@ def _prepare_campaign_for_editor(file_path, output, p, diag, res, safe_units, un
     except (Exception, SystemExit) as e:
         res['status'] = 'failed'
         res['err'] = _error(e)
-        if res['output'] and os.path.isfile(res['output']):
-            os.remove(res['output'])
+        _remove_quietly(res['output'])
         res['output'] = None
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

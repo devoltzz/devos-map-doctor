@@ -32,8 +32,8 @@ def _lists(w3u):
 def _slk_lists(slk_bytes):
     from doctor.data import slk
     out = {}
-    for ident, campos in slk.parse_slk_bytes(slk_bytes)[1].items():
-        v = str(campos.get('abilList') or campos.get('abillist') or '').strip('"')
+    for ident, fields in slk.parse_slk_bytes(slk_bytes)[1].items():
+        v = str(fields.get('abilList') or fields.get('abillist') or '').strip('"')
         ids = [x.strip() for x in v.split(',') if x.strip() and x.strip() != '_']
         if ids:
             out[ident] = ids
@@ -189,6 +189,9 @@ def fix(path_in, path_out, progress=None):
     for ti, oi, mi, ident, ids in lists:
         if not ids:
             continue
+        if not RX_ID.match(ident):
+            rep['kept'].append({'type': ident, 'why': 'its id is not 4 printable ASCII characters'})
+            continue
         if ident in morphs:
             rep['kept'].append({'type': ident, 'why': 'an ability can morph a unit into it'})
             continue
@@ -199,7 +202,7 @@ def fix(path_in, path_out, progress=None):
         empty.add((ti, oi, mi))
     if not moves:
         return stop('nothing_to_do', 'No unit type list can move.')
-    new_w3u, n = objbin.reescreve(w3u, False, lambda ti, oi, mi, _mid, _v: b'' if (ti, oi, mi) in empty else None)
+    new_w3u, n = objbin.rewrite(w3u, False, lambda ti, oi, mi, _mid, _v: b'' if (ti, oi, mi) in empty else None)
     if n != len(empty):
         return stop('failed', 'war3map.w3u: %d of %d lists emptied.' % (n, len(empty)))
     text = sc['bytes'].decode('utf-8', 'surrogateescape')

@@ -82,7 +82,10 @@ def deep(data):
         if mtls is not None:
             q = 0
             while q + 4 <= len(mtls):
-                q += struct.unpack_from('<I', mtls, q)[0]
+                sz = struct.unpack_from('<I', mtls, q)[0]
+                if sz < 4 or q + sz > len(mtls):
+                    break
+                q += sz
                 nmat += 1
         for gi, g in enumerate(gsets):
             try:
@@ -146,7 +149,10 @@ def deep(data):
     if geoa is not None:
         q = 0
         while q + 4 <= len(geoa):
-            q += struct.unpack_from('<I', geoa, q)[0]
+            sz = struct.unpack_from('<I', geoa, q)[0]
+            if sz < 28 or q + sz > len(geoa):
+                break
+            q += sz
             ngeoa += 1
     bad_gid = 0
     bad_gaid = 0
@@ -200,6 +206,8 @@ def deep(data):
     q = 0
     while q + 4 <= len(cams):
         sz = struct.unpack_from('<I', cams, q)[0]
+        if sz < 4 or q + sz > len(cams):
+            break
         r['cams'] += 1
         vals = struct.unpack_from('<7f', cams, q + 84)
         if any(bad(v) for v in vals):

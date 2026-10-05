@@ -150,12 +150,12 @@ def find_header(d, fname=None, byte_size=None):
             continue
         if sig != b'MPQ\x1a':
             continue
+        if pos + 32 > len(d):
+            break
         hsize = struct.unpack_from('<I', d, pos + 4)[0]
         if hsize < 0x20:
             skipped.append((pos, 'dwHeaderSize %#x < 0x20' % hsize))
             continue
-        if pos + 32 > len(d):
-            break
         h = _v1_fields(Header(), d, pos, sz)
         if (pos + h.hash_pos) & 0xFFFFFFFF > sz or (pos + h.block_pos) & 0xFFFFFFFF > sz:
             skipped.append((pos, 'FAKE header: table outside the file (hash %#x, block %#x)'

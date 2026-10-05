@@ -71,14 +71,14 @@ def engine_types(common_j):
 
 def applies(body_text, engine_type_set):
     info = {'types': [], 'kept': [], 'functions': [], 'globals_block': [], 'natives': [], 'failures': []}
-    proprios = [m.group(1) for m in RX_TYPE_CHECK.finditer(body_text) if m.group(1) not in engine_type_set]
-    if not proprios:
+    own = [m.group(1) for m in RX_TYPE_CHECK.finditer(body_text) if m.group(1) not in engine_type_set]
+    if not own:
         return body_text, info
     fs = functions(body_text)
     alive = live_ones(body_text, fs)
     body = dict((n, body_text[i:f]) for n, i, f in fs)
     new = body_text
-    for X in proprios:
+    for X in own:
         rx = re.compile(r'\b%s\b' % re.escape(X))
         rx_global = re.compile(
             r'(?m)^[ \t]*(?:constant[ \t]+)?%s[ \t]+(?:array[ \t]+)?([A-Za-z_]\w*)[^\n]*\n?' % re.escape(X)

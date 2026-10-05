@@ -873,6 +873,14 @@ def walk(node):
         stack.extend(reversed(_CHILDREN[type(n)](n)))
 
 
+_ASSOCIATIVE = frozenset(('+', '*', 'and', 'or'))
+
+
+def _needs_parens(child, parent, right):
+    p, q = _BINARY_PRECEDENCE[child.op], _BINARY_PRECEDENCE[parent.op]
+    return p < q or (right and p == q and not (child.op == parent.op and child.op in _ASSOCIATIVE))
+
+
 def _ue(e):
     t = type(e)
     if t is Name:
@@ -882,21 +890,31 @@ def _ue(e):
     if t is Literal:
         return e.text
     if t is Binary:
-        rights = []
+        chain = []
         while type(e) is Binary:
-            rights.append(e)
+            chain.append(e)
             e = e.left
-        parts = [_ue(e)]
-        for b in reversed(rights):
-            parts.append(b.op)
-            parts.append(_ue(b.right))
-        return ' '.join(parts)
+        chain.reverse()
+        text = _ue(e)
+        if type(e) is Binary and _needs_parens(e, chain[0], False):
+            text = '(' + text + ')'
+        for k, b in enumerate(chain):
+            right = _ue(b.right)
+            if type(b.right) is Binary and _needs_parens(b.right, b, True):
+                right = '(' + right + ')'
+            text = text + ' ' + b.op + ' ' + right
+            if k + 1 < len(chain) and _needs_parens(b, chain[k + 1], False):
+                text = '(' + text + ')'
+        return text
     if t is Paren:
         return '(' + _ue(e.inner) + ')'
     if t is Index:
         return _ue(e.base) + '[' + _ue(e.index) + ']'
     if t is Unary:
-        return ('not ' if e.op == 'not' else e.op) + _ue(e.operand)
+        inner = _ue(e.operand)
+        if type(e.operand) is Binary and (e.op != 'not' or _BINARY_PRECEDENCE[e.operand.op] < _NOT_OPERAND):
+            inner = '(' + inner + ')'
+        return ('not ' if e.op == 'not' else e.op) + inner
     if t is FuncRef:
         return 'function ' + e.name
     raise TypeError('not a JASS expression: %r' % (e,))

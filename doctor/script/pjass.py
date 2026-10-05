@@ -62,17 +62,23 @@ def _opt(argv, fname, default_value=None):
     return default_value
 
 
-def compiles(caminhos, pjass=None, tmp=None):
+RX_WHERE = re.compile(r'^(?:[A-Za-z]:)?[^:]*:\d+:')
+RX_TOTAL = re.compile(r'(?:failed with|Parse failed:) (\d+) errors?')
+
+
+def compiles(paths, pjass=None, tmp=None):
     if tmp:
-        caminhos = [os.path.relpath(c, tmp) if os.path.dirname(os.path.abspath(c)) == os.path.abspath(tmp) else c
-                    for c in caminhos]
-    r = subprocess.run([exe(pjass)] + list(caminhos), capture_output=True, text=True,
+        paths = [os.path.relpath(c, tmp) if os.path.dirname(os.path.abspath(c)) == os.path.abspath(tmp) else c
+                 for c in paths]
+    r = subprocess.run([exe(pjass)] + list(paths), capture_output=True, text=True,
                        errors='replace', cwd=tmp, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     out = (r.stdout or '') + (r.stderr or '')
     line_list = [line for line in out.splitlines() if line.strip()]
-    error_list = [line for line in line_list if re.search(r'\b(error|Error)\b', line) and 'warning' not in line.lower()]
     warnings = [line for line in line_list if 'warning' in line.lower()]
+    error_list = [line for line in line_list if line not in warnings and
+                  (RX_WHERE.match(line) or RX_TOTAL.search(line) or re.search(r'\b(error|Error)\b', line))]
     others = [line for line in line_list if line not in error_list and line not in warnings]
+    totals = [int(m.group(1)) for m in (RX_TOTAL.search(line) for line in line_list) if m]
     for line in line_list:
         m = re.search(r'(\d+) errors? ignored', line)
         if m and int(m.group(1)) > 0:
@@ -86,20 +92,21 @@ def compiles(caminhos, pjass=None, tmp=None):
         'error_list': error_list,
         'warnings': warnings,
         'others': others,
+        'total': max(totals) if totals else None,
     }
 
 
 def run_action(sources, pjass=None, tmp=None):
-    caminhos = []
+    paths = []
     line_counts = {}
     for orig, fname in sources:
         dst, n = prepare(orig, fname, tmp)
         if dst is None:
             return {'missing': orig, 'rc': 2, 'line_list': [], 'error_list': [], 'warnings': [], 'others': [],
                     'line_counts': line_counts}
-        caminhos.append(dst)
+        paths.append(dst)
         line_counts[fname] = (orig, n)
-    res = compiles(caminhos, pjass=pjass, tmp=tmp)
+    res = compiles(paths, pjass=pjass, tmp=tmp)
     res.update({'missing': None, 'line_counts': line_counts})
     return res
 
@@ -146,21 +153,21 @@ def main(argv=None, root=None, ref=None, pjass=None, tmp=None):
                 print(
                     '*** G2 (the one that decides) is this file with the blizzard.j OF THE GAME (without --conjunto).'
                 )
-    caminhos = []
+    paths = []
     line_counts = {}
     for orig, fname in sources:
         dst, n = prepare(orig, fname, tmp)
         if dst is None:
             print('MISSING: %s' % orig)
             return 2
-        caminhos.append(dst)
+        paths.append(dst)
         line_counts[fname] = (orig, n)
         print('%-11s %8d lines  %s' % (fname, n, orig))
 
-    res = compiles(caminhos, pjass=pjass, tmp=tmp)
+    res = compiles(paths, pjass=pjass, tmp=tmp)
 
     def traduz(line):
-        m = re.match(r'^([^()]+)\((\d+)\):\s*(.*)$', line)
+        m = re.match(r'^([^()]+)\((\d+)\):\s*(.*)$', line) or re.match(r'^((?:[A-Za-z]:)?[^:]*):(\d+):\s*(.*)$', line)
         if not m:
             return line
         file_, ln, msg = m.group(1), int(m.group(2)), m.group(3)
@@ -178,8 +185,8 @@ def main(argv=None, root=None, ref=None, pjass=None, tmp=None):
         for line in others[-12:]:
             print('  ' + traduz(line))
     if error_list:
-        print('\n-- ERRORS (first 60) --')
-        for line in error_list[:60]:
+        print('\n-- ERRORS (%d) --' % len(error_list))
+        for line in error_list:
             print('  ' + traduz(line))
     if warnings:
         print('\n-- WARNINGS (first 60) --')

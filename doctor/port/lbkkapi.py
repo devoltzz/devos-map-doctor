@@ -11,7 +11,7 @@ COMMENT = ('// LBKKAPI: %d globals removed by the build (redeclared by the commo
            '%d kept. See RELATORIO_build.md')
 RENAMED_COMMENT = ' %d renamed to LBKKAPI_<name> (used: %s).'
 PREFIX = 'LBKKAPI_'
-RX_COMMENT = re.compile(r'^// LBKKAPI: \d+ globais removidas pelo build ')
+RX_COMMENT = re.compile(r'^// LBKKAPI: \d+ globals removed by the build ')
 RX_DECL_LINE = re.compile(r'^\s*(?:constant\s+)?([A-Za-z_]\w*)\s+([A-Za-z_]\w*)\s*=')
 _RX_W = re.compile(r'\w')
 _RX_TOKEN = re.compile(
@@ -21,22 +21,22 @@ _RX_TOKEN = re.compile(
 
 def code_counts(body_text, name_list):
     tgt = set(name_list)
-    contas = dict((n, 0) for n in name_list)
+    counts = dict((n, 0) for n in name_list)
     for m in _RX_TOKEN.finditer(body_text):
         if m.lastgroup == 'id' and m.group() in tgt:
-            contas[m.group()] += 1
-    return contas
+            counts[m.group()] += 1
+    return counts
 
 
 def renomeia_identificadores(body_text, replacements):
-    contas = dict((v, 0) for v in replacements)
+    counts = dict((v, 0) for v in replacements)
 
     def swap(m):
         if m.lastgroup == 'id' and m.group() in replacements:
-            contas[m.group()] += 1
+            counts[m.group()] += 1
             return replacements[m.group()]
         return m.group()
-    return _RX_TOKEN.sub(swap, body_text), contas
+    return _RX_TOKEN.sub(swap, body_text), counts
 
 
 def read_reference(ref_dir=None):
@@ -132,10 +132,10 @@ def applies(body_text, ref_dir=None, ref_text=None):
             RENAMED_COMMENT % (len(rename_items), ', '.join(n for _i, n in rename_items)) + ' See RELATORIO_build.md')
     line_list.insert(begin + 1, comment_text + '\r')
     output = '\n'.join(line_list)
-    contas = {}
+    counts = {}
     if replacements:
-        output, contas = renomeia_identificadores(output, replacements)
-        for n, k in contas.items():
+        output, counts = renomeia_identificadores(output, replacements)
+        for n, k in counts.items():
             if k != uses[n][1] + 1:
                 info['failures'].append('LBKKAPI: %s renamed in %d code place(s), the count was %d'
                                         % (n, k, uses[n][1] + 1))
@@ -144,7 +144,7 @@ def applies(body_text, ref_dir=None, ref_text=None):
     status = dict((n, 'REMOVIDA') for _i, n in to_remove)
     status.update((n, 'RENAMED') for _i, n in rename_items)
     info.update(
-        status='aplicado',
+        status='applied',
         detail='%d of %d declarations removed (ONLY those that collide; all with 0 uses)%s; %d '
         'mantidas'
         % (

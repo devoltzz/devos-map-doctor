@@ -8,7 +8,6 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 ENGINE = os.path.join(ROOT, 'doctor')
 NAME = 'DevosMapDoctor'
 EXCLUDE = ('cv2', 'lupa', 'matplotlib', 'pytest', 'setuptools', 'pip', 'unittest', 'pydoc_data', 'tkinter')
-# the packages inside the exe, whose licenses go to THIRD_PARTY_NOTICES.txt
 PACKAGES = ('numpy', 'pillow', 'pywebview', 'pythonnet', 'clr_loader', 'bottle', 'proxy_tools', 'cffi',
             'pycparser', 'typing_extensions')
 
@@ -35,7 +34,6 @@ def app_version():
 
 
 def notices():
-    # Adds the licenses of the embedded Python and of each bundled package to the ones of the source tree.
     from importlib import metadata
     text = open(os.path.join(ROOT, 'THIRD_PARTY_NOTICES.md'), encoding='utf-8').read()
     parts = [text, '\n## Python %d.%d.%d\n\n' % sys.version_info[:3]]
@@ -66,7 +64,6 @@ def main():
             '--name', NAME, '--icon', icon, '--add-data', icon + os.pathsep + '.',
             '--version-file', version_file, '--workpath', work, '--distpath', os.path.join(ROOT, 'dist'),
             '--specpath', work, '--add-data', os.path.join(ROOT, 'ui') + os.pathsep + 'ui']
-    # every module of the engine package, and its data files where the module reads them (next to it)
     for folder, dirs, files in os.walk(ENGINE):
         dirs[:] = [d for d in dirs if d != '__pycache__']
         rel = os.path.relpath(folder, ROOT)
@@ -79,7 +76,6 @@ def main():
                 args += ['--add-binary', os.path.join(folder, f) + os.pathsep + rel]
             elif not f.endswith('.pyc'):
                 args += ['--add-data', os.path.join(folder, f) + os.pathsep + rel]
-    # pjass checks the ported script: doctor/script/pjass.exe, or the PJASS variable
     pjass = os.environ.get('PJASS')
     if pjass and os.path.isfile(pjass):
         args += ['--add-binary', pjass + os.pathsep + os.path.join('doctor', 'script')]

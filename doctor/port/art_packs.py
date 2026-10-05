@@ -82,9 +82,9 @@ def requested_ones(script, data_bytes=None, extract=None):
     return ped
 
 
-def open_packs(caminhos, log=print):
+def open_packs(paths, log=print):
     out = []
-    for c in caminhos:
+    for c in paths:
         try:
             a = mpqread.Archive(c)
         except BaseException as e:
@@ -146,12 +146,12 @@ def variants(p):
     return out
 
 
-def resolve(map_path, pacotes, ped, in_game, log=print):
+def resolve(map_path, packages, ped, in_game, log=print):
     import_it, missing_items, seen = {}, {}, set()
     work_queue = list(ped)
 
-    def acha(p):
-        for pack_name, art_pack in pacotes:
+    def finds(p):
+        for pack_name, art_pack in packages:
             if art_pack.find(p):
                 return pack_name, art_pack, p
             if p.lower().endswith('.mdx') and art_pack.find(p[:-4] + '.mdl'):
@@ -166,7 +166,7 @@ def resolve(map_path, pacotes, ped, in_game, log=print):
         seen.add(k)
         if map_path.find(p) or in_game(p):
             continue
-        origin = acha(p)
+        origin = finds(p)
         conv = None
         if origin is None:
             for height, c in variants(p):
@@ -175,7 +175,7 @@ def resolve(map_path, pacotes, ped, in_game, log=print):
                 elif in_game(height):
                     origin = ('game', None, height)
                 else:
-                    origin = acha(height)
+                    origin = finds(height)
                 if origin:
                     conv = c
                     break
@@ -192,10 +192,10 @@ def resolve(map_path, pacotes, ped, in_game, log=print):
     return import_it, missing_items
 
 
-def import_it(map_path, pacotes, script, dest, data_bytes=None, extract=None, casc=None, log=print):
+def import_it(map_path, packages, script, dest, data_bytes=None, extract=None, casc=None, log=print):
     import shutil
     a = mpqread.Archive(map_path)
-    art_pack = open_packs(pacotes, log)
+    art_pack = open_packs(packages, log)
     if casc is None:
         try:
             from doctor.data import casc_wc3

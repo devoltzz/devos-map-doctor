@@ -182,16 +182,13 @@ RE_PATH_B = re.compile(
     rb'[A-Za-z0-9_\-\\/\.\[\(!#$%&@^~{=][A-Za-z0-9_\-\\/\. \[\]\(\)\+!#$%&@^~{}=]{0,180}?\.' + _EXTENSIONS_B,
     re.I)
 RE_EXTENSION_B = re.compile(rb'\.' + _EXTENSIONS_B, re.I)
-RE_NUL_VALUE_B = re.compile(rb'(?<=\x00)[\x20-\x7e]{1,200}\.' + _EXTENSIONS_B + rb'(?=\x00)', re.I)
+RE_EXTENSION_NUL_B = re.compile(rb'\.' + _EXTENSIONS_B + rb'(?=\x00)', re.I)
 PATH_REACH = 181
 PATH_EXT_MAX = 3
 RE_REQUIRE_B = re.compile(rb'''require\s*\(?\s*['"]([\w.\-/\\ ]{1,120})['"]''')
 
 
 def _paths(data_bytes):
-    if len(data_bytes) < 1048576:
-        yield from RE_PATH_B.finditer(data_bytes)
-        return
     segments = []
     for m in RE_EXTENSION_B.finditer(data_bytes):
         s, e = max(0, m.start() - PATH_REACH), m.start() + 1 + PATH_EXT_MAX
@@ -201,6 +198,19 @@ def _paths(data_bytes):
             segments.append([s, e])
     for s, e in segments:
         yield from RE_PATH_B.finditer(data_bytes, s, min(e, len(data_bytes)))
+
+
+def nul_values(data_bytes):
+    out = set()
+    for m in RE_EXTENSION_NUL_B.finditer(data_bytes):
+        i = m.start()
+        j = i
+        lim = max(0, i - 200)
+        while j > lim and 0x20 <= data_bytes[j - 1] <= 0x7e:
+            j -= 1
+        if j < i and j > 0 and data_bytes[j - 1] == 0:
+            out.add(data_bytes[j:m.end()])
+    return out
 
 
 def mdx_textures(data_bytes):
@@ -223,7 +233,7 @@ def mine_bytes(data_bytes):
     if data_bytes[:4] == b'MDLX':
         out |= mdx_textures(data_bytes)
     if b'\x00' in data_bytes:
-        out.update(m.group(0).decode('latin-1').replace('/', '\\') for m in RE_NUL_VALUE_B.finditer(data_bytes))
+        out.update(v.decode('latin-1').replace('/', '\\') for v in nul_values(data_bytes))
     for m in _paths(data_bytes):
         s = m.group(0).decode('latin-1', 'replace').replace('/', '\\').strip()
         s = s.strip('"\' \t\r\n\x00')

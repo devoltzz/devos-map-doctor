@@ -443,14 +443,17 @@ class _Matcher(object):
             if t is not None and (base != 'integer' or t in ('integer', 'integervar')):
                 return None
             body = text[1:-1]
-            return None if '\\' in body else wtg.Parameter(LITERAL, body)
+            return None if '\\' in body or _RX_INTEGER.match(body) else wtg.Parameter(LITERAL, body)
         if kind in ('integer', 'real'):
             if t is not None and base not in ('integer', 'real'):
                 return None
             if kind == 'real' and base == 'integer':
                 return None
-            return wtg.Parameter(LITERAL, text if not self.relaxed else _plain_number(
-                e, kind, text, base == 'integer' and t not in (None, 'integer', 'integervar')))
+            code = base == 'integer' and t not in (None, 'integer', 'integervar')
+            value = text if not self.relaxed else _plain_number(e, kind, text, code)
+            if code and len(value) == 4 and value.isalnum():
+                return None
+            return wtg.Parameter(LITERAL, value)
         if kind == 'boolean':
             if t is not None and base != 'boolean':
                 return None
@@ -1021,7 +1024,7 @@ def _plain_number(e, kind, text, code):
             return text
         if code:
             spelled = jass_normal.integer_text(value[1])
-            if spelled[0] == "'":
+            if spelled[0] == "'" and not RX_DECIMAL.match(spelled[1:-1]):
                 return spelled[1:-1]
         return text if RX_DECIMAL.match(text) and not (len(text.lstrip('-')) > 1 and text.lstrip('-')[0] == '0') \
             else str(value[1])
@@ -1166,6 +1169,10 @@ def match_trigger(functions, init_name, td, globals_types=None, name=None, sourc
         actions = m.body_actions(f)
     except _Fail as e:
         return Match(None, str(e), [init_name])
+    except RecursionError:
+        return Match(None, 'nested too deep', [init_name])
+    except Exception as e:
+        return Match(None, 'matcher error: %s: %s' % (type(e).__name__, e), [init_name])
     helpers = [init_name] + m.used
     covered = set(helpers)
     external, stack = [], list(reversed(m.loose))

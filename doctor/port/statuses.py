@@ -41,7 +41,16 @@ def classify_items(fname, st):
     st = st.strip()
     m = RX_CONVERT.match(st)
     if m:
-        n = int(m.group(1), 0)
+        x = m.group(1)
+        if x[:2].lower() == '0x':
+            n = int(x, 16)
+        elif len(x) > 1 and x[0] == '0':
+            try:
+                n = int(x, 8)
+            except ValueError:
+                return None, None
+        else:
+            n = int(x)
         return ('%s 0x%X' % ('set' if fname == 'SetUnitState' else 'get', n)), '0x%X' % n
     if fname == 'SetUnitState' and st == 'UNIT_STATE_MAX_LIFE':
         return 'set MAX_LIFE', None
@@ -50,7 +59,7 @@ def classify_items(fname, st):
     return None, None
 
 
-def rewrite_line(line, por, failures, node):
+def rewrite_line(line, by, failures, node):
     ss = T.sitios(line, KNOWN_NAMES)
     for begin, end_pos, fname in sorted(ss, reverse=True):
         k = line.index('(', end_pos)
@@ -64,7 +73,7 @@ def rewrite_line(line, por, failures, node):
         cat, new_st = classify_items(fname, line[a[1][0]:a[1][1]])
         if cat is None:
             continue
-        por[cat] = por.get(cat, 0) + 1
+        by[cat] = by.get(cat, 0) + 1
         if cat == 'set MAX_LIFE' or cat == 'set MAX_MANA':
             tgt = 'DB_estado_max_vida' if cat == 'set MAX_LIFE' else 'DB_estado_max_mana'
             line = line[:begin] + tgt + line[end_pos:a[0][1]] + line[a[1][1]:]
@@ -77,35 +86,33 @@ def rewrite_line(line, por, failures, node):
 
 
 def pluralize(body_text):
-    por = {}
+    by = {}
     failures = []
     for node, line in enumerate(body_text.split('\n'), 1):
         if T.RX_NATIVE.match(line) or 'UnitState' not in line:
             continue
-        rewrite_line(line, por, failures, node)
-    return por
+        rewrite_line(line, by, failures, node)
+    return by
 
 
 def applies(body_text, expected_count=None, to_report=False):
     line_list = body_text.split('\n')
-    por = {}
+    by = {}
     failures = []
     for idx, line in enumerate(line_list):
         if T.RX_NATIVE.match(line) or 'UnitState' not in line:
             continue
-        new_l = rewrite_line(line, por, failures, idx + 1)
+        new_l = rewrite_line(line, by, failures, idx + 1)
         line_list[idx] = new_l
-    swapped = sum(por.values())
+    swapped = sum(by.values())
     if swapped and expected_count is not None:
         for k, exp_len in expected_count.items():
-            if por.get(k, 0) != exp_len:
-                failures.append(
-                    '%s: %d calls, the count measured in the raw script is %d' % (k, por.get(k, 0), exp_len)
-                )
-        for k in por:
+            if by.get(k, 0) != exp_len:
+                failures.append('%s: %d calls, the count measured in the raw script is %d' % (k, by.get(k, 0), exp_len))
+        for k in by:
             if k not in expected_count:
-                failures.append('%s: %d calls of a category that the raw one did not have' % (k, por[k]))
-    info = {'by_category': por, 'swapped': swapped, 'failures': failures}
+                failures.append('%s: %d calls of a category that the raw one did not have' % (k, by[k]))
+    info = {'by_category': by, 'swapped': swapped, 'failures': failures}
     if failures:
         return body_text, info
     new = '\n'.join(line_list)

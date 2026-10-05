@@ -161,11 +161,15 @@ def page_steps(D, d):
     return out
 
 
+NOTICE_CODES = ('ntfs_copy',)
+
+
 def page_summary(D, d):
     codes = sorted(set(p['code'] for p in d.get('protections') or []))
     data = [c for c in codes if c in D.DATA_ONLY]
     return {'codes': codes, 'data_problems': len(data), 'slk': list(d.get('slk') or []),
-            'protected': any(c not in D.BUTTON3_ONLY and c not in D.DATA_ONLY for c in codes),
+            'protected': any(c not in D.BUTTON3_ONLY and c not in D.DATA_ONLY and c not in NOTICE_CODES
+                             for c in codes),
             'editor_ready': (d.get('editor') or {}).get('status') == 'ready', 'script': d.get('script'),
             'script_label': SCRIPT_LABEL.get(d.get('script')) or (d.get('script') and 'unknown'),
             'can_fix': d.get('fixable') == 'yes', 'campaign': bool(d.get('campaign_info'))}
@@ -198,7 +202,7 @@ def page_changes(r, kind, extras=None):
             files.append({'file': name, 'how': 'changed', 'why': 'for the editor'})
         for name in rep.get('new_ones') or []:
             files.append({'file': name, 'how': 'added', 'why': 'editor-only'})
-    for extra in ((extras or {}).get('relatos') or {}):
+    for extra in ((extras or {}).get('reports') or {}):
         files.append({'file': EXTRA_NAME.get(extra, extra), 'how': 'applied', 'why': 'an extra'})
     return {'files': files, 'notes': notes}
 
@@ -225,7 +229,7 @@ BEFORE_EDITOR = ('models', 'single_player', 'card', 'translation')
 
 def extra_lines(x):
     out = []
-    for extra, rep in (x or {}).get('relatos', {}).items():
+    for extra, rep in (x or {}).get('reports', {}).items():
         out.append(('ok', '  - ' + EXTRA_DONE.get(extra, extra)))
         for line in (rep or {}).get('lines') or (rep or {}).get('summary_lines') or []:
             out.append(('info', '      ' + str(line)))
@@ -300,7 +304,7 @@ def run_port(D, G, path, progress, emit, packages=(), memory=True):
     work = tempfile.mkdtemp(prefix='devos_map_doctor_port_')
     try:
         try:
-            r = map_port.map_port(path, os.path.join(work, 'port'), out, report, log=progress, pacotes=list(packages),
+            r = map_port.map_port(path, os.path.join(work, 'port'), out, report, log=progress, packages=list(packages),
                                   memory_hacks='neutralize' if memory else 'equivalents')
         except BaseException as e:
             import traceback
@@ -323,7 +327,7 @@ def run_port(D, G, path, progress, emit, packages=(), memory=True):
                      'jn': bool((r.get('diagnostico') or {}).get('jn')),
                      'implemented': len((r.get('diagnostico') or {}).get('implemented_count') or []),
                      'declared': len((r.get('diagnostico') or {}).get('plataforma') or []),
-                     'size': r.get('bytes'), 'seconds': r.get('segundos')}}
+                     'size': r.get('bytes'), 'seconds': r.get('seconds')}}
 
 
 def run_job(job, emit, G):
@@ -343,6 +347,8 @@ def run_job(job, emit, G):
         return run_action(D, G, job, path, task, progress, emit)
     if task == 'port':
         return run_port(D, G, path, progress, emit, job.get('packages') or [], job.get('memory', True))
+    if task == 'cheatpack_inject':
+        return _cheatpack_inject(job, progress, emit)
     tool = TOOLS.get(task)
     if tool is None:
         raise ValueError('unknown task %r' % task)
@@ -447,10 +453,11 @@ def _cheatpacks(job, progress):
     return cheatpacks.list_packs(job['map'])
 
 
-def _cheatpack_inject(job, progress):
+def _cheatpack_inject(job, progress, emit=lambda event: None):
     from doctor.fix import cheatpacks
     from doctor.fix import unprotect as D
     out = D.free_output(job['map'], '_' + str(job.get('pack') or 'cheat'))
+    emit({'type': 'output', 'path': out})
     r = cheatpacks.inject(job['map'], out, job.get('pack'), job.get('options') or {}, progress)
     return {'lines': page_lines(r.get('lines') or []), 'file': r.get('file'), 'pack': r.get('pack'),
             'outcome': 'ok' if r.get('file') else 'failed', 'syntax': r.get('syntax'),
@@ -509,6 +516,27 @@ def worker_main(window=None):
 CACHE = os.path.join(tempfile.gettempdir(), 'devos_map_doctor_ui')
 
 
+def cache_folder(version):
+    keep = 'v%s' % version
+    folder = os.path.join(CACHE, keep)
+    try:
+        os.makedirs(folder, exist_ok=True)
+        for name in os.listdir(CACHE):
+            p = os.path.join(CACHE, name)
+            if name == keep:
+                continue
+            if os.path.isdir(p):
+                shutil.rmtree(p, ignore_errors=True)
+            else:
+                try:
+                    os.remove(p)
+                except OSError:
+                    pass
+    except OSError:
+        pass
+    return folder
+
+
 def part_of(output):
     base, ext = os.path.splitext(output)
     return base + '.part' + (ext or '.w3x')
@@ -530,6 +558,7 @@ class Api:
         self._version = version
         self._initial = initial_map
         self._updater = updater
+        self._cache = cache_folder(version)
         self._jobs = {}
         self._next = 0
         self._lock = threading.Lock()
@@ -607,7 +636,7 @@ class Api:
             ident = 'job%d' % self._next
         job = Job(ident, task)
         self._jobs[ident] = job
-        env = dict(os.environ, TEMP=job.tmp, TMP=job.tmp, DOCTOR_CACHE=CACHE, PYTHONIOENCODING='utf-8',
+        env = dict(os.environ, TEMP=job.tmp, TMP=job.tmp, DOCTOR_CACHE=self._cache, PYTHONIOENCODING='utf-8',
                    PYTHONUTF8='1')
         log = open(os.path.join(job.tmp, 'worker.log'), 'wb')
         job.proc = subprocess.Popen(worker_command(), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log,
@@ -619,42 +648,67 @@ class Api:
 
     def _read(self, job, log):
         final = None
-        for line in job.proc.stdout:
-            try:
-                ev = json.loads(line.decode('utf-8'))
-            except ValueError:
-                continue
-            if ev.get('type') == 'output':
-                job.output = ev.get('path')
-                continue
-            ev['job'] = job.ident
-            if ev.get('type') in ('result', 'error'):
-                final = ev
-            else:
-                self._push(ev)
-        code = job.proc.wait()
-        log.close()
-        if job.cancelled:
-            final = {'type': 'cancelled', 'job': job.ident}
-            if job.output:
+        try:
+            for line in job.proc.stdout:
                 try:
-                    os.remove(part_of(job.output))
+                    ev = json.loads(line.decode('utf-8'))
+                except ValueError:
+                    continue
+                if not isinstance(ev, dict):
+                    continue
+                if ev.get('type') == 'output':
+                    job.output = ev.get('path')
+                    continue
+                ev['job'] = job.ident
+                if ev.get('type') in ('result', 'error'):
+                    final = ev
+                else:
+                    self._push(ev)
+            code = job.proc.wait()
+            log.close()
+            if job.cancelled:
+                final = {'type': 'cancelled', 'job': job.ident}
+                if job.output:
+                    self._drop_part(job)
+                    final['kept'] = os.path.isfile(job.output)
+                    final['output'] = job.output
+            elif final is None:
+                try:
+                    with open(os.path.join(job.tmp, 'worker.log'), 'rb') as f:
+                        tail = f.read()[-1500:].decode('utf-8', 'replace')
                 except OSError:
-                    pass
-        elif final is None:
+                    tail = ''
+                final = {'type': 'error', 'job': job.ident, 'message': 'The worker stopped (exit code %s).' % code,
+                         'trace': tail}
+                if job.output:
+                    self._drop_part(job)
+                if job.task == 'port' and job.output:
+                    write_port_failure(os.path.splitext(job.output)[0] + '.report.txt', final['message'], tail)
+        except Exception as e:
             try:
-                with open(os.path.join(job.tmp, 'worker.log'), 'rb') as f:
-                    tail = f.read()[-1500:].decode('utf-8', 'replace')
+                job.proc.kill()
             except OSError:
-                tail = ''
-            final = {'type': 'error', 'job': job.ident, 'message': 'The worker stopped (exit code %s).' % code,
-                     'trace': tail}
-            if job.task == 'port' and job.output:
-                write_port_failure(os.path.splitext(job.output)[0] + '.report.txt', final['message'], tail)
-        final['elapsed'] = round(time.time() - job.started, 1)
-        shutil.rmtree(job.tmp, ignore_errors=True)
-        self._jobs.pop(job.ident, None)
-        self._push(final)
+                pass
+            final = {'type': 'error', 'job': job.ident, 'trace': traceback.format_exc(limit=8),
+                     'message': 'The window could not read the worker (%s: %s).' % (type(e).__name__, e)}
+        finally:
+            try:
+                log.close()
+            except OSError:
+                pass
+            if final is None:
+                final = {'type': 'error', 'job': job.ident, 'message': 'The worker stopped without a result.'}
+            final['elapsed'] = round(time.time() - job.started, 1)
+            shutil.rmtree(job.tmp, ignore_errors=True)
+            self._jobs.pop(job.ident, None)
+            self._push(final)
+
+    @staticmethod
+    def _drop_part(job):
+        try:
+            os.remove(part_of(job.output))
+        except OSError:
+            pass
 
     def _push(self, ev):
         if self._window is None:

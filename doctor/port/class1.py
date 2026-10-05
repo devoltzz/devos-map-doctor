@@ -95,6 +95,9 @@ def masked_lines(body_text):
     out = []
     inside = False
     for line in body_text.split('\n'):
+        if not inside and '"' not in line:
+            out.append(line)
+            continue
         n = len(line)
         i = 0
         if inside:
@@ -227,7 +230,7 @@ def site_parts(arg):
     return m0.group(1), m2.group(1), expr
 
 
-def reescreve(arg):
+def rewrite(arg):
     tab, field_id, expr = site_parts(arg)
     if tab is None:
         return None, field_id, None
@@ -304,7 +307,7 @@ def applies(body_text, to_report=False, codes=None, expected_count=None, table=N
                 by_class[k] = by_class.get(k, 0) + 1
                 continue
             n_slk += 1
-            new, tab, field_id = reescreve(arg)
+            new, tab, field_id = rewrite(arg)
             if new is None and tolerant_mode:
                 by_class['class 1 in game'] = by_class.get('class 1 in game', 0) + 1
                 n_slk -= 1

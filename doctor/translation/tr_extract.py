@@ -71,13 +71,13 @@ def read_text(path):
     return open(path, 'rb').read().decode('utf-8', 'surrogateescape')
 
 
-def quebra(body_text, jass=False):
+def line_break(body_text, jass=False):
     crlf = body_text.count('\r\n')
     if body_text.count('\r') - crlf > crlf:
-        return break_outside_das_quotes(body_text, 'mista'), '\n'
+        return split_outside_quotes(body_text, 'mista'), '\n'
     if jass and literal_multilinha():
         method, sep = ('crlf', '\r\n') if crlf and crlf >= body_text.count('\n') - crlf else ('lf', '\n')
-        return break_outside_das_quotes(body_text, method), sep
+        return split_outside_quotes(body_text, method), sep
     sep = '\r\n' if crlf else '\n'
     return body_text.split(sep), sep
 
@@ -98,7 +98,7 @@ _RX_QUOTES_MODE = dict((m, re.compile(_COMENTARIO_MODE[m] + r'|"(?:[^"\\]|\\.)*"
                        for m in _SEP_MODE)
 
 
-def break_outside_das_quotes(body_text, method='mista'):
+def split_outside_quotes(body_text, method='mista'):
     line_list, begin = [], 0
     for m in _RX_QUOTES_MODE[method].finditer(body_text):
         g = m.group(0)
@@ -120,7 +120,7 @@ def functions_protected(tr_dir):
     return tuple(json.load(open(p, encoding='utf-8')).get('functions_protected', ()))
 
 
-def e_protegida(fname, protected):
+def is_protected(fname, protected):
     return bool(fname) and any(fname == f or (f.endswith('*') and fname.startswith(f[:-1])) for f in protected)
 
 
@@ -132,7 +132,7 @@ def lines_protected(line_list, protected):
         m = RX_FUNCTION.match(line_text)
         if m:
             current = m.group(1)
-        inside.append(e_protegida(current, protected))
+        inside.append(is_protected(current, protected))
         if RX_END_FUNCTION.match(line_text):
             current = None
     return inside
@@ -141,7 +141,7 @@ def lines_protected(line_list, protected):
 def extract_txt_text(details, body_text, entries, stats, unknown, tem_text=None):
     present = tem_text or CJK.search
     obj = None
-    for ln, line_text in enumerate(quebra(body_text)[0]):
+    for ln, line_text in enumerate(line_break(body_text)[0]):
         mo = re.match(r'^\[(.+)\]\s*$', line_text)
         if mo:
             obj = mo.group(1)
@@ -178,7 +178,7 @@ def extract_txt_text(details, body_text, entries, stats, unknown, tem_text=None)
 
 def extract_misc_text(fn, body_text, entries, stats, tem_text=None):
     present = tem_text or CJK.search
-    for ln, line_text in enumerate(quebra(body_text)[0]):
+    for ln, line_text in enumerate(line_break(body_text)[0]):
         mk = re.match(r'^([A-Za-z0-9_]+)=(.*)$', line_text)
         if mk and present(mk.group(2)):
             entries.append(
@@ -197,7 +197,8 @@ def extract_misc_text(fn, body_text, entries, stats, tem_text=None):
             stats[fn] += 1
 
 
-RX_WTS = re.compile(r'STRING (\d+)\s*(?://[^\n]*\n)?\s*\{\r?\n(.*?)\r?\n\}', re.S)
+RX_WTS = re.compile(r'^(?:\ufeff)?STRING[ \t]+(\d+)[^\n]*\n(?:[ \t]*(?://[^\n]*)?\r?\n)*[ \t]*\{[^\n]*\n'
+                    r'(.*?)\r?\n?^\}', re.S | re.M)
 
 
 def extract_wts_text(t, entries, stats, tem_text=None):
@@ -221,7 +222,7 @@ def extract_wts_text(t, entries, stats, tem_text=None):
 
 def extract_script_text(src, entries, stats, protected=(), tem_text=None):
     present = tem_text or CJK.search
-    lines = quebra(src, jass=True)[0]
+    lines = line_break(src, jass=True)[0]
     seen = OrderedDict()
     inside = lines_protected(lines, protected)
     outside = set()

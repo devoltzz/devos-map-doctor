@@ -26,6 +26,14 @@ def reference_declarations(ref_text):
     return out
 
 
+def _rename_global(body_text, name_list):
+    name_list = sorted(set(name_list))
+    if not name_list:
+        return body_text
+    rx = re.compile(r'\b(%s)\b' % '|'.join(map(re.escape, name_list)))
+    return rx.sub(lambda m: 'kkm_' + m.group(1), body_text)
+
+
 def applies(body_text, expected_count=None, ref_dir=None):
     info = {'failures': [], 'removed_ones': []}
     m_start = RX_GLOBALS.search(body_text)
@@ -54,13 +62,11 @@ def applies(body_text, expected_count=None, ref_dir=None):
         line_list[k] = ('%s// [KK framework] step 0e: already in common.j 3.0 (%s), removed: %s%s'
                         % (m.group(1), ref_value or 'no value', ln.strip(), m.group(7)))
     body_text = body_text[:m_start.end()] + '\n'.join(line_list) + body_text[m_end.start():]
-    for fname, _t, _r in info.get('renamed_list', []):
-        body_text = re.sub(r'\b%s\b' % re.escape(fname), 'kkm_' + fname, body_text)
+    body_text = _rename_global(body_text, set(n for n, _t, _r in info.get('renamed_list', [])))
     from_game = set(re.findall(r'(?m)^[ \t]*(?:constant[ \t]+)?native[ \t]+(\w+)', ref_text)) | \
         set(re.findall(r'(?m)^[ \t]*function[ \t]+(\w+)', ref_text))
     functions = sorted(set(re.findall(r'(?m)^[ \t]*function[ \t]+(\w+)[ \t]+takes\b', body_text)) & from_game)
-    for fname in functions:
-        body_text = re.sub(r'\b%s\b' % re.escape(fname), 'kkm_' + fname, body_text)
+    body_text = _rename_global(body_text, functions)
     if functions:
         info['functions'] = functions
     body_text, res = reserved_names(body_text)

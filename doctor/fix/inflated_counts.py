@@ -32,6 +32,8 @@ class Reader(object):
         return len(self.b) - self.o
 
     def _require(self, n):
+        if n < 0:
+            raise End('negative length (%d)' % n)
         if self.remaining() < n:
             raise End('%d B missing' % (n - self.remaining()))
 
@@ -471,7 +473,7 @@ def read_wct(b):
             r.bs(sz)
         header, count_pos = r.o, None
         trigger_list = []
-        while r.remaining() > 0:
+        while r.remaining() > 0 and len(trigger_list) < 1 << 20:
             t = r.i32()
             if t:
                 r.bs(t)
@@ -809,7 +811,7 @@ def fixable(fname, b, script=None, context=None):
     x = analyze(fname, b)
     if not x:
         return b, {'file_name': fname, 'declared': None, 'read_count': None, 'new': None, 'from_script': False,
-                   'reason': 'bom', 'report': '%s: was already fine' % fname}
+                   'reason': 'good', 'report': '%s: was already fine' % fname}
     if x.get('game'):
         return None, {'file_name': fname, 'reason': 'game', 'report': '%s: the GAME reads it' % fname}
     if x['reason'] == EMPTY:
@@ -984,6 +986,17 @@ def _waygate_regions(script, a=None):
     return dict((r['var'], r['creation']) for r in script_count if r.get('var'))
 
 
+_DOES_NOT_FIT = (struct.error, OverflowError, ValueError)
+
+
+def _fits(write, u, *layout):
+    try:
+        write((u,), *layout)
+        return True
+    except _DOES_NOT_FIT:
+        return False
+
+
 def _from_script(fname, script, x, declared=None, context=None):
     for file_, extract, write, singular, plural, where in FROM_SCRIPT:
         if file_ != fname or not script:
@@ -1006,7 +1019,19 @@ def _from_script(fname, script, x, declared=None, context=None):
                 u.get('hero_attributes') or u.get('item_table') is not None for u in item_entries
             ):
                 version_num, subversion = (8 if version_num == 7 else version_num), 11
-            data_bytes = write(item_entries, version_num, subversion, skin)
+            outside = 0
+            try:
+                data_bytes = write(item_entries, version_num, subversion, skin)
+            except _DOES_NOT_FIT:
+                good = [u for u in item_entries if _fits(write, u, version_num, subversion, skin)]
+                outside = len(item_entries) - len(good)
+                if not good:
+                    return None
+                item_entries = good
+                try:
+                    data_bytes = write(item_entries, version_num, subversion, skin)
+                except _DOES_NOT_FIT:
+                    return None
             try:
                 reread = read_units_doo(data_bytes)
             except (End, FormatError, struct.error):
@@ -1027,7 +1052,9 @@ def _from_script(fname, script, x, declared=None, context=None):
             placed_files = sum(1 for u in item_entries if u.get('item'))
             if placed_files:
                 report += '; %d of them are items from `CreateAllItems()`' % placed_files
-            return data_bytes, {
+            if outside:
+                report += '; %d NOT restored: a value of the script does not fit the record field' % outside
+            info = {
                 'file_name': fname,
                 'declared': declared,
                 'read_count': 0,
@@ -1043,9 +1070,17 @@ def _from_script(fname, script, x, declared=None, context=None):
                 'layout': '%d/%d%s' % (version_num, subversion, '+skin' if skin else ''),
                 'report': report,
             }
-        data_bytes = (
-            write(item_entries, new_ones=_camera_with_local(context)) if fname == 'war3map.w3c' else write(item_entries)
-        )
+            if outside:
+                info['not_fitting'] = outside
+            return data_bytes, info
+        try:
+            data_bytes = (
+                write(item_entries, new_ones=_camera_with_local(context))
+                if fname == 'war3map.w3c'
+                else write(item_entries)
+            )
+        except _DOES_NOT_FIT:
+            return None
         return data_bytes, {'file_name': fname, 'declared': declared, 'read_count': 0, 'new': len(item_entries),
                             'from_script': True, 'reason': x.get('reason'),
                             'where': where, 'singular': singular, 'plural': plural,
@@ -1098,6 +1133,8 @@ def count_in_file(fname, a):
 
 def _empty(fname, b, d):
     v = d.get('version_num')
+    if v is not None and not 0 <= v < 1 << 31:
+        v = None
     if fname == 'war3map.w3r':
         return struct.pack('<ii', v if v else 5, 0)
     if fname == 'war3map.w3c':
@@ -1446,36 +1483,59 @@ def _drop_item_sets(body):
     return out
 
 
+_VAR = r'(\w+)'
+RXU_GOLD = re.compile(r'SetResourceAmount\(\s*' + _VAR + r'\s*,\s*(\d+)\s*\)')
+RXU_RANGE = re.compile(r'SetUnitAcquireRange\(\s*' + _VAR + r'\s*,\s*([-+0-9.eE]+)\s*\)')
+RXU_LIFE = re.compile(r'SetUnitState\(\s*' + _VAR + r'\s*,\s*UNIT_STATE_LIFE\s*,\s*([0-9.]+)\s*\*')
+RXU_MANA = re.compile(r'SetUnitState\(\s*' + _VAR + r'\s*,\s*UNIT_STATE_MANA\s*,\s*([0-9.]+)\s*\)')
+RXU_LEVEL = re.compile(r'SetHeroLevel\(\s*' + _VAR + r'\s*,\s*(\d+)')
+RXU_ATTRIBUTE = re.compile(r'SetHero(Str|Agi|Int)\(\s*' + _VAR + r'\s*,\s*(\d+)')
+RXU_ABILITY = re.compile(r'SelectHeroSkill\(\s*' + _VAR + r'\s*,\s*' + _ID)
+RXU_INVENTORY = re.compile(r'UnitAddItemToSlotById\(\s*' + _VAR + r'\s*,\s*' + _ID + r'\s*,\s*(\d+)')
+RXU_STARTUP = re.compile(r'IssueImmediateOrder\(\s*' + _VAR + r'\s*,\s*"unroot"\s*\)')
+RXU_ACTION = re.compile(r'TriggerAddAction\(\s*\w+\s*,\s*(?:function\s+)?(\w+)\s*\)')
+RXU_EVENT = re.compile(r'TriggerRegisterUnitEvent\(\s*\w+\s*,\s*' + _VAR + r'\s*,')
+RXU_WAYGATE = re.compile(r'WaygateSetDestination\(\s*' + _VAR + r'\s*,\s*GetRectCenterX\(\s*(\w+)\s*\)')
+RXU_TABLE = re.compile(r'ItemTable(\d+)_DropItems$')
+
+
+def _of_variable(rx, segment, var, g=1):
+    return [m for m in rx.finditer(segment) if not var or m.group(g) == var]
+
+
+def _first(rx, segment, var, g=1):
+    return next((m for m in rx.finditer(segment) if not var or m.group(g) == var), None)
+
+
 def _unit_fields(segment, var, bodies, regions):
-    v = re.escape(var) if var else r'\w+'
     u = {}
-    m = re.search(r'SetResourceAmount\(\s*%s\s*,\s*(\d+)\s*\)' % v, segment)
+    m = _first(RXU_GOLD, segment, var)
     if m:
-        u['gold'] = int(m.group(1))
-    m = re.search(r'SetUnitAcquireRange\(\s*%s\s*,\s*([-+0-9.eE]+)\s*\)' % v, segment)
+        u['gold'] = int(m.group(2))
+    m = _first(RXU_RANGE, segment, var)
     if m:
-        acquire_range = _num(m.group(1))
+        acquire_range = _num(m.group(2))
         if acquire_range == 200.0:
             u['campaign_info'] = True
         else:
             u['acquisition'] = acquire_range
-    m = re.search(r'SetUnitState\(\s*%s\s*,\s*UNIT_STATE_LIFE\s*,\s*([0-9.]+)\s*\*' % v, segment)
+    m = _first(RXU_LIFE, segment, var)
     if m:
-        u['life_pct'] = int(round(float(m.group(1)) * 100))
-    m = re.search(r'SetUnitState\(\s*%s\s*,\s*UNIT_STATE_MANA\s*,\s*([0-9.]+)\s*\)' % v, segment)
+        u['life_pct'] = int(round(float(m.group(2)) * 100))
+    m = _first(RXU_MANA, segment, var)
     if m:
-        u['mana'] = int(round(float(m.group(1))))
-    m = re.search(r'SetHeroLevel\(\s*%s\s*,\s*(\d+)' % v, segment)
+        u['mana'] = int(round(float(m.group(2))))
+    m = _first(RXU_LEVEL, segment, var)
     if m:
-        u['level'] = int(m.group(1))
+        u['level'] = int(m.group(2))
     hero_attributes = [0, 0, 0]
-    for m in re.finditer(r'SetHero(Str|Agi|Int)\(\s*%s\s*,\s*(\d+)' % v, segment):
-        hero_attributes[('Str', 'Agi', 'Int').index(m.group(1))] = int(m.group(2))
+    for m in _of_variable(RXU_ATTRIBUTE, segment, var, 2):
+        hero_attributes[('Str', 'Agi', 'Int').index(m.group(1))] = int(m.group(3))
     if any(hero_attributes):
         u['hero_attributes'] = tuple(hero_attributes)
     abilities = []
-    for m in re.finditer(r'SelectHeroSkill\(\s*%s\s*,\s*%s' % (v, _ID), segment):
-        h = _script_id(m, 1)
+    for m in _of_variable(RXU_ABILITY, segment, var):
+        h = _script_id(m, 2)
         for k, (hid, _autocast, n) in enumerate(abilities):
             if hid == h:
                 abilities[k] = (hid, 0, n + 1)
@@ -1484,24 +1544,23 @@ def _unit_fields(segment, var, bodies, regions):
             abilities.append((h, 0, 1))
     if abilities:
         u['abilities'] = abilities
-    inventory = [(int(m.group(4)), _script_id(m, 1))
-                 for m in re.finditer(r'UnitAddItemToSlotById\(\s*%s\s*,\s*%s\s*,\s*(\d+)' % (v, _ID), segment)]
+    inventory = [(int(m.group(5)), _script_id(m, 2)) for m in _of_variable(RXU_INVENTORY, segment, var)]
     if inventory:
         u['inventory'] = inventory
-    if re.search(r'IssueImmediateOrder\(\s*%s\s*,\s*"unroot"\s*\)' % v, segment):
+    if _first(RXU_STARTUP, segment, var):
         u['uprooted'] = True
-    m = re.search(r'TriggerAddAction\(\s*\w+\s*,\s*(?:function\s+)?(\w+)\s*\)', segment)
-    if m and re.search(r'TriggerRegisterUnitEvent\(\s*\w+\s*,\s*%s\s*,' % v, segment):
-        t = re.match(r'ItemTable(\d+)_DropItems$', m.group(1))
+    m = RXU_ACTION.search(segment)
+    if m and _first(RXU_EVENT, segment, var):
+        t = RXU_TABLE.match(m.group(1))
         if t:
             u['item_table'] = int(t.group(1))
         elif m.group(1) in bodies:
             item_sets = _drop_item_sets(bodies[m.group(1)])
             if item_sets:
                 u['item_sets'] = item_sets
-    m = re.search(r'WaygateSetDestination\(\s*%s\s*,\s*GetRectCenterX\(\s*(\w+)\s*\)' % v, segment)
-    if m and regions and regions.get(m.group(1)) is not None:
-        u['waygate'] = regions[m.group(1)]
+    m = _first(RXU_WAYGATE, segment, var)
+    if m and regions and regions.get(m.group(2)) is not None:
+        u['waygate'] = regions[m.group(2)]
     return u
 
 

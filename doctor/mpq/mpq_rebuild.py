@@ -59,14 +59,15 @@ def rebuild(
     new_ones = {_norm(k): v for k, v in (new_ones or {}).items()}
     to_remove = {_norm(n) for n in to_remove}
     a = mpqread.Archive(entry)
-    hn = a.h.hash_n
+    hn = a.hash_n
+    hn_read = a.hash_n_read
     known = {}
     for n in list(name_list) + list(replacements) + list(new_ones) + list(to_remove) + ['(listfile)', '(attributes)',
                                                                               '(signature)']:
         n = _norm(n)
         known.setdefault(pair(n), n)
-    ht = [tuple(a.ht[i * 4:i * 4 + 4]) for i in range(hn)]
-    live = [i for i in range(hn) if ht[i][3] < len(a.blocks)]
+    ht = [tuple(a.ht[i * 4:i * 4 + 4]) for i in range(hn_read)]
+    live = [i for i in range(hn_read) if (ht[i][3] & mpqread.BLOCK_MASK) < len(a.blocks)]
     clusters = {}
     for i in live:
         clusters.setdefault((ht[i][0], ht[i][1]), []).append(i)
@@ -117,7 +118,7 @@ def rebuild(
         if fname is not None and fname in replacements:
             content[slot] = replacements[fname]
             continue
-        bi = ht[slot][3]
+        bi = ht[slot][3] & mpqread.BLOCK_MASK
         fl = a.blocks[bi][3]
         hash_key = None
         if fl & mpqread.FLAG_ENCRYPT and fname is None:
@@ -145,7 +146,7 @@ def rebuild(
     def status(s):
         if s in keep:
             return ('alive', s)
-        if ht[s][3] == FREE and s not in dropped:
+        if s < hn_read and ht[s][3] == FREE and s not in dropped:
             return 'free'
         return 'deleted'
 

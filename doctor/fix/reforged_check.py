@@ -330,6 +330,21 @@ def _script_items(src, diag, progress):
     return items, False
 
 
+def _source(path, diag, codes):
+    src = diag.get('restored')
+    if src and os.path.isfile(src):
+        return src
+    if 'ntfs_copy' in codes:
+        try:
+            with unprotect.quiet():
+                src = unprotect.restore_copy(path)[0]
+        except Exception:
+            src = None
+        if src:
+            return src
+    return path
+
+
 def check(path, progress=None, diag=None):
     p = progress or _nothing
     res = {'verdict': None, 'items': [], 'script': None, 'size': None, 'models': 0}
@@ -378,9 +393,13 @@ def check(path, progress=None, diag=None):
         items.append(_item('campaign', 'info', 'This is a campaign: check each of its maps on its own.', 'none'))
         return _finish(res, True)
     unknown = False
-    src = diag.get('restored') or path
+    src = _source(path, diag, codes)
     if res['script'] in ('jass', 'lua'):
-        found, unknown = _script_items(src, diag, p)
+        try:
+            found, unknown = _script_items(src, diag, p)
+        except Exception as e:
+            found, unknown = [_item('script_unreadable', 'warning', 'The script could not be checked (%s).'
+                                    % unprotect._error(e), 'none')], True
         items += found
     elif res['script'] is None and not any(x['severity'] == 'blocker' for x in items):
         items.append(_item('no_script', 'warning', 'The map has no script the game can find.', 'none'))

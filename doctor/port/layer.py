@@ -15,7 +15,7 @@ RX_INCLUDE = re.compile(r'(?m)^[ \t]*//\{\{KK_INCLUI:([a-z0-9_]+)\}\}[ \t]*\r?\n
 RX_IF = re.compile(r'(?m)^[ \t]*//\{\{KK_(SE|FIMSE):(KK_[A-Z0-9_]+)\}\}[ \t]*\r?\n')
 
 ROOT = None
-PARTES = []
+PARTS = []
 WAVE1_PARTS = []
 REF = None
 ANALYSIS = None
@@ -34,11 +34,11 @@ NO_STUB = set()
 
 def configure_layer(root, pieces, wave1_parts=(), ref=None, analise=None, output=None, parameters=None,
                     map_natives=None, compat=None, out=None, generator=None, injector=None, blizzard_header=None,
-                    layer_header=None, portao=None, no_stub=()):
-    global ROOT, PARTES, WAVE1_PARTS, REF, ANALYSIS, DEFAULT_OUTPUT, PARAMETROS, MAP_NATIVES, COMPAT, OUT
+                    layer_header=None, gate=None, no_stub=()):
+    global ROOT, PARTS, WAVE1_PARTS, REF, ANALYSIS, DEFAULT_OUTPUT, PARAMETROS, MAP_NATIVES, COMPAT, OUT
     global GENERATOR, INJECTOR, BLIZZARD_HEADER, LAYER_HEADER, GATE, NO_STUB
     ROOT = os.path.abspath(root)
-    PARTES = list(pieces)
+    PARTS = list(pieces)
     WAVE1_PARTS = list(wave1_parts)
     REF = ref or REF_30
     ANALYSIS = analise or os.path.join(ROOT, 'port', 'analysis')
@@ -51,7 +51,7 @@ def configure_layer(root, pieces, wave1_parts=(), ref=None, analise=None, output
     INJECTOR = injector or 'injeta.py'
     BLIZZARD_HEADER = list(blizzard_header) if blizzard_header else None
     LAYER_HEADER = list(layer_header) if layer_header else None
-    GATE = list(portao) if portao else None
+    GATE = list(gate) if gate else None
     NO_STUB = set(no_stub or ())
 
 
@@ -128,7 +128,7 @@ def display_name(p):
 
 def kk_files():
     out = []
-    for p in PARTES + WAVE1_PARTS:
+    for p in PARTS + WAVE1_PARTS:
         for n in part_names(p):
             if n.startswith('KK:') or n.startswith('KKN:'):
                 out.append(part_path(n))
@@ -495,7 +495,7 @@ def _defined_in_fixed_parts(listing, params):
 
 def read_parts(argv=None):
     _demand_check()
-    listing = PARTES + (WAVE1_PARTS if '--onda1' in (sys.argv if argv is None else argv) else [])
+    listing = PARTS + (WAVE1_PARTS if '--onda1' in (sys.argv if argv is None else argv) else [])
     params = read_parameters()
     in_use = set()
     natives, globals_block, functions = [], [], []
@@ -588,6 +588,7 @@ def main(argv=None):
 
     layer = arg('layer', None, argv)
     smoke_mode = '--stubs' in argv
+    pend = None
 
     engine = set(RX_ANY_DEF.findall(read_latin1(os.path.join(REF, 'common.j'))))
     engine |= set(RX_ANY_DEF.findall(read_latin1(os.path.join(REF, 'blizzard.j'))))
@@ -627,6 +628,7 @@ def main(argv=None):
             g = [rx_global_clash.sub(r'kkc_\1', line) for line in g]
             functions_block = rx_global_clash.sub(r'kkc_\1', functions_block)
         done_names = implemented_names(functions_block)
+        pend = [n for n in order if n not in (done_names | in_layer)]
         stubs = make_stubs(decl, order, done_names | in_layer)
         functions_block = functions_block + '\n\n' + stubs
 
@@ -650,6 +652,10 @@ def main(argv=None):
                  if smoke_mode else
                  'REAL MODE: the logic of the platform natives, from port/compat/*.j.')
         raw_bytes = write_layer(layer, before, g, after_diag, score)
+        if pend is not None:
+            with open(os.path.join(os.path.dirname(os.path.abspath(layer)), 'layer_stubs.json'), 'w',
+                      encoding='utf-8') as fh:
+                json.dump(pend, fh, ensure_ascii=False, indent=1)
         nf = len(RX_FUNC_DEF.findall(after_diag))
         print('layer written: %s (%d B, %d natives, %d lines of globals, %d functions)'
               % (layer, len(raw_bytes), len(natives), len(g.split('\n')), nf))
@@ -670,7 +676,7 @@ def main(argv=None):
     print('written: %s (%d lines, %d B)'
           % (output, len(output_lines), os.path.getsize(output)))
 
-    if '--sem-pjass' in argv:
+    if '--no-pjass' in argv:
         return 0
     cmd = GATE or [sys.executable, PJASS_PY, '--root=' + ROOT, '--ref=' + REF, '--conjunto',
                    '--blizzard=' + os.path.abspath(output)]

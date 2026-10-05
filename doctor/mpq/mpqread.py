@@ -235,6 +235,8 @@ class Archive:
         self.h, self.skipped = M.find_header(self.d, path)
         if self.h is None:
             raise SystemExit('no valid MPQ header')
+        if M.header_sector(self.h.block_shift) == 0:
+            raise SystemExit('invalid sector size in the MPQ header (wSectorSize gives sector 0)')
         self.hash_n = self.h.hash_n & 0x0FFFFFFF
         self.block_n = self.h.block_n & 0x0FFFFFFF
         hm = M.Header()
@@ -373,6 +375,8 @@ class Archive:
             if not r:
                 return None
             bi = r[1]
+        if bi >= len(self.blocks):
+            return None
         off, cs, fs, fl = self.blocks[bi]
         if not (fl & FLAG_EXISTS) or bi >= 0xFFFFFFFE:
             return None

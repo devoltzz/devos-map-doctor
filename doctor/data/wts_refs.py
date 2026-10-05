@@ -4,7 +4,8 @@ import sys
 
 
 IDEO = re.compile('[' + chr(0x4E00) + '-' + chr(0x9FFF) + chr(0x3400) + '-' + chr(0x4DBF) + ']')
-RE_WTS = re.compile(r'STRING (\d+)\s*(?://[^\n]*\n)?\s*\{\r?\n(.*?)\r?\n\}', re.S)
+RE_WTS = re.compile(r'^(?:\ufeff)?STRING[ \t]+(\d+)[^\n]*\n(?:[ \t]*(?://[^\n]*)?\r?\n)*[ \t]*\{[^\n]*\n'
+                    r'(.*?)\r?\n?^\}', re.S | re.M)
 DATA = ('war3map.w3u', 'war3map.w3t', 'war3map.w3a', 'war3map.w3h', 'war3map.w3d',
         'war3map.w3q', 'war3map.w3i', 'war3map.w3b', 'war3mapSkin.txt', 'war3mapMisc.txt')
 

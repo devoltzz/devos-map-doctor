@@ -59,7 +59,7 @@ def translate_txt(extract, tr_dir):
 
 
 def swap_no_dot(units, listing):
-    por = {}
+    by = {}
     for f in sorted(os.listdir(units)):
         if not f.lower().endswith(('.slk', '.txt')):
             continue
@@ -69,8 +69,8 @@ def swap_no_dot(units, listing):
         n = sum(tally.values())
         if n:
             open(p, 'wb').write(new.encode('utf-8', 'surrogateescape'))
-            por[f] = n
-    return sum(por.values()), por
+            by[f] = n
+    return sum(by.values()), by
 
 
 def applies(extract, data_bytes, raw_data, segment, tr_dir=None, expected_count=None, no_dot=None, tolerant_mode=False):
@@ -135,7 +135,7 @@ def applies(extract, data_bytes, raw_data, segment, tr_dir=None, expected_count=
             'the map has no Units\\AbilityData.slk: without levels 5 and 6 and without the Chaos abilities'
         )
     from doctor.data import buttonpos_fix
-    rc, out = run_action(buttonpos_fix, [units, '--sem-aprender'])
+    rc, out = run_action(buttonpos_fix, [units, '--no-learn'])
     if rc:
         failures.append('buttonpos_fix: %s' % out[-300:])
     info['buttonpos'] = out.strip().splitlines()[-4:]

@@ -360,6 +360,8 @@ def _tolerant_sections(r, m, v, type0_short):
 
 
 def parse_tolerant(data):
+    if len(data) < 4:
+        raise ValueError('w3i too short: %d byte(s), not even the version fits' % len(data))
     best = None
     for type0_short in (False, True):
         r = R(data)

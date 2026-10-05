@@ -304,21 +304,21 @@ class GameData(object):
                 if casc is None:
                     from doctor.data import casc_wc3
                     casc = casc_wc3.CascWC3()
-                _h, rows = slk.parse_slk_bytes(casc.read_wc3('units\\unitbalance.slk'))
+                _h, rows = slk.parse_slk_bytes_memo(casc.read_wc3('units\\unitbalance.slk'))
                 for k, row in rows.items():
                     units[k.encode('latin-1')] = (row.get('isbldg') or '0').strip() == '1'
-                _h, rows = slk.parse_slk_bytes(casc.read_wc3('units\\itemdata.slk'))
+                _h, rows = slk.parse_slk_bytes_memo(casc.read_wc3('units\\itemdata.slk'))
                 items = set(k.encode('latin-1') for k in rows)
                 for k, row in rows.items():
                     colors[k.encode('latin-1')] = (_int(row.get('teamColor'), -1), _int(row.get('customTeamColor'), 0))
-                _h, rows = slk.parse_slk_bytes(casc.read_wc3('units\\destructabledata.slk'))
+                _h, rows = slk.parse_slk_bytes_memo(casc.read_wc3('units\\destructabledata.slk'))
                 dests = set(k.encode('latin-1') for k in rows)
-                _h, rows = slk.parse_slk_bytes(casc.read_wc3('units\\abilitydata.slk'))
+                _h, rows = slk.parse_slk_bytes_memo(casc.read_wc3('units\\abilitydata.slk'))
                 cls.ABILITY_IDS.update(k.encode('latin-1') for k in rows)
-                _h, rows = slk.parse_slk_bytes(casc.read_wc3('units\\unitabilities.slk'))
+                _h, rows = slk.parse_slk_bytes_memo(casc.read_wc3('units\\unitabilities.slk'))
                 for k, row in rows.items():
                     cls.ABILITIES[k.encode('latin-1')] = (row.get('abilList') or '').replace('"', '')
-                _h, rows = slk.parse_slk_bytes(casc.read_wc3('units\\unitui.slk'))
+                _h, rows = slk.parse_slk_bytes_memo(casc.read_wc3('units\\unitui.slk'))
                 for k, row in rows.items():
                     colors[k.encode('latin-1')] = (_int(row.get('teamColor'), -1), _int(row.get('customTeamColor'), 0))
                 current = None
@@ -1204,7 +1204,12 @@ RX_OBJECT_NAME = re.compile(r'\bgg_(?:unit|item|dest)_\w{4}_\d+\b')
 
 def referenced_objects(mt, texts=None, header=None, enabled_only=True):
     from doctor.triggers import wtg
-    out = []
+    out, seen = [], set()
+
+    def add(name):
+        if name not in seen:
+            seen.add(name)
+            out.append(name)
 
     def walk(functions):
         for f in functions:
@@ -1212,8 +1217,8 @@ def referenced_objects(mt, texts=None, header=None, enabled_only=True):
                 continue
             for p in f.params:
                 while p is not None:
-                    if p.kind == wtg.VARIABLE and p.value.startswith('gg_') and p.value not in out:
-                        out.append(p.value)
+                    if p.kind == wtg.VARIABLE and p.value.startswith('gg_'):
+                        add(p.value)
                     if p.function is not None:
                         walk([p.function])
                     p = p.index
@@ -1226,9 +1231,11 @@ def referenced_objects(mt, texts=None, header=None, enabled_only=True):
         walk(t.functions)
         text = texts[k] if texts and k < len(texts) else None
         if t.is_text and text:
-            out += [n for n in RX_OBJECT_NAME.findall(text) if n not in out]
+            for n in RX_OBJECT_NAME.findall(text):
+                add(n)
     if header:
-        out += [n for n in RX_OBJECT_NAME.findall(header) if n not in out]
+        for n in RX_OBJECT_NAME.findall(header):
+            add(n)
     return out
 
 
@@ -1660,7 +1667,8 @@ def _line(text):
 def editor_script(rendering, header, dropped=(), replaced=(), inject=True, triggers=''):
     back = _renamer(replaced)
     text = header.masked
-    decls = ''.join(back(text[slice(*d[4])]) for n, d in header.decls.items() if n not in set(dropped))
+    gone_decls = set(dropped)
+    decls = ''.join(back(text[slice(*d[4])]) for n, d in header.decls.items() if n not in gone_decls)
     types = ''.join(text[a:b] for a, b in header.types)
     natives = ''.join(_line(text[a:b]) for a, b in header.natives)
     gone = set(DEVO + x for x in replaced) | {'main', 'config'}
@@ -1679,9 +1687,10 @@ def editor_script(rendering, header, dropped=(), replaced=(), inject=True, trigg
 
 def fitted_header(header, dropped=(), replaced=()):
     spans = [header.decls[n][4] for n in dropped if n in header.decls]
+    gone = set(dropped)
     for block in header.blocks:
         inside = [n for n, d in header.decls.items() if d[5] == block]
-        if inside and all(n in set(dropped) for n in inside):
+        if inside and all(n in gone for n in inside):
             spans.append(block)
     for x in replaced:
         lead, _a, b = header.functions[DEVO + x]

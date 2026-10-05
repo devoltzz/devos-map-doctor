@@ -150,7 +150,7 @@ def fix_matrix_groups(data, limit=LIMIT, so_dedup=False):
         info['action_code'] = 'nada a fazer'
         return data, info
     info['so_dedup'] = so_dedup
-    info['above_do_limit'] = []
+    info['above_the_limit'] = []
     newsets = []
     extra = []
     for gi, g in enumerate(gsets):
@@ -163,7 +163,7 @@ def fix_matrix_groups(data, limit=LIMIT, so_dedup=False):
             newsets.append((build_geoset(d)[4:], gi))
             continue
         if so_dedup:
-            info['above_do_limit'].append({'geoset': gi, 'clusters': len(d['groups'])})
+            info['above_the_limit'].append({'geoset': gi, 'clusters': len(d['groups'])})
             newsets.append((bytes(g), gi))
             continue
         parts = [d]

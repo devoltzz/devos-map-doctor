@@ -35,15 +35,15 @@ def header_bytes(d, path='<bytes>', byte_size=None):
         jh = struct.unpack_from('<I', d, 156)[0]
         info = dict(version_num=1, compression=compr, alpha_bits=alpha, map_width=w, map_height=h,
                     kind=kind, mips=mips, offsets=offs, sizes=sizes, jpeg_header=jh,
-                    data_em=160 + jh)
+                    data_at=160 + jh)
     else:
-        compr, alpha, atipo, mips = struct.unpack_from('<BBBB', d, 4)
-        w, h = struct.unpack_from('<II', d, 8)
-        offs = struct.unpack_from('<16I', d, 12)
-        sizes = struct.unpack_from('<16I', d, 76)
+        compr, alpha, atipo, mips = struct.unpack_from('<BBBB', d, 8)
+        w, h = struct.unpack_from('<II', d, 12)
+        offs = struct.unpack_from('<16I', d, 20)
+        sizes = struct.unpack_from('<16I', d, 84)
         info = dict(version_num=2, compression=compr, alpha_bits=alpha, alpha_type=atipo,
                     map_width=w, map_height=h, kind=atipo, mips=mips, offsets=offs, sizes=sizes,
-                    jpeg_header=0, data_em=148)
+                    jpeg_header=0, data_at=148)
     if not (0 < info['map_width'] <= 8192 and 0 < info['map_height'] <= 8192):
         raise BLPError('%s: dimensoes implausiveis %dx%d' % (path, info['map_width'], info['map_height']))
     info['file_name'] = path
@@ -122,11 +122,11 @@ def _alpha_separate(d, base, w, h, bits):
     if bits == 4:
         n = (w * h + 1) // 2
         b4 = np.frombuffer(d, dtype=np.uint8, count=n, offset=base)
-        alto = (b4 >> 4) & 0x0F
-        baixo = b4 & 0x0F
+        high = (b4 >> 4) & 0x0F
+        low = b4 & 0x0F
         inter = np.empty(n * 2, np.uint8)
-        inter[0::2] = alto
-        inter[1::2] = baixo
+        inter[0::2] = high
+        inter[1::2] = low
         return (inter[:w * h].reshape(h, w) * 17).astype(np.uint8)
     raise BLPError('alphaBits %d not supported in a palettized BLP' % bits)
 
@@ -145,7 +145,7 @@ def _paletted_bytes(d, info, mip, base_pal):
     return Image.fromarray(np.ascontiguousarray(rgba), 'RGBA')
 
 
-def _colors_dxt(c0, c1, com_alpha):
+def _colors_dxt(c0, c1, with_alpha):
     def expande(v):
         r = (v >> 11) & 0x1F
         g = (v >> 5) & 0x3F
@@ -157,16 +157,16 @@ def _colors_dxt(c0, c1, com_alpha):
     colors = np.zeros((4, 3), np.float32)
     colors[0] = a
     colors[1] = b
-    if c0 > c1 or not com_alpha:
+    if c0 > c1 or not with_alpha:
         colors[2] = (2 * a + b) / 3.0
         colors[3] = (a + 2 * b) / 3.0
     else:
         colors[2] = (a + b) / 2.0
         colors[3] = 0.0
-    return colors, (c0 <= c1 and com_alpha)
+    return colors, (c0 <= c1 and with_alpha)
 
 
-def _blocks_dxt1(d, off, w, h, com_alpha=True):
+def _blocks_dxt1(d, off, w, h, with_alpha=True):
     img = np.zeros((h, w, 4), np.uint8)
     nb_x = (w + 3) // 4
     nb_y = (h + 3) // 4
@@ -175,7 +175,7 @@ def _blocks_dxt1(d, off, w, h, com_alpha=True):
         for bx in range(nb_x):
             c0, c1, bits = struct.unpack_from('<HHI', d, p)
             p += 8
-            colors, transparente = _colors_dxt(c0, c1, com_alpha)
+            colors, transparente = _colors_dxt(c0, c1, with_alpha)
             for i in range(16):
                 y = by * 4 + i // 4
                 x = bx * 4 + i % 4
@@ -188,7 +188,7 @@ def _blocks_dxt1(d, off, w, h, com_alpha=True):
 
 
 def _blocks_dxt3(d, off, w, h):
-    img = _blocks_dxt1(d, off + 8, w, h, com_alpha=False)
+    img = _blocks_dxt1(d, off + 8, w, h, with_alpha=False)
     nb_x = (w + 3) // 4
     nb_y = (h + 3) // 4
     p = off
@@ -202,13 +202,13 @@ def _blocks_dxt3(d, off, w, h):
                 if y >= h or x >= w:
                     continue
                 v = alfa[i // 8, i % 8 // 2]
-                v = (v >> 4) & 0x0F if (i % 2 == 0) else v & 0x0F
+                v = v & 0x0F if (i % 2 == 0) else (v >> 4) & 0x0F
                 img[y, x, 3] = v * 17
     return img
 
 
 def _blocks_dxt5(d, off, w, h):
-    img = _blocks_dxt1(d, off + 8, w, h, com_alpha=False)
+    img = _blocks_dxt1(d, off + 8, w, h, with_alpha=False)
     nb_x = (w + 3) // 4
     nb_y = (h + 3) // 4
     p = off
@@ -234,10 +234,10 @@ def _blocks_dxt5(d, off, w, h):
 def read_data(path, mip=0, info=None):
     info = info or header_text(path)
     with open(path, 'rb') as f:
-        return le_bytes(f.read(), mip, info, path)
+        return read_bytes(f.read(), mip, info, path)
 
 
-def le_bytes(data_bytes, mip=0, info=None, path='<bytes>'):
+def read_bytes(data_bytes, mip=0, info=None, path='<bytes>'):
     info = info or header_bytes(data_bytes, path)
     if mip and (mip >= 16 or not info['sizes'][mip]):
         raise BLPError('%s: has no mipmap %d' % (path, mip))
@@ -247,7 +247,7 @@ def le_bytes(data_bytes, mip=0, info=None, path='<bytes>'):
         if info['jpeg_header']:
             cab_jpeg = data_bytes[160:160 + info['jpeg_header']]
         jpg = cab_jpeg + _data_bytes(data_bytes, info, mip, path)
-        im, ok = _jpeg_blp_para_rgba(jpg, info['map_width'], info['map_height'], True)
+        im, ok = _jpeg_blp_para_rgba(jpg, info['map_width'], info['map_height'], info['alpha_bits'] != 0)
         if not ok:
             im = im.convert('RGBA')
         return im, info
@@ -267,7 +267,7 @@ def le_bytes(data_bytes, mip=0, info=None, path='<bytes>'):
         if c == 2:
             at = info.get('alpha_type', 0)
             if at == 0:
-                arr = _blocks_dxt1(d, 0, w, h, com_alpha=True)
+                arr = _blocks_dxt1(d, 0, w, h, with_alpha=True)
             elif at == 1:
                 arr = _blocks_dxt3(d, 0, w, h)
             elif at == 7:
@@ -278,7 +278,7 @@ def le_bytes(data_bytes, mip=0, info=None, path='<bytes>'):
     raise BLPError('%s: format not supported (%s)' % (path, info['format']))
 
 
-def le_melhor(path):
+def read_best(path):
     info = header_text(path)
     try:
         return read_data(path, 0, info)

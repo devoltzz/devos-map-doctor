@@ -40,7 +40,7 @@ def literals(line):
 def classify(line, pos, lit):
     before = line[max(0, pos - 40):pos]
     after = line[pos + len(lit) + 2:pos + len(lit) + 12]
-    if '==' in before[-4:] or after.startswith('==') or '!=' in before[-4:] or after.startswith('!='):
+    if re.search(r'[=!]=\s*$', before) or after.lstrip().startswith(('==', '!=')):
         return 'comparison'
     if re.search(r'TriggerRegisterPlayerChatEvent\s*\([^()"]*(?:\([^()"]*\)[^()"]*)*$', line[:pos]):
         return 'chat'

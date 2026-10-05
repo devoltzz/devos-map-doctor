@@ -92,8 +92,12 @@ def add_files(
     grow=None,
     slack=0,
 ):
+    with open(path, 'r+b') as f:
+        return _add_to_open_file(f, path, repl, to_delete, reset, all_entries, fake_count, log, no_slot, grow, slack)
+
+
+def _add_to_open_file(f, path, repl, to_delete, reset, all_entries, fake_count, log, no_slot, grow, slack):
     m._crypt = m._init_crypt()
-    f = open(path, 'r+b')
     head = f.read(4096)
     off = _ML.header_offset(path)
     if off + 32 > len(head):
@@ -101,12 +105,18 @@ def add_files(
         head = f.read(off + 32)
     magic, hsize, asize, ver, bshift, hoff, boff, hcount, bcount = struct.unpack_from('<4sIIHHIIII', head, off)
     if ver != 0:
-        f.close()
         raise AssertionError('MPQ v1 only')
+    hcount &= 0x0FFFFFFF
+    bcount &= 0x0FFFFFFF
     f.seek((off + hoff) & 0xFFFFFFFF)
     htab = bytearray(m.decrypt(f.read(hcount * 16), m.hash_string('(hash table)', 3)))
     f.seek((off + boff) & 0xFFFFFFFF)
     btab = bytearray(m.decrypt(f.read(bcount * 16), m.hash_string('(block table)', 3)))
+    if len(htab) < hcount * 16:
+        raise SystemExit('hash table declared beyond the end of the file (%d entries, %d in the file): virtual table; '
+                         'run mpqdoctor --fix first' % (hcount, len(htab) // 16))
+    bcount = min(bcount, len(btab) // 16)
+    del btab[bcount * 16:]
     f.seek(0, 2)
     end = f.tell()
     tables_end = off + max(hoff + hcount * 16, boff + bcount * 16)
@@ -114,7 +124,7 @@ def add_files(
         n_fake = 0
         for i in range(hcount):
             n1, n2, loc, plat, bi = struct.unpack_from('<IIHHI', htab, i * 16)
-            if bi not in (0xFFFFFFFF, 0xFFFFFFFE) and bi >= bcount:
+            if bi not in (0xFFFFFFFF, 0xFFFFFFFE) and (bi & 0x0FFFFFFF) >= bcount:
                 struct.pack_into('<IIHHI', htab, i * 16, n1, n2, loc, plat, 0xFFFFFFFE)
                 n_fake += 1
         log('fake: %d hash table entry(ies) with a nonexistent block -> removed' % n_fake)
@@ -126,7 +136,7 @@ def add_files(
             n1, n2, _l, _p, bi = struct.unpack_from('<IIHHI', htab, i * 16)
             if bi in (0xFFFFFFFF, 0xFFFFFFFE):
                 available += 1
-            elif bi < bcount:
+            elif (bi & 0x0FFFFFFF) < bcount:
                 pairs.add((n1, n2))
         new_ones = sum(1 for fname, _c in repl
                        if (m.hash_string(fname, 1), m.hash_string(fname, 2)) not in pairs)
@@ -134,7 +144,7 @@ def add_files(
         if (new_ones or slack) and available < tgt:
             known = _known_pairs(grow)
             known_live = sum(1 for i in range(hcount)
-                             if struct.unpack_from('<I', htab, i * 16 + 12)[0] < bcount and
+                             if (struct.unpack_from('<I', htab, i * 16 + 12)[0] & 0x0FFFFFFF) < bcount and
                              struct.unpack_from('<II', htab, i * 16) in known)
             factor = 2
             while hcount * factor <= HASH_MAX and \
@@ -186,8 +196,8 @@ def add_files(
                 break
             if bi == 0xFFFFFFFE and free is None:
                 free = i
-            if n1 == ha and n2 == hb and bi < len(btab) // 16:
-                hits.append((i, bi, loc, plat))
+            if n1 == ha and n2 == hb and (bi & 0x0FFFFFFF) < len(btab) // 16:
+                hits.append((i, bi & 0x0FFFFFFF, loc, plat))
             i = (i + 1) & (hcount - 1)
         if not hits and free is None:
             if no_slot is None:
@@ -265,6 +275,5 @@ def add_files(
     f.write(struct.pack('<II', hcount, bcount))
     f.seek(off + 16)
     f.write(struct.pack('<II', hoff, boff))
-    f.close()
     log('ok: size %d (%.1f MiB), blocks=%d, boff=%d' % (new_end, new_end / 1048576.0, bcount, boff))
     return new_end

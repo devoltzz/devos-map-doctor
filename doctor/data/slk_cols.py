@@ -18,13 +18,31 @@ def join_lines(line_list, crlf):
     return (('\r\n' if crlf else '\n').join(line_list)).encode('utf-8', 'surrogateescape')
 
 
+def slk_fields(ln):
+    out = []
+    buf = None
+    for p in ln.split(';')[1:]:
+        if buf is not None:
+            buf += ';' + p
+            if buf.count('"') % 2 == 0:
+                out.append(buf)
+                buf = None
+        elif p.startswith('K"') and p.count('"') % 2 == 1:
+            buf = p
+        else:
+            out.append(p)
+    if buf is not None:
+        out.append(buf)
+    return out
+
+
 def slk_cells(line_list):
     cur_x = cur_y = None
     for i, line in enumerate(line_list):
         if not line.startswith('C;'):
             continue
         x = y = k = None
-        for c in line.split(';')[1:]:
+        for c in slk_fields(line):
             if c.startswith('X') and c[1:2].isdigit():
                 x = int(re.match(r'X(\d+)', c).group(1))
             elif c.startswith('Y') and c[1:2].isdigit():
@@ -74,8 +92,9 @@ def filter_lines(line_list, keep_names):
         if not line.startswith('C;'):
             output.append(line)
             continue
+        fields = slk_fields(line)
         x = y = None
-        for c in line.split(';')[1:]:
+        for c in fields:
             if c.startswith('X') and c[1:2].isdigit():
                 x = int(re.match(r'X(\d+)', c).group(1))
             elif c.startswith('Y') and c[1:2].isdigit():
@@ -87,7 +106,7 @@ def filter_lines(line_list, keep_names):
         if cur_x not in new_x:
             continue
         k = None
-        for c in line.split(';')[1:]:
+        for c in fields:
             if c.startswith('K'):
                 k = c[1:]
         if k is None:

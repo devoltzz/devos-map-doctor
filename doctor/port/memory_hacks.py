@@ -6,6 +6,7 @@ RX_FUNC = re.compile(r'^([ \t]*)(?:constant[ \t]+)?function[ \t]+(\w+)[ \t]+take
 RX_END = re.compile(r'^[ \t]*endfunction\b')
 RX_LOCAL = re.compile(r'^[ \t]*local[ \t]+(\w+)[ \t]+(?:array[ \t]+)?(\w+)')
 RX_RETURN_ID = re.compile(r'^[ \t]*return[ \t]+\(*[ \t]*([A-Za-z_]\w*)[ \t]*\)*[ \t]*(?://.*)?$')
+RX_RETURN_I2R = re.compile(r'^([ \t]*return[ \t]+)\(*[ \t]*([A-Za-z_]\w*)(?:[ \t]*\))*([ \t]*(?://.*)?)$')
 RX_GLOBAL = re.compile(r'^[ \t]*(?:constant[ \t]+)?(\w+)[ \t]+(array[ \t]+)?([A-Za-z_]\w*)')
 NEUTRAL = {'integer': '0', 'real': '0.0', 'boolean': 'false', 'string': 'null'}
 VAZIA = 'KKMH_vazio'
@@ -162,7 +163,7 @@ def _code_only(ln, fn):
 
 
 def applies(body_text, ref_text, equivalents=True, neutralize=False, suffix=''):
-    info = {'conversions': [], 'effects': [], 'arrays': {}, 'codes': [], 'neutrals': []}
+    info = {'conversions': [], 'effects': [], 'arrays': {}, 'codes': [], 'neutrals': [], 'i2r': []}
     if not equivalents and not neutralize:
         return body_text, info
     ref = Reference(ref_text)
@@ -198,12 +199,21 @@ def applies(body_text, ref_text, equivalents=True, neutralize=False, suffix=''):
         types.update(dict((n, t) for t, n in ps))
         types.update(local_vars)
         invalid = False
-        for line in body:
-            m = RX_RETURN_ID.match(line)
-            if m and m.group(1) in types and not ref.fits(types[m.group(1)], ret):
-                invalid = True
-                break
+        i2r = []
+        for k in range(begin + 1, end_pos):
+            m = RX_RETURN_ID.match(line_list[k])
+            if not m or m.group(1) not in types or ref.fits(types[m.group(1)], ret):
+                continue
+            if types[m.group(1)] == 'integer' and ret == 'real':
+                i2r.append(k)
+                continue
+            invalid = True
+            break
         if not invalid:
+            for k in i2r:
+                m = RX_RETURN_I2R.match(line_list[k])
+                line_list[k] = '%sI2R(%s)%s' % (m.group(1), m.group(2), m.group(3))
+                info['i2r'].append(fname)
             continue
         new = None
         if equivalents and len(ps) == 1:
@@ -225,16 +235,20 @@ def applies(body_text, ref_text, equivalents=True, neutralize=False, suffix=''):
     if neutralize:
         _g, vectors, block_entry = _globals(line_list)
         if vectors:
+            rxs = {}
             for begin, end_pos, _r, _n, ps, _ret in _functions(line_list):
-                proprios = set(p[1] for p in ps)
+                own = set(p[1] for p in ps)
                 for line in line_list[begin + 1:end_pos]:
                     m = RX_LOCAL.match(line)
                     if m:
-                        proprios.add(m.group(2))
-                tgt = sorted(vectors - proprios)
-                if not tgt:
+                        own.add(m.group(2))
+                shadow = frozenset(own & vectors)
+                if shadow not in rxs:
+                    tgt = sorted(vectors - shadow)
+                    rxs[shadow] = re.compile(r'\b(%s)\b(?![ \t]*\[)' % '|'.join(map(re.escape, tgt))) if tgt else None
+                rx = rxs[shadow]
+                if rx is None:
                     continue
-                rx = re.compile(r'\b(%s)\b(?![ \t]*\[)' % '|'.join(map(re.escape, tgt)))
                 for k in range(begin + 1, end_pos):
                     line = line_list[k]
                     if not rx.search(line) or RX_LOCAL.match(line):
@@ -249,7 +263,7 @@ def applies(body_text, ref_text, equivalents=True, neutralize=False, suffix=''):
         if with_params:
             rx_func_ref = re.compile(r'\bfunction[ \t]+(%s)\b' % '|'.join(map(re.escape, sorted(with_params))))
             for k, line in enumerate(line_list):
-                if RX_FUNC.match(line) or not rx_func_ref.search(line):
+                if 'function' not in line or RX_FUNC.match(line) or not rx_func_ref.search(line):
                     continue
 
                 def empty_code(seg):
@@ -293,4 +307,6 @@ def report_data(info):
         pieces.append('%d code reference(s) to a function with parameters -> empty' % len(info['codes']))
     if info['neutrals']:
         pieces.append('%d return bug(s) without an equivalent -> the neutral value' % len(info['neutrals']))
+    if info.get('i2r'):
+        pieces.append('%d `return <integer>` in a real function -> I2R' % len(info['i2r']))
     print('0h memory: ' + ('; '.join(pieces) if pieces else 'no memory hack'))

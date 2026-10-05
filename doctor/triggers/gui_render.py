@@ -1,4 +1,5 @@
 # Writes a GUI trigger as the script the World Editor would generate (JASS or Lua).
+import collections
 import re
 import sys
 
@@ -55,7 +56,7 @@ def _is_string(t):
 def _norm_literal(t):
     c = t[:1]
     if c == "'":
-        return t[1:-1] if len(t) == 6 and _RX_RAWCODE.match(t) else t
+        return t[1:-1] if len(t) == 6 and _RX_RAWCODE.match(t) and not t[1].isdigit() else t
     if c == '$':
         return '0x' + t[1:]
     if (c.isdigit() or c == '.') and '.' in t and t != '.':
@@ -492,7 +493,22 @@ def _reparenthesized(toks, lang, inline=False):
     return tokens(out, lang)
 
 
+_CANONICAL = {}
+CANONICAL_CACHE = 20000
+
+
 def canonical(text, lang=JASS, inline=True, self_name=None):
+    k = (text, lang, inline, self_name)
+    out = _CANONICAL.get(k)
+    if out is None:
+        out = _canonical(text, lang, inline, self_name)
+        if len(_CANONICAL) >= CANONICAL_CACHE:
+            _CANONICAL.clear()
+        _CANONICAL[k] = out
+    return out
+
+
+def _canonical(text, lang=JASS, inline=True, self_name=None):
     toks = tokens(text, lang)
     tree = _reparenthesized(toks, lang, inline) if lang == JASS else None
     if tree is None and inline:
@@ -572,7 +588,8 @@ class _Syntax(object):
             return text
         if base == 'string':
             return '"%s"' % _escape(text)
-        if base == 'integer' and gui_type != 'integer' and not RX_INTEGER.match(text):
+        if base == 'integer' and gui_type != 'integer' and (not RX_INTEGER.match(text) or
+                                                             (len(text) == 4 and text.isalnum())):
             return self.rawcode(text)
         return text
 
@@ -917,11 +934,12 @@ def _enabled_triggers(mt, editor=False):
 def render_globals(mt, td, lang=JASS):
     lua = lang == LUA
     comment_items = set(id(item) for c, item in (mt.elements or ()) if c == COMMENT_ITEM)
-    idents = []
+    idents, seen = [], set()
     for t in mt.triggers:
         ident = trigger_identifier(t.name)
-        if ident not in idents and id(t) not in comment_items:
+        if ident not in seen and id(t) not in comment_items:
             idents.append(ident)
+            seen.add(ident)
     if lua:
         lines = ['udg_%s = %s' % (v.name, _declared(td, v, True)) for v in mt.variables]
         return '\n'.join(lines + ['gg_trg_%s = nil' % i for i in idents]) + '\n'
@@ -995,7 +1013,7 @@ def compare_trigger(trigger, td, mt, script, lang=JASS, text=None, functions=Non
     real = functions if functions is not None else split_functions(script, lang)
     root = 'InitTrig_' + trigger_identifier(trigger.name)
     mine = split_functions(render_trigger(trigger, td, mt, lang, text), lang)
-    for name in closure(dict(real, **mine), root):
+    for name in closure(collections.ChainMap(mine, real), root):
         if name not in mine:
             mine[name] = real[name]
     a = canonical('\n'.join(mine[n] for n in closure(mine, root)), lang, self_name=root[9:])

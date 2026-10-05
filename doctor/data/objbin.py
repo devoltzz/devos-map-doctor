@@ -51,7 +51,7 @@ def read_data(data, has_levels):
     return ver, tables, p
 
 
-def reescreve(data, has_levels, change):
+def rewrite(data, has_levels, change):
     ver = struct.unpack_from('<I', data, 0)[0]
     p = 4
     output, replacements = [data[:4]], 0

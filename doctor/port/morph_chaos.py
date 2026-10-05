@@ -71,10 +71,10 @@ def targets(body_text, native='DzSetUnitID'):
     for k in range(len(starts) - 1):
         begin, fname = starts[k]
         body = body_text[begin:starts[k + 1][0]]
-        chamadas = _calls(body, native)
-        if not chamadas:
+        calls = _calls(body, native)
+        if not calls:
             continue
-        for args in chamadas:
+        for args in calls:
             if len(args) != 2:
                 failures.append('%s: %s with %d arguments' % (fname, native, len(args)))
                 continue

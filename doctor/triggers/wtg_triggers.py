@@ -114,8 +114,8 @@ class _Reader(object):
                 self.u('i')
                 self.z()
                 self.u('i')
-            if self.u('i') != 2:
-                raise ValueError('the variables marker is not 2')
+            if self.u('i') not in (1, 2):
+                raise ValueError('the variables marker is neither 1 nor 2')
             nvars = self.u('i')
             for _i in range(nvars):
                 self.z()
@@ -127,14 +127,12 @@ class _Reader(object):
                 trigger_list += 1
         else:
             self.u('I')
-            self.u('IIII')
-            for _k in range(5):
+            for _k in range(8):
                 self.u('I')
                 for _j in range(self.u('I')):
                     self.u('I')
-            self.u('II')
-            if self.u('i') != 2:
-                raise ValueError('the variables marker is not 2')
+            if self.u('i') not in (1, 2):
+                raise ValueError('the variables marker is neither 1 nor 2')
             nvars = self.u('i')
             for _i in range(nvars):
                 self.z()
@@ -142,13 +140,9 @@ class _Reader(object):
                 self.u('iiii')
                 self.z()
                 self.u('II')
-            nel = self.u('I') - 1
-            self.u('ii')
-            self.z()
-            self.u('iii')
-            for _i in range(nel):
+            for _i in range(self.u('I')):
                 cl = self.u('i')
-                if cl == 4:
+                if cl in (1, 2, 4):
                     self.u('i')
                     self.z()
                     self.u('i')

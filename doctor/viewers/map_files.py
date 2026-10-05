@@ -423,9 +423,9 @@ def _image(data, ext, max_bytes, max_side, image_format):
         ):
             mip += 1
         try:
-            im, _info = blpread.le_bytes(data, mip, info)
+            im, _info = blpread.read_bytes(data, mip, info)
         except Exception:
-            im, _info = blpread.le_bytes(data, 0, info)
+            im, _info = blpread.read_bytes(data, 0, info)
             mip = 0
         out = _pixels(im, max_side, image_format)
         out.update(source_width=info['map_width'], source_height=info['map_height'], format=info['format'], mip=mip,
@@ -475,7 +475,7 @@ def _mdx_info(data, has_file):
     info = {'format': 'MDX', 'version': None, 'name': '', 'textures': [], 'sequences': [], 'geosets': 0,
             'vertices': 0, 'materials': 0, 'nodes': {}, 'chunks': [], 'problem': problem}
     end = len(data)
-    for tag, off, n in mdx_tex.le_chunks(data, 4, end):
+    for tag, off, n in mdx_tex.read_chunks(data, 4, end):
         info['chunks'].append(tag)
         n = min(n, end - off)
         try:
@@ -484,16 +484,18 @@ def _mdx_info(data, has_file):
             elif tag == 'MODL':
                 info['name'] = mdx_tex.cstr(data[off:off + 80])
             elif tag == 'TEXS':
-                info['textures'] = [_texture(t['path'], t['repl'], has_file) for t in mdx_tex.le_texs(data, off, n)]
+                info['textures'] = [
+                    _texture(t['path'], t['repl'], has_file) for t in mdx_tex.read_textures(data, off, n)
+                ]
             elif tag == 'SEQS':
                 info['sequences'] = [{'name': s['fname'], 'start': s['begin'], 'end': s['end_pos'],
-                                      'looping': not s['laco']} for s in mdx_anim.le_seqs(data, off, n)]
+                                      'looping': not s['laco']} for s in mdx_anim.read_sequences(data, off, n)]
             elif tag == 'GEOS':
-                geos = mdx_tex.le_geos_materiais(data, off, n)
+                geos = mdx_tex.read_geoset_materials(data, off, n)
                 info['geosets'] = len(geos)
                 info['vertices'] = sum(nv for _m, nv in geos)
             elif tag == 'MTLS':
-                info['materials'] = len(mdx_tex.le_mtls(data, off, n, info['version'] or 800))
+                info['materials'] = len(mdx_tex.read_materials(data, off, n, info['version'] or 800))
             elif tag.encode('latin-1') in mdxnodes.NODE_CHUNKS:
                 body = data[off:off + n]
                 count = sum(1 for _e in mdxnodes.iter_entries(tag.encode('latin-1'), body))

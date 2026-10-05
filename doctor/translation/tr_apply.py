@@ -56,12 +56,12 @@ PREFIXES_KEY_ARGS = {
     'DzSync': frozenset((0,)),
     'DzTriggerRegisterSyncData': frozenset((1,)),
 }
-NAMES_DE_FRAME = frozenset((
+FRAME_NAMES = frozenset((
     'DzCreateFrameByTagName', 'DzCreateFrame', 'BlzCreateFrame', 'BlzCreateFrameByType',
     'BlzCreateSimpleFrame', 'BlzGetFrameByName', 'BlzFrameGetName', 'BlzFrameFindByName',
     'DzFrameFindByName', 'DzFrameFindByNameEx',
 ))
-for _f in NAMES_DE_FRAME:
+for _f in FRAME_NAMES:
     ARGUMENTS_KEY[_f] = ALL_OS_ARGUMENTS
 FUNCTIONS_CAUTION = ('SubString', 'SubStringBJ', 'StringLength', 'StringLengthBJ')
 
@@ -89,7 +89,7 @@ def call_envolvente(before):
     return None, None
 
 
-def classifica_occurrence(ln, pos, lit, caution_como_screen=False):
+def classifica_occurrence(ln, pos, lit, caution_as_screen=False):
     before = ln[max(0, pos - 400):pos]
     after_diag = ln[pos + len(lit) + 2:pos + len(lit) + 13]
     if re.search(r'[=!]=\s*$', before) or after_diag.lstrip().startswith(('==', '!=')):
@@ -98,30 +98,30 @@ def classifica_occurrence(ln, pos, lit, caution_como_screen=False):
     if fn is None:
         return 'screen:no call (assignment/list)'
     if fn == 'StringHash':
-        return 'chave:StringHash'
+        return 'key:StringHash'
     if fn in FUNCTIONS_CAUTION:
         return 'prudencia:' + fn
     if fn in ARGUMENTS_KEY:
         keys = ARGUMENTS_KEY[fn]
         if keys is ALL_OS_ARGUMENTS or idx in keys:
-            return 'chave:' + fn
+            return 'key:' + fn
         return 'tela:' + fn
     for p in PREFIXES_KEY:
         if fn.startswith(p):
-            return 'chave:' + fn
+            return 'key:' + fn
     for p, idxs in PREFIXES_KEY_ARGS.items():
         if fn.startswith(p) and idx in idxs:
-            return 'chave:' + fn
+            return 'key:' + fn
     return 'tela:' + fn
 
 
-def apply_by_occurrence(body_text, by_text, caution_como_screen=False, all_entries=None):
-    line_list, sep = tx.quebra(body_text, jass=True)
-    cats, detail, n = apply_por_occurrence_lines(line_list, by_text, caution_como_screen, all_entries)
+def apply_by_occurrence(body_text, by_text, caution_as_screen=False, all_entries=None):
+    line_list, sep = tx.line_break(body_text, jass=True)
+    cats, detail, n = apply_by_occurrence_lines(line_list, by_text, caution_as_screen, all_entries)
     return sep.join(line_list), cats, detail, n
 
 
-def apply_por_occurrence_lines(line_list, by_text, caution_como_screen=False, all_entries=None, protected=None):
+def apply_by_occurrence_lines(line_list, by_text, caution_as_screen=False, all_entries=None, protected=None):
     all_entries = all_entries or {}
     cats = Counter()
     detail = {}
@@ -146,12 +146,12 @@ def apply_por_occurrence_lines(line_list, by_text, caution_como_screen=False, al
             if en is None:
                 continue
             cat = 'todas:decisao explicita' if lit in all_entries else \
-                classifica_occurrence(line, pos, lit, caution_como_screen)
+                classifica_occurrence(line, pos, lit, caution_as_screen)
             cluster = cat.split(':', 1)[0]
             cats[cat] += 1
             d = detail.setdefault(lit, Counter())
             d[cluster] += 1
-            if cluster in ('screen', 'all_entries') or (cluster == 'caution' and caution_como_screen):
+            if cluster in ('screen', 'all_entries') or (cluster == 'caution' and caution_as_screen):
                 out.append(line[last:pos + 1])
                 out.append(en)
                 last = pos + 1 + len(lit)
@@ -188,7 +188,8 @@ def extras_by_id(entries, extras):
 
 
 def fix_value(en, entry):
-    en = en.replace('"', "'")
+    if '"' not in (entry.get('text') or ''):
+        en = en.replace('"', "'")
     if entry.get('quoted'):
         return '"' + en + '"'
     if ',' in en and not entry.get('comma'):
@@ -203,7 +204,7 @@ def apply_txt(root, entries, tr, stats):
             by_file.setdefault(e['src'], {})[e['line']] = (e, tr[e['id']])
     for details, lines_map in by_file.items():
         src = tx.read_text(os.path.join(root, details))
-        lines, sep = tx.quebra(src)
+        lines, sep = tx.line_break(src)
         n = 0
         for line_no, (e, en) in lines_map.items():
             mk = re.match(r'^([A-Za-z0-9_]+)=(.*)$', lines[line_no])
@@ -221,7 +222,7 @@ def apply_misc(root, entries, tr, stats):
         p = os.path.join(root, fn)
         if not os.path.exists(p):
             continue
-        lines, sep = tx.quebra(tx.read_text(p))
+        lines, sep = tx.line_break(tx.read_text(p))
         n = 0
         for e in entries:
             if e['src'] == fn and e['id'] in tr:
@@ -275,7 +276,7 @@ def apply_misc(root, entries, tr, stats):
         stats['war3map.w3i'] = sum(1 for k in tr if k.startswith('w3i:'))
 
 
-def mapa_de_traducao(entries, tr, extras=None):
+def translation_map(entries, tr, extras=None):
     by_text = {}
     for e in entries:
         if e['src'] == 'war3map.j' and e['kind'] in ('script', 'command') and e['id'] in tr:

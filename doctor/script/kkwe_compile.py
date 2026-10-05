@@ -1,6 +1,7 @@
 # Compiles JASS to the bytecode of the game, to prove a decompiled script.
 import re
 import struct
+import sys
 
 from doctor.script import kkwe
 
@@ -411,8 +412,18 @@ class Parser(object):
         raise SyntaxError('line %d: unexpected expression %s %r' % (tk.ln, tk.kind, tk.field_value))
 
 
+_RECURSION = 20000
+
+
 def analyze(body_text):
-    return Parser(lex(body_text)).program()
+    old = sys.getrecursionlimit()
+    if old < _RECURSION:
+        sys.setrecursionlimit(_RECURSION)
+    try:
+        return Parser(lex(body_text)).program()
+    finally:
+        if old < _RECURSION:
+            sys.setrecursionlimit(old)
 
 
 BASIC_TYPES = {'integer': 4, 'real': 5, 'string': 6, 'boolean': 8, 'code': 3, 'nothing': 0, 'handle': 7}

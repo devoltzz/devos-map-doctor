@@ -43,7 +43,6 @@ def index_path():
 
 
 def index_outdated(release):
-    # The release has a name index and the local one is missing or has another size.
     local = index_path()
     return bool(release.get('index')) and (
         not os.path.isfile(local) or os.path.getsize(local) != release.get('index_size')
@@ -88,11 +87,10 @@ def download_index(release):
     try:
         os.replace(part, index_path())
     except OSError:
-        pass  # the index is in use: cleanup() puts it in place on the next start
+        pass
 
 
 def install(release):
-    # A running .exe cannot be overwritten, but it can be renamed: swap the files and start the new one.
     exe = sys.executable if getattr(sys, 'frozen', False) else None
     if not exe or not release.get('exe'):
         open_page(release)

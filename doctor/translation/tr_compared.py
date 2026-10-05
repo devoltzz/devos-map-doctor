@@ -33,29 +33,29 @@ def measure(jtexto, entries, tr):
     for e in entries:
         if not e['src'].endswith('.j') and e['id'] in tr:
             data_bytes[e['text']].append(e['src'].split('/')[-1] + '[' + (e.get('key') or '') + ']')
-    por = {lit: {'externo': 0, 'inner': 0, 'window': 0, 'clusters': collections.Counter(), 'exemplo': ''}
-           for lit in comparados}
-    line_list, _sep = tx.quebra(jtexto, jass=True)
+    by = {lit: {'externo': 0, 'inner': 0, 'window': 0, 'clusters': collections.Counter(), 'exemplo': ''}
+          for lit in comparados}
+    line_list, _sep = tx.line_break(jtexto, jass=True)
     for line in line_list:
         for pos, lit in ki.literals(line):
-            if lit not in por:
+            if lit not in by:
                 continue
             cat = ta.classifica_occurrence(line, pos, lit, False)
             g = cat.split(':', 1)[0]
-            por[lit]['clusters'][g] += 1
+            by[lit]['clusters'][g] += 1
             if g == 'caution':
                 lado = other_lado(line, pos, lit)
                 if lado and RX_EXTERNO.search(lado):
-                    por[lit]['externo'] += 1
+                    by[lit]['externo'] += 1
                 elif lado and RX_WINDOW.search(lado):
-                    por[lit]['window'] += 1
-                    if not por[lit]['exemplo']:
-                        por[lit]['exemplo'] = line.strip()[:200]
+                    by[lit]['window'] += 1
+                    if not by[lit]['exemplo']:
+                        by[lit]['exemplo'] = line.strip()[:200]
                 elif lado:
-                    por[lit]['inner'] += 1
-                    if not por[lit]['exemplo']:
-                        por[lit]['exemplo'] = line.strip()[:200]
-    for lit, d in por.items():
+                    by[lit]['inner'] += 1
+                    if not by[lit]['exemplo']:
+                        by[lit]['exemplo'] = line.strip()[:200]
+    for lit, d in by.items():
         d['datum'] = data_bytes.get(lit, [])
         d['screen'] = d['clusters'].get('screen', 0)
         if d['window'] and not d['inner']:
@@ -64,4 +64,4 @@ def measure(jtexto, entries, tr):
             d['rec'] = 'all_entries'
         else:
             d['rec'] = 'keep'
-    return por
+    return by

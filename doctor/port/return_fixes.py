@@ -116,8 +116,19 @@ def local_param_clash(body_text):
                 dup.add(mm.group(1))
         if dup:
             rx = re.compile(r'\b(%s)\b' % '|'.join(map(re.escape, sorted(dup))))
+            seen = set()
             for k in range(i + 1, j):
-                line_list[k] = rx.sub(r'\1_kkl', line_list[k])
+                line = line_list[k]
+                mm = RX_LOCAL.match(line)
+                if not mm:
+                    line_list[k] = rx.sub(r'\1_kkl', line)
+                    continue
+                rest = rx.sub(lambda m: m.group(1) + ('_kkl' if m.group(1) in seen else ''), line[mm.end(1):])
+                if mm.group(1) in dup:
+                    seen.add(mm.group(1))
+                    line_list[k] = line[:mm.end(1)] + '_kkl' + rest
+                else:
+                    line_list[k] = line[:mm.end(1)] + rest
             n += len(dup)
         i = j + 1
     return ('\n'.join(line_list), n) if n else (body_text, 0)

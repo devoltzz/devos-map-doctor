@@ -341,20 +341,20 @@ EDITOR_CALLS = ('CreateAllUnits', 'CreateRegions', 'InitCustomTriggers', 'RunIni
 
 
 def jass_warning(main):
-    chama = set(m.group(1) for m in re.finditer(r'\bcall[ \t]+(?:devo_)?(\w+)[ \t]*\(', main))
-    missing_items = [n for n in EDITOR_CALLS if n not in chama]
+    called = set(m.group(1) for m in re.finditer(r'\bcall[ \t]+(?:devo_)?(\w+)[ \t]*\(', main))
+    missing_items = [n for n in EDITOR_CALLS if n not in called]
     if missing_items:
-        pede = ("A unit, region or trigger you add in the editor only runs\n"
+        asks = ("A unit, region or trigger you add in the editor only runs\n"
                 "// if main calls it: add %s at the end here (the editor generates those functions).\n"
                 % ' and '.join('call %s()' % n for n in missing_items))
     else:
-        pede = ("main already calls everything the editor generates (%s):\n"
+        asks = ("main already calls everything the editor generates (%s):\n"
                 "// a unit, region or trigger you add in the editor runs without changing anything here.\n"
                 % ', '.join(EDITOR_CALLS))
     return (
         "// The map's ORIGINAL main and config, through JassHelper (//! inject): saving from the World Editor with\n"
         "// JassHelper ENABLED builds the same script again. "
-        + pede
+        + asks
         + "// The map's own copies of the functions the editor also generates (InitGlobals, CreateAllUnits, ...) are\n"
         "// prefixed with \"devo_\" here: two functions with the same name do not compile.\n"
     )
@@ -663,8 +663,8 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
     if raw_bytes is None:
         raise ValueError('the map has no war3map.j (nor scripts\\war3map.j, nor war3map.lua)')
     body_text = raw_bytes.decode('latin-1').replace('\r\n', '\n').replace('\r', '\n')
-    details['bom'] = body_text.startswith('\xef\xbb\xbf')
-    if details['bom']:
+    details['good'] = body_text.startswith('\xef\xbb\xbf')
+    if details['good']:
         body_text = body_text[3:]
     default_value, details['n_players'] = None, None
     if not is_lua:
@@ -687,7 +687,8 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
             details['regenerated_triggers'] = reason
     name_list = set(n for n in extra_names if a.find(n))
     lf = a.read('(listfile)') or b''
-    name_list.update(n for n in lf.decode('utf-8', 'replace').splitlines() if n.strip() and a.find(n.strip()))
+    name_list.update(n.strip() for n in lf.decode('utf-8', 'surrogateescape').splitlines()
+                     if n.strip() and a.find(n.strip()))
     imported = sorted((n for n in name_list if n.lower() not in {x.lower() for x in SPECIAL_FILES}
                        and not RX_NATIVE.match(n.split('\\')[-1]) and a.read(n) is not None),
                       key=lambda n: (n.lower(), n))
@@ -817,7 +818,7 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
     restoration = None
     if trigger_list and step_on('gui_triggers'):
         restoration = (
-            restore_triggers(raw_bytes[3:] if details['bom'] else raw_bytes, is_lua, log, editor_file_set)
+            restore_triggers(raw_bytes[3:] if details['good'] else raw_bytes, is_lua, log, editor_file_set)
             if is_lua
             else restore_triggers(
                 body_text.encode('latin-1'),

@@ -3,6 +3,7 @@ import collections
 import os
 import re
 import struct
+import sys
 
 from doctor.script import kkwe
 from doctor.script import kkwe_compile as KC
@@ -525,6 +526,8 @@ def map_functions(bc, ref):
 def decompile(bc, ref):
     d = Decompiler(bc, ref)
     segments = map_functions(bc, ref)
+    if not segments:
+        raise DecompileError('the bytecode has no function of the map (only the Blizzard.j ones)')
     globals_block = []
     funcs = []
     for begin, _stop in segments:
@@ -1050,6 +1053,19 @@ HEADER_LINES = (
 
 
 def recover(bc, common, blizzard, extra_natives=None, map_own='', header_text=HEADER_LINES, no_clash=False):
+    old = sys.getrecursionlimit()
+    if old < KC._RECURSION:
+        sys.setrecursionlimit(KC._RECURSION)
+    try:
+        return _decompile(bc, common, blizzard, extra_natives, map_own, header_text, no_clash)
+    except RecursionError:
+        raise DecompileError('the script does not come back: an expression of the map is too deep (RecursionError)')
+    finally:
+        if old < KC._RECURSION:
+            sys.setrecursionlimit(old)
+
+
+def _decompile(bc, common, blizzard, extra_natives, map_own, header_text, no_clash):
     if extra_natives is None:
         with open(DEFAULT_NATIVES, 'rb') as fh:
             extra_natives = fh.read().decode('utf-8', 'surrogateescape')
@@ -1057,7 +1073,7 @@ def recover(bc, common, blizzard, extra_natives=None, map_own='', header_text=HE
     ref.bytecode_types(bc)
     try:
         globals_block, funcs, natives, _region = decompile(bc, ref)
-    except (IndexError, KeyError, struct.error) as e:
+    except (IndexError, KeyError, struct.error, RecursionError) as e:
         raise DecompileError('the bytecode cannot be read (%s: %s)' % (type(e).__name__, e))
     inf = Inference(ref, globals_block, funcs)
     inf.collect(globals_block)
@@ -1068,7 +1084,7 @@ def recover(bc, common, blizzard, extra_natives=None, map_own='', header_text=HE
     faithful = imp.program(globals_block, funcs, natives, list(header_text))
     try:
         n, total, identical, diffs, real_blocks, _c = prove_map(bc, ref, common, blizzard, faithful)
-    except (SyntaxError, NameError, ValueError, KeyError) as e:
+    except (SyntaxError, NameError, ValueError, KeyError, RecursionError) as e:
         raise DecompileError('the restored script does not compile again (%s: %s)' % (type(e).__name__, e))
     if diffs or real_blocks or n != total:
         where = ''

@@ -55,12 +55,21 @@ def _is_true(e):
     return type(e) is jass_ast.Literal and e.text == 'true' or type(e) is jass_ast.Name and e.name == 'true'
 
 
+def _trigger_key(e, f, own):
+    base = e
+    while type(base) is jass_ast.Index or type(base) is jass_ast.Paren:
+        base = base.base if type(base) is jass_ast.Index else base.inner
+    text = _text(e)
+    return (f.name, text) if type(base) is jass_ast.Name and base.name in own else text
+
+
 def heat_of(tree):
     funcs = dict((f.name, f) for f in tree.functions)
     edges = dict((n, set()) for n in funcs)
     hot_roots, cb_roots = set(), set()
     trig_actions, periodic = {}, set()
     for f in tree.functions:
+        own = set(n for _t, n in f.params) | set(l.name for l in f.locals)
         for c in _calls(f):
             if c.name in funcs:
                 edges[f.name].add(c.name)
@@ -70,11 +79,11 @@ def heat_of(tree):
                 if target in funcs:
                     edges[f.name].add(target)
             if c.name in ('TriggerAddAction', 'TriggerAddCondition') and len(c.args) == 2:
-                trig_actions.setdefault(_text(c.args[0]), set()).update(_refs(c.args[1]))
+                trig_actions.setdefault(_trigger_key(c.args[0], f, own), set()).update(_refs(c.args[1]))
             elif c.name == 'TriggerRegisterTimerEvent' and len(c.args) == 3 and _is_true(c.args[2]):
-                periodic.add(_text(c.args[0]))
+                periodic.add(_trigger_key(c.args[0], f, own))
             elif c.name == 'TriggerRegisterTimerEventPeriodic' and c.args:
-                periodic.add(_text(c.args[0]))
+                periodic.add(_trigger_key(c.args[0], f, own))
             elif c.name == 'TimerStart' and len(c.args) == 4 and _is_true(c.args[2]):
                 hot_roots.update(_refs(c.args[3]))
             if c.name in SYNC_CALLBACKS:

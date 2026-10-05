@@ -260,7 +260,7 @@ def _blp_image(data):
     try:
         with os.fdopen(fd, 'wb') as f:
             f.write(data)
-        im, info = blpread.le_melhor(tmp)
+        im, info = blpread.read_best(tmp)
         return im.convert('RGBA'), info
     finally:
         os.remove(tmp)

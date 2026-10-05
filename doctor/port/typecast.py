@@ -47,9 +47,9 @@ def applies(body_text, expected_count=None):
                '+nosemanticerror and would refuse the script)', f.group(0).rstrip('\r')]
         new += [inside + line for line in body(retorno, params)]
         replacements.append((m.start(), end_pos.start(), nl.join(new) + nl))
-        chamadas = len(re.findall(r'\b%s\s*\(' % re.escape(fname), body_text)) + \
+        calls = len(re.findall(r'\b%s\s*\(' % re.escape(fname), body_text)) + \
             len(re.findall(r'\bfunction\s+%s\b' % re.escape(fname), body_text)) - 1
-        info['functions'].append((fname, retorno, chamadas))
+        info['functions'].append((fname, retorno, calls))
     for begin, end_pos, new in sorted(replacements, reverse=True):
         body_text = body_text[:begin] + new + body_text[end_pos:]
     info['rewrites'] = len(replacements)

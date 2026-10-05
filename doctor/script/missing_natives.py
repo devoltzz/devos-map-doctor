@@ -23,10 +23,14 @@ def read_data(file_path):
 
 def declara_functions(txt):
     out = {}
-    for m in re.finditer(r'^\s*function\s+([A-Za-z_]\w*)\s+takes\s+(.*?)\s+returns\s+(.*?)\s*$',
+    for m in re.finditer(r'^[ \t]*(?:constant\s+)?function\s+([A-Za-z_]\w*)\s+takes\s+(.*?)\s+returns\s+(.*?)\s*$',
                          txt, re.M):
         out[m.group(1)] = (m.group(2).strip(), m.group(3).strip())
     return out
+
+
+KEYWORDS = frozenset('''if elseif return exitwhen not and or loop call set local debug function takes returns then
+else endif endloop endfunction globals endglobals constant native type extends array true false null nothing'''.split())
 
 
 def family(fname):

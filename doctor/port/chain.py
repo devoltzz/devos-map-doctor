@@ -95,10 +95,10 @@ def traduz(r, body_text, raw_data):
         extras, all_entries = ta.load_extras(), ta.load_all()
         tr.update(ta.extras_by_id(entries, extras))
         tr.update(ta.extras_by_id(entries, all_entries))
-        by_text_map = ta.mapa_de_traducao(entries, tr, extras)
+        by_text_map = ta.translation_map(entries, tr, extras)
         new, _cats_, _details, n = ta.apply_by_occurrence(to_utf8(body_text), by_text_map, False, all_entries)
     else:
-        by_text_map = ta.mapa_de_traducao(entries, tr)
+        by_text_map = ta.translation_map(entries, tr)
         new, _cats_, _details, n = ta.apply_by_occurrence(to_utf8(body_text), by_text_map)
     new = from_utf8(new)
     if getattr(r, 'TR_LOCK_STRINGHASH', True):
@@ -145,7 +145,7 @@ def control_rawcodes(body_text):
 def assemble(r, argv=None):
     argv = sys.argv[1:] if argv is None else argv
     t0 = time.time()
-    exp_len = r.ESPERADAS
+    exp_len = r.EXPECTED
     table = os.path.join(r.OUT, 'slk_campos_tabela.j')
     blizzard = os.path.join(r.OUT, 'blizzard.j')
     layer_path = os.path.join(r.OUT, 'camada.j')
@@ -325,13 +325,13 @@ def assemble(r, argv=None):
     }
 
     source = ['--source=' + r.NATIVES_SOURCE] if getattr(r, 'NATIVES_SOURCE', None) else []
-    layer.configure_layer(r.ROOT, r.PARTES, compat=r.COMPAT, out=r.OUT, output=blizzard, analise=r.OUT,
+    layer.configure_layer(r.ROOT, r.PARTS, compat=r.COMPAT, out=r.OUT, output=blizzard, analise=r.OUT,
                           map_natives=map_natives, generator=r.GENERATOR, no_stub=no_stub)
     texts = [to_utf8(t)] + [layer.read_part_utf8(p) for p in layer.layer_files()
                             if os.path.basename(p) != os.path.basename(chars)]
     n_chars, sha_chars = char_table.make_table(texts, chars, generator=r.GENERATOR)
     print('DB_SH character table: %d characters -> %s (sha %s)' % (n_chars, chars, sha_chars))
-    rc = layer.main(['--sem-pjass', '--output=' + blizzard] + source)
+    rc = layer.main(['--no-pjass', '--output=' + blizzard] + source)
     if rc:
         aborts('11 (blizzard.j of the layer)', ['camada.main returned %s' % rc])
     blz = open(blizzard, 'rb').read().decode('latin-1')
@@ -356,7 +356,7 @@ def assemble(r, argv=None):
     end_pos = open(final, 'rb').read().decode('latin-1')
     print('FINAL: %s (%d B, sha %s)' % (final, len(end_pos), sha(end_pos)))
     report_measures(exp_len, medidas)
-    if '--sem-pjass' not in argv:
+    if '--no-pjass' not in argv:
         tmp = os.path.join(r.OUT, '_pjass')
         print('\n### GATE G1 (the blizzard.j of the layer and the war3map.j PRE-injection)')
         g1 = pjass.main(['--conjunto', '--j=' + pre, '--blizzard=' + blizzard], root=r.ROOT, tmp=tmp)

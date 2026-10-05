@@ -3,12 +3,12 @@ import re
 
 
 RX_COD = re.compile(r'\|[cC][0-9a-fA-F]{8}|\|[rRnN]')
-RX_SEG_CURTO = re.compile(r'\|[cC][0-9a-fA-F]{8}([^|]{0,4})\|[rR]')
+RX_SHORT_SEGMENT = re.compile(r'\|[cC][0-9a-fA-F]{8}([^|]{0,4})\|[rR]')
 RX_NOT_CUT = re.compile(r'\d+(?:\.\d+)?%?|\\.')
 
 
 def e_gradient(original, minimum=6):
-    segs = RX_SEG_CURTO.findall(original)
+    segs = RX_SHORT_SEGMENT.findall(original)
     return len(segs) >= minimum and sum(len(s) for s in segs) <= 2 * len(segs)
 
 

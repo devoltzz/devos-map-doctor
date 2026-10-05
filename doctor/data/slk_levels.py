@@ -22,7 +22,7 @@ def resolve(line_list):
         if not line.startswith('C;'):
             continue
         x = y = k = None
-        for f in line.split(';')[1:]:
+        for f in C.slk_fields(line):
             if f[:1] == 'X' and f[1:2].isdigit():
                 x = int(re.match(r'X(\d+)', f).group(1))
             elif f[:1] == 'Y' and f[1:2].isdigit():

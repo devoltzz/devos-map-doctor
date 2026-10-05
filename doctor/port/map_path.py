@@ -30,7 +30,7 @@ def classify_items(item_entries, original):
         if d is None:
             output.append((n, p, 'new', None))
         else:
-            output.append((n, p, 'igual' if d == content(p) else 'diferente', len(d)))
+            output.append((n, p, 'equal' if d == content(p) else 'different', len(d)))
     return output
 
 
@@ -73,9 +73,9 @@ def listfile(name_list):
     return (CRLF.join(sorted(set(name_list))) + CRLF).encode('utf-8', 'surrogateescape')
 
 
-def verify(map_path, expected_len, textura=False, present_keys=(), missing_ones=(), log=None):
+def verify(map_path, expected_len, texture=False, present_keys=(), missing_ones=(), log=None):
     a = mpqread.Archive(map_path)
-    if textura:
+    if texture:
         from doctor.models import blp_huffman
     failures = []
     for n, v in expected_len:
@@ -85,7 +85,7 @@ def verify(map_path, expected_len, textura=False, present_keys=(), missing_ones=
             d = None
             failures.append('%s: cannot be read (%s)' % (n, e))
         w = content(v)
-        ok = d is not None and (d == w or (textura and blp_huffman.same_texture(d, w)))
+        ok = d is not None and (d == w or (texture and blp_huffman.same_texture(d, w)))
         if log:
             log(n, ok, len(d) if d is not None else None)
         if d is None:

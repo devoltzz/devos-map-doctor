@@ -7,7 +7,7 @@ TAM = 512
 OFF_NAME = 8
 
 
-def renomeia(file_path, fname, escrever=True):
+def renomeia(file_path, fname, do_write=True):
     with open(file_path, 'r+b') as f:
         header = f.read(TAM)
         if header[:4] != b'HM3W':
@@ -28,10 +28,10 @@ def renomeia(file_path, fname, escrever=True):
         body = header[:OFF_NAME] + new + fields
         body += b'\x00' * max(0, end_old - end_new)
         body += header[len(body):]
-        fim2 = body.index(b'\x00', OFF_NAME)
-        if body[fim2 + 1:fim2 + 5] != flags:
-            raise ValueError('the HM3W flags changed (%r -> %r)' % (flags, body[fim2 + 1:fim2 + 5]))
-        if escrever:
+        end2 = body.index(b'\x00', OFF_NAME)
+        if body[end2 + 1:end2 + 5] != flags:
+            raise ValueError('the HM3W flags changed (%r -> %r)' % (flags, body[end2 + 1:end2 + 5]))
+        if do_write:
             f.seek(0)
             f.write(body)
         return True, before

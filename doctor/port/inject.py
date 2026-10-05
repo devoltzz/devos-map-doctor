@@ -248,7 +248,7 @@ def applies(map_bytes, sec, failures):
         failures.append('%d layer functions that the ENGINE already defines: %s'
                         % (len(engine_col_f), ', '.join(engine_col_f[:10])))
 
-    g_nomes, bad_globals = global_names(sec['globals_block'])
+    g_names, bad_globals = global_names(sec['globals_block'])
     if bad_globals:
         failures.append('%d line(s) of the GLOBALS section that are not a variable declaration (e.g.: %s)'
                         % (len(bad_globals), bad_globals[0][:70]))
@@ -258,7 +258,7 @@ def applies(map_bytes, sec, failures):
         m = re.match(r'\s*(?:constant\s+)?\w+\s+(?:array\s+)?([A-Za-z_]\w*)', s.split('//')[0])
         if m and rx_global_ref().match(s.split('//')[0].rstrip()):
             map_globals.add(m.group(1))
-    col_g = sorted(g_nomes & map_globals)
+    col_g = sorted(g_names & map_globals)
     if col_g:
         failures.append('%d variables of the layer with the SAME name as a map variable: %s'
                         % (len(col_g), ', '.join(col_g[:10])))
@@ -277,10 +277,10 @@ def applies(map_bytes, sec, failures):
             failures.append(
                 '%d native(s) of the dead type still in the script: %s' % (len(left_over), ', '.join(left_over[:10]))
             )
-        faltando = sorted(set(expected_count) - set(func_names))
-        if faltando:
+        still_missing = sorted(set(expected_count) - set(func_names))
+        if still_missing:
             failures.append('%d of the %d removed natives are NOT defined in the layer: %s'
-                            % (len(faltando), len(expected_count), ', '.join(faltando[:10])))
+                            % (len(still_missing), len(expected_count), ', '.join(still_missing[:10])))
         came_back = sorted(set(expected_count) & set(names_of(RX_NATIVE, ls)))
         if came_back:
             failures.append('%d emulated natives WENT BACK to being `native` in war3map.j: %s'
@@ -361,7 +361,7 @@ def main(argv=None):
     b = open(entry, 'rb').read()
     print()
     print('=== war3map.j: state BEFORE ===')
-    print('  %d B  %d linhas  sha256 %s' % (len(b), len(line_list(b)), sha(b)))
+    print('  %d B  %d lines  sha256 %s' % (len(b), len(line_list(b)), sha(b)))
 
     b_clean, n_rem, n_blocks = strip_injection(b, failures)
     if b_clean is None:
@@ -410,7 +410,7 @@ def main(argv=None):
 
     print()
     print('=== war3map.j: state AFTER ===')
-    print('  %d B  %d linhas  sha256 %s' % (len(new), len(line_list(new)), sha(new)))
+    print('  %d B  %d lines  sha256 %s' % (len(new), len(line_list(new)), sha(new)))
 
     if not apply:
         print('\n(--so\' check only: nothing written)')

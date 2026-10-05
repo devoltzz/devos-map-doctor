@@ -138,10 +138,10 @@ def _pairs(a, base):
         part = _parts(old)
         if part is None or part[2]:
             continue
-        folder, base_nome, _port, _ext = part
+        folder, base_name, _port, _ext = part
         for ext in MODEL_EXTS:
-            po = '%s%s%s_portrait%s' % (folder, base_nome, MARK, ext)
-            pn = '%s%s_portrait%s' % (folder, base_nome, ext)
+            po = '%s%s%s_portrait%s' % (folder, base_name, MARK, ext)
+            pn = '%s%s_portrait%s' % (folder, base_name, ext)
             if (po, pn) in seen or not a.find(po) or a.find(pn):
                 continue
             seen.add((po, pn))
@@ -163,6 +163,9 @@ def _cite(data, pairs):
 def fix(path_in, path_out, progress=None):
     p = progress or (lambda *_a: None)
     rep = {'renamed': [], 'files': [], 'portraits': 0, 'note': None, 'error': None}
+    if os.path.normcase(os.path.abspath(path_in)) == os.path.normcase(os.path.abspath(path_out)):
+        rep['error'] = 'the output must be a new file'
+        return rep
     try:
         a = unprotect._open(path_in)
     except BaseException as e:
@@ -178,9 +181,9 @@ def fix(path_in, path_out, progress=None):
     p('Rewriting the names in the map files')
     repl, touched = [], []
     for n, data in _citation_files(a):
-        novo = _cite(data, pairs)
-        if novo != data:
-            repl.append((n, novo))
+        new_data = _cite(data, pairs)
+        if new_data != data:
+            repl.append((n, new_data))
             touched.append(n)
     data = {}
     for old, clean in pairs:
@@ -190,14 +193,20 @@ def fix(path_in, path_out, progress=None):
             return rep
         repl.append((clean, data[old]))
     p('Writing the map')
-    shutil.copyfile(path_in, path_out)
-    from doctor.mpq import mpqadd
-    with unprotect.quiet():
-        mpqadd.add_files(path_out, repl, to_delete=[old for old, _c in pairs], log=lambda *_a: None)
+    part = unprotect._part(path_out)
+    try:
+        shutil.copyfile(path_in, part)
+        from doctor.mpq import mpqadd
+        with unprotect.quiet():
+            mpqadd.add_files(part, repl, to_delete=[old for old, _c in pairs], log=lambda *_a: None)
+    except (Exception, SystemExit) as e:
+        _remove(part)
+        rep['error'] = 'the map could not be written (%s)' % unprotect._error(e)
+        return rep
     p('Checking the result')
     problems = []
     try:
-        b = unprotect._open(path_out)
+        b = unprotect._open(part)
     except BaseException as e:
         problems.append('the output does not open (%s)' % unprotect._error(e))
         b = None
@@ -214,16 +223,25 @@ def fix(path_in, path_out, progress=None):
                     if b_old in (unprotect._read(b, n) or b''):
                         problems.append('%s is still cited in %s' % (old, n))
         with unprotect.quiet():
-            c = unprotect.check_content(path_in, path_out, exclude=touched)
+            c = unprotect.check_content(path_in, part, exclude=touched)
         if c['different'] or c['missing_items']:
             problems.append(
                 'the check: %d file(s) different, %d missing' % (len(c['different']), len(c['missing_items']))
             )
+    del b
     if problems:
-        if os.path.isfile(path_out):
-            os.remove(path_out)
+        _remove(part)
         rep['error'] = '; '.join(problems[:4])
         return rep
+    os.replace(part, path_out)
     rep['renamed'] = pairs
     rep['files'] = touched
     return rep
+
+
+def _remove(path):
+    try:
+        if os.path.isfile(path):
+            os.remove(path)
+    except OSError:
+        pass

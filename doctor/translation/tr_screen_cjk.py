@@ -28,7 +28,7 @@ def occurrences(line_list, tem_text=None, protected=None):
 
 def script(file_path):
     body_text = open(file_path, encoding='utf-8', errors='surrogateescape').read()
-    line_list, _sep = tx.quebra(body_text, jass=True)
+    line_list, _sep = tx.line_break(body_text, jass=True)
     clusters = collections.Counter()
     ideog = collections.Counter()
     screen = collections.defaultdict(list)
@@ -43,7 +43,7 @@ def script(file_path):
 
 
 def data_bytes(folder):
-    por = collections.Counter()
+    by = collections.Counter()
     ex = collections.defaultdict(list)
     for root, _d, fs in os.walk(folder):
         for f in fs:
@@ -54,7 +54,7 @@ def data_bytes(folder):
                 m = re.match(r'([A-Za-z0-9_]+)\s*=(.*)$', line)
                 if m and CJK.search(m.group(2)):
                     hash_key = '%s:%s' % (f, m.group(1))
-                    por[hash_key] += 1
+                    by[hash_key] += 1
                     if len(ex[hash_key]) < 3:
                         ex[hash_key].append(m.group(2)[:90])
-    return por, ex
+    return by, ex

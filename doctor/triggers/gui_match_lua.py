@@ -753,14 +753,14 @@ class _Matcher(object):
         self.loose.extend(_references_in(s, self.functions))
         return out
 
-    def custom_block(self, s):
+    def custom_block(self, s, bodies=None):
         t = type(s)
         out = []
         if t is lua_ast.IfStmt:
             for k, (cond, body) in enumerate(s.branches):
                 head = 'else' if cond is None else '%s %s then' % ('elseif' if k else 'if', _text(cond))
                 out.append(self.custom_line(head, cond))
-                out.extend(self.actions(body))
+                out.extend(bodies[k] if bodies is not None else self.actions(body))
             tail = 'end'
         elif t is lua_ast.WhileStmt:
             out.append(self.custom_line('while %s do' % _text(s.cond), s.cond))
@@ -818,9 +818,10 @@ class _Matcher(object):
         elif t is lua_ast.CallStmt:
             a = self.call_action(s.call)
         elif t is lua_ast.IfStmt:
-            a = self.if_action(s)
+            bodies = [self.actions(body) for _c, body in s.branches]
+            a = self.if_action(s, bodies)
             if a is None:
-                return 1, self.custom_block(s)
+                return 1, self.custom_block(s, bodies)
         elif t is lua_ast.WhileStmt:
             a = self.wait_for_condition(s)
             if a is None:
@@ -995,9 +996,11 @@ class _Matcher(object):
             return None
         return wtg.Function(ACTION, 'WaitForCondition', 1, [cond, interval])
 
-    def if_action(self, s):
+    def if_action(self, s, bodies=None):
         if len(s.branches) != 2 or s.branches[1][0] is not None:
             return None
+        if bodies is None:
+            bodies = [self.actions(body) for _c, body in s.branches]
         cond = _bare(s.branches[0][0])
         name = _callee(cond)
         if name is None or cond.args:
@@ -1016,8 +1019,8 @@ class _Matcher(object):
                     return None
                 c.branch = 0
                 children.append(c)
-            for branch, (_c, body) in ((1, s.branches[0]), (2, s.branches[1])):
-                for a in self.actions(body):
+            for branch, acts in ((1, bodies[0]), (2, bodies[1])):
+                for a in acts:
                     a.branch = branch
                     children.append(a)
             return wtg.Function(ACTION, 'IfThenElseMultiple', 1, [], None, children)
@@ -1026,7 +1029,7 @@ class _Matcher(object):
                 'IfThenElse' in self.td.actions):
             c = self.condition(body[0].values[0])
             if c is not None:
-                sides = [[self.one_line(a) for a in self.actions(b)] for _c, b in s.branches]
+                sides = [[self.one_line(a) for a in acts] for acts in bodies]
                 if all(len(x) <= 1 and None not in x for x in sides):
                     params = [wtg.Parameter(FUNCTION, 'DoNothing', function=x[0] if x else wtg.Function(
                         ACTION, 'CommentString', 1, [wtg.Parameter(LITERAL, '')])) for x in sides]

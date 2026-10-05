@@ -115,6 +115,7 @@ class _Source(object):
             self.tree = jass_ast.parse(text)
             self._jass()
         self.texts = dict((n, f.text) for n, f in self.functions.items())
+        self._names = frozenset(self.functions)
         self._refs = {}
 
     def _add(self, fn):
@@ -175,7 +176,7 @@ class _Source(object):
         r = self._refs.get(name)
         if r is None:
             words = set(RX_WORD.findall(_code_only(self.texts[name], self.lang)))
-            r = self._refs[name] = (words & set(self.functions)) - {name}
+            r = self._refs[name] = (words & self._names) - {name}
         return r
 
     def calls(self, name):
@@ -424,25 +425,26 @@ def _skeleton_by_structure(src, extras=(), object_names=None):
             if t:
                 loose[n] = t
     main_calls = re.findall(r'call\s+(\w+)\s*\(', funcs['main'])
+    main_called = set(main_calls)
     inits = set(init_like) | set(loose) | set(extras)
 
     def only(body, test):
         lines = [x.strip() for x in body.split('\n') if x.strip() and not x.strip().startswith('//')]
         return bool(lines) and all(test(x) for x in lines)
 
-    ict = next((n for n, body in funcs.items() if n in main_calls and only(
+    ict = next((n for n, body in funcs.items() if n in main_called and only(
         body, lambda x: re.match(r'call\s+(\w+)\s*\(\s*\)$', x) and
         re.match(r'call\s+(\w+)', x).group(1) in inits)), None)
     if ict is None:
         sk['reason'] = NO_SKELETON
         return sk
-    rit = next((n for n, body in funcs.items() if n in main_calls and n != ict and only(
+    rit = next((n for n, body in funcs.items() if n in main_called and n != ict and only(
         body, lambda x: re.match(r'call\s+ConditionalTriggerExecute\s*\(\s*\w+\s*\)$', x))), None)
     if rit is None:
         run = re.search(r'call\s+%s\s*\(\s*\)[^\n]*\n((?:\s*call\s+ConditionalTriggerExecute\s*\(\s*\w+\s*\)[^\n]*\n)+)'
                         % re.escape(ict), funcs['main'])
         ran = re.findall(r'ConditionalTriggerExecute\s*\(\s*(\w+)\s*\)', run.group(1)) if run else None
-        rit = next((n for n, body in funcs.items() if n not in main_calls and n not in (ict, 'main') and ran and
+        rit = next((n for n, body in funcs.items() if n not in main_called and n not in (ict, 'main') and ran and
                     re.findall(r'call\s+ConditionalTriggerExecute\s*\(\s*(\w+)\s*\)', body) == ran and only(
                         body, lambda x: re.match(r'call\s+ConditionalTriggerExecute\s*\(\s*\w+\s*\)$', x))), None)
     called = []
@@ -605,6 +607,18 @@ def _literal_decl(d):
 
 def _returns(stmts):
     return any(type(x) is jass_ast.ReturnStmt for s in stmts for x in jass_ast.walk(s))
+
+
+def _assigned(stmts):
+    out = set()
+    for s in stmts:
+        for x in jass_ast.walk(s):
+            if type(x) is jass_ast.SetStmt:
+                t = _plain(x.target)
+                t = _plain(t.base) if type(t) is jass_ast.Index else t
+                if type(t) is jass_ast.Name:
+                    out.add(t.name)
+    return out
 
 
 def _wrapper_names(src, firsts, idents):
@@ -1212,7 +1226,7 @@ def _init_per_trigger(src, sk, names):
     k = calls.index(sk['init_custom_triggers']) if sk['init_custom_triggers'] in calls else -1
     if k < 0 or calls[k + 1:k + 2] != [rit]:
         return src.text, [], 'main does not call RunInitializationTriggers right after InitCustomTriggers'
-    edits, made = [], []
+    edits, made, held = [], [], 0
     for init in sk['triggers']:
         f = src.functions[init]
         node = f.node
@@ -1227,6 +1241,10 @@ def _init_per_trigger(src, sk, names):
                 'gg_trg_' + new in src.globals):
             continue
         keep = [s for s in node.body if s not in move]
+        assigned = _assigned(move)
+        if _returns(move) or any(_touch(s, assigned)[0] for s in keep):
+            held += 1
+            continue
         header = f.text.split('\n', 1)[0]
         code = ['function Trig_%s_Actions takes nothing returns nothing' % new] + _indented(move) + ['endfunction', '',
                 'function InitTrig_%s takes nothing returns nothing' % new,
@@ -1238,7 +1256,8 @@ def _init_per_trigger(src, sk, names):
         name = name + (' Init' if ' ' in name else '_Init')
         made.append((new, name if gui_render.trigger_identifier(name) == new else new))
     if not made:
-        return src.text, [], 'no InitTrig_ does more than register'
+        return src.text, [], ('%d InitTrig_ kept whole (a registration reads what the other code sets, or it returns)'
+                              % held if held else 'no InitTrig_ does more than register')
     text = src.text
     g0 = src.blocks[0][0] if src.blocks else None
     if g0 is None:
@@ -1489,7 +1508,7 @@ def _gui(ctx, d, obfuscated):
     root = 'InitTrig_' + d.ident
     if root not in rendered:
         return 'the render has no %s' % root
-    merged = dict(src.texts, **rendered)
+    merged = collections.ChainMap(rendered, src.texts)
     pulled = [n for n in gui_render.closure(merged, root) if n not in rendered]
     if not equal:
         return 'the round trip differs (%s)' % _first_difference(a, b)
@@ -1556,9 +1575,10 @@ def _rit_idents(src, rit):
 
 def _trigger_order(src, inits, disabled):
     enabled = [i[len('InitTrig_'):] for i in inits]
-    wanted = set(enabled) | set(disabled)
+    wanted_enabled = set(enabled)
+    wanted = wanted_enabled | set(disabled)
     declared = [n[len('gg_trg_'):] for n in src.globals if n.startswith('gg_trg_') and n[len('gg_trg_'):] in wanted]
-    if [x for x in declared if x in set(enabled)] == enabled:
+    if [x for x in declared if x in wanted_enabled] == enabled:
         return declared, disabled
     return enabled, []
 
@@ -2026,6 +2046,7 @@ def _restore(res, text, td, init_per_trigger, say, matcher, editor_files=None, o
         decisions[d.ident] = d
     triggers = []
     texts = []
+    pos = dict((n, k) for k, n in enumerate(src.functions))
     for x in order:
         d = decisions.get(x)
         if d is None:
@@ -2037,7 +2058,6 @@ def _restore(res, text, td, init_per_trigger, say, matcher, editor_files=None, o
                 '', NOTE_RENAMED) else d.trigger.description
         triggers.append(d.trigger)
         if d.kind == 'text':
-            pos = dict((n, k) for k, n in enumerate(src.functions))
             texts.append(''.join(src.texts[f].rstrip('\n') + '\n' for f in sorted(d.own, key=pos.get)))
         else:
             texts.append(None)
@@ -2386,7 +2406,7 @@ def _assemble(res, src, td, mt, texts, header_text, decisions, editor_files=None
         ''.join('; %s: %s' % (k, ', '.join(v[:3])) for k, v in (('lost', lost), ('twice', twice), ('extra', extra))
                 if v)))
     if lang == JASS:
-        cs, _montado = PE.custom_script(header_text) if fitted is None else PE.custom_script(fitted.header,
+        cs, _assembled = PE.custom_script(header_text) if fitted is None else PE.custom_script(fitted.header,
                                                                                            fitted.inject)
         res.header = cs.replace('\r\n', '\n')
     else:

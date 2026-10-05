@@ -1,4 +1,5 @@
 # Ports a KK or M16 platform map to Warcraft III 3.0 in one run, with a report of what is left.
+import collections
 import contextlib
 import io
 import json
@@ -215,20 +216,20 @@ def diagnostico(body_text, extract):
 def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, memory_hacks=None):
     for p in new.inclusion_points():
         _writes(os.path.join(compat, 'kk_%s.j' % p), b'')
-    valores = {'NOME': heading, 'DATA': time.strftime('%d/%m/%Y'),
-               'N_SEQ': len(re.findall(r'\b(?:DzSetEffectAnimation|EXSetEffectAnimation)\s*\(', body_text)),
-               'N_ANIM': len(re.findall(r'\bSetUnitAnimationByIndex\s*\(', body_text))}
-    new.save(os.path.join(compat, 'out_seqs.j'), new.model('out_seqs.j', valores))
-    new.save(os.path.join(compat, 'out_anim_names.j'), new.model('out_anim_names.j', valores))
+    value_list = {'NOME': heading, 'DATA': time.strftime('%d/%m/%Y'),
+                  'N_SEQ': len(re.findall(r'\b(?:DzSetEffectAnimation|EXSetEffectAnimation)\s*\(', body_text)),
+                  'N_ANIM': len(re.findall(r'\bSetUnitAnimationByIndex\s*\(', body_text))}
+    new.save(os.path.join(compat, 'out_seqs.j'), new.model('out_seqs.j', value_list))
+    new.save(os.path.join(compat, 'out_anim_names.j'), new.model('out_anim_names.j', value_list))
     blz = False
-    proprios = dict((f.lower(), os.path.join(extract, d, f)) for d in os.listdir(extract)
-                    if d.lower() == 'scripts' and os.path.isdir(os.path.join(extract, d))
-                    for f in os.listdir(os.path.join(extract, d)))
+    own = dict((f.lower(), os.path.join(extract, d, f)) for d in os.listdir(extract)
+               if d.lower() == 'scripts' and os.path.isdir(os.path.join(extract, d))
+               for f in os.listdir(os.path.join(extract, d)))
     from doctor.port import blizzard_map
-    if 'blizzard.j' in proprios:
+    if 'blizzard.j' in own:
         without_127 = not os.path.isfile(blizzard_map.VANILLA)
         base = os.path.join(new.REF, 'blizzard.j') if without_127 else None
-        blz_part, blz_info = blizzard_map.extract_parts(proprios['blizzard.j'], raw_data, vanilla_path=base)
+        blz_part, blz_info = blizzard_map.extract_parts(own['blizzard.j'], raw_data, vanilla_path=base)
         failures = [] if without_127 else blizzard_map.failures_of(blz_info)
         if failures:
             WARNINGS.append(
@@ -251,8 +252,8 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
              '// the engine natives the map declares\n' + ''.join(line + '\n' for line in engine_lines))
     from doctor.port import channel_table
     _v, output = _muted(channel_table.gera, extract, os.path.join(compat, 'out_profile_slots.j'), 'auto')
-    if isinstance(_v, SystemExit) and _v.code:
-        raise Aborts('the save channel table: %s' % output.strip()[-300:])
+    if (_v.code if isinstance(_v, SystemExit) else _v):
+        raise Aborts('the save channel table: %s' % re.sub(r'\s*\n\s*', ' | ', output.strip()[-300:]))
     base_save = re.sub(r'[^A-Za-z0-9]', '', heading) or 'Map'
     pre = base_save[:2].lower()
     jpeg_seed = hashlib.sha256(('devo-port|' + base_save).encode('utf-8')).hexdigest()
@@ -289,7 +290,7 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
     return blz, pair
 
 
-def receita(root, raw_data, diag, blz, no_dot_name_list, heading):
+def recipe(root, raw_data, diag, blz, no_dot_name_list, heading):
     extract = os.path.join(root, 'port', 'extract')
     out = os.path.join(root, 'port', 'out', 'kk')
     data_bytes = os.path.join(out, 'data_bytes')
@@ -306,8 +307,8 @@ def receita(root, raw_data, diag, blz, no_dot_name_list, heading):
         GENERATOR='porta.py (%s)' % heading,
         NO_DOT=no_dot_name_list,
         LEVEL_FIELDS=diag['fields'],
-        PARTES=new.layer_parts(bool(diag['jn']), blz),
-        ESPERADAS=dict(new.EMPTY_EXPECTED),
+        PARTS=new.layer_parts(bool(diag['jn']), blz),
+        EXPECTED=dict(new.EMPTY_EXPECTED),
         UI_FIXED=True,
         UI_TOLERANT=True,
         CLASS1_TOLERANT=True,
@@ -339,12 +340,19 @@ def receita(root, raw_data, diag, blz, no_dot_name_list, heading):
         r.data_report = slk_data.report_data
     else:
         from doctor.port import classic_data
+        if no_dot_name_list:
+            WARNINGS.append(
+                '%d model(s) with dots in the name: the script now loads the copies Reforged accepts, but the '
+                'object data (w3u/w3t/w3a...) still asks for the dotted names, which Reforged does not load; '
+                'change those model paths in the object editor: %s'
+                % (len(no_dot_name_list), '; '.join(sorted(no_dot_name_list))[:300])
+            )
         regras = tuple((file_, entry, obj_kind, dict((c, None) for c in locks))
                        for file_, entry, obj_kind, locks in
                        classic_data.regras_padrao(extract, os.path.join(root, 'port', 'out', 'extract_en')))
 
         def _pixel_data():
-            return classic_data.applies(regras, root, data_bytes, expected_count=None, gravar=True)
+            return classic_data.applies(regras, root, data_bytes, expected_count=None, write_out=True)
         r.data_report = classic_data.report_data
     r.data_bytes = _pixel_data
     return r
@@ -363,18 +371,37 @@ def run_chain(r):
         raise Aborts(
             'the script chain stopped at %s: %s' % (abort_match.group(1).strip(), abort_match.group(2).strip()[:400])
         )
+    if isinstance(v, SystemExit) and not g:
+        code_part = v.code
+        raise Aborts(
+            'the script chain stopped: %s'
+            % (
+                code_part
+                if isinstance(code_part, str) and code_part.strip()
+                else 'exit %s: %s' % (code_part, re.sub(r'\s*\n\s*', ' | ', output.strip()[-300:]))
+            )
+        )
     return ok, g1, g2, output
 
 
 PJASS_RUNTIME_ONLY = ('is uninitialized', 'String literals over 1023 chars')
+RX_PJASS_LINE = re.compile(r'(?m)^(?:.*?[\\/\s])?(?:war3map|blizzard)\.j:\d+(?: \(de \d+\))?: (.+)$')
+RX_PJASS_TOTAL = re.compile(r'Parse failed: (\d+) errors? total')
 
 
-def pjass_errors(log_cadeia):
+def pjass_errors(chain_log):
     seen = []
-    for m in re.finditer(r'(?m)^(?:.*?[\\/\s])?(?:war3map|blizzard)\.j:\d+: (.+)$', log_cadeia):
-        if m.group(1) not in seen:
+    for m in RX_PJASS_LINE.finditer(chain_log):
+        if m.group(1).strip() not in seen:
             seen.append(m.group(1).strip())
     return seen
+
+
+def only_execution_errors(chain_log):
+    line_list = [m.group(1).strip() for m in RX_PJASS_LINE.finditer(chain_log)]
+    total = sum(int(x) for x in RX_PJASS_TOTAL.findall(chain_log))
+    return bool(line_list) and total == len(line_list) and 'IGNORED by the pragma' not in chain_log and \
+        all(any(x in e for x in PJASS_RUNTIME_ONLY) for e in line_list)
 
 
 SCRIPTS_FOLDER_FILES = ('Scripts\\war3map.j', 'Scripts\\Blizzard.j', 'Scripts\\common.j', 'Scripts\\common.ai')
@@ -411,7 +438,7 @@ def build_w3x(original, output, r, to_remove, no_dot_list, log, name_list=()):
                         % (len(gaps), '; '.join(gaps)[:300]))
     item_entries.extend(copies)
     entra = [
-        (n, v) for n, v, status_kind, _t in map_path.classify_items(item_entries, original) if status_kind != 'igual'
+        (n, v) for n, v, status_kind, _t in map_path.classify_items(item_entries, original) if status_kind != 'equal'
     ]
     part = os.path.splitext(output)[0] + '.part' + os.path.splitext(output)[1]
     if os.path.exists(part):
@@ -452,15 +479,15 @@ def build_w3x(original, output, r, to_remove, no_dot_list, log, name_list=()):
 
 def shrinks(output, sz, log):
     from doctor.fix import shrink
-    menor = os.path.splitext(output)[0] + '.small' + os.path.splitext(output)[1]
+    smaller = os.path.splitext(output)[0] + '.small' + os.path.splitext(output)[1]
     log('6. the map is above 512 MiB: making it smaller, losing nothing (this is slow)')
-    r, _s = _muted(shrink.shrink, output, menor)
-    if isinstance(r, dict) and r.get('state') == 'done' and os.path.isfile(menor):
-        os.replace(menor, output)
+    r, _s = _muted(shrink.shrink, output, smaller)
+    if isinstance(r, dict) and r.get('state') == 'done' and os.path.isfile(smaller):
+        os.replace(smaller, output)
         sz = os.path.getsize(output)
         WARNINGS.append('the map was above 512 MiB and was made smaller without loss: %.1f MiB' % (sz / 1048576.0))
-    elif os.path.exists(menor):
-        os.remove(menor)
+    elif os.path.exists(smaller):
+        os.remove(smaller)
     return sz, TETO - sz
 
 
@@ -468,27 +495,32 @@ RX_TRIG = re.compile(r'^Trig_(.+?)_?(?:Actions|Conditions|Func\d+\w*)$')
 
 
 def stubs_and_dependents(r, decl_order):
-    layer_text = open(os.path.join(r.OUT, 'camada.j'), 'rb').read().decode('latin-1')
-    i = layer_text.find('STUBS:')
-    stubs = set(re.findall(r'(?m)^function\s+(\w+)\s+takes', layer_text[i:])) if i >= 0 else set()
+    lado = os.path.join(r.OUT, 'layer_stubs.json')
+    if os.path.isfile(lado):
+        stubs = set(json.load(open(lado, encoding='utf-8')))
+    else:
+        layer_text = open(os.path.join(r.OUT, 'camada.j'), 'rb').read().decode('latin-1')
+        i = layer_text.find('STUBS:')
+        stubs = set(re.findall(r'(?m)^function\s+(\w+)\s+takes', layer_text[i:])) if i >= 0 else set()
     stubs &= set(decl_order)
+    if not stubs:
+        return []
     pre = open(os.path.join(r.OUT, 'war3map_pre_injecao.j'), 'rb').read().decode('latin-1')
     fs = dead_type.functions(pre)
     alive = dead_type.live_ones(pre, fs)
+    rx = re.compile(r'\b(%s)\s*\(' % '|'.join(map(re.escape, sorted(stubs))))
+    who = {}
+    for f, a, b in fs:
+        if f in alive:
+            for n, k in collections.Counter(rx.findall(pre[a:b])).items():
+                who.setdefault(n, {})[f] = k
     out = []
-    for n in sorted(stubs):
-        rx = re.compile(r'\b%s\s*\(' % re.escape(n))
-        who = {}
-        for f, a, b in fs:
-            if f in alive:
-                k = len(rx.findall(pre[a:b]))
-                if k:
-                    who[f] = k
-        if not who:
-            continue
-        trigger_list = sorted(set(m.group(1).rstrip('_') for f in who for m in [RX_TRIG.match(f)] if m))
-        out.append({'native': n, 'chamadas': sum(who.values()), 'functions': sorted(who), 'trigger_list': trigger_list})
-    out.sort(key=lambda x: (-x['chamadas'], x['native']))
+    for n in sorted(who):
+        trigger_list = sorted(set(m.group(1).rstrip('_') for f in who[n] for m in [RX_TRIG.match(f)] if m))
+        out.append(
+            {'native': n, 'calls': sum(who[n].values()), 'functions': sorted(who[n]), 'trigger_list': trigger_list}
+        )
+    out.sort(key=lambda x: (-x['calls'], x['native']))
     return out
 
 
@@ -539,7 +571,7 @@ def report_text(details):
             L.append('- none: every platform native the map calls has a body in the port layer')
         for s in st:
             L.append('- %s: %d call(s) in %s%s' % (
-                s['native'], s['chamadas'], ', '.join(s['functions'][:6]) + (' ...' if len(s['functions']) > 6 else ''),
+                s['native'], s['calls'], ', '.join(s['functions'][:6]) + (' ...' if len(s['functions']) > 6 else ''),
                 ('; trigger(s): ' + ', '.join(s['trigger_list'][:6])) if s['trigger_list'] else ''))
         if st:
             L.append('A stub compiles and returns the neutral value (0, false, "", null): implement the native, or '
@@ -554,6 +586,7 @@ def report_text(details):
 
 RX_VERSION = re.compile(r'(?i)[\s_.-]+(?:v?\d[\w.]*|fix\w*|beta\w*|test\w*|event|ver\w*|final|kr\w*|cn|en|e\d\w*|'
                         r'\[[^\]]*\]|\([^)]*\))$')
+RX_GLUED = re.compile(r'(?<![\s_.-][vV])(?<=[A-Za-z])\d+(?:\.\d+)+\w*$')
 
 
 def port_checks(original, output, details):
@@ -604,18 +637,24 @@ def memory_warnings(info):
 
 
 def stable_title(fname):
-    n = fname
+    n = RX_GLUED.sub('', fname)
     while True:
         m = RX_VERSION.search(n)
         if not m or m.start() == 0:
             break
-        n = n[:m.start()]
-    n = re.sub(r'(?<=[A-Za-z])\d+(?:\.\d+)+\w*$', '', n)
+        n = RX_GLUED.sub('', n[:m.start()])
+    without_version = re.sub(r'\s+', ' ', n.replace('_', ' ')).strip()
     n = re.sub(r'[^A-Za-z0-9 ]+', ' ', n.replace('_', ' ')).strip()
-    return re.sub(r'\s+', ' ', n) or re.sub(r'[^A-Za-z0-9]+', ' ', fname).strip() or 'Map'
+    n = re.sub(r'\s+', ' ', n) or re.sub(r'[^A-Za-z0-9]+', ' ', fname).strip()
+    has_letter = bool(re.search(r'[A-Za-z]', n))
+    if not has_letter or any(c.isalpha() and ord(c) > 127 for c in without_version):
+        return (n if has_letter else 'Map') + hashlib.sha256(
+            without_version.encode('utf-8', 'surrogateescape')
+        ).hexdigest()[:8]
+    return n
 
 
-def map_port(map_path, work, output=None, stats=None, heading=None, log=print, pacotes=(), shrink_large=True,
+def map_port(map_path, work, output=None, stats=None, heading=None, log=print, packages=(), shrink_large=True,
              memory_hacks='neutralize'):
     t0 = time.time()
     map_path = os.path.abspath(map_path)
@@ -624,16 +663,15 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
     stats = stats or os.path.splitext(output)[0] + '.report.txt'
     heading = heading or stable_title(os.path.splitext(os.path.basename(map_path))[0])
     del WARNINGS[:]
-    details = {'map_path': map_path, 'resultado': 'stopped', 'work': work, 'warnings': WARNINGS}
-    if os.path.isdir(work) and os.listdir(work):
-        details['err'] = 'the work folder is not empty: %s' % work
-        return _closes(details, stats, log)
+    details = {'map_path': map_path, 'resultado': 'stopped', 'work': work, 'warnings': []}
     root = os.path.abspath(work)
-    for p in ('port/extract', 'port/tools/tr', 'port/kk/compat', 'port/analysis', 'port/out/kk', 'scripts'):
-        os.makedirs(os.path.join(root, *p.split('/')), exist_ok=True)
     extract = os.path.join(root, 'port', 'extract')
     compat = os.path.join(root, 'port', 'kk', 'compat')
     try:
+        if os.path.isdir(work) and os.listdir(work):
+            raise Aborts('the work folder is not empty: %s' % work)
+        for p in ('port/extract', 'port/tools/tr', 'port/kk/compat', 'port/analysis', 'port/out/kk', 'scripts'):
+            os.makedirs(os.path.join(root, *p.split('/')), exist_ok=True)
         from doctor.script import pjass
         if not os.path.isfile(pjass.exe()):
             raise Aborts('pjass.exe was not found (%s): the port checks the script with it '
@@ -646,7 +684,9 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
             from doctor.mpq import sprotect_fix
             sprotect_fix.CRYPT = sprotect_fix.init_crypt()
             original = os.path.join(root, 'sprotect_fix.w3x')
-            _muted(sprotect_fix.fix, map_path, original)
+            v, _s = _muted(sprotect_fix.fix, map_path, original)
+            if isinstance(v, SystemExit):
+                raise Aborts('SProtect: %s' % v.code)
             log('0. SProtect undone')
         else:
             original = unprotected_result(map_path, root, log)
@@ -662,30 +702,31 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
         blz, _pair = map_part(root, compat, extract, raw_data, body_text, diag, heading, log, memory_hacks=memory_hacks)
         from doctor.port import name_without_dot
         listing = name_without_dot.map_models(set(name_list))
-        r = receita(root, raw_data, diag, blz, listing, heading)
+        r = recipe(root, raw_data, diag, blz, listing, heading)
         r.MEMORY_LEVEL = memory_hacks
         log('5. the script chain (this is the long step)')
-        ok, g1, g2, log_cadeia = run_chain(r)
+        ok, g1, g2, chain_log = run_chain(r)
         if not ok:
-            error_list = pjass_errors(log_cadeia)
-            if error_list and all(any(x in e for x in PJASS_RUNTIME_ONLY) for e in error_list) and \
-                    os.path.isfile(os.path.join(r.OUT, 'war3map.j')):
+            error_list = pjass_errors(chain_log)
+            if error_list and only_execution_errors(chain_log) and os.path.isfile(os.path.join(r.OUT, 'war3map.j')):
                 WARNINGS.append("pjass found only run-time problems of the map's own code, which the old game had too "
                                 "(the script loads): %s" % '; '.join(error_list[:4]))
                 ok = g1 = g2 = True
         details.update(g1=g1, g2=g2)
-        m = re.search(r'(?m)^WARNING 3n: (\d+) interface event record', log_cadeia)
+        m = re.search(r'(?m)^WARNING 3n: (\d+) interface event record', chain_log)
         if m:
             WARNINGS.append('%s interface event registration(s) get the handler through a variable: they run on every '
                             'machine, without the local-only wrapper (check those menus in game)' % m.group(1))
-        m = re.search(r'(?m)^AVISO: (\d+) funcao\(oes\) da camada com o nome de uma funcao do mapa[^:]*: (.*)$',
-                      log_cadeia)
+        m = re.search(
+            r'(?m)^WARNING: (\d+) function\(s\) of the layer with the name of a function of the map[^:]*: (.*)$',
+            chain_log,
+        )
         if m:
             WARNINGS.append(
                 "%s function(s) of the map have the name of a port layer function; the map's own are kept: %s"
                 % (m.group(1), m.group(2).split(': ', 1)[-1])
             )
-        m0f = re.search(r'0f dead type: (\d+) type', log_cadeia)
+        m0f = re.search(r'0f dead type: (\d+) type', chain_log)
         decl, order = __import__('doctor.port.layer', fromlist=['layer']).map_native_declarations(raw_data)
         details['dead_type'] = dead_type.applies(body_text, dead_type.engine_types(
             open(os.path.join(new.REF, 'common.j'), 'rb').read().decode('latin-1')))[1] if m0f else {}
@@ -694,7 +735,7 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
         log('   G1 %s | G2 %s; %d stub(s) called by the map' % ('PASS' if g1 else 'FAIL', 'PASS' if g2 else 'FAIL',
                                                               len(details['stubs'])))
         if not ok:
-            error_list = pjass_errors(log_cadeia)
+            error_list = pjass_errors(chain_log)
             details['pjass'] = error_list
             if any('Index missing for array variable' in e for e in error_list):
                 raise Aborts('the map uses a JASS memory exploit (an array read as a value: the typecast of the '
@@ -705,10 +746,10 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
             raise Aborts('the compiler gates did not pass (G1 %s, G2 %s): %s'
                          % ('PASS' if g1 else 'FAIL', 'PASS' if g2 else 'FAIL', '; '.join(error_list[:3]) or
                             os.path.join(root, 'port', 'out', 'cadeia.log')))
-        if pacotes:
+        if packages:
             from doctor.port import art_packs
             script = open(os.path.join(r.OUT, 'war3map_pre_injecao.j'), 'rb').read().decode('utf-8', 'surrogateescape')
-            arte, _s = _muted(art_packs.import_it, original, list(pacotes), script, os.path.join(r.OUT, 'arte'),
+            arte, _s = _muted(art_packs.import_it, original, list(packages), script, os.path.join(r.OUT, 'arte'),
                               data_bytes=os.path.join(r.DATA, 'Units'), extract=extract, log=lambda s: None)
             if isinstance(arte, SystemExit):
                 WARNINGS.append('the art packages could not be read: %s' % arte)
@@ -722,7 +763,7 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
                 }
                 WARNINGS.extend(arte['warnings'][:20])
                 log('6. art from %d package(s): %d file(s) imported, %d still missing'
-                    % (len(pacotes), arte['imported'], len(arte['missing_items'])))
+                    % (len(packages), arte['imported'], len(arte['missing_items'])))
         to_remove = ['kkmap.jc'] if forma == 'kkwe' else (['war3map.bin'] if forma == 'j2b' else [])
         scripts_folder = scripts_folder_files(original, name_list)
         if scripts_folder:
@@ -740,7 +781,8 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
         import traceback
         details['err'] = '%s: %s' % (type(e).__name__, e)
         details['traceback'] = traceback.format_exc()[-2000:]
-    details['segundos'] = round(time.time() - t0, 1)
+    details['seconds'] = round(time.time() - t0, 1)
+    details['warnings'] = list(WARNINGS)
     return _closes(details, stats, log)
 
 

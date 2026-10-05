@@ -372,7 +372,7 @@ def verify(file_path, info, fields):
             for i, (a, v, rid) in enumerate(pairs):
                 n += 1
                 if ks[fname][i] != a:
-                    failures.append('%s[%d]: chave 0x%08X != 0x%08X (%s)' % (fname, i, ks[fname][i], a, rid))
+                    failures.append('%s[%d]: key 0x%08X != 0x%08X (%s)' % (fname, i, ks[fname][i], a, rid))
                 expected_len = v.encode('utf-8', 'surrogateescape').decode('latin-1')
                 obtained = ''.join(vals[fname][i])
                 if obtained != expected_len:
@@ -383,14 +383,14 @@ def verify(file_path, info, fields):
                 lo, hi = 0, len(kl) - 1
                 achou = -1
                 while lo <= hi:
-                    meio = (lo + hi) // 2
-                    if kl[meio] == a:
-                        achou = meio
+                    middle = (lo + hi) // 2
+                    if kl[middle] == a:
+                        achou = middle
                         break
-                    elif kl[meio] < a:
-                        lo = meio + 1
+                    elif kl[middle] < a:
+                        lo = middle + 1
                     else:
-                        hi = meio - 1
+                        hi = middle - 1
                 if achou != i:
                     failures.append('%s: binary search for id %s found %d, expected %d' % (fname, rid, achou, i))
                     break

@@ -18,23 +18,32 @@ def parse_chunks(data):
 
 def iter_entries(tag, body):
     q = 0
-    while q + 4 <= len(body):
+    n = len(body)
+    while q + 4 <= n:
         if tag == b'BONE':
             ns = struct.unpack_from('<I', body, q)[0]
+            if ns < 96 or q + ns + 8 > n:
+                break
             yield q, ns + 8, q
             q += ns + 8
         elif tag == b'HELP':
             ns = struct.unpack_from('<I', body, q)[0]
+            if ns < 96 or q + ns > n:
+                break
             yield q, ns, q
             q += ns
         elif tag == b'CLID':
             ns = struct.unpack_from('<I', body, q)[0]
+            if ns < 96 or q + ns + 4 > n:
+                break
             typ = struct.unpack_from('<I', body, q + ns)[0]
             extra = 4 + (12 if typ == 2 else 24) + (4 if typ in (2, 3) else 0)
             yield q, ns + extra, q
             q += ns + extra
         elif tag == b'EVTS':
             ns = struct.unpack_from('<I', body, q)[0]
+            if ns < 96 or q + ns > n:
+                break
             r = q + ns
             extra = 0
             if body[r:r + 4] == b'KEVT':
@@ -44,6 +53,8 @@ def iter_entries(tag, body):
             q += ns + extra
         else:
             total = struct.unpack_from('<I', body, q)[0]
+            if total < 100 or q + total > n:
+                break
             yield q, total, q + 4
             q += total
 
@@ -53,6 +64,8 @@ def split_geosets(geos):
     q = 0
     while q + 4 <= len(geos):
         gsize = struct.unpack_from('<I', geos, q)[0]
+        if gsize < 4 or q + gsize > len(geos):
+            break
         out.append(bytearray(geos[q + 4:q + gsize]))
         q += gsize
     return out

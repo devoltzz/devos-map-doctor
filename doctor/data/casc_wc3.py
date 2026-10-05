@@ -156,6 +156,9 @@ def read_config(game, hash_key):
     return cfg
 
 
+_TREES = {}
+
+
 class CascWC3(object):
     def __init__(self, game=DEFAULT_GAME, load_tvfs=True):
         self.game = os.path.abspath(game)
@@ -167,12 +170,33 @@ class CascWC3(object):
         self.config = read_config(self.game, self.build_key)
         self.version_num = self.build_info.get('Version', '?')
         self._open_files = {}
-        self.index_ = {}
-        self._read_indices()
         self._encoding = None
+        self.index_ = {}
         self.file_set = {}
+        hash_key = self._tree_key()
+        stored = _TREES.get(hash_key)
+        if stored is None:
+            from doctor.data import memo
+            stored = memo.load('casc', hash_key)
+            if not (isinstance(stored, tuple) and len(stored) == 2 and stored[0] and stored[1]):
+                stored = None
+            else:
+                _TREES[hash_key] = stored
+        if stored is not None:
+            self.index_, self.file_set = stored
+            return
+        self._read_indices()
         if load_tvfs:
             self._load_tvfs()
+            _TREES[hash_key] = (self.index_, self.file_set)
+            from doctor.data import memo
+            memo.save('casc', hash_key, _TREES[hash_key])
+
+    def _tree_key(self):
+        from doctor.data import memo
+        idx = tuple(sorted((n, os.path.getsize(os.path.join(self.data_bytes, n))) for n in os.listdir(self.data_bytes)
+                           if n.lower().endswith('.idx')))
+        return memo.key(self.game.lower(), self.build_key, self.config.get('vfs-root', ''), idx)
 
     def _read_indices(self):
         newest = {}
@@ -371,7 +395,9 @@ class CascWC3(object):
         buf = bytearray(sz)
         for o, t, ek in spans:
             part = self.read_ekey(ek)
-            buf[o:o + len(part)] = part[:t]
+            if len(part) < t:
+                raise CascError('"%s": span at %d of %d bytes, the EKey decoded %d' % (file_path, o, t, len(part)))
+            buf[o:o + t] = part[:t]
         return bytes(buf)
 
     def listing(self, default_value):

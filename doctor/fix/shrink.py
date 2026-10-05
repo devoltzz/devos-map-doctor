@@ -38,7 +38,7 @@ OPTIONS = {'recompress': True, 'blp': True, 'dedup': True}
 POOL_PACK = {'zopfli': 256 << 10}
 POOL_PACK_OTHER = 16 << 20
 POOL_BLP = 128 << 10
-BLP_WHY = {'nao e BLP1 JPEG': 'not a BLP1 JPEG', 'no mipmap': 'no mipmap',
+BLP_WHY = {'not a BLP1 JPEG': 'not a BLP1 JPEG', 'no mipmap': 'no mipmap',
            'layout not contiguous': 'mipmaps not in order', 'sobra no fim': 'extra bytes at the end',
            'decodificacao': 'does not decode', 'not baseline': 'not baseline JPEG (progressive or other)',
            'no DHT': 'no Huffman table', 'DHT parte no cabecalho': 'tables in the header and in the mipmaps',
@@ -501,17 +501,20 @@ def shrink(path_in, path_out, options=None, progress=None):
         except ImportError:
             opts['blp'] = False
             res['blp_skipped'] = 'Pillow is not installed'
-    kept, data, names, bad = _load(a, p)
-    if bad:
-        return _fail(res, '%d file(s) do not read (%s): unprotect or repair the map first.' % (
-            len(bad), ', '.join(n or 'block %d' % bi for bi, n, _w in bad[:3])), t0)
-    why = _not_a_map(kept, names)
-    if why:
-        return _fail(res, why, t0)
-    sha, kinds, stored = _facts(a, kept, data, names)
-    p('Choosing the sector size')
-    shift = _choose_shift(a, kept, data, kinds, sha, stored, opts)[0]
-    group_of, members, plan, rewritten, blp = _plan(a, kept, data, opts, 512 << shift, cod, p, sha)
+    try:
+        kept, data, names, bad = _load(a, p)
+        if bad:
+            return _fail(res, '%d file(s) do not read (%s): unprotect or repair the map first.' % (
+                len(bad), ', '.join(n or 'block %d' % bi for bi, n, _w in bad[:3])), t0)
+        why = _not_a_map(kept, names)
+        if why:
+            return _fail(res, why, t0)
+        sha, kinds, stored = _facts(a, kept, data, names)
+        p('Choosing the sector size')
+        shift = _choose_shift(a, kept, data, kinds, sha, stored, opts)[0]
+        group_of, members, plan, rewritten, blp = _plan(a, kept, data, opts, 512 << shift, cod, p, sha)
+    except Exception as e:
+        return _fail(res, 'The map could not be prepared (%s).' % (str(e) or type(e).__name__), t0)
     res.update({'size_before': len(a.d), 'sector_before': a.sector_size, 'sector_after': 512 << shift,
                 'encoder': cod, 'blp': blp})
     part = _part(path_out)

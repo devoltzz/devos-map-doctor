@@ -21,15 +21,17 @@ def models_of(line_list, id_column, model_column):
     col, _ = C.slk_columns(line_list)
     inv = {v.lower(): k for k, v in col.items()}
     x_id, x_file = inv.get(id_column.lower()), inv.get(model_column.lower())
-    if x_id is None or x_file is None:
+    if x_file is None:
         return {}, col
+    if x_id is None:
+        return None, col
     cur_x = cur_y = None
     ids, files = {}, {}
     for line in line_list:
         if not line.startswith('C;'):
             continue
         x = y = k = None
-        for c in line.split(';')[1:]:
+        for c in C.slk_fields(line):
             if c.startswith('X') and c[1:2].isdigit():
                 x = int(re.match(r'X(\d+)', c).group(1))
             elif c.startswith('Y') and c[1:2].isdigit():
@@ -82,6 +84,9 @@ def main():
             print('%s of extract_en already lacks the column; reading from port/extract' % slk)
         models, col = read_models(source, id_column, 'file')
         tgt = os.path.join(EN, dest)
+        if models is None:
+            print('%-14s without the %s column: the file column stays as it is' % (slk, id_column))
+            continue
         if not models and os.path.isfile(tgt) and os.path.getsize(tgt):
             print('%-14s has no model column and %s is already written: kept' % (slk, dest))
             continue

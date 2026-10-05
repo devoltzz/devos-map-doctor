@@ -71,7 +71,7 @@ def pluralize(body_text, replacements):
 
 def applies(body_text, replacements, expected_count=None, to_report=False, label='call swap'):
     line_list = body_text.split('\n')
-    por = dict((k, 0) for k in replacements)
+    by = dict((k, 0) for k in replacements)
     failures = []
     for idx, line in enumerate(line_list):
         if RX_NATIVE.match(line):
@@ -83,14 +83,14 @@ def applies(body_text, replacements, expected_count=None, to_report=False, label
             continue
         for begin, end_pos, fname in sorted(ss, reverse=True):
             line = line[:begin] + replacements[fname] + line[end_pos:]
-            por[fname] += 1
+            by[fname] += 1
         line_list[idx] = line
-    swapped = sum(por.values())
+    swapped = sum(by.values())
     if swapped and expected_count is not None:
         for k, exp_len in expected_count.items():
-            if por[k] != exp_len:
-                failures.append('%s: %d calls replaced, the count measured in the raw is %d' % (k, por[k], exp_len))
-    info = {'by_native': por, 'swapped': swapped, 'failures': failures}
+            if by[k] != exp_len:
+                failures.append('%s: %d calls replaced, the count measured in the raw is %d' % (k, by[k], exp_len))
+    info = {'by_native': by, 'swapped': swapped, 'failures': failures}
     if failures:
         return body_text, info
     new = '\n'.join(line_list)

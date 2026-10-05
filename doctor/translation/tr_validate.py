@@ -40,13 +40,13 @@ def check(entry, en):
     ko = entry['text']
     errs = []
     if not isinstance(en, str):
-        return ['nao e string']
+        return ['not a string']
     if en.strip() == '' and ko.strip() != '':
         errs.append('empty')
     if CJK.search(en):
         errs.append('CJK restante')
-    fala_de_ia = any(t in ko for t in ('人工智能', '인공지능', '人工知能')) or re.search(r'\bAI\b', ko)
-    if AI_WORDS.search(en) and 'AI Protocol' not in en and not fala_de_ia:
+    mentions_ai = any(t in ko for t in ('人工智能', '인공지능', '人工知能')) or re.search(r'\bAI\b', ko)
+    if AI_WORDS.search(en) and 'AI Protocol' not in en and not mentions_ai:
         errs.append('mencao a IA/traducao')
     if ('\n' in en or '\r' in en) and '\n' not in ko:
         errs.append('raw line break')

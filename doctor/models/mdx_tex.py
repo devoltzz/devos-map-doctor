@@ -6,7 +6,7 @@ import struct
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
 
-def le_chunks(data, begin, end_pos):
+def read_chunks(data, begin, end_pos):
     p = begin
     while p + 8 <= end_pos:
         tag = data[p:p + 4].decode('latin-1')
@@ -20,7 +20,7 @@ def cstr(b):
     return (b if i < 0 else b[:i]).decode('latin-1')
 
 
-def le_texs(data, off, n):
+def read_textures(data, off, n):
     output = []
     for i in range(n // 268):
         p = off + i * 268
@@ -31,7 +31,7 @@ def le_texs(data, off, n):
     return output
 
 
-def le_mtls(data, off, n, version_num):
+def read_materials(data, off, n, version_num):
     mats = []
     p = off
     end_pos = off + n
@@ -64,7 +64,7 @@ def le_mtls(data, off, n, version_num):
     return mats
 
 
-def le_geos_materiais(data, off, n):
+def read_geoset_materials(data, off, n):
     output = []
     p = off
     end_pos = off + n

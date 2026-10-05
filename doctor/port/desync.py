@@ -4,7 +4,10 @@ import os
 import re
 import struct
 
+from doctor.port import swap_calls
 
+
+SWAP_Z = {'GetLocationZ': 'KK_zl'}
 RX_END_GLOBALS_BLOCK = re.compile(r'(?m)^endglobals\s*$')
 RX_FUNCTION = re.compile(r'(?m)^function\s+\w+\s+takes\b')
 RX_FUNCTION_NAME = re.compile(r'^[ \t]*function\s+(\w+)\s+takes\b')
@@ -13,7 +16,7 @@ RX_LOCAL_LINE = re.compile(r'\n[ \t]*local\b[^\n]*')
 DEFAULT_MARK = '// [framework KK] passo 3q (common/kk/desync.py): the static terrain height'
 DEFAULT_MAIN_CALL = ('call KK_zt_carrega() // [framework KK] step 3q: the static terrain height (KK_z), before '
                      'of any effect')
-BLOCO = 2500
+BLOCK = 2500
 Z_BASE = 4096
 COLUMN_STEP = 16384
 PLATFORMS = {b'OTip': 64.0, b'OTis': 32.0}
@@ -185,11 +188,11 @@ def table_text(w, h, ox, oy, runs, idx, mark=DEFAULT_MARK):
         '// j. Each block in its own thread (`ExecuteFunc`); `DB_z_pronto` only with the whole table.',
     ]
     name_list = []
-    for b0 in range(0, len(runs), BLOCO):
-        fname = 'KK_zt_%d' % (b0 // BLOCO)
+    for b0 in range(0, len(runs), BLOCK):
+        fname = 'KK_zt_%d' % (b0 // BLOCK)
         name_list.append(fname)
         L.append('function %s takes nothing returns nothing' % fname)
-        end_pos = min(b0 + BLOCO, len(runs))
+        end_pos = min(b0 + BLOCK, len(runs))
         for k in range(b0, end_pos):
             L.append('    set DB_zr%d[%d]=%d' % (k // 32768, k % 32768, runs[k]))
         L.append('    set DB_z_n=DB_z_n+%d' % (end_pos - b0))
@@ -226,7 +229,7 @@ def map_functions(raw_data):
     return _AUTHOR_MAP[raw_data]
 
 
-def troca_leituras(body_text, raw_data):
+def swap_reads(body_text, raw_data):
     autora = map_functions(raw_data)
     line_list = body_text.split('\n')
     fn = None
@@ -237,7 +240,10 @@ def troca_leituras(body_text, raw_data):
         m = RX_FUNCTION_NAME.match(line)
         if m:
             fn = m.group(1)
-        n = line.count('GetLocationZ(')
+        if 'GetLocationZ' not in line:
+            continue
+        ss = swap_calls.sitios(line, SWAP_Z)
+        n = len(ss)
         if not n:
             continue
         if fn not in autora:
@@ -246,7 +252,9 @@ def troca_leituras(body_text, raw_data):
         if 'SetUnitFlyHeight(' in line:
             voo += n
             continue
-        line_list[k] = line.replace('GetLocationZ(', 'KK_zl(')
+        for begin, end_pos, fname in sorted(ss, reverse=True):
+            line = line[:begin] + SWAP_Z[fname] + line[end_pos:]
+        line_list[k] = line
         replacements += n
         by_function[fn] = by_function.get(fn, 0) + n
     return '\n'.join(line_list), replacements, voo, by_function, outside
@@ -258,7 +266,7 @@ def applies(body_text, cfg, to_report=False):
     if 'function KK_zt_carrega takes' in body_text:
         return body_text, info
     exp_len = cfg.get('expected_count') or {}
-    body_text, replacements, voo, by_function, outside = troca_leituras(body_text, cfg['raw_data'])
+    body_text, replacements, voo, by_function, outside = swap_reads(body_text, cfg['raw_data'])
     info.update({'replacements': replacements, 'voo': voo, 'swapped_functions': len(by_function), 'outside': outside})
     if (exp_len.get('replacements') is not None and replacements != exp_len['replacements']) or (
         exp_len.get('voo') is not None and voo != exp_len['voo']

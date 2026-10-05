@@ -27,6 +27,9 @@ class Budget(JassError):
     pass
 
 
+_MATH_ERRORS = (ArithmeticError, ValueError, TypeError, OverflowError)
+
+
 class _Unset(object):
     __slots__ = ()
 
@@ -211,7 +214,7 @@ class Interpreter(object):
                     continue
                 try:
                     self.globals[g.name] = _coerce(g.type, self._expr(g.initializer, {})({}))
-                except Crash as e:
+                except (Crash,) + _MATH_ERRORS as e:
                     self.globals[g.name] = UNSET
                     self.crashes.append('global %s: %s' % (g.name, e))
 
@@ -226,6 +229,10 @@ class Interpreter(object):
             return None
         except RecursionError:
             self.crashes.append('%s: too deep' % name)
+            return None
+        except _MATH_ERRORS as e:
+            if len(self.crashes) < 200:
+                self.crashes.append('%s: %s' % (name, e))
             return None
 
     def start(self, entries=('config', 'main')):
@@ -592,6 +599,16 @@ def _r2sw(it, r, width, precision):
     return '%*.*f' % (max(0, width), max(0, precision), r)
 
 
+def _pow(a, b):
+    a, b = float(a), float(b)
+    if (a == 0.0 and b < 0.0) or (a < 0.0 and not b.is_integer()):
+        return 0.0
+    try:
+        return a ** b
+    except (OverflowError, ZeroDivisionError):
+        return 0.0
+
+
 def _for_force(it, force, code):
     if force is None or not isinstance(code, Code):
         return None
@@ -733,7 +750,7 @@ NATIVES = {
     'GetRandomInt': lambda it, a, b: it.random.randint(min(a, b), max(a, b)),
     'GetRandomReal': lambda it, a, b: it.random.uniform(min(a, b), max(a, b)),
     'SquareRoot': lambda it, r: math.sqrt(r) if r > 0 else 0.0,
-    'Pow': lambda it, a, b: (float(a) ** float(b)) if not (a == 0 and b < 0) else 0.0,
+    'Pow': lambda it, a, b: _pow(a, b),
     'Sin': lambda it, r: math.sin(r), 'Cos': lambda it, r: math.cos(r), 'Tan': lambda it, r: math.tan(r),
     'Asin': lambda it, r: math.asin(max(-1.0, min(1.0, r))), 'Acos': lambda it, r: math.acos(max(-1.0, min(1.0, r))),
     'Atan': lambda it, r: math.atan(r), 'Atan2': lambda it, y, x: math.atan2(y, x),

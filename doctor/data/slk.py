@@ -7,6 +7,18 @@ def parse_slk(path):
     return parse_slk_bytes(open(path, 'rb').read())
 
 
+def parse_slk_bytes_memo(raw):
+    import hashlib
+    from doctor.data import memo
+    hash_key = hashlib.sha1(raw).hexdigest()[:24]
+    stored_value = memo.load('slk', hash_key)
+    if isinstance(stored_value, tuple) and len(stored_value) == 2:
+        return stored_value
+    out = parse_slk_bytes(raw)
+    memo.save('slk', hash_key, out)
+    return out
+
+
 def parse_slk_bytes(raw):
     txt = raw.decode('utf-8', 'surrogateescape')
     header = {}

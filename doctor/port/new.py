@@ -7,7 +7,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ARCHIVE_ROOT = os.path.normpath(os.path.join(HERE, '..', '..'))
-MODELO = os.path.join(HERE, 'model')
+TEMPLATE = os.path.join(HERE, 'model')
 REF = os.path.join(ARCHIVE_ROOT, 'common', 'ref', '3.0')
 
 LAYER_FIELDS = ['unit.file', 'unit.rangeN1', 'item.Art', 'item.Name', 'item.Ubertip']
@@ -52,13 +52,13 @@ def run_action(label, cmd, cwd, log_file):
     return r.returncode, out
 
 
-def model(fname, valores):
-    t = open(os.path.join(MODELO, fname + '.template'), encoding='utf-8').read()
+def model(fname, value_list):
+    t = open(os.path.join(TEMPLATE, fname + '.template'), encoding='utf-8').read()
 
     def swap(m):
-        if m.group(1) not in valores:
+        if m.group(1) not in value_list:
             raise SystemExit('model %s: the value of {{%s}} is missing' % (fname, m.group(1)))
-        return str(valores[m.group(1)])
+        return str(value_list[m.group(1)])
     return RX_TEMPLATE.sub(swap, t)
 
 

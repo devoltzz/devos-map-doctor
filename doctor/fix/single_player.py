@@ -1,5 +1,6 @@
 # Finds and removes the lock that ends the game when a map is played alone.
 import bisect
+import collections
 import os
 import re
 import shutil
@@ -827,6 +828,9 @@ def _wrap_nodes(e, targets, lang):
     return e
 
 
+RX_PJASS_LINE = re.compile(r'^\S+:\d+:\s*')
+
+
 def _pjass(old_bytes, new_bytes):
     pj = jass_ast._load_pjass()
     if pj is None:
@@ -841,8 +845,11 @@ def _pjass(old_bytes, new_bytes):
             ref = pj.game_scripts_dir(REF_30) or REF_30
             r = pj.run_action([(os.path.join(ref, 'common.j'), 'common.j'), (os.path.join(ref, 'blizzard.j'),
                          'blizzard.j'), (src, 'war3map.j')], tmp=os.path.join(tmp, tag))
+            if r.get('missing') or (r['rc'] == 2 and not r['line_list']):
+                return {'state': 'skipped', 'note': 'the game scripts (common.j, blizzard.j) were not found'}
             lines = [ln.replace(os.path.join(tmp, tag), '') for ln in r['line_list']]
-            res.append((r['rc'] == 0 and not r['error_list'] and not r['warnings'], (r['rc'], lines),
+            msgs = collections.Counter(RX_PJASS_LINE.sub('', ln) for ln in lines)
+            res.append((r['rc'] == 0 and not r['error_list'] and not r['warnings'], (r['rc'], msgs),
                         'exit %d, %d errors, %d warnings, %d lines of output' % (
                             r['rc'], len(r['error_list']), len(r['warnings']), len(r['line_list']))))
     finally:

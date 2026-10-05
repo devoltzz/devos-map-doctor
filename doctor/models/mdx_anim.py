@@ -5,7 +5,7 @@ from doctor.models.mdx_tex import cstr
 
 
 
-def le_seqs(data, off, n):
+def read_sequences(data, off, n):
     output = []
     for i in range(n // 132):
         p = off + i * 132

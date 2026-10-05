@@ -113,6 +113,10 @@ def fix_file_column(files, cur, report):
         models, cols = slk2skin.models_of(lines, id_col, 'file')
         if 'file' not in [c.lower() for c in cols.values()]:
             continue
+        if models is None:
+            report.setdefault('file_column', {})[name] = 0
+            report.setdefault('notes', []).append('%s: no %s column, so the file column stays' % (name, id_col))
+            continue
         skin_name = _find(cur, skin) or skin
         cur[skin_name] = merge_profile(cur.get(skin_name), models)
         keep = set(c for c in cols.values() if c.lower() != 'file')
@@ -190,4 +194,4 @@ def patch(files, only=None):
 
 def scan(files):
     _changed, report = patch(files)
-    return dict((k, sum(v.values())) for k, v in report.items())
+    return dict((k, sum(v.values())) for k, v in report.items() if k in PROBLEMS)

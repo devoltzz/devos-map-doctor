@@ -5,8 +5,10 @@ import re
 import sys
 from collections import defaultdict
 
+from doctor.data import slk_cols
 
-RE_NUM = re.compile(r'^-?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$')
+
+RE_NUMBER = re.compile(r'^-?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$')
 RE_ID_LIST_COLUMN = re.compile(r'^(abilList|heroAbilList|abilSkinList|heroAbilSkinList|auto|cooldownID|upgrades|'
                                r'Requires\d*|Builds|Sellitems|Sellunits|Makeitems|Trains|Researches|'
                                r'Upgrade|DependencyOr|UnitID\d+|BuffID\d+|EfctID\d+)$', re.I)
@@ -19,7 +21,7 @@ def slk_cells(line_list):
         if not line.startswith('C;'):
             continue
         x = y = k = None
-        for c in line.split(';')[1:]:
+        for c in slk_cols.slk_fields(line):
             if c.startswith('X') and c[1:2].isdigit():
                 x = int(re.match(r'X(\d+)', c).group(1))
             elif c.startswith('Y') and c[1:2].isdigit():
@@ -86,7 +88,7 @@ def fix_numbers(line_list):
         if y == 1 or x not in numeric_columns or not v.startswith('"'):
             continue
         body = v.strip('"')
-        if not RE_NUM.match(body):
+        if not RE_NUMBER.match(body):
             continue
         new = body.rstrip('.') if body.endswith('.') else body
         if new == '' or new == '-':
