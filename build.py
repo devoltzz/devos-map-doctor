@@ -50,8 +50,22 @@ def notices():
     return ''.join(parts)
 
 
+def native_decryption():
+    # the MPQ decryption in native code (doctor/mpq/mpqcrypt.c, ~200x the Python loop): built with zig from pip when
+    # missing; without it the exe decrypts in Python, the same bytes
+    dll = os.path.join(ENGINE, 'mpq', 'mpqcrypt.dll')
+    if os.path.isfile(dll):
+        return
+    import subprocess
+    r = subprocess.run([sys.executable, '-m', 'ziglang', 'cc', '-target', 'x86_64-windows-gnu', '-shared', '-O2', '-s',
+                        '-o', dll, os.path.join(ENGINE, 'mpq', 'mpqcrypt.c')], capture_output=True, text=True)
+    if r.returncode:
+        print('mpqcrypt.dll could not be built (pip install ziglang): the exe decrypts maps in Python')
+
+
 def main():
     import PyInstaller.__main__
+    native_decryption()
     version = app_version()
     numbers = (re.findall(r'\d+', version) + ['0'] * 4)[:4]
     work = os.path.join(ROOT, 'build')
@@ -72,7 +86,7 @@ def main():
                 name = f[:-3]
                 package = rel.replace(os.sep, '.')
                 args += ['--hidden-import', package if name == '__init__' else package + '.' + name]
-            elif f.endswith('.exe'):
+            elif f.endswith(('.exe', '.dll')):
                 args += ['--add-binary', os.path.join(folder, f) + os.pathsep + rel]
             elif not f.endswith('.pyc'):
                 args += ['--add-data', os.path.join(folder, f) + os.pathsep + rel]

@@ -13,3 +13,4 @@ dist/
 web/node_modules/
 web/wheels/
 deploy/.env
+doctor/mpq/mpqcrypt.dll

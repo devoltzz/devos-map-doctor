@@ -20,7 +20,23 @@ def _mix_key(key):
     return ((((~key) << 0x15) & 0xFFFFFFFF) + 0x11111111) & 0xFFFFFFFF | (key >> 0x0B)
 
 
+_NATIVE_DECRYPT = [None]
+
+
+def _native_decrypt():
+    if _NATIVE_DECRYPT[0] is None:
+        try:
+            from doctor.mpq import mpqcrypt
+            _NATIVE_DECRYPT[0] = mpqcrypt.load_data() or False
+        except Exception:
+            _NATIVE_DECRYPT[0] = False
+    return _NATIVE_DECRYPT[0]
+
+
 def decrypt_bytes(data, key):
+    native = _NATIVE_DECRYPT[0] if _NATIVE_DECRYPT[0] is not None else _native_decrypt()
+    if native and len(data) >= 16:
+        return native(data, key)
     n = len(data) // 4
     src = array('I')
     src.frombytes(bytes(data[:n * 4]))

@@ -2,7 +2,7 @@
 
   python web/build_site.py --engine=<release folder> --out=<folder> [--ui=<page folder>] [--pjass=<pjass.wasm>]
          [--data=<game data pack>] [--index=<names.npz>] [--pyodide=<node_modules/pyodide>] [--wheels=<cache folder>]
-         [--repository=owner/name] [--zip=<site zip>]
+         [--repository=owner/name] [--zip=<site zip>] [--mpqcrypt=<mpqcrypt.wasm>]
 
 What goes in <out>:
   index.html, app.css, app.js...   the program's page (`ui/`), with config.js (the version, the repository) and the
@@ -13,6 +13,8 @@ What goes in <out>:
   about.html, about.js             About and privacy
   engine.zip                       the engine: DevosMapDoctor.py and doctor/ (no pjass.exe)
   pjass.wasm                       pjass as WebAssembly (build_pjass.py)
+  mpqcrypt.js, mpqcrypt.wasm       the MPQ decryption in native code (--mpqcrypt, or built from the engine's
+                                   doctor/mpq/mpqcrypt.c with zig)
   pyodide/                         Pyodide from npm and the numpy and Pillow wheels (downloaded once into --wheels and
                                    checked against the sha256 of pyodide-lock.json): the site loads nothing from a CDN
   sw.js                            the service worker (offline): the version and the file list written in
@@ -26,13 +28,14 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import urllib.request
 import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-WEB_FILES = ('ponte.js', 'fila.js', 'worker.js', 'worker.py', 'wasi_mini.js', 'fs_windows.js', 'about.html',
-             'about.js')
+WEB_FILES = ('ponte.js', 'fila.js', 'worker.js', 'worker.py', 'wasi_mini.js', 'fs_windows.js', 'mpqcrypt.js',
+             'about.html', 'about.js')
 PACKAGES = ('numpy', 'pillow')
 CORE = ('pyodide.js', 'pyodide.mjs', 'pyodide.asm.mjs', 'pyodide.asm.wasm', 'python_stdlib.zip', 'pyodide-lock.json')
 # a map above this needs more memory than a browser gives a page (measured: 238 MiB takes 1.5 GiB of the 4 GiB a
@@ -68,7 +71,7 @@ def engine_zip(engine, target):
         for root, dirs, files in os.walk(os.path.join(engine, 'doctor')):
             dirs[:] = sorted(d for d in dirs if d not in ('__pycache__', 'cache'))
             for f in sorted(files):
-                if f.endswith(('.exe', '.pyc')):
+                if f.endswith(('.exe', '.pyc', '.dll')):
                     continue
                 p = os.path.join(root, f)
                 z.write(p, os.path.relpath(p, engine).replace(os.sep, '/'))
@@ -187,8 +190,25 @@ def site_zip(out, target):
         f.write('%s  %s\n' % (sha256(target), os.path.basename(target)))
 
 
+def native_decryption(engine, out, wasm=None):
+    """mpqcrypt.wasm: the given one, or built from the engine's doctor/mpq/mpqcrypt.c with zig from pip (the MPQ
+    decryption in native code, ~200x the Python loop; without it the engine decrypts in Python, the same bytes)."""
+    target = os.path.join(out, 'mpqcrypt.wasm')
+    if wasm:
+        shutil.copyfile(wasm, target)
+        return
+    source = os.path.join(engine, 'doctor', 'mpq', 'mpqcrypt.c')
+    if not os.path.isfile(source):
+        print('build_site: no doctor/mpq/mpqcrypt.c: the site decrypts maps in Python (slow on encrypted maps)')
+        return
+    r = subprocess.run([sys.executable, '-m', 'ziglang', 'cc', '-target', 'wasm32-freestanding', '-nostdlib',
+                        '-Wl,--no-entry', '-O2', '-s', '-o', target, source], capture_output=True, text=True)
+    if r.returncode:
+        raise SystemExit('build_site: zig could not build mpqcrypt.wasm\n%s%s' % (r.stdout, r.stderr))
+
+
 def build(engine, out, ui=None, pjass=None, data=None, index=None, pyodide_dir=None, wheels=None, repository=None,
-          zip_path=None):
+          zip_path=None, mpqcrypt=None):
     """-> {'version', 'cache', 'files', 'pyodide'}."""
     engine = os.path.abspath(engine)
     if not os.path.isfile(os.path.join(engine, 'DevosMapDoctor.py')):
@@ -205,6 +225,7 @@ def build(engine, out, ui=None, pjass=None, data=None, index=None, pyodide_dir=N
         raise SystemExit('build_site: no pjass.wasm (build_pjass.py): the port, the GUI triggers and the cheat packs '
                          'need it')
     shutil.copyfile(pjass, os.path.join(out, 'pjass.wasm'))
+    native_decryption(engine, out, mpqcrypt)
     py_version = pyodide(pyodide_dir or os.path.join(HERE, 'node_modules', 'pyodide'), os.path.join(out, 'pyodide'),
                          wheels or os.path.join(HERE, 'wheels'))
     if data:
@@ -231,7 +252,7 @@ def main(argv):
         print(__doc__)
         return 2
     r = build(op['engine'], os.path.abspath(op['out']), op.get('ui'), op.get('pjass'), op.get('data'), op.get('index'),
-              op.get('pyodide'), op.get('wheels'), op.get('repository'), op.get('zip'))
+              op.get('pyodide'), op.get('wheels'), op.get('repository'), op.get('zip'), op.get('mpqcrypt'))
     print('site %s (cache %s, Pyodide %s, %d engine files) -> %s' % (r['version'], r['cache'], r['pyodide'],
                                                                     r['engine_files'], op['out']))
     return 0
