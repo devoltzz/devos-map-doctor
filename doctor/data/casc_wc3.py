@@ -159,9 +159,19 @@ def read_config(game, hash_key):
 _TREES = {}
 
 
+PACK_MANIFEST = 'doctor_game_data.json'
+PACK_LIST = 'paths.txt'
+def pack_file_path(game, file_path):
+    return os.path.join(game, 'files', *file_path.replace(':', '\\').split('\\'))
+
+
 class CascWC3(object):
     def __init__(self, game=DEFAULT_GAME, load_tvfs=True):
         self.game = os.path.abspath(game)
+        if os.path.isfile(os.path.join(self.game, PACK_MANIFEST)):
+            self._open_pack()
+            return
+        self.is_pack = False
         self.data_bytes = os.path.join(self.game, 'Data', 'data')
         if not os.path.isdir(self.data_bytes):
             raise CascError('no Data\\data in %s' % self.game)
@@ -191,6 +201,20 @@ class CascWC3(object):
             _TREES[hash_key] = (self.index_, self.file_set)
             from doctor.data import memo
             memo.save('casc', hash_key, _TREES[hash_key])
+
+    def _open_pack(self):
+        import json
+        with open(os.path.join(self.game, PACK_MANIFEST), encoding='utf-8') as f:
+            m = json.load(f)
+        self.is_pack = True
+        self.version_num, self.build_key = m['version'], m['build_key']
+        self.build_info, self.config = {'Version': self.version_num, 'Build Key': self.build_key}, {}
+        self.index_, self._open_files, self._encoding = {}, {}, None
+        with open(os.path.join(self.game, PACK_LIST), encoding='utf-8') as f:
+            self.file_set = dict((line.lower(), (line, None)) for line in f.read().split('\n') if line)
+        if len(self.file_set) != m['total']:
+            raise CascError('pack: %s has %d paths, the manifest says %d'
+                            % (PACK_LIST, len(self.file_set), m['total']))
 
     def _tree_key(self):
         from doctor.data import memo
@@ -385,9 +409,16 @@ class CascWC3(object):
                 file_path = base
 
     def read_data(self, file_path):
-        ent = self.file_set.get(file_path.replace('/', '\\').lower())
+        hash_key = file_path.replace('/', '\\').lower()
+        ent = self.file_set.get(hash_key)
         if ent is None:
             raise CascError('"%s" is not in the CASC' % file_path)
+        if self.is_pack:
+            try:
+                with open(pack_file_path(self.game, hash_key), 'rb') as f:
+                    return f.read()
+            except OSError:
+                raise CascError('"%s" is a game file, but the game data pack does not have it' % file_path)
         spans = ent[1]
         if len(spans) == 1:
             return self.read_ekey(spans[0][2])

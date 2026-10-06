@@ -25,6 +25,11 @@ function el(tag, attrs, ...kids) {
 function mb(n) { return (n / 1e6).toFixed(n >= 1e8 ? 0 : 1) + ' MB'; }
 function clock(s) { s = Math.floor(s); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
 function base(path) { return (path || '').split(/[\\/]/).pop(); }
+// the site (1.6) has no folder to show: what a job saved is downloaded
+const web = () => !!(state.hello && state.hello.web);
+const showLabel = what => web() ? 'Download' : what;
+const folderButton = (path, what) => el('button', { class: 'btn', text: showLabel(what || 'Show in folder'),
+  onclick: () => api().open_folder(path) });
 function status(text) { $('#status').textContent = text; }
 
 function toast(text, opts) {
@@ -93,7 +98,9 @@ const pendingEvents = {};
 // error instead of a job that never ends
 async function run(task, params, opts) {
   opts = opts || {};
-  const id = await api().start(task, Object.assign({ map: state.map }, params || {}));
+  // `quiet`: the site runs the tabs that load in the background in a worker of their own (the exe ignores it)
+  const id = await api().start(task, Object.assign({ map: state.map }, params || {},
+    opts.quiet ? { quiet: true } : {}));
   return new Promise((resolve, reject) => {
     state.jobs[id] = { task, resolve, reject, started: Date.now(), label: opts.label, quiet: opts.quiet };
     if (opts.quiet) state.quietJobs.add(id);
@@ -161,7 +168,7 @@ function failed(e, what) {
   if (e && e.cancelled) {
     status('Cancelled.');
     if (e.kept) toast(what + ' was cancelled. The map without the extras was saved as ' + base(e.output) + '.',
-      e.output ? { actions: [['Show in folder', () => api().open_folder(e.output)]] } : {});
+      e.output ? { actions: [[showLabel('Show in folder'), () => api().open_folder(e.output)]] } : {});
     else toast(what + ' was cancelled. Nothing was saved.');
     return;
   }
@@ -541,7 +548,7 @@ function renderResult(action, r) {
           el('td', { text: f.how }), el('td', { class: 'muted', text: f.why })))))) : null,
       ch.notes.map(n => el('div', { class: 'muted', text: n }))) : null,
     el('div', { class: 'foot row', style: 'margin-top:14px' },
-      r.file ? el('button', { class: 'btn', text: 'Show in folder', onclick: () => api().open_folder(r.file) }) : null,
+      r.file ? folderButton(r.file) : null,
       el('button', { class: 'btn', text: 'Copy report', onclick: async () => {
         await copyText(plainReport(r.lines)); toast('The report is in the clipboard.'); } }),
       el('button', { class: 'btn ghost', text: 'Report a problem', onclick: reportProblem })));
@@ -921,7 +928,7 @@ function renderFiles() {
               bad.slice(0, 5).map(x => x.name + (x.reason ? ' (' + x.reason + ')' : '')).join(', ') +
               (bad.length > 5 ? ', ...' : ''), { bad: true, sticky: true });
             toast('Extracted ' + n + (n === 1 ? ' file' : ' files') + (kept ? ', ' + kept + ' already there' : '') +
-              '.', { actions: [['Show', () => api().open_folder(dir)]] });
+              '.', { actions: [[showLabel('Show'), () => api().open_folder(dir)]] });
           } catch (e) { failed(e, 'Extracting'); }
         } })),
     // the module never raises: when the map could not be read, its reason is here (and the list is empty)
@@ -1253,7 +1260,7 @@ function cheatpackResult(r) {
     reportLines(r.lines || []),
     el('div', { class: 'foot row', style: 'margin-top:14px' },
       r.file ? el('span', { class: 'faint mono grow', text: r.file }) : null,
-      r.file ? el('button', { class: 'btn', text: 'Show in folder', onclick: () => api().open_folder(r.file) }) : null,
+      r.file ? folderButton(r.file) : null,
       ok ? null : el('button', { class: 'btn ghost', text: 'Report a problem', onclick: reportProblem })));
 }
 
@@ -1354,7 +1361,7 @@ async function exportTexts(kind) {
         'The export did not finish.') }, 'Exporting the texts');
       return;
     }
-    toast('Exported ' + (r.entries || 0) + ' texts to ' + base(p) + '.', { actions: [['Show', () =>
+    toast('Exported ' + (r.entries || 0) + ' texts to ' + base(p) + '.', { actions: [[showLabel('Show'), () =>
       api().open_folder(p)]] });
   } catch (e) { failed(e, 'Exporting the texts'); }
 }
@@ -1491,13 +1498,13 @@ function portResult(r) {
       el('div', { class: 'scroll', style: 'max-height:280px' }, el('table', { class: 'grid' },
         el('thead', {}, el('tr', {}, el('th', { text: 'Native' }), el('th', { text: 'Calls' }),
           el('th', { text: 'Functions' }), el('th', { text: 'Triggers' }))),
-        el('tbody', {}, stubs.map(s => el('tr', {}, el('td', { class: 'mono', text: s.nativa }),
-          el('td', { text: String(s.chamadas) }), el('td', { class: 'mono', text: s.funcoes.slice(0, 8).join(', ') +
-            (s.funcoes.length > 8 ? ' ...' : '') }), el('td', { text: (s.gatilhos || []).join(', ') }))))))) : null,
+        el('tbody', {}, stubs.map(s => el('tr', {}, el('td', { class: 'mono', text: s.native }),
+          el('td', { text: String(s.calls) }), el('td', { class: 'mono', text: (s.functions || []).slice(0, 8).join(', ') +
+            ((s.functions || []).length > 8 ? ' ...' : '') }), el('td', { text: (s.triggers || []).join(', ') }))))))) :
+      null,
     el('div', { class: 'foot row', style: 'margin-top:14px' },
-      r.file ? el('button', { class: 'btn', text: 'Show in folder', onclick: () => api().open_folder(r.file) }) : null,
-      r.report ? el('button', { class: 'btn', text: 'Show the report', onclick: () => api().open_folder(r.report) }) :
-        null,
+      r.file ? folderButton(r.file) : null,
+      r.report ? folderButton(r.report, 'Show the report') : null,
       el('button', { class: 'btn', text: 'Copy report', onclick: async () => {
         await copyText(plainReport(r.lines)); toast('The report is in the clipboard.'); } }),
       el('button', { class: 'btn ghost', text: 'Report a problem', onclick: reportProblem })));

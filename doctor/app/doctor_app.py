@@ -296,6 +296,11 @@ def write_port_failure(report, message, trace=''):
         pass
 
 
+def page_stub(s):
+    return {'native': s.get('native'), 'calls': s.get('calls') or 0, 'functions': list(s.get('functions') or []),
+            'triggers': list(s.get('trigger_list') or [])}
+
+
 def run_port(D, G, path, progress, emit, packages=(), memory=True):
     from doctor.port import map_port
     out = D.free_output(path, '_reforged')
@@ -321,7 +326,7 @@ def run_port(D, G, path, progress, emit, packages=(), memory=True):
     ported = r.get('resultado', '').startswith('ported')
     return {'lines': page_lines(G.port_text(r)), 'file': r.get('output') if ported else None, 'report': report,
             'outcome': 'ok' if ported else 'failed',
-            'port': {'g1': r.get('g1'), 'g2': r.get('g2'), 'stubs': r.get('stubs') or [],
+            'port': {'g1': r.get('g1'), 'g2': r.get('g2'), 'stubs': [page_stub(s) for s in r.get('stubs') or []],
                      'warnings': r.get('warnings') or [], 'error': r.get('err'), 'log': r.get('log'),
                      'removed': (r.get('dead_type') or {}).get('types') or [], 'form': r.get('forma'),
                      'jn': bool((r.get('diagnostico') or {}).get('jn')),
