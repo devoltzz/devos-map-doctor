@@ -414,7 +414,7 @@ def _pixels(im, max_side, image_format):
 
 def _image(data, ext, max_bytes, max_side, image_format):
     from PIL import Image
-    if data[:4] in (b'BLP1', b'BLP2'):
+    if data[:4] in (b'BLP1', b'BLP2', b'BLX1'):
         from doctor.models import blpread
         info = blpread.header_bytes(data)
         mip = 0
@@ -549,7 +549,7 @@ def _content_kind(name, data):
     ext = os.path.splitext(name)[1].lower()
     kind = kind_of(name)
     if kind == 'image' and ext in ('.blp', '.png', '.jpg', '.jpeg', '.gif', '.bmp') and \
-            not data.startswith((b'BLP1', b'BLP2') + tuple(m for m, _t in IMAGE_MIME)):
+            not data.startswith((b'BLP1', b'BLP2', b'BLX1') + tuple(m for m, _t in IMAGE_MIME)):
         return 'other', ext
     if kind == 'image' and ext == '.dds' and not data.startswith(b'DDS '):
         return 'other', ext

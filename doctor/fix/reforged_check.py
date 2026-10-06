@@ -214,6 +214,27 @@ def object_items(path):
     return items
 
 
+def texture_items(path):
+    from doctor.fix import kk_textures
+    r = kk_textures.scan(path)
+    if r.get('error') or not r['count']:
+        return []
+    return [_item('kk_textures', 'warning', '%d textures are encrypted by the KK platform (BLX1): only its client '
+                  'reads them, so the game shows the models without them and the icons green. The Doctor decrypts '
+                  'them.' % r['count'], 'doctor', files=r['files'][:30], count=r['count'])]
+
+
+def icon_items(path):
+    from doctor.fix import disabled_icons
+    r = disabled_icons.scan(path)
+    if r.get('error') or not r['missing']:
+        return []
+    return [_item('disabled_icons', 'info', '%d of the %d imported icons have no disabled art: the game draws them '
+                  'green where the button is disabled (a dead hero, the items of another unit, an ability not yet '
+                  'available). The Doctor makes it from each icon.' % (len(r['missing']), r['icons']), 'doctor',
+                  icons=[x['icon'] for x in r['missing'][:30]], count=len(r['missing']))]
+
+
 def import_items(path):
     from doctor.mpq import import_lint
     r = import_lint.lint(path)
@@ -411,4 +432,8 @@ def check(path, progress=None, diag=None):
         items += object_items(src)
         p('Checking the imported files')
         items += import_items(src)
+        p('Checking the textures')
+        items += texture_items(src)
+        p('Checking the icons')
+        items += icon_items(src)
     return _finish(res, unknown)

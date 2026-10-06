@@ -13,8 +13,8 @@ What goes in <out>:
   about.html, about.js             About and privacy
   engine.zip                       the engine: DevosMapDoctor.py and doctor/ (no pjass.exe)
   pjass.wasm                       pjass as WebAssembly (build_pjass.py)
-  mpqcrypt.js, mpqcrypt.wasm       the MPQ decryption in native code (--mpqcrypt, or built from the engine's
-                                   doctor/mpq/mpqcrypt.c with zig)
+  mpqcrypt.js, mpqcrypt.wasm       the MPQ's hot loops in native code: the decryption, the key search, the sound
+                                   sectors (--mpqcrypt, or built from the engine's doctor/mpq/mpqcrypt.c with zig)
   pyodide/                         Pyodide from npm and the numpy and Pillow wheels (downloaded once into --wheels and
                                    checked against the sha256 of pyodide-lock.json): the site loads nothing from a CDN
   sw.js                            the service worker (offline): the version and the file list written in
@@ -191,8 +191,9 @@ def site_zip(out, target):
 
 
 def native_decryption(engine, out, wasm=None):
-    """mpqcrypt.wasm: the given one, or built from the engine's doctor/mpq/mpqcrypt.c with zig from pip (the MPQ
-    decryption in native code, ~200x the Python loop; without it the engine decrypts in Python, the same bytes)."""
+    """mpqcrypt.wasm: the given one, or built from the engine's doctor/mpq/mpqcrypt.c with zig from pip (the MPQ's hot
+    loops in native code: the decryption ~200x the Python loop, the key search, the sound sectors; without it the
+    engine does it all in Python, the same bytes)."""
     target = os.path.join(out, 'mpqcrypt.wasm')
     if wasm:
         shutil.copyfile(wasm, target)

@@ -13,7 +13,7 @@
 import { loadPyodide } from './pyodide/pyodide.mjs';
 import { runWasi } from './wasi_mini.js';
 import { windowsRules } from './fs_windows.js';
-import { mpqDecryptor } from './mpqcrypt.js';
+import { mpqNative } from './mpqcrypt.js';
 
 const ENGINE = '/home/pyodide/engine';
 const GAME = '/home/pyodide/game';
@@ -53,10 +53,18 @@ async function boot() {
     const mod = await WebAssembly.compile(await pj.arrayBuffer());
     self.runPjass = (args, files) => runWasi(mod, Array.from(args), files);
   }
-  // the MPQ decryption in native code (mpqcrypt.c as WebAssembly, ~200x the Python loop): mpqcrypt.py hands it to
-  // mpqlib.decrypt_bytes; without it the engine decrypts in Python, the same bytes
+  // the MPQ's hot loops in native code (mpqcrypt.c as WebAssembly): the decryption (~200x the Python loop), the key
+  // search of nameless encrypted files and the sound sectors' Huffman and ADPCM (~100x); mpqcrypt.py hands them to
+  // mpqlib, mpqread and mpq_wave. Without the file the
+  // engine does it all in Python, the same bytes
   const mc = await fetch('mpqcrypt.wasm');
-  if (mc.ok) self.mpqDecrypt = mpqDecryptor(await mc.arrayBuffer());
+  if (mc.ok) {
+    const native = mpqNative(await mc.arrayBuffer());
+    self.mpqDecrypt = native.decrypt;
+    if (native.keys) self.mpqKeys = native.keys;
+    if (native.huffman) self.mpqHuffman = native.huffman;
+    if (native.adpcm) self.mpqAdpcm = native.adpcm;
+  }
   for (const d of ['/maps', '/in', '/out']) py.FS.mkdirTree(d);
   // the file name index, when the browser already keeps it (the page offers it once: check_update in ponte.js)
   try {

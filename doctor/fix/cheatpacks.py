@@ -597,12 +597,12 @@ def inject(mapa, out_path, pack_id, opcoes=None, progresso=None):
     pack = _pack(pack_id)
     out = {'lines': [], 'file': None, 'pack': pack['id'], 'options': {}, 'syntax': None, 'script': None}
     if os.path.normcase(os.path.abspath(mapa)) == os.path.normcase(os.path.abspath(out_path)):
-        out['lines'] = [('ruim', 'The output must be a new file: the map itself is never written.')]
+        out['lines'] = [('bad', 'The output must be a new file: the map itself is never written.')]
         return out
     from doctor.viewers import map_files
     s = map_files.script(mapa)
     if s.get('language') != pack['language']:
-        out['lines'] = [('ruim', 'The map script is %s: the %s pack is for %s maps.'
+        out['lines'] = [('bad', 'The map script is %s: the %s pack is for %s maps.'
                          % (s.get('language') or 'unreadable', pack['title'], pack['language'].upper()))]
         return out
     name = s.get('name')
@@ -614,7 +614,7 @@ def inject(mapa, out_path, pack_id, opcoes=None, progresso=None):
         dados = b''
     text = dados.decode('utf-8', 'surrogateescape').replace('\r\n', '\n').replace('\r', '\n')
     if not text:
-        out['lines'] = [('ruim', 'The map script is empty or unreadable.')]
+        out['lines'] = [('bad', 'The map script is empty or unreadable.')]
         return out
     p('Reading the cheat pack')
     bruto = open(_path(pack), 'r', encoding='utf-8', newline='').read()
@@ -630,7 +630,7 @@ def inject(mapa, out_path, pack_id, opcoes=None, progresso=None):
         except (OSError, RuntimeError):
             pass
         out['file'] = None
-        out['lines'] = [('ruim', 'The cheat pack was not injected: %s' % _error_text(e))]
+        out['lines'] = [('bad', 'The cheat pack was not injected: %s' % _error_text(e))]
         return out
 
 
@@ -642,7 +642,7 @@ def _injeta(p, pack, text, name, bruto, opcoes, mapa, out_path, out):
     mark_line = marca(pack, usados)
     if pack['language'] == JASS and re.search(r'(?m)^\s*(?:constant\s+)?\w+\s+%s\b' % MARK_NAME, text):
         out['file'] = None
-        out['lines'] = [('ruim', 'The cheat pack was not injected: this map already carries the Doctor\'s mark (%s), '
+        out['lines'] = [('bad', 'The cheat pack was not injected: this map already carries the Doctor\'s mark (%s), '
                                  'and a second pack would declare it twice.' % MARK_NAME)]
         return out
     if pack['language'] == JASS:
@@ -672,7 +672,7 @@ def _injeta(p, pack, text, name, bruto, opcoes, mapa, out_path, out):
             ok, det = _lua_check(new_text)
         out['syntax'] = {'ok': bool(ok), 'detail': det, 'semantic': bool(semantico)}
         if not ok:
-            out['lines'] = [('ruim', 'The injected script does not pass the syntax check: %s' % det)]
+            out['lines'] = [('bad', 'The injected script does not pass the syntax check: %s' % det)]
             return out
         p('Writing the map')
         empty = _open_map(mapa)
@@ -723,19 +723,19 @@ def _obfuscation_summary(lines):
 
 
 def _report(pack, usados, name, before, after, renames, det, renamed=None, semantico=False):
-    out = [('titulo', '%s injected into %s' % (pack['title'], os.path.basename(name))),
-           ('ok', 'The script went back into the map with mpqadd: the file was not rebuilt (%s -> %s).'
+    out = [('title', '%s injected into %s' % (pack['title'], os.path.basename(name))),
+           ('good', 'The script went back into the map with mpqadd: the file was not rebuilt (%s -> %s).'
             % (_kb(len(before)), _kb(len(after)))),
-           ('ok', 'The syntax check passed (%s).' % det)]
+           ('good', 'The syntax check passed (%s).' % det)]
     if semantico:
-        out.append(('aviso', 'The map uses natives the game scripts do not declare (the platform client provides them '
+        out.append(('warn', 'The map uses natives the game scripts do not declare (the platform client provides them '
                              'at run time): the check reports those and nothing else, and the pack adds no native. '
                              'Only a syntax error blocks the injection.'))
     if renamed:
         out.append(('info', '  name(s) the map already used, prefixed: %s' % ', '.join(renamed)))
     if renames:
         out += [('info', '  ' + x.strip()) for x in renames]
-    out.append(('titulo2', 'Options'))
+    out.append(('subtitle', 'Options'))
     for k, _l, _d, _t in pack['options']:
         out.append(('info', '  %s: %s' % (k, usados.get(k))))
     out.append(('info', '  Works on: %s' % pack['needs']))
@@ -743,7 +743,7 @@ def _report(pack, usados, name, before, after, renames, det, renamed=None, seman
         out.append(('info', '  The OzzyCP body is already an obfuscated build; the comments (and the header that '
                             'explains the options) were removed.'))
     if pack['language'] == JASS:
-        out.append(('aviso', 'Test the map in game before sharing it: the pack runs from the map main, and the '
+        out.append(('warn', 'Test the map in game before sharing it: the pack runs from the map main, and the '
                              'obfuscator decrypts the strings in the first instruction of main.'))
     return out
 

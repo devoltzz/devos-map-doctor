@@ -1,14 +1,39 @@
-// mpqcrypt.js - the MPQ decryption in native code (the engine's mpqcrypt.c, built as WebAssembly by build_site.py):
-// mpqDecryptor(wasm bytes) -> (bytes, key) => decrypted bytes. The worker gives it to the engine as `mpqDecrypt`
-// (mpqcrypt.py hands it to mpqlib.decrypt_bytes): ~200x the Python loop, the same bytes. The block is copied into the
-// module's memory, decrypted there and copied out; one block at a time, the memory grows to the biggest one.
-export function mpqDecryptor(wasmBytes) {
+// mpqcrypt.js - the MPQ's hot loops in native code (the engine's mpqcrypt.c, built as WebAssembly by build_site.py):
+// mpqNative(wasm bytes) -> {decrypt, keys, huffman, adpcm}. The worker gives them to the engine as `mpqDecrypt`,
+// `mpqKeys`, `mpqHuffman` and `mpqAdpcm` (mpqcrypt.py hands them to mpqlib, mpqread and mpq_wave): the decryption
+// ~200x the Python loop, the sound sectors ~100x, the same bytes. The input is copied into the module's memory (the output
+// buffer right after it), worked on there and copied out; one call at a time, the memory grows to the biggest one.
+export function mpqNative(wasmBytes) {
   const mod = new WebAssembly.Module(wasmBytes);
-  const { memory, mpq_buffer: buffer, mpq_decrypt: decrypt } = new WebAssembly.Instance(mod, {}).exports;
-  return (data, key) => {
-    const ptr = buffer(data.length);
+  const { memory, mpq_buffer: buffer, mpq_decrypt, mpq_key_candidates, mpq_huffman, mpq_adpcm } =
+    new WebAssembly.Instance(mod, {}).exports;
+  const copyIn = (data, extra) => {
+    const ptr = buffer(data.length + extra);
     new Uint8Array(memory.buffer, ptr, data.length).set(data);
-    decrypt(ptr, data.length, key);
+    return ptr;
+  };
+  const decrypt = (data, key) => {
+    const ptr = copyIn(data, 0);
+    mpq_decrypt(ptr, data.length, key);
     return new Uint8Array(memory.buffer, ptr, data.length).slice();
   };
+  // the candidate keys of a nameless encrypted file: the pairs (key, second dword) as a Uint32Array
+  const keys = (enc0, enc1, d0) => {
+    const ptr = buffer(2048);
+    const n = mpq_key_candidates(enc0, enc1, d0, ptr);
+    return new Uint32Array(memory.buffer, ptr, 2 * n).slice();
+  };
+  // the sound sectors: the output (at most `cap` bytes, right after the input) or undefined when the stream is invalid
+  // (None in Python: it redoes the sector and raises its own error; a null would arrive as jsnull)
+  const output = (ptr, length, n) => (n < 0 ? undefined : new Uint8Array(memory.buffer, ptr + length, n).slice());
+  const huffman = (data, cap) => {
+    const ptr = copyIn(data, cap);
+    return output(ptr, data.length, mpq_huffman(ptr, data.length, ptr + data.length, cap));
+  };
+  const adpcm = (data, channels, cap) => {
+    const ptr = copyIn(data, cap);
+    return output(ptr, data.length, mpq_adpcm(ptr, data.length, channels, ptr + data.length, cap));
+  };
+  return { decrypt, keys: mpq_key_candidates ? keys : null, huffman: mpq_huffman ? huffman : null,
+    adpcm: mpq_adpcm ? adpcm : null };
 }

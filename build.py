@@ -51,14 +51,16 @@ def notices():
 
 
 def native_decryption():
-    # the MPQ decryption in native code (doctor/mpq/mpqcrypt.c, ~200x the Python loop): built with zig from pip when
-    # missing; without it the exe decrypts in Python, the same bytes
+    # the MPQ's hot loops in native code (doctor/mpq/mpqcrypt.c: the decryption, the key search, the sound sectors):
+    # built with zig from pip when missing or older than the source (a DLL from an earlier version lacks what the new
+    # source added); without it the exe does it all in Python, the same bytes
     dll = os.path.join(ENGINE, 'mpq', 'mpqcrypt.dll')
-    if os.path.isfile(dll):
+    source = os.path.join(ENGINE, 'mpq', 'mpqcrypt.c')
+    if os.path.isfile(dll) and os.path.getmtime(dll) >= os.path.getmtime(source):
         return
     import subprocess
     r = subprocess.run([sys.executable, '-m', 'ziglang', 'cc', '-target', 'x86_64-windows-gnu', '-shared', '-O2', '-s',
-                        '-o', dll, os.path.join(ENGINE, 'mpq', 'mpqcrypt.c')], capture_output=True, text=True)
+                        '-o', dll, source], capture_output=True, text=True)
     if r.returncode:
         print('mpqcrypt.dll could not be built (pip install ziglang): the exe decrypts maps in Python')
 

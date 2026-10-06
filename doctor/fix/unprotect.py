@@ -100,8 +100,20 @@ def steps(diag):
     return out
 
 
-EXTRAS = ('models', 'model_names', 'portraits', 'data_pointers', 'uabi', 'preload', 'single_player', 'card',
-          'translation', 'shrink')
+EXTRAS = (
+    'models',
+    'model_names',
+    'portraits',
+    'data_pointers',
+    'kk_textures',
+    'disabled_icons',
+    'uabi',
+    'preload',
+    'single_player',
+    'card',
+    'translation',
+    'shrink',
+)
 
 
 def apply_extras(entry, output, extras, progress=None):
@@ -133,6 +145,12 @@ def apply_extras(entry, output, extras, progress=None):
                     elif extra == 'data_pointers':
                         from doctor.fix import data_pointers
                         details = data_pointers.fix(src, t)
+                    elif extra == 'kk_textures':
+                        from doctor.fix import kk_textures
+                        details = kk_textures.fix(src, t)
+                    elif extra == 'disabled_icons':
+                        from doctor.fix import disabled_icons
+                        details = disabled_icons.fix(src, t)
                     elif extra == 'uabi':
                         from doctor.fix import uabi_runtime
                         details = uabi_runtime.fix(src, t)

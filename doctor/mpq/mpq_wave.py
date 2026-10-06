@@ -5,6 +5,19 @@ import zlib
 from array import array
 
 
+_NATIVE_SOUND = [None]
+
+
+def _native_sound():
+    if _NATIVE_SOUND[0] is None:
+        try:
+            from doctor.mpq import mpqcrypt
+            _NATIVE_SOUND[0] = mpqcrypt.load_sound() or False
+        except Exception:
+            _NATIVE_SOUND[0] = False
+    return _NATIVE_SOUND[0]
+
+
 class WaveError(ValueError):
     pass
 
@@ -286,6 +299,11 @@ def decompress_huffman(data_bytes, cap=None):
     if cap is not None and cap <= 0:
         raise WaveError('huffman: output buffer of %r bytes' % cap)
     data_bytes = bytes(data_bytes)
+    native = _NATIVE_SOUND[0] if _NATIVE_SOUND[0] is not None else _native_sound()
+    if native and cap is not None:
+        r = native[0](data_bytes, cap)
+        if r is not None:
+            return r
     n = len(data_bytes)
     if n < 1:
         raise WaveError('huffman: empty stream (the type byte is missing)')
@@ -399,6 +417,11 @@ def decompress_adpcm(data_bytes, channels, cap=None):
     if channels < 1 or channels > MAX_CHANNELS:
         raise WaveError('adpcm: %r channels (1 or 2)' % (channels,))
     data_bytes = bytes(data_bytes)
+    native = _NATIVE_SOUND[0] if _NATIVE_SOUND[0] is not None else _native_sound()
+    if native and cap is not None and cap >= 0:
+        r = native[1](data_bytes, channels, cap)
+        if r is not None:
+            return r
     n = len(data_bytes)
     max_samples = (cap // 2) if cap is not None else n * 2 + channels
     samples = array('h')

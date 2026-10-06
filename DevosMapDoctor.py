@@ -5,7 +5,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 from doctor.fix import unprotect as D
 
-VERSION = '1.6.1'
+VERSION = '1.6.2'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -29,6 +29,8 @@ STAGES = {
     'extra_model_names': 'Naming the models...',
     'extra_portraits': 'Removing the portrait cameras...',
     'extra_data_pointers': 'Aligning the data pointers...',
+    'extra_kk_textures': 'Decrypting the KK textures...',
+    'extra_disabled_icons': 'Making the disabled icons...',
     'extra_uabi': 'Moving the ability lists to the script...',
     'extra_preload': 'Preloading the first seconds...',
     'extra_single_player': 'Allowing single player...',

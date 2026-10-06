@@ -168,7 +168,26 @@ def decompress_by_flag(sector_bytes, expected_len, fl):
     return pkware.decompress(sector_bytes, expected=expected_len)
 
 
+_NATIVE_KEYS = [None]
+
+
+def _native_keys():
+    if _NATIVE_KEYS[0] is None:
+        try:
+            from doctor.mpq import mpqcrypt
+            _NATIVE_KEYS[0] = mpqcrypt.load_keys() or False
+        except Exception:
+            _NATIVE_KEYS[0] = False
+    return _NATIVE_KEYS[0]
+
+
 def _detect_all(enc0, enc1, d0, accept1):
+    native = _NATIVE_KEYS[0] if _NATIVE_KEYS[0] is not None else _native_keys()
+    if native:
+        for saved, v in native(enc0, enc1, d0):
+            if accept1(v):
+                yield saved
+        return
     k12 = ((enc0 ^ d0) - 0xEEEEEEEE) & 0xFFFFFFFF
     for i in range(0x100):
         k1 = (k12 - M.CRYPT[0x400 + i]) & 0xFFFFFFFF
@@ -567,7 +586,10 @@ def _validate_block(a, bi, fname=None, _key=None):
         return 'invalid', 'data past the end of the file'
     if fs == 0:
         return 'ok', 'empty'
-    raw = a.d[p:p + cs]
+    def raw(i=0, j=None):
+        end_pos = cs if j is None else min(j, cs)
+        return a.d[p + i:p + end_pos] if i < end_pos else b''
+
     sec = a.sector_size
     nsec = (fs + sec - 1) // sec
     ntab = nsec + 1 + (1 if fl & 0x04000000 else 0)
@@ -580,7 +602,7 @@ def _validate_block(a, bi, fname=None, _key=None):
         elif comp and _key is not None:
             key = _key
         elif comp:
-            keys = detect_sector_keys(raw[:8], sec, ntab * 4)
+            keys = detect_sector_keys(raw(0, 8), sec, ntab * 4)
             if not keys:
                 return 'invalid', 'encrypted without a name: no key makes the sector table start at its own size'
             if len(keys) > 1:
@@ -593,7 +615,7 @@ def _validate_block(a, bi, fname=None, _key=None):
                 return first
             key = keys[0]
         else:
-            key = detect_content_key(raw[:8], fs)
+            key = detect_content_key(raw(0, 8), fs)
             if key is None:
                 return 'uncertain', 'encrypted, uncompressed, without a name and without the start of a known format'
 
@@ -613,7 +635,7 @@ def _validate_block(a, bi, fname=None, _key=None):
 
     try:
         if fl & FLAG_SINGLE:
-            data = _crypt(raw, key) if key is not None else raw
+            data = _crypt(raw(), key) if key is not None else raw()
             if not comp or cs == fs:
                 return ('ok', 'single unit') if cs == fs else ('invalid', 'single unit with %d B of %d' % (cs, fs))
             m = sector_bytes(data, fs, 0)
@@ -622,7 +644,7 @@ def _validate_block(a, bi, fname=None, _key=None):
             if cs != fs:
                 return 'invalid', 'not compressed with %d B stored for %d' % (cs, fs)
             return 'ok', 'not compressed'
-        tb = raw[:ntab * 4]
+        tb = raw(0, ntab * 4)
         if len(tb) < ntab * 4:
             return 'invalid', 'block smaller than the sector table'
         if key is not None:
@@ -639,9 +661,8 @@ def _validate_block(a, bi, fname=None, _key=None):
             slack = True
             if offs[ntab - 1] > cs:
                 cs = offs[ntab - 1]
-                raw = a.d[p:p + cs]
         for s in [nsec - 1] + list(range(nsec - 1)):
-            chunk = raw[offs[s]:offs[s + 1]]
+            chunk = raw(offs[s], offs[s + 1])
             if key is not None:
                 chunk = _crypt(chunk, (key + s) & 0xFFFFFFFF)
             m = sector_bytes(chunk, min(sec, fs - s * sec), s)

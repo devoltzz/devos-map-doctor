@@ -97,6 +97,7 @@ def _jsonable(x):
 
 STYLE = {'heading': 'title', 'heading2': 'subtitle', 'ok': 'good', 'warning': 'warn', 'invalid': 'bad', 'info': 'info',
          'file_path': 'path'}
+PAGE_STYLES = frozenset(STYLE.values())
 OUTCOME = {'done': 'ok', 'partial': 'partial', 'nothing_to_do': 'nothing', 'nothing_selected': 'nothing'}
 VERDICT = {'yes': 'v-yes', 'probably': 'v-probably', 'node': 'v-no', 'unknown': 'v-unknown'}
 SCRIPT_LABEL = {'jass': 'JASS', 'lua': 'Lua', 'kkwe': 'KK compiled (KKWE)', 'j2b': 'KK compiled and encrypted (j2b)',
@@ -137,7 +138,7 @@ REASON_TEXT = {
 
 
 def page_lines(lines):
-    return [[STYLE.get(style, 'info'), text] for style, text in lines]
+    return [[STYLE.get(style) or (style if style in PAGE_STYLES else 'info'), text] for style, text in lines]
 
 
 def page_steps(D, d):
@@ -212,6 +213,8 @@ EXTRA_DONE = {
     'model_names': 'Gave the models their name back.',
     'portraits': 'Removed the portrait cameras (check the portraits in game).',
     'data_pointers': 'Aligned the data pointers of the levelled fields.',
+    'kk_textures': 'Decrypted the textures of the KK platform (BLX1).',
+    'disabled_icons': 'Made the disabled art of the imported icons (no more green buttons).',
     'uabi': 'Moved the unit ability lists to the script (test the map before sharing it).',
     'preload': 'Preloaded the models and abilities of the first seconds.',
     'single_player': 'The map no longer ends the game in single player.',
@@ -219,11 +222,20 @@ EXTRA_DONE = {
     'translation': 'Applied the translation.',
     'shrink': 'Made the map smaller.',
 }
-EXTRA_NAME = {'models': 'the model fixes', 'model_names': 'the model names', 'portraits': 'the portrait cameras',
-              'data_pointers': 'the data pointers',
-              'uabi': 'the ability lists', 'preload': 'the early preload', 'single_player': 'single player',
-              'card': 'the map card changes',
-              'translation': 'the translation', 'shrink': 'the shrink'}
+EXTRA_NAME = {
+    'models': 'the model fixes',
+    'model_names': 'the model names',
+    'portraits': 'the portrait cameras',
+    'data_pointers': 'the data pointers',
+    'kk_textures': 'the KK textures',
+    'disabled_icons': 'the disabled icons',
+    'uabi': 'the ability lists',
+    'preload': 'the early preload',
+    'single_player': 'single player',
+    'card': 'the map card changes',
+    'translation': 'the translation',
+    'shrink': 'the shrink',
+}
 BEFORE_EDITOR = ('models', 'single_player', 'card', 'translation')
 
 
@@ -301,7 +313,7 @@ def page_stub(s):
             'triggers': list(s.get('trigger_list') or [])}
 
 
-def run_port(D, G, path, progress, emit, packages=(), memory=True):
+def run_port(D, G, path, progress, emit, packages=(), memory=True, icons=False, textures=False):
     from doctor.port import map_port
     out = D.free_output(path, '_reforged')
     emit({'type': 'output', 'path': out})
@@ -324,7 +336,12 @@ def run_port(D, G, path, progress, emit, packages=(), memory=True):
     finally:
         shutil.rmtree(work, ignore_errors=True)
     ported = r.get('resultado', '').startswith('ported')
-    return {'lines': page_lines(G.port_text(r)), 'file': r.get('output') if ported else None, 'report': report,
+    lines = page_lines(G.port_text(r))
+    if ported and textures:
+        lines += port_step(r['output'], progress, 'kk_textures', None)
+    if ported and icons:
+        lines += port_step(r['output'], progress, 'disabled_icons', 'Every imported icon already has its disabled art.')
+    return {'lines': lines, 'file': r.get('output') if ported else None, 'report': report,
             'outcome': 'ok' if ported else 'failed',
             'port': {'g1': r.get('g1'), 'g2': r.get('g2'), 'stubs': [page_stub(s) for s in r.get('stubs') or []],
                      'warnings': r.get('warnings') or [], 'error': r.get('err'), 'log': r.get('log'),
@@ -333,6 +350,26 @@ def run_port(D, G, path, progress, emit, packages=(), memory=True):
                      'implemented': len((r.get('diagnostico') or {}).get('implemented_count') or []),
                      'declared': len((r.get('diagnostico') or {}).get('plataforma') or []),
                      'size': r.get('bytes'), 'seconds': r.get('seconds')}}
+
+
+def port_step(out, progress, module, nothing):
+    import importlib
+    tmp = os.path.splitext(out)[0] + '.' + module + os.path.splitext(out)[1]
+    try:
+        try:
+            rel = importlib.import_module(module).fix(out, tmp, progress)
+        except Exception as e:
+            rel = {'state': 'failed', 'error': '%s: %s' % (type(e).__name__, e)}
+        if rel.get('state') == 'done':
+            os.replace(tmp, out)
+            return [['good', x] for x in rel.get('lines') or []]
+        if rel.get('state') == 'nothing_to_do':
+            return [['good', nothing]] if nothing else []
+        return [['warn', '%s were not made: %s' % (EXTRA_NAME.get(module, module).capitalize(),
+                                                    rel.get('error') or 'nothing was written')]]
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
 
 
 def run_job(job, emit, G):
@@ -351,7 +388,8 @@ def run_job(job, emit, G):
     if task in ('fix', 'editor'):
         return run_action(D, G, job, path, task, progress, emit)
     if task == 'port':
-        return run_port(D, G, path, progress, emit, job.get('packages') or [], job.get('memory', True))
+        return run_port(D, G, path, progress, emit, job.get('packages') or [], job.get('memory', True),
+                        job.get('icons', False), job.get('textures', False))
     if task == 'cheatpack_inject':
         return _cheatpack_inject(job, progress, emit)
     tool = TOOLS.get(task)
@@ -388,7 +426,8 @@ def _reforged(job, progress):
     portraits, pointers, uabi = items.get('portrait_camera'), items.get('data_pointers'), items.get('uabi_distinct')
     runs = r.get('verdict') != 'node'
     from doctor.mpq import mpqadd
-    if mpqadd.format(job['map']) != 0 and 'protected_archive' not in items:
+    writable = mpqadd.format(job['map']) == 0 or 'protected_archive' in items
+    if not writable:
         r['models'] = {'fixable': 0}
         portraits = pointers = None
         runs = False
@@ -396,6 +435,10 @@ def _reforged(job, progress):
     _mn = items.get('model_names')
     r['model_names'] = {'fixable': len(((_mn.get('data') or {}).get('names') or [])) if _mn else 0}
     r['data_pointers'] = {'fixable': len((pointers.get('data') or {}).get('fields') or []) if pointers else 0}
+    textures = items.get('kk_textures')
+    r['kk_textures'] = {'fixable': (textures.get('data') or {}).get('count', 0) if textures and writable else 0}
+    icons = items.get('disabled_icons')
+    r['disabled_icons'] = {'fixable': (icons.get('data') or {}).get('count', 0) if icons and writable else 0}
     r['uabi'] = {'distinct': (uabi.get('data') or {}).get('distinct', 0) if uabi and uabi.get('fix') == 'doctor' and
                  runs else 0}
     r['preload'] = {'units': 0, 'abilities': 0}

@@ -256,6 +256,8 @@ def _w3i_part(card, m, how, dev, strings):
 
 
 def _blp_image(data):
+    if data[:4] == blpread.BLX1:
+        data = blpread.decrypt_blx(data)
     fd, tmp = tempfile.mkstemp(suffix='.blp')
     try:
         with os.fdopen(fd, 'wb') as f:
@@ -361,7 +363,7 @@ def tga_bytes(w, h, rgba):
 
 
 def decode(data, name=''):
-    if data[:4] in (b'BLP1', b'BLP2'):
+    if data[:4] in (b'BLP1', b'BLP2', b'BLX1'):
         im, info = _blp_image(data)
         return im.width, im.height, im.tobytes(), info['format']
     if data[:4] != b'DDS ' and data[:4] != b'\x89PNG' and (name.lower().endswith('.tga') or not name):
@@ -370,9 +372,28 @@ def decode(data, name=''):
         except ValueError:
             if name.lower().endswith('.tga'):
                 raise
-    im = Image.open(io.BytesIO(data))
-    im.load()
+    try:
+        im = Image.open(io.BytesIO(data))
+        im.load()
+    except (NotImplementedError, OSError, ValueError):
+        unorm = _dds_unorm(data)
+        if unorm is None:
+            raise
+        im = Image.open(io.BytesIO(unorm))
+        im.load()
     return im.width, im.height, im.convert('RGBA').tobytes(), im.format or 'image'
+
+
+DDS_SRGB_UNORM = {29: 28, 72: 71, 75: 74, 78: 77, 91: 87, 93: 88, 99: 98}
+
+
+def _dds_unorm(data):
+    if data[:4] != b'DDS ' or len(data) < 148 or data[84:88] != b'DX10':
+        return None
+    fmt = struct.unpack_from('<I', data, 128)[0]
+    if fmt not in DDS_SRGB_UNORM:
+        return None
+    return data[:128] + struct.pack('<I', DDS_SRGB_UNORM[fmt]) + data[132:]
 
 
 def _header_size(data, name):

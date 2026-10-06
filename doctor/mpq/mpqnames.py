@@ -344,7 +344,7 @@ def referenced_closure(a, seeds=None, log=None):
     return seen
 
 
-SIGNATURES = {'.blp': (b'BLP1', b'BLP2'), '.mdx': (b'MDLX',), '.w3x': (b'HM3W',), '.w3m': (b'HM3W',),
+SIGNATURES = {'.blp': (b'BLP1', b'BLP2', b'BLX1'), '.mdx': (b'MDLX',), '.w3x': (b'HM3W',), '.w3m': (b'HM3W',),
               '.w3n': (b'HM3W', b'MPQ\x1a'),
               '.wav': (b'RIFF',), '.mp3': (b'ID3', b'\xff\xfb', b'\xff\xf3', b'\xff\xf2'), '.jpg': (b'\xff\xd8\xff',),
               '.dds': (b'DDS ',), '.exe': (b'MZ',), '.dll': (b'MZ',), '.asi': (b'MZ',), '.mix': (b'MZ',),

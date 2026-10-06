@@ -14,6 +14,52 @@ class BLPError(Exception):
     pass
 
 
+BLX1 = b'BLX1'
+
+
+def _rotl(x, n):
+    n %= 32
+    return ((x << n) | (x >> (32 - n))) & 0xFFFFFFFF if n else x
+
+
+def _plausible_blp1(d, whole):
+    if len(d) < 160:
+        return False
+    compr, alpha, w, h = struct.unpack_from('<4I', d, 4)
+    if compr not in (0, 1) or alpha not in (0, 1, 4, 8) or not (0 < w <= 8192 and 0 < h <= 8192):
+        return False
+    off, sz = struct.unpack_from('<I', d, 28)[0], struct.unpack_from('<I', d, 92)[0]
+    if off < 156 or not sz or (whole and off + sz > len(d)):
+        return False
+    if compr == 0:
+        hs = struct.unpack_from('<I', d, 156)[0]
+        return hs <= 1024 and (hs < 2 or d[160:162] == b'\xff\xd8')
+    return True
+
+
+def decrypt_blx(d, whole=True):
+    d = bytes(d)
+    if d[:4] != BLX1:
+        raise BLPError('not BLX1 (%r)' % d[:4])
+    n = (len(d) - 4) // 4
+    if n < 1:
+        raise BLPError('BLX1 too short (%d bytes)' % len(d))
+    c = np.frombuffer(d, dtype='<u4', count=n, offset=4)
+    rest = d[4 + 4 * n:]
+    for compr in (0, 1):
+        k = int(c[0]) ^ compr
+        keys = np.array([_rotl(k, 2 * j) for j in range(16)], dtype='<u4')
+        p = np.bitwise_xor.accumulate(c ^ np.resize(keys, n))
+        tail = b''
+        if rest:
+            x = int.from_bytes(rest + bytes(4 - len(rest)), 'little') ^ _rotl(k, 2 * n) ^ int(p[-1])
+            tail = x.to_bytes(4, 'little')[:len(rest)]
+        out = b'BLP1' + p.astype('<u4').tobytes() + tail
+        if _plausible_blp1(out, whole):
+            return out
+    raise BLPError("BLX1: no key gives a BLP1")
+
+
 def header_text(path):
     with open(path, 'rb') as f:
         d = f.read(1024)
@@ -23,6 +69,8 @@ def header_text(path):
 def header_bytes(d, path='<bytes>', byte_size=None):
     byte_size = len(d) if byte_size is None else byte_size
     d = d[:1024]
+    if d[:4] == BLX1:
+        d = decrypt_blx(d, whole=False)
     if len(d) < 160:
         raise BLPError('%s: too short to be a BLP (%d bytes)' % (path, len(d)))
     magic = d[:4]
@@ -81,8 +129,43 @@ def _data_bytes(d, info, mip=0, path='<bytes>'):
     return d[off:off + sz]
 
 
+IDS_CMYK = b'CMYK'
+
+
+def _raw_components(jpg):
+    if jpg[:2] != b'\xff\xd8':
+        return jpg
+    out = bytearray(jpg)
+    p, sof = 2, False
+    while p + 4 <= len(out) and out[p] == 0xFF:
+        m = out[p + 1]
+        ln = struct.unpack('>H', bytes(out[p + 2:p + 4]))[0]
+        if m == 0xEE and out[p + 4:p + 9] == b'Adobe':
+            return jpg
+        if m in (0xC2, 0xC3) or 0xC5 <= m <= 0xCF and m not in (0xC8, 0xCC):
+            return jpg
+        if m in (0xC0, 0xC1):
+            if out[p + 9] != 4:
+                return jpg
+            ids = [out[p + 10 + 3 * i] for i in range(4)]
+            for i in range(4):
+                out[p + 10 + 3 * i] = IDS_CMYK[i]
+            sof = True
+        if m == 0xDA:
+            if not sof or out[p + 4] != 4:
+                return jpg
+            for i in range(4):
+                c = out[p + 5 + 2 * i]
+                if c not in ids:
+                    return jpg
+                out[p + 5 + 2 * i] = IDS_CMYK[ids.index(c)]
+            return bytes(out)
+        p += 2 + ln
+    return jpg
+
+
 def _jpeg_blp_para_rgba(jpg, w, h, tem_alpha):
-    im = Image.open(io.BytesIO(jpg))
+    im = Image.open(io.BytesIO(_raw_components(jpg)))
     im.load()
     if im.mode == 'CMYK':
         raw_bytes = np.frombuffer(im.tobytes(), dtype=np.uint8).reshape(im.size[1], im.size[0], 4)
@@ -238,6 +321,8 @@ def read_data(path, mip=0, info=None):
 
 
 def read_bytes(data_bytes, mip=0, info=None, path='<bytes>'):
+    if data_bytes[:4] == BLX1:
+        data_bytes = decrypt_blx(data_bytes)
     info = info or header_bytes(data_bytes, path)
     if mip and (mip >= 16 or not info['sizes'][mip]):
         raise BLPError('%s: has no mipmap %d' % (path, mip))

@@ -81,7 +81,7 @@ const state = {
   // (the tabs loading in the background) are cancelled when another one opens
   gen: 0, tabState: {}, quietJobs: new Set(), images: {}, imageData: {},
   extras: { card: null, translation: null, models: null, modelNames: null, singlePlayer: null, portraits: null,
-    dataPointers: null, uabi: null, preload: null },
+    dataPointers: null, kkTextures: null, disabledIcons: null, uabi: null, preload: null },
   // the Cheatpacks tab: the answer of the backend (the packs this map's script language can take) and what the page
   // picked (the pack id, the value of each option of it, and the result of the last injection)
   cheatpacks: null, cheatPack: { id: null, options: {}, result: null },
@@ -218,7 +218,7 @@ async function openMap(path) {
   state.portResult = null;
   state.portPackages = [];
   state.extras = { card: null, translation: null, models: null, modelNames: null, singlePlayer: null, portraits: null,
-    dataPointers: null, uabi: null, preload: null };
+    dataPointers: null, kkTextures: null, disabledIcons: null, uabi: null, preload: null };
   state.cheatpacks = null;
   state.cheatPack = { id: null, options: {}, result: null };
   state.rawcodes = null;
@@ -324,6 +324,9 @@ async function checkReforgedQuietly(gen) {
     // 1.5.3: the extras of the new checks
     if (r.portraits && r.portraits.fixable) { state.extras.portraits = r.portraits; renderActions(); }
     if (r.data_pointers && r.data_pointers.fixable) { state.extras.dataPointers = r.data_pointers; renderActions(); }
+    // 1.6.2: the textures the KK platform encrypted (BLX1), and the imported icons without their disabled art
+    if (r.kk_textures && r.kk_textures.fixable) { state.extras.kkTextures = r.kk_textures; renderActions(); }
+    if (r.disabled_icons && r.disabled_icons.fixable) { state.extras.disabledIcons = r.disabled_icons; renderActions(); }
     if (r.uabi && r.uabi.distinct) { state.extras.uabi = r.uabi; renderActions(); }
     if (r.preload && (r.preload.units || r.preload.abilities)) { state.extras.preload = r.preload; renderActions(); }
     // 1.5.6: os nomes de modelo que a ferramenta Model_Encrypt renomeou
@@ -345,8 +348,8 @@ const ACTIONS = {
     lead: 'Saves a copy the World Editor opens, triggers back as GUI.' },
 };
 const EXTRA_STEPS = {
-  fix: ['models', 'modelNames', 'portraits', 'dataPointers', 'uabi', 'preload', 'singlePlayer', 'card', 'translation',
-    'shrink'],
+  fix: ['models', 'modelNames', 'portraits', 'dataPointers', 'kkTextures', 'disabledIcons', 'uabi', 'preload',
+    'singlePlayer', 'card', 'translation', 'shrink'],
   editor: ['singlePlayer', 'card', 'translation'],
 };
 
@@ -378,6 +381,16 @@ function extraSteps(action) {
     if (k === 'dataPointers' && x.dataPointers) out.push({ key: 'x:dataPointers', label: 'Fix the levelled data pointers',
       detail: x.dataPointers.fixable + ' levelled ' + (x.dataPointers.fixable === 1 ? 'field points' : 'fields point') +
         ' to another data column on some levels.', on: true, applies: true, group: 'extra' });
+    if (k === 'kkTextures' && x.kkTextures) out.push({ key: 'x:kkTextures',
+      label: 'Decrypt the KK textures',
+      detail: x.kkTextures.fixable + (x.kkTextures.fixable === 1 ? ' texture is' : ' textures are') +
+        ' encrypted by the KK platform (BLX1): the game shows the models without them and the icons green.',
+      on: true, applies: true, group: 'extra' });
+    if (k === 'disabledIcons' && x.disabledIcons) out.push({ key: 'x:disabledIcons',
+      label: 'Fix the green icons',
+      detail: x.disabledIcons.fixable + ' imported ' + (x.disabledIcons.fixable === 1 ? 'icon has' : 'icons have') +
+        ' no disabled art, so the game draws it green (a dead hero, another unit\'s items); it is made from each icon.',
+      on: true, applies: true, group: 'extra' });
     if (k === 'uabi' && x.uabi) out.push({ key: 'x:uabi', label: 'Move the unit ability lists to the script',
       detail: x.uabi.distinct + ' distinct abilities in the unit lists; reported to drop games on ' +
         'Reforged. Test it before sharing.', on: false, applies: true, group: 'extra' });
@@ -518,6 +531,8 @@ async function runAction(action) {
   if (extras.singlePlayer) params.extras.single_player = true;
   if (extras.portraits) params.extras.portraits = true;
   if (extras.dataPointers) params.extras.data_pointers = true;
+  if (extras.kkTextures) params.extras.kk_textures = true;
+  if (extras.disabledIcons) params.extras.disabled_icons = true;
   if (extras.uabi) params.extras.uabi = true;
   if (extras.preload) params.extras.preload = true;
   if (extras.card && state.extras.card) params.extras.card = state.extras.card;
@@ -1429,6 +1444,15 @@ function renderPort() {
           state.portMemory = e.target.checked; } }),
         ' Neutralize memory hacks: what read the old game\'s memory (smart cast, control groups, ' +
         'exit hooks) breaks.'),
+      // 1.6.2: the KK platform's encrypted textures (BLX1), and the disabled art of the imported icons
+      el('label', { class: 'show-na', style: 'display:block;margin:0 0 6px' },
+        el('input', { type: 'checkbox', checked: state.portTextures !== false, onchange: e => {
+          state.portTextures = e.target.checked; } }),
+        ' Decrypt the KK textures: the ones the platform keeps encrypted (BLX1), which the game cannot read.'),
+      el('label', { class: 'show-na', style: 'display:block;margin:0 0 10px' },
+        el('input', { type: 'checkbox', checked: state.portIcons !== false, onchange: e => {
+          state.portIcons = e.target.checked; } }),
+        ' Fix the green icons: make the disabled art of the imported icons (a dead hero, another unit\'s items).'),
       el('div', { class: 'foot' }, el('button', { class: 'btn primary needs-idle', text: 'Port to Reforged',
         disabled: !!state.running, onclick: runPort }))),
     r ? portResult(r) : null);
@@ -1460,7 +1484,8 @@ async function runPort() {
   if (state.running) return;
   status('Porting the map...');
   try {
-    const r = await run('port', { packages: state.portPackages || [], memory: state.portMemory !== false },
+    const r = await run('port', { packages: state.portPackages || [], memory: state.portMemory !== false,
+      icons: state.portIcons !== false, textures: state.portTextures !== false },
       { label: 'Porting the map to Reforged...' });
     state.portResult = r;
     state.results.port = r;
