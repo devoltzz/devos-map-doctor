@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>About - Devo's Map Doctor</title>
+<link rel="stylesheet" href="app.css">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<style>
+  .about { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+  .about h2 { margin-top: 26px; }
+  .about p, .about li { line-height: 1.55; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="brand"><h1>Devo's Map Doctor</h1><span class="ver" id="version"></span></div>
+    <div class="grow"></div>
+    <a class="btn" href="./">Back to the Doctor</a>
+  </header>
+  <main class="about">
+    <div class="card">
+      <h2 style="margin-top:0">What this is</h2>
+      <p>The Devo's Map Doctor in your browser: the same program as the Windows download, run here. It opens protected
+        Warcraft III maps, fixes what stops them on Reforged 3.0, prepares them for the World Editor and ports the maps
+        of the KK and M16 platforms.</p>
+
+      <h2>Privacy</h2>
+      <ul>
+        <li><b>Your map never leaves your computer.</b> Every step runs inside this page (Python compiled to
+          WebAssembly); nothing you open is sent anywhere. What the Doctor writes comes back to you as a download.</li>
+        <li>No account, no cookies, no analytics, no ads. The server keeps no access log.</li>
+        <li>The page remembers your settings in this browser only (local storage), and keeps its own files in the
+          browser cache so it works offline.</li>
+        <li>"Report a problem" opens a GitHub issue with the report filled in, in a new tab: you read it and decide
+          whether to send it.</li>
+      </ul>
+
+      <h2>What the page downloads</h2>
+      <ul>
+        <li>The program itself: the Doctor's engine, Python (Pyodide) with numpy and Pillow, and pjass (the JASS checker),
+          about 20 MB, once.</li>
+        <li>The game data the engine reads (Warcraft III's object tables, TriggerData and the game scripts), about 3 MB:
+          the Windows program reads them from your installed game.</li>
+        <li>The file name index (62 MB), only if you accept it: it recovers the names of files in protected maps.</li>
+      </ul>
+
+      <h2>Limits</h2>
+      <ul>
+        <li>Chrome, Edge and Firefox on a computer. Safari and phones may work, slowly or not at all.</li>
+        <li>Very big maps (above 450 MB) need more memory than a browser gives a page: use the Windows program.</li>
+        <li>The browser is slower than the Windows program (about 1.5 times).</li>
+      </ul>
+
+      <h2>Source and the Windows program</h2>
+      <p id="repo">The source code and the Windows program are on GitHub.</p>
+    </div>
+  </main>
+</div>
+<script src="config.js"></script>
+<script src="about.js"></script>
+</body>
+</html>

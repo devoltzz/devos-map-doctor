@@ -52,6 +52,25 @@ def read_platforms(file_path):
     b = open(file_path, 'rb').read()
     if b[:4] != b'W3do':
         raise ValueError('not a war3map.doo')
+    from doctor.fix import doodads
+    try:
+        d = doodads.read_data(b)
+    except (doodads.FormatError, struct.error):
+        d = None
+    if not (d and d['on_close']):
+        return _tft_platforms(b)
+    out = []
+    for r in d['regs']:
+        begin = r['begin']
+        tid = b[begin:begin + 4]
+        if tid in PLATFORMS:
+            x, y, z = struct.unpack_from('<fff', b, begin + 8)
+            sx, sy, _sz = struct.unpack_from('<fff', b, begin + 24)
+            out.append((tid, x, y, z, sx, sy))
+    return out
+
+
+def _tft_platforms(b):
     ver, sub, n = struct.unpack_from('<iii', b, 4)
     o = 16
     out = []

@@ -35,7 +35,8 @@ THE SOFTWARE.
 
 https://github.com/lep/pjass
 
-The executable bundles `pjass.exe`, which checks the script of a ported map.
+The executable bundles `pjass.exe`, which checks the script of a ported map; the site runs the same source built as
+WebAssembly (`web/build_pjass.py`).
 
 ```
 BSD 2-Clause License (http://www.opensource.org/licenses/bsd-license.php)
@@ -63,3 +64,9 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
+
+## The site
+
+The site (`web/build_site.py`) ships, unchanged, Pyodide (https://github.com/pyodide/pyodide, MPL-2.0) with its CPython
+(PSF License), numpy (BSD-3-Clause) and Pillow (MIT-CMU), as published by the Pyodide project; their license texts come
+inside the files the site serves (`pyodide/`).

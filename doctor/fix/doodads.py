@@ -42,7 +42,7 @@ def read_data(b, skin=None):
                 if ver >= 6:
                     p += 1
                 p += 1
-                if ver >= 7:
+                if ver >= 8:
                     n_sets = struct.unpack_from('<I', b, p + 4)[0]
                     p += 8
                     if n_sets > 64:

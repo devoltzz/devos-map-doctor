@@ -27,7 +27,8 @@ function clock(s) { s = Math.floor(s); return Math.floor(s / 60) + ':' + String(
 function base(path) { return (path || '').split(/[\\/]/).pop(); }
 // the site (1.6) has no folder to show: what a job saved is downloaded
 const web = () => !!(state.hello && state.hello.web);
-const showLabel = what => web() ? 'Download' : what;
+const WEB_LABELS = { 'Show in folder': 'Download the map', 'Show the report': 'Download the report' };
+const showLabel = what => web() ? WEB_LABELS[what] || 'Download' : what;
 const folderButton = (path, what) => el('button', { class: 'btn', text: showLabel(what || 'Show in folder'),
   onclick: () => api().open_folder(path) });
 function status(text) { $('#status').textContent = text; }

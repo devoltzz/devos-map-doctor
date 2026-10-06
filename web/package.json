@@ -1,0 +1,9 @@
+{
+  "name": "devos-map-doctor-web",
+  "private": true,
+  "type": "module",
+  "description": "The Doctor in the browser (1.6): the measurement and the build of the site; node_modules stays out of git",
+  "dependencies": {
+    "pyodide": "314.0.7"
+  }
+}

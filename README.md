@@ -4,10 +4,13 @@ A desktop tool for Warcraft III maps. It opens protected maps, repairs what stop
 World Editor files, ports the maps of the Chinese KK and Korean M16 platforms, and shows what a map carries before
 anything is written. It never runs the game.
 
-## Download
+## Use it
 
-Get `DevosMapDoctor.exe` and `names.npz` from [Releases](https://github.com/devoltzz/devos-map-doctor/releases) and keep
-them in the same folder. Nothing to install; the program tells you when a new version is out.
+- **In the browser**: [doctor.devoltz.party](https://doctor.devoltz.party). The same program, run in your browser:
+  your map never leaves your computer, and the page works offline after the first visit. Chrome, Edge and Firefox on
+  a computer; maps up to 450 MB.
+- **On Windows**: get `DevosMapDoctor.exe` and `names.npz` from [Releases](https://github.com/devoltzz/devos-map-doctor/releases) and
+  keep them in the same folder. Nothing to install; the program tells you when a new version is out.
 
 ## What it does
 
@@ -27,8 +30,9 @@ protections can only be partly undone; the report says what was left. Test the m
 
 ## Building
 
-`pip install -r requirements.txt`, then `python build.py` writes `dist/DevosMapDoctor.exe`. Third-party code is listed
-in `THIRD_PARTY_NOTICES.md`.
+`pip install -r requirements.txt`, then `python build.py` writes `dist/DevosMapDoctor.exe`. The site is built from the
+same code by `web/build_site.py` (the `site` workflow attaches it to each release; `deploy/` serves it). Third-party
+code is listed in `THIRD_PARTY_NOTICES.md`.
 
 ## Problems
 
