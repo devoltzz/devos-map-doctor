@@ -10,7 +10,7 @@ devo-site (nginx)  <--  devo-tunnel (Cloudflare)  <--  visitors
 
 ## Once
 
-1. Folders: `/opt/devo-site/www` (owned by uid 101, written by devo-sync) and `/opt/devo-site/data` (read only).
+1. Folders: `/opt/devo-site/www` (owned by uid 10101, written by devo-sync) and `/opt/devo-site/data` (read only).
 2. The game data pack: put `game_data.zip` in `/opt/devo-site/data`. It is made from an installed Warcraft III
    (`casc_wc3.py pacote`) and is never in git or in a release.
 3. A Cloudflare tunnel with the public hostname of the site pointing at `http://devo-site:80`; its token in `.env`.

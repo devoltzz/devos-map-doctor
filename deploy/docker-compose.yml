@@ -27,7 +27,7 @@ services:
     container_name: devo-sync
     restart: unless-stopped
     read_only: true
-    user: "101:101"
+    user: "10101:10101"
     environment:
       REPOSITORY: devoltzz/devos-map-doctor
       WWW: /srv/www
