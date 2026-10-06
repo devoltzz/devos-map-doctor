@@ -142,6 +142,24 @@ def control_rawcodes(body_text):
     return new, n[0]
 
 
+RX_LOOSE_CONTROL = re.compile(r'"(?:\\.|[^"\\])*"|\'[^\']*\'|//[^\n]*|[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
+CONTROL_BYTE = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
+
+
+def loose_control_bytes(body_text):
+    n = [0]
+
+    def swap(m):
+        s = m.group(0)
+        if s[0] in '"\'':
+            return s
+        new = CONTROL_BYTE.sub(' ', s)
+        n[0] += sum(1 for a, b in zip(s, new) if a != b)
+        return new
+    new = RX_LOOSE_CONTROL.sub(swap, body_text)
+    return new, n[0]
+
+
 def assemble(r, argv=None):
     argv = sys.argv[1:] if argv is None else argv
     t0 = time.time()
@@ -160,6 +178,9 @@ def assemble(r, argv=None):
     raw_data, n_rc = control_rawcodes(raw_data)
     if n_rc:
         print('0a: %d rawcode(s) with a control byte became a number' % n_rc)
+    raw_data, n_ctl = loose_control_bytes(raw_data)
+    if n_ctl:
+        print('0a: %d loose control byte(s) in the code became spaces' % n_ctl)
     loose_ones = len(re.findall(r'\r(?!\n)', raw_data))
     if loose_ones:
         raw_data = re.sub(r'\r(?!\n)', '\n', raw_data)
