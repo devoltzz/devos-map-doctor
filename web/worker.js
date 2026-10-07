@@ -64,6 +64,7 @@ async function boot() {
     if (native.keys) self.mpqKeys = native.keys;
     if (native.huffman) self.mpqHuffman = native.huffman;
     if (native.adpcm) self.mpqAdpcm = native.adpcm;
+    if (native.explode) self.mpqExplode = native.explode;
   }
   for (const d of ['/maps', '/in', '/out']) py.FS.mkdirTree(d);
   // the file name index, when the browser already keeps it (the page offers it once: check_update in ponte.js)

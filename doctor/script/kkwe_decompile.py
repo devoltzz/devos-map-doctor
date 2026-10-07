@@ -1,5 +1,7 @@
 # Turns the bytecode of a compiled map script (KKWE, j2b) back into JASS.
+import array
 import collections
+import copy
 import os
 import re
 import struct
@@ -961,10 +963,80 @@ class Printer(object):
         return '\n'.join(header + types + ([''] if types else []) + [body])
 
 
+def grafts_of(bc, segments):
+    out, prev_reg = [], None
+    for begin, end_pos in segments:
+        if bc.op[begin] != FUNCTION:
+            continue
+        regs = [bc.b2[k] for k in range(begin, end_pos) if bc.op[k] in ALLOCATING and bc.b2[k]]
+        if regs and regs[0] == 1 and prev_reg not in (None, 255):
+            out.append(bc.fname(bc.arg[begin]))
+        elif regs:
+            prev_reg = regs[-1]
+    return out
+
+
+def resume_at(bc, segments, fname):
+    after_diag = False
+    reg = rot = None
+    for begin, end_pos in segments:
+        if bc.op[begin] == FUNCTION and bc.fname(bc.arg[begin]) == fname:
+            after_diag = True
+            continue
+        if not after_diag or bc.op[begin] == FUNCTION and bc.fname(bc.arg[begin]) in ():
+            continue
+        if reg is None:
+            reg = next((bc.b2[k] for k in range(begin, end_pos) if bc.op[k] in ALLOCATING and bc.b2[k]), None)
+        if rot is None:
+            labels = [bc.arg[k] for k in range(begin, end_pos) if bc.op[k] in WITH_LABEL]
+            rot = min(labels) if labels else None
+        if reg is not None and rot is not None:
+            break
+    if reg is None or rot is None:
+        return None
+    return reg - 1, rot - 1
+
+
+CLOSES_STATEMENT = (MOVVR, MOVAR, RET, LABEL, JIT, JIF, JUMP)
+
+
+def statements_of(item_entries):
+    clusters, current, rot = [], [], {}
+    for _b0, b1, b2, op, arg in item_entries:
+        if op in (PUSH, POP):
+            continue
+        if op in (LABEL, JIT, JIF, JUMP):
+            arg = rot.setdefault(arg, len(rot))
+        if op == LIT:
+            tok = (op, b1, arg)
+        elif op in (FUNCTION, LOCAL, GLOBAL, CONSTANT, FUNCARG):
+            tok = (op, b2, arg)
+        else:
+            tok = (op, arg)
+        current.append(repr(tok))
+        if op in CLOSES_STATEMENT:
+            clusters.append(sorted(current))
+            current = []
+    if current:
+        clusters.append(sorted(current))
+    return clusters
+
+
+def _segmentos(seq, is_function, name_of):
+    out = [(None, [])]
+    for x in seq:
+        if is_function(x):
+            out.append((name_of(x), []))
+        out[-1][1].append(x)
+    return out
+
+
 def prove_map(bc, ref, common, blizzard, map_text, maximum=5):
     segments = map_functions(bc, ref)
     where = [k for begin, end_pos in segments for k in range(begin, end_pos) if not stray_i2r(bc, k)]
+    grafts = grafts_of(bc, segments)
     c = KC.Compiler()
+    c.isolate = dict((n, resume_at(bc, segments, n)) for n in grafts)
     for body_text in (common, blizzard):
         c.declare_all(KC.analyze(body_text))
     reg = next((bc.b2[k] for k in where if bc.op[k] in ALLOCATING and bc.b2[k]), None)
@@ -974,9 +1046,23 @@ def prove_map(bc, ref, common, blizzard, map_text, maximum=5):
     if segments and segments[0][0] + 1 < segments[0][1] and bc.op[segments[0][0] + 1] in (GLOBAL, CONSTANT):
         c.init_name = bc.fname(bc.arg[segments[0][0]])
     c.file_name([it for it in KC.analyze(map_text) if it[0] != 'type'])
+    ins, only_problems = c.ins, where
+    structure = []
+    if grafts:
+        outside = set(grafts)
+        orig = _segmentos(where, lambda k: bc.op[k] == FUNCTION, lambda k: bc.fname(bc.arg[k]))
+        mine = _segmentos(c.ins, lambda x: x[3] == FUNCTION, lambda x: str(x[4]))
+        my_parts = dict((n, item_entries) for n, item_entries in mine if n in outside)
+        for n, ks in orig:
+            if n in outside:
+                a = [(bc.b0[k], bc.b1[k], bc.b2[k], bc.op[k], KC.arg_of(bc, k)) for k in ks]
+                if n not in my_parts or statements_of(a) != statements_of(my_parts[n]):
+                    structure.append((ks[0], 'graft', n))
+        only_problems = [k for n, ks in orig if n not in outside for k in ks]
+        ins = [x for n, item_entries in mine if n not in outside for x in item_entries]
     real_blocks = []
-    identical, diffs = KC.compare(bc, c.ins, maximum=maximum, real_blocks=real_blocks, where=where)
-    return len(c.ins), len(where), identical, diffs, real_blocks, c
+    identical, diffs = KC.compare(bc, ins, maximum=maximum, real_blocks=real_blocks, where=only_problems)
+    return len(ins), len(only_problems), identical, structure + diffs, real_blocks, c, grafts
 
 
 def cited(globals_block, funcs):
@@ -1065,7 +1151,53 @@ def recover(bc, common, blizzard, extra_natives=None, map_own='', header_text=HE
             sys.setrecursionlimit(old)
 
 
+def restore_jumps(bc):
+    op, arg = bc.op, bc.arg
+    pos, targets = {}, collections.Counter()
+    for k in range(bc.n):
+        if op[k] == LABEL:
+            pos[arg[k]] = k
+        elif op[k] in (JUMP, JIF, JIT):
+            targets[arg[k]] += 1
+    where = []
+    for k in range(bc.n):
+        if op[k] != JIF:
+            continue
+        la = arg[k]
+        p = pos.get(la)
+        if p is None or p <= k + 1 or p + 1 >= bc.n or op[p - 1] == JUMP:
+            continue
+        if op[p + 1] == LABEL and arg[p + 1] == la - 1 and not targets.get(la - 1):
+            where.append(p)
+    if not where:
+        return bc, []
+    new = copy.copy(bc)
+    b0, b1, b2, ops, args = bytearray(), bytearray(), bytearray(), bytearray(), array.array('i')
+    cut = 0
+    for p in where:
+        b0 += bc.b0[cut:p]
+        b1 += bc.b1[cut:p]
+        b2 += bc.b2[cut:p]
+        ops += bc.op[cut:p]
+        args.extend(bc.arg[cut:p])
+        b0.append(0)
+        b1.append(0)
+        b2.append(0)
+        ops.append(JUMP)
+        args.append(bc.arg[p] - 1)
+        cut = p
+    b0 += bc.b0[cut:]
+    b1 += bc.b1[cut:]
+    b2 += bc.b2[cut:]
+    ops += bc.op[cut:]
+    args.extend(bc.arg[cut:])
+    new.b0, new.b1, new.b2, new.op, new.arg = bytes(b0), bytes(b1), bytes(b2), bytes(ops), args
+    new.n = len(ops)
+    return new, where
+
+
 def _decompile(bc, common, blizzard, extra_natives, map_own, header_text, no_clash):
+    bc, restored_jumps = restore_jumps(bc)
     if extra_natives is None:
         with open(DEFAULT_NATIVES, 'rb') as fh:
             extra_natives = fh.read().decode('utf-8', 'surrogateescape')
@@ -1083,7 +1215,7 @@ def _decompile(bc, common, blizzard, extra_natives, map_own, header_text, no_cla
     imp = Printer(ref, inf)
     faithful = imp.program(globals_block, funcs, natives, list(header_text))
     try:
-        n, total, identical, diffs, real_blocks, _c = prove_map(bc, ref, common, blizzard, faithful)
+        n, total, identical, diffs, real_blocks, _c, grafted = prove_map(bc, ref, common, blizzard, faithful)
     except (SyntaxError, NameError, ValueError, KeyError, RecursionError) as e:
         raise DecompileError('the restored script does not compile again (%s: %s)' % (type(e).__name__, e))
     if diffs or real_blocks or n != total:
@@ -1116,5 +1248,6 @@ def _decompile(bc, common, blizzard, extra_natives, map_own, header_text, no_cla
     return body_text, {'instructions': total, 'globals_block': len(globals_block), 'functions': len(funcs) - len(hooks),
                        'natives': len(natives), 'hooks': len(hooks) - len(outside), 'hooks_left_out': outside,
                        'clashes': clashes, 'global_clashes': global_clashes, 'handles': len(types),
-                       'bad_flows': len(inf.bad_ones)}
+                       'bad_flows': len(inf.bad_ones), 'jumps_restored': len(restored_jumps),
+                       'grafts_of': grafted}
 

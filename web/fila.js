@@ -95,7 +95,7 @@
         // (the `.step input` rule is the checkboxes' 15 px: a text field undoes it)
         const input = el('input', { class: 'field', type: 'text', value: values[o.key],
           style: 'width:15em;height:auto;margin:0;flex:none',
-          title: o.label, oninput: e => { values[o.key] = e.target.value; } });
+          title: o.note ? o.label + ' -- ' + o.note : o.label, oninput: e => { values[o.key] = e.target.value; } });
         return el('label', { class: 'faint', style: 'display:flex;flex-direction:column;gap:3px;font-size:12.5px' },
           o.label, input);
       }));

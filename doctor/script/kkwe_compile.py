@@ -443,6 +443,7 @@ class Compiler(object):
         self.local_vars = None
         self.ret = None
         self.init_name = '<init>'
+        self.isolate = {}
 
     def emit(self, op, b0=0, b1=0, b2=0, arg=0):
         self.ins.append((b0, b1, b2, op, arg))
@@ -725,6 +726,9 @@ class Compiler(object):
                 self.emit(4)
             elif k == 'function':
                 _, fname, params, ret, body = it
+                saved = (self.reg, self.rot) if fname in self.isolate else None
+                if saved:
+                    self.reg = 0
                 self.emit(3, b2=self.code_part(ret), arg=Symbol(fname))
                 self.local_vars = {}
                 self.ret = ret
@@ -736,6 +740,8 @@ class Compiler(object):
                 self.emit(39)
                 self.emit(4)
                 self.local_vars = None
+                if saved:
+                    self.reg, self.rot = self.isolate[fname] or saved
 
     def end_pos(self):
         self.emit(1)

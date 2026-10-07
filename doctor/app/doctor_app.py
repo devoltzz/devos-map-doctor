@@ -353,11 +353,14 @@ def run_port(D, G, path, progress, emit, packages=(), memory=True, icons=False, 
 
 
 def port_step(out, progress, module, nothing):
-    import importlib
     tmp = os.path.splitext(out)[0] + '.' + module + os.path.splitext(out)[1]
     try:
         try:
-            rel = importlib.import_module(module).fix(out, tmp, progress)
+            if module == 'kk_textures':
+                from doctor.fix import kk_textures as extra
+            else:
+                from doctor.fix import disabled_icons as extra
+            rel = extra.fix(out, tmp, progress)
         except Exception as e:
             rel = {'state': 'failed', 'error': '%s: %s' % (type(e).__name__, e)}
         if rel.get('state') == 'done':

@@ -1022,7 +1022,7 @@ def check(path, translation_file, progress=None):
 def _other_blocks(path_in, b, names):
     a = _open(path_in)
     skip = set()
-    for n in names:
+    for n in list(names) + list(unprotect.SPECIAL_FILES):
         r = a.find_locale(n) if a.find(n) else None
         if r:
             skip.add(r[1])

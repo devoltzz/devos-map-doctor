@@ -91,6 +91,21 @@ _PKDCL_END = 0x305
 _PKDCL_ERR = 0x306
 
 
+_NATIVE_SOUND = [None]
+
+
+def _native_sound():
+    if _NATIVE_SOUND[0] is None:
+        try:
+            import os
+            here = os.path.dirname(os.path.abspath(__file__))
+            from doctor.mpq import mpqcrypt
+            _NATIVE_SOUND[0] = mpqcrypt.load_explode() or False
+        except Exception:
+            _NATIVE_SOUND[0] = False
+    return _NATIVE_SOUND[0]
+
+
 class PKWareError(ValueError):
     pass
 
@@ -152,6 +167,12 @@ def _gen_asc_tabs():
 
 
 def explode(data, expected=None, max_out=None):
+    if expected is not None and max_out is None:
+        native = _NATIVE_SOUND[0] if _NATIVE_SOUND[0] is not None else _native_sound()
+        if native:
+            r = native(data, expected)
+            if r is not None:
+                return r
     if not data:
         raise PKWareError('empty implode stream')
     if len(data) <= 4:

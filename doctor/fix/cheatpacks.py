@@ -235,7 +235,10 @@ def _read_json(path, folder):
             raise RuntimeError('%s: every option needs key, label, default and kind (%r)' % (path, o))
         if o['kind'] not in ('text', 'bool'):
             raise RuntimeError('%s: the kind of %r has to be text or bool, not %r' % (path, o['key'], o['kind']))
+        if 'note' in o and not isinstance(o['note'], str):
+            raise RuntimeError('%s: the note of %r has to be text' % (path, o['key']))
         opcoes.append((o['key'], o['label'], o['default'], o['kind']))
+    notas = dict((o['key'], o['note']) for o in d['options'] if o.get('note'))
     keys = [o[0] for o in opcoes]
     if len(set(keys)) != len(keys):
         raise RuntimeError('%s: two options with the same key (%s)' % (path, ', '.join(keys)))
@@ -259,7 +262,7 @@ def _read_json(path, folder):
     if marca_opt and marca_opt not in keys:
         raise RuntimeError('%s: `mark_option` is %r, which is not one of the options' % (path, marca_opt))
     return {'id': d['id'], 'title': d['title'], 'language': d['language'], 'needs': d.get('needs') or '',
-        'options': opcoes, 'finds': d['finds'], 'inside': d.get('inside'), 'mark_option': marca_opt,
+        'options': opcoes, 'notes': notas, 'finds': d['finds'], 'inside': d.get('inside'), 'mark_option': marca_opt,
         'prefix': d.get('prefix') or '', 'default': bool(d.get('default')), 'file': arquivo}
 
 
@@ -286,7 +289,8 @@ def catalog():
         out.append({'id': p['id'], 'title': p['title'], 'language': p['language'],
                     'file': '%s/%s' % (p['id'], p['file']), 'needs': p['needs'],
                     'default': bool(p.get('default')),
-                    'options': [{'key': k, 'label': l, 'default': d, 'kind': t} for k, l, d, t in p['options']]})
+                    'options': [{'key': k, 'label': l, 'default': d, 'kind': t, 'note': p['notes'].get(k)}
+                                for k, l, d, t in p['options']]})
     return out
 
 

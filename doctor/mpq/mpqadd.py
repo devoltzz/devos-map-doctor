@@ -80,6 +80,77 @@ def format(path):
         return None
 
 
+ATTRIBUTES = '(attributes)'
+ATTR_CRC32, ATTR_FILETIME, ATTR_MD5, ATTR_PATCH = 1, 2, 4, 8
+
+
+def attributes_with(data_bytes, n_blocks, replacements):
+    import hashlib
+    import zlib
+    if not data_bytes or len(data_bytes) < 8:
+        return None
+    version_num, flags = struct.unpack_from('<II', data_bytes)
+    if version_num != 100 or flags & ~0xF:
+        return None
+    by = 4 * bool(flags & ATTR_CRC32) + 8 * bool(flags & ATTR_FILETIME) + 16 * bool(flags & ATTR_MD5)
+
+    def byte_size(n):
+        return 8 + n * by + ((n + 7) // 8 if flags & ATTR_PATCH else 0)
+    old = next((n for n in range(n_blocks + 1) if byte_size(n) == len(data_bytes)), None)
+    if old is None:
+        return None
+    pos, vectors = 8, {}
+    for bit, map_width in ((ATTR_CRC32, 4), (ATTR_FILETIME, 8), (ATTR_MD5, 16)):
+        if flags & bit:
+            vectors[bit] = [data_bytes[pos + map_width * i:pos + map_width * (i + 1)] for i in range(old)] + \
+                [bytes(map_width)] * (n_blocks - old)
+            pos += map_width * old
+    patch = bytearray(data_bytes[pos:pos + (old + 7) // 8] if flags & ATTR_PATCH else b'')
+    patch += bytes((n_blocks + 7) // 8 - len(patch)) if flags & ATTR_PATCH else b''
+    for block_entry, file_data_bytes in replacements:
+        if 0 <= block_entry < n_blocks:
+            if flags & ATTR_CRC32:
+                vectors[ATTR_CRC32][block_entry] = struct.pack('<I', zlib.crc32(file_data_bytes) & 0xFFFFFFFF)
+            if flags & ATTR_MD5:
+                vectors[ATTR_MD5][block_entry] = hashlib.md5(file_data_bytes).digest()
+    return struct.pack('<II', version_num, flags) + b''.join(b''.join(vectors[b]) for b in (ATTR_CRC32, ATTR_FILETIME,
+                                                                                         ATTR_MD5) if b in vectors) + \
+        bytes(patch)
+
+
+def _update_attributes(path, repl, to_delete, all_entries, log):
+    name_list = set(n.replace('/', '\\').lower() for n, _d in repl) | set(
+        n.replace('/', '\\').lower() for n in to_delete
+    )
+    if ATTRIBUTES in name_list:
+        return None
+    from doctor.mpq import mpqread
+    a = mpqread.Archive(path)
+    if a.find(ATTRIBUTES) is None:
+        return None
+    try:
+        data_bytes = a.read(ATTRIBUTES)
+    except Exception:
+        data_bytes = None
+    replacements = []
+    for fname, file_data_bytes in repl:
+        n = fname.replace('/', '\\')
+        block_list = [e[3] for e in a.hash_entries(n)] if all_entries else []
+        r = a.find(n)
+        if r is not None:
+            block_list.append(r[1] if isinstance(r, tuple) else r)
+        replacements += [(b, bytes(file_data_bytes)) for b in dict.fromkeys(block_list)]
+    new = attributes_with(data_bytes, len(a.blocks), replacements)
+    del a
+    with open(path, 'r+b') as f:
+        if new is None:
+            log(
+                'mpqadd: the (attributes) does not read as StormLib writes it; it is removed (out of date, the game refuses the map)'
+            )
+            return _add_to_open_file(f, path, [], [ATTRIBUTES], False, False, False, log, None, None, 0)
+        return _add_to_open_file(f, path, [(ATTRIBUTES, new)], [], False, False, False, log, None, None, 0)
+
+
 def add_files(
     path,
     repl,
@@ -91,9 +162,15 @@ def add_files(
     no_slot=None,
     grow=None,
     slack=0,
+    hero_attributes=True,
 ):
     with open(path, 'r+b') as f:
-        return _add_to_open_file(f, path, repl, to_delete, reset, all_entries, fake_count, log, no_slot, grow, slack)
+        sz = _add_to_open_file(f, path, repl, to_delete, reset, all_entries, fake_count, log, no_slot, grow, slack)
+    if hero_attributes and repl:
+        new = _update_attributes(path, repl, to_delete, all_entries, log)
+        if new is not None:
+            sz = new
+    return sz
 
 
 def _add_to_open_file(f, path, repl, to_delete, reset, all_entries, fake_count, log, no_slot, grow, slack):

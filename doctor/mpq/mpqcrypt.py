@@ -162,3 +162,39 @@ def load_sound():
         return None if r < 0 else out.raw[:r]
     return huffman, adpcm
 
+
+def _explode_through_js():
+    j = _js()
+    fx = getattr(j[0], 'mpqExplode', None) if j else None
+    if fx is None:
+        return None
+    to_js = j[1]
+
+    def explode(data_bytes, expected_len):
+        r = fx(to_js(bytes(data_bytes)), expected_len)
+        return None if r is None else r.to_bytes()
+    return explode
+
+
+def load_explode():
+    if _disabled():
+        return None
+    if sys.platform == 'emscripten':
+        return _explode_through_js()
+    dll = _dll()
+    if not dll:
+        return None
+    try:
+        fx = dll.mpq_explode
+    except AttributeError:
+        return None
+    fx.argtypes = [ctypes.c_char_p, ctypes.c_size_t, ctypes.c_char_p, ctypes.c_size_t]
+    fx.restype = ctypes.c_int
+
+    def explode(data_bytes, expected_len):
+        data_bytes = bytes(data_bytes)
+        out = ctypes.create_string_buffer(max(expected_len, 1))
+        r = fx(data_bytes, len(data_bytes), out, expected_len)
+        return None if r < 0 else out.raw[:r]
+    return explode
+

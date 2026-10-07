@@ -189,6 +189,13 @@ def map_script(a, extract, scripts_dir, log):
         )
     except kkwe_decompile.DecompileError as e:
         raise Aborts('the compiled script did not come back to JASS: %s' % e)
+    grafts = details.get('grafts_of') or []
+    if grafts:
+        WARNINGS.append(
+            '%d function(s) of the compiled script were made by another compiler and pasted in later (%s): '
+            'they came back to JASS checked statement by statement, not instruction by instruction. Check '
+            'what they do: on one map they were chat commands that give gold' % (len(grafts), ', '.join(grafts[:6]))
+        )
     from doctor.fix import editor_prep
     body_text, _real_ones = editor_prep.real_literal_return(body_text)
     raw_data = os.path.join(scripts_dir, 'war3map.j')

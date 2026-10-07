@@ -1445,7 +1445,7 @@ function cheatpackField(o) {
   const value = v === undefined ? o.default : v;
   if (o.kind === 'bool') {
     return [el('ul', { class: 'steps', style: 'grid-column:1 / -1' }, optionItem({
-      checked: String(value).toLowerCase() === 'true', title: o.label, onchange: e => {
+      checked: String(value).toLowerCase() === 'true', title: o.label, detail: o.note, onchange: e => {
         state.cheatPack.options[o.key] = e.target.checked ? 'true' : 'false'; } }))];
   }
   return [el('label', { text: o.label }),
