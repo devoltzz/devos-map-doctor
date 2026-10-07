@@ -157,7 +157,27 @@ def _leaks(f, map_funcs, globals_):
     return out
 
 
-def check_text(text):
+_NATIVE = [None]
+
+
+def _native():
+    if _NATIVE[0] is None:
+        try:
+            from doctor.script import jass_native
+            _NATIVE[0] = jass_native.load_data() or False
+        except ImportError:
+            _NATIVE[0] = False
+    return _NATIVE[0]
+
+
+def check_text(text, native=True):
+    f = _native() if native else False
+    if f:
+        r = f(text)
+        if r is not None:
+            out = dict(language='jass', **r)
+            out['lines'] = summary(out)
+            return out
     try:
         tree = jass_ast.parse(text)
     except jass_ast.JassSyntaxError as e:

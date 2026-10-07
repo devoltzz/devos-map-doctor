@@ -1,10 +1,4 @@
-// fila.js - the site's queue of several maps (1.6): one action (Fix map, Open in World Editor, Port to Reforged, and
-// since 1.6.2 Add a cheat pack) on every map of a folder, one after the other. In Chrome and Edge the folder itself is
-// picked and each result is written next to its map, as the Windows program does; in a browser that cannot write a
-// folder (Firefox) the maps are picked as files and the results come back as one zip at the end. Fix, editor and port
-// run with the default options; the cheat pack is chosen per map (the pack and its activators), each map offered the
-// packs its script language takes. Runs through window.doctorWeb (ponte.js); uses the page's el(), toast() and mb()
-// (app.js).
+// The queue of several maps: one action on every map of a folder.
 'use strict';
 
 (() => {
@@ -15,7 +9,7 @@
     cheatpack_inject: { label: 'Add a cheat pack', perMap: true },
   };
   const MAP = /\.w3[xmn]$/i;
-  const OURS = /_(fixed|editor|reforged)( \(\d+\))?\.w3[xmn]$/i;   // what an earlier run wrote: not a map to treat
+  const OURS = /_(fixed|editor|reforged)( \(\d+\))?\.w3[xmn]$/i;
   const canWriteFolder = typeof window.showDirectoryPicker === 'function';
   let running = false;
   let stop = false;
@@ -24,7 +18,6 @@
     try { await dir.getFileHandle(name); return true; } catch (e) { return false; }
   }
 
-  // `<map>_fixed.w3x` next to the map, never over a file: `... (2).w3x`, as the Windows program does
   async function freeName(dir, name) {
     const dot = name.lastIndexOf('.');
     const stem = dot > 0 ? name.slice(0, dot) : name, ext = dot > 0 ? name.slice(dot) : '';
@@ -81,7 +74,6 @@
     }, note(text) { note.textContent = text; } };
   }
 
-  // ---- the cheat pack of each map: the packs its script language takes, and the options (activators) of the pack
   function packChooser(item, list) {
     const packs = list.packs || [];
     const select = el('select', { class: 'field' }, packs.map(p => el('option', { value: p.id, text: p.title })));
@@ -89,10 +81,9 @@
     const values = {};
     const show = () => {
       const pack = packs.find(p => p.id === select.value);
-      const keep = item.pack === select.value;      // the same pack: what was typed (or copied) stays
+      const keep = item.pack === select.value;
       fields.replaceChildren(...(pack ? pack.options : []).map(o => {
         if (!keep || !(o.key in values)) values[o.key] = o.default;
-        // (the `.step input` rule is the checkboxes' 15 px: a text field undoes it)
         const input = el('input', { class: 'field', type: 'text', value: values[o.key],
           style: 'width:15em;height:auto;margin:0;flex:none',
           title: o.note ? o.label + ' -- ' + o.note : o.label, oninput: e => { values[o.key] = e.target.value; } });
@@ -106,7 +97,6 @@
     select.onchange = () => { for (const k of Object.keys(values)) delete values[k]; show(); };
     show();
     item.choice = () => ({ pack: select.value, options: Object.assign({}, values) });
-    // the first map's choice copied here, when this map takes that pack (the same script language)
     item.copyFrom = other => {
       const c = other.choice();
       if (!packs.some(p => p.id === c.pack)) return false;
@@ -117,7 +107,7 @@
       show();
       return true;
     };
-    item.r.extra.style.textAlign = 'left';     // the welcome card centers its text
+    item.r.extra.style.textAlign = 'left';
     item.r.extra.replaceChildren(el('div', { class: 'row', style: 'gap:8px;margin-top:6px' },
       el('span', { class: 'faint', style: 'white-space:nowrap', text: (list.language || '').toUpperCase() + ' script' }),
       select), fields);
@@ -152,7 +142,7 @@
     let done = 0;
     for (const item of picked) {
       const { file, r } = item;
-      if (ACTIONS[action].perMap && !item.params) continue;      // skipped when its packs were read
+      if (ACTIONS[action].perMap && !item.params) continue;
       if (stop) { r.set('cancelled', ''); continue; }
       if (file.size > W.sizeLimit) {
         r.set('skipped', 'Above ' + Math.round(W.sizeLimit / 1048576) + ' MB: use the Windows program.');
@@ -182,7 +172,6 @@
         }
       }
       const kind = res.outcome === 'ok' ? 'ok' : res.outcome || 'failed';
-      // nothing written: the engine's own reason (the first bad line of its report), not just "nothing"
       const why = (res.lines || []).find(l => l[0] === 'bad') || (res.lines || []).find(l => l[0] === 'warn');
       r.set(kind, saved.length ? (picked.dir ? 'Saved ' : 'In the zip: ') + saved.join(', ') :
         (why ? why[1].trim() : 'Nothing was written.'));
@@ -238,7 +227,6 @@
         await go(action, picked);
         return;
       }
-      // the cheat pack: the packs of every map first, then the choice of each one, then the queue
       foot.replaceChildren(el('span', { class: 'muted', text: 'Reading the scripts of ' + picked.length + ' maps...' }));
       busy(true);
       stop = false;

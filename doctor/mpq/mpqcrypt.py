@@ -54,7 +54,7 @@ def _dll():
                     continue
                 try:
                     dll = ctypes.CDLL(p)
-                    dll.mpq_decrypt.argtypes = [ctypes.c_char_p, ctypes.c_size_t, ctypes.c_uint32]
+                    dll.mpq_decrypt.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_uint32]
                     dll.mpq_decrypt.restype = None
                 except (OSError, AttributeError):
                     continue
@@ -73,11 +73,40 @@ def load_data():
         return None
 
     def decrypt(data_bytes, hash_key, _f=dll.mpq_decrypt):
-        data_bytes = bytes(data_bytes)
-        buf = ctypes.create_string_buffer(data_bytes, len(data_bytes))
-        _f(buf, len(data_bytes), hash_key & 0xFFFFFFFF)
-        return buf.raw
+        buf = bytearray(data_bytes)
+        n = len(buf)
+        if n:
+            _f(ctypes.addressof((ctypes.c_char * n).from_buffer(buf)), n, hash_key & 0xFFFFFFFF)
+        return bytes(buf)
     return decrypt
+
+
+def load_hash():
+    if _disabled() or sys.platform == 'emscripten':
+        return None
+    dll = _dll()
+    if not dll:
+        return None
+    try:
+        f1, fn = dll.mpq_hash, dll.mpq_hash_many
+    except AttributeError:
+        return None
+    f1.argtypes = [ctypes.c_char_p, ctypes.c_size_t, ctypes.c_uint32]
+    f1.restype = ctypes.c_uint32
+    fn.argtypes = [ctypes.c_char_p, ctypes.c_void_p, ctypes.c_size_t, ctypes.c_uint32, ctypes.c_void_p]
+    fn.restype = None
+
+    def singular(fname, kind, _f=f1):
+        return _f(fname, len(fname), kind)
+
+    def batch(name_list, kind, _f=fn):
+        import itertools
+        offs = array('I', itertools.accumulate(map(len, name_list), initial=0))
+        out = array('I', bytes(4 * len(name_list)))
+        if name_list:
+            _f(b''.join(name_list), offs.buffer_info()[0], len(name_list), kind, out.buffer_info()[0])
+        return out
+    return singular, batch
 
 
 def _keys_through_js():

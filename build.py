@@ -1,6 +1,4 @@
-# Builds the program, one file, with PyInstaller: on Windows dist/DevosMapDoctor.exe (no console) and the doctor.exe
-# it carries (the command line, launcher/doctor_launcher.c); on Linux dist/DevosMapDoctor (build_linux.py runs this in
-# a container, for an old enough glibc).
+# Builds the program with PyInstaller: the exe and its doctor.exe on Windows, one binary on Linux.
 import os
 import re
 import shutil
@@ -10,21 +8,12 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 ENGINE = os.path.join(ROOT, 'doctor')
 NAME = 'DevosMapDoctor'
 LINUX = sys.platform.startswith('linux')
-# Linux: the window's libraries stay the system's (GTK, WebKitGTK and the glib under them, and the C++ runtime they
-# need in their own version): a copy older than the system's GTK breaks the window, and the window uses the system's
-# WebKitGTK as the Windows exe uses the system's WebView2. What Python itself needs (expat, zlib, OpenSSL, libffi...)
-# goes in, so the command line runs on a bare system too. Only the system's copies go: the ones a wheel carries
-# (pillow.libs/libxcb-*, libpng16-*...) stay, or PIL does not load (the map thumbnail, icons and textures failed)
 SYSTEM_LIBS = ('/lib/', '/usr/lib/', '/lib64/', '/usr/lib64/')
 GUI_LIBS = re.compile(r'^lib(glib-2|gobject-2|gio-2|gmodule-2|gthread-2|girepository|mount|blkid|pcre|selinux|'
                       r'stdc\+\+|gcc_s|cairo|pixman|png16|freetype|fontconfig|harfbuzz|pango|gtk|gdk|atk|webkit|'
                       r'javascriptcore|soup|X|xcb|wayland|xkbcommon|epoxy|dbus)')
-# the GTK side of pywebview reaches GTK through these at run time (from the system's typelibs); bundling them would
-# also bring PyInstaller's GTK hooks, which point GTK at the bundle
 GI_MODULES = ('Gtk', 'Gdk', 'GLib', 'GObject', 'Gio', 'WebKit2', 'WebKit', 'Soup', 'JavaScriptCore', 'GdkPixbuf',
               'Pango', 'cairo', 'Atk', 'HarfBuzz', 'freetype2', 'GModule', 'xlib', 'GioUnix', 'GLibUnix',
-              # the GStreamer ones come through gi.overrides: their hook pointed GStreamer at the bundle, and WebKit's
-              # helper process tried Python's own .so files as media plugins
               'Gst', 'GstBase', 'GstVideo', 'GstAudio', 'GstController', 'GstPbutils', 'GstApp')
 EXCLUDE = ('cv2', 'lupa', 'matplotlib', 'pytest', 'setuptools', 'pip', 'unittest', 'pydoc_data', 'tkinter')
 PACKAGES = ('numpy', 'pillow', 'pywebview', 'pythonnet', 'clr_loader', 'bottle', 'proxy_tools', 'cffi',
@@ -77,7 +66,6 @@ def notices():
     return ''.join(parts)
 
 
-# the Linux build carries zlib-ng (linux/Dockerfile) as Python's zlib
 ZLIB_NG_LICENSE = """
 ## zlib-ng 2.2.4 (https://github.com/zlib-ng/zlib-ng)
 
@@ -99,9 +87,6 @@ it and redistribute it freely, subject to the following restrictions:
 
 
 def native_decryption():
-    # the MPQ's hot loops in native code (doctor/mpq/mpqcrypt.c: the decryption, the key search, the sound sectors):
-    # built with zig from pip when missing or older than the source (a DLL from an earlier version lacks what the new
-    # source added); without it the program does it all in Python, the same bytes
     lib = os.path.join(ENGINE, 'mpq', 'mpqcrypt.so' if LINUX else 'mpqcrypt.dll')
     source = os.path.join(ENGINE, 'mpq', 'mpqcrypt.c')
     if os.path.isfile(lib) and os.path.getmtime(lib) >= os.path.getmtime(source):
@@ -116,9 +101,29 @@ def native_decryption():
         )
 
 
+def native_checks():
+    lib = os.path.join(ENGINE, 'script', 'jass_checks.so' if LINUX else 'jass_checks.dll')
+    crate = os.path.join(ROOT, 'native', 'jass_checks')
+    source = os.path.join(crate, 'src', 'lib.rs')
+    if os.path.isfile(lib) and os.path.getmtime(lib) >= os.path.getmtime(source):
+        return
+    cargo = shutil.which('cargo') or os.path.join(os.path.expanduser('~'), '.cargo', 'bin', 'cargo')
+    import subprocess
+    target = os.path.join(ROOT, 'build', 'cargo')
+    try:
+        r = subprocess.run([cargo, 'build', '--release', '--manifest-path', os.path.join(crate, 'Cargo.toml')],
+                           capture_output=True, text=True, env=dict(os.environ, CARGO_TARGET_DIR=target))
+    except OSError:
+        r = None
+    built = os.path.join(target, 'release', 'libjass_checks.so' if LINUX else 'jass_checks.dll')
+    if r is not None and r.returncode == 0 and os.path.isfile(built):
+        shutil.copyfile(built, lib)
+    elif not os.path.isfile(lib):
+        print('%s could not be built (https://rustup.rs): the program runs the script checks in Python'
+              % os.path.basename(lib))
+
+
 def launcher(work):
-    # Windows: doctor.exe, the console program that runs the exe with --cli in the terminal (the exe has no console);
-    # the exe carries it and puts it next to itself when it opens
     out = os.path.join(work, 'doctor.exe')
     import subprocess
 
@@ -147,7 +152,6 @@ def launcher(work):
 
 
 def linux_spec(args, work):
-    # the spec PyInstaller would write, with the window's libraries taken out of the binaries (GUI_LIBS)
     from PyInstaller.utils.cliutils import makespec
     spec_args, skip = [], False
     for a in args:
@@ -165,7 +169,6 @@ def linux_spec(args, work):
     cut = ('\nimport re as _re\n'
            'a.binaries = [b for b in a.binaries if not (str(b[1]).startswith(%r) and '
            '_re.match(%r, os.path.basename(str(b[0]))))]\n'
-           # the typelibs too: the window reads the system's (a bundled one may not match its library)
            'a.datas = [d for d in a.datas if not str(d[0]).startswith(\'gi_typelibs\')]\n'
            % (SYSTEM_LIBS, GUI_LIBS.pattern))
     text = text.replace('\npyz = PYZ(', cut + 'pyz = PYZ(', 1)
@@ -179,6 +182,7 @@ def linux_spec(args, work):
 def main():
     import PyInstaller.__main__
     native_decryption()
+    native_checks()
     version = app_version()
     numbers = (re.findall(r'\d+', version) + ['0'] * 4)[:4]
     work = os.path.join(ROOT, 'build', 'linux' if LINUX else 'windows')
@@ -188,7 +192,6 @@ def main():
             '--add-data', icon + os.pathsep + '.', '--workpath', work, '--distpath', os.path.join(ROOT, 'dist'),
             '--specpath', work, '--add-data', os.path.join(ROOT, 'ui') + os.pathsep + 'ui']
     if LINUX:
-        # GTK does not read an .ico with PNG images inside: the window takes a .png made from it
         from PIL import Image
         png = os.path.join(work, 'devos_map_doctor.png')
         with Image.open(icon) as im:
@@ -202,7 +205,6 @@ def main():
         doctor = launcher(work)
         if doctor:
             args += ['--add-binary', doctor + os.pathsep + '.']
-    # the native files of the other system stay out (the Windows pjass.exe and DLL on Linux, the .so on Windows)
     native = ('.so',) if LINUX else ('.exe', '.dll')
     other = ('.exe', '.dll') if LINUX else ('.so',)
     for folder, dirs, files in os.walk(ENGINE):
@@ -230,14 +232,11 @@ def main():
     if LINUX:
         for module in GI_MODULES:
             args += ['--exclude-module', 'gi.repository.' + module]
-        # PyGObject's Python side whole (gi.overrides: without it GLib.idle_add is the raw typelib call and the page
-        # never showed); the typelibs and the libraries stay the system's
         args += ['--collect-submodules', 'gi']
         PyInstaller.__main__.run([linux_spec(args, work), '--noconfirm', '--clean', '--workpath', work,
                                   '--distpath', os.path.join(ROOT, 'dist')])
     else:
         PyInstaller.__main__.run(args)
-    # each build its own (the Linux one carries PyGObject and pycairo, the Windows one pythonnet)
     notices_name = 'THIRD_PARTY_NOTICES-linux.txt' if LINUX else 'THIRD_PARTY_NOTICES.txt'
     with open(os.path.join(ROOT, 'dist', notices_name), 'w', encoding='utf-8') as f:
         f.write(notices())

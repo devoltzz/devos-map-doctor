@@ -1,3 +1,4 @@
+# Builds pjass, the JASS checker, as WebAssembly (WASI) for the site.
 """build_pjass.py - pjass (github.com/lep/pjass, BSD-2), the JASS checker, built as WebAssembly (WASI) for the site.
 
   python web/build_pjass.py --src=<pjass source> --out=<folder> [--flex=flex] [--bison=bison] [--native]
@@ -16,10 +17,9 @@ import shutil
 import subprocess
 import sys
 
-# the order of pjass's GNUmakefile: $(SRC) main.c token.yy.c grammar.tab.c
 UNITS = ('misc.c', 'hashtable.c', 'paramlist.c', 'funcdecl.c', 'typeandname.c', 'blocks.c', 'tree.c', 'sstrhash.c',
          'main.c', 'token.yy.c', 'grammar.tab.c')
-STACK = 8 << 20          # wasm-ld's default stack is 64 KiB; pjass recurses into the expressions of a map script
+STACK = 8 << 20
 ANCHOR = '#elif defined(__linux__) || defined(__CYGWIN__)'
 WASI_MALLOC = ('#elif defined(__wasi__)\n    void * _aligned_malloc(size_t size, size_t alignment){\n'
                '        return aligned_alloc(alignment, size);\n    }\n')
@@ -39,14 +39,12 @@ def source_commit(src):
 
 
 def build(src, out, flex='flex', bison='bison', native=False):
-    """-> the pjass.json record."""
     if not os.path.isfile(os.path.join(src, 'grammar.y')):
         raise SystemExit('build_pjass: no pjass source in %s (git clone https://github.com/lep/pjass)' % src)
     work = os.path.join(out, '_build')
     if os.path.isdir(work):
         shutil.rmtree(work)
     shutil.copytree(src, work, ignore=shutil.ignore_patterns('.git', 'tests', 'msvc'))
-    # pjass picks its aligned malloc by system and does not know WASI: the OpenBSD branch (`aligned_alloc`), in the copy
     p = os.path.join(work, 'typeandname.c')
     with open(p, encoding='utf-8', newline='') as f:
         text = f.read()

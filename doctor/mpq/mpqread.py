@@ -3,6 +3,7 @@ import bz2
 import collections
 import struct
 import zlib
+import os
 
 from doctor.mpq import mpqlib as M
 from doctor.mpq import pkware
@@ -245,11 +246,43 @@ def detect_content_key(data_bytes, file_size):
     return None
 
 
+_VALID_MEMO = {}
+_VALID_MEMO_LIMIT = 1 << 19
+_READ_CACHE = collections.OrderedDict()
+_READ_CACHE_SIZE = [0]
+_READ_CACHE_LIMIT = 96 << 20
+_READ_DONE = set()
+_READ_DONE_LIMIT = 1 << 20
+_READ_CACHE_ITEM_MAX = 8 << 20
+
+
+_HASHES3 = {}
+
+
+def _hashes3(name):
+    r = _HASHES3.get(name)
+    if r is None:
+        r = (M.hashstr(name, 0), M.hashstr(name, 1), M.hashstr(name, 2))
+        if len(_HASHES3) > (1 << 18):
+            _HASHES3.clear()
+        _HASHES3[name] = r
+    return r
+
+
+def _file_identity(path):
+    try:
+        st = os.stat(path)
+    except (OSError, TypeError, ValueError):
+        return None
+    return (os.path.normcase(os.path.abspath(path)), st.st_size, st.st_mtime_ns)
+
+
 class Archive:
     VALIDATED_LIMIT = 1 << 17
 
     def __init__(self, path):
         self.path = path
+        self._identity = _file_identity(path)
         self.d = open(path, 'rb').read()
         self.h, self.skipped = M.find_header(self.d, path)
         if self.h is None:
@@ -278,9 +311,7 @@ class Archive:
 
     def hash_entries(self, name):
         name = name.replace('/', '\\')
-        h0 = M.hashstr(name, 0)
-        h1 = M.hashstr(name, 1)
-        h2 = M.hashstr(name, 2)
+        h0, h1, h2 = _hashes3(name)
         hn = self.hash_n
         if hn != self.hash_n_read or hn & (hn - 1) or self._idx is not None:
             return self._index_entries(h0, h1, h2)
@@ -394,6 +425,35 @@ class Archive:
             if not r:
                 return None
             bi = r[1]
+        if hash_key is not None or not self._identity or bi >= len(self.blocks):
+            return self._read_uncached(name, bi, hash_key)
+        k = (self._identity, self.h.offset, bi, self.blocks[bi], name)
+        x = _READ_CACHE.get(k)
+        if x is not None:
+            _READ_CACHE.move_to_end(k)
+            return x
+        x = self._read_uncached(name, bi, hash_key)
+        if x is not None and len(_READ_DONE) < _READ_DONE_LIMIT:
+            _READ_DONE.add(k)
+        if type(x) is bytes and len(x) <= _READ_CACHE_ITEM_MAX:
+            _READ_CACHE[k] = x
+            _READ_CACHE_SIZE[0] += len(x)
+            while _READ_CACHE_SIZE[0] > _READ_CACHE_LIMIT and _READ_CACHE:
+                _k, v = _READ_CACHE.popitem(last=False)
+                _READ_CACHE_SIZE[0] -= len(v)
+        return x
+
+    def already_read(self, name, bi=None):
+        if not self._identity:
+            return False
+        if bi is None:
+            r = self.find(name)
+            if not r:
+                return False
+            bi = r[1]
+        return bi < len(self.blocks) and (self._identity, self.h.offset, bi, self.blocks[bi], name) in _READ_DONE
+
+    def _read_uncached(self, name, bi, hash_key=None):
         if bi >= len(self.blocks):
             return None
         off, cs, fs, fl = self.blocks[bi]
@@ -542,10 +602,54 @@ class Archive:
         k = (bi, fname)
         r = self._validated.get(k)
         if r is None:
-            r = _validate_block(self, bi, fname)
+            memo_key = (self._identity, self.h.offset, bi, self.blocks[bi] if bi < len(self.blocks) else None, fname) \
+                if self._identity else None
+            r = _VALID_MEMO.get(memo_key) if memo_key else None
+            if r is None:
+                r = _validate_block(self, bi, fname)
+                if memo_key and len(_VALID_MEMO) < _VALID_MEMO_LIMIT:
+                    _VALID_MEMO[memo_key] = r
             if len(self._validated) < self.VALIDATED_LIMIT:
                 self._validated[k] = r
         return r
+
+    def _region(self, bi, fname):
+        if bi is None or bi >= len(self.blocks):
+            return None
+        off, cs, fs, fl = self.blocks[bi]
+        if not (fl & FLAG_EXISTS):
+            return None
+        p = (self.h.offset + off) & 0xFFFFFFFF
+        key = key_from_name(fname, off, fs, fl) if fl & FLAG_ENCRYPT else None
+        if fs == 0:
+            n = 0
+        elif fl & FLAG_SINGLE:
+            if cs_unknown(cs, p, len(self.d)):
+                return None
+            n = cs
+        elif not fl & (FLAG_IMPLODE | FLAG_COMPRESS):
+            n = fs
+        else:
+            n = end_by_sector_table(self, bi, fname)
+            if n is None:
+                return None
+        if p + n > len(self.d):
+            return None
+        return p, n, key, fs, fl
+
+    def same_data(self, other, fname, bi=None, other_bi=None):
+        if bi is None:
+            r = self.find(fname)
+            bi = r[1] if r else None
+        if other_bi is None:
+            r = other.find(fname)
+            other_bi = r[1] if r else None
+        a, b = self._region(bi, fname), other._region(other_bi, fname)
+        if a is None or b is None or a[1:] != b[1:]:
+            return False
+        if not a[1]:
+            return True
+        return memoryview(self.d)[a[0]:a[0] + a[1]] == memoryview(other.d)[b[0]:b[0] + b[1]]
 
 
 def end_by_sector_table(a, bi, fname):

@@ -1,11 +1,4 @@
-"""build_linux.py - the Linux build of the program: dist/DevosMapDoctor-linux-x86_64, one file, in a Docker container
-(linux/Dockerfile: Ubuntu 22.04, so it runs on glibc 2.35 and newer). Works from Windows (Docker Desktop) and Linux.
-
-    python build_linux.py
-
-Inside the container: pjass from its source (github.com/lep/pjass, the commit the site uses) for Linux, then build.py,
-which on Linux builds mpqcrypt.so and leaves the system's libraries (GTK, WebKitGTK, glib...) out of the program.
-"""
+# Builds the Linux binary in a Docker container (linux/Dockerfile), from Windows or Linux.
 import os
 import subprocess
 import sys

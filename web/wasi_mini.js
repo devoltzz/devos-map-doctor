@@ -1,8 +1,4 @@
-// wasi_mini.js - 1.6: the 12 WASI (preview1) calls pjass.wasm imports, over files held in memory. `runWasi(module,
-// args, files)` runs the program once: `args` without the program name, `files` {path: Uint8Array} (the paths as the
-// program opens them: relative to the folder the job ran in, or absolute), only read; stdout and stderr come back as
-// text. Nothing touches a disk or the network; the same module runs in the site's worker and in Node (mede.mjs).
-
+// The WASI calls pjass.wasm imports, over files held in memory.
 const ERRNO = { SUCCESS: 0, BADF: 8, INVAL: 28, NOENT: 44, NOTCAPABLE: 76 };
 const FILETYPE = { CHAR: 2, DIR: 3, FILE: 4 };
 const ALL_RIGHTS = 0xFFFFFFFFFFFFFFFFn;
@@ -15,9 +11,9 @@ class Exit {
 export function runWasi(module, args, files) {
   const enc = new TextEncoder();
   const argv = ['pjass', ...args].map(a => enc.encode(a + '\0'));
-  const table = new Map();          // the files by the path the program asks for (no leading '/')
+  const table = new Map();
   for (const [p, b] of Object.entries(files)) table.set(p.replace(/^\/+/, ''), b);
-  const fds = new Map();            // fd -> {data, pos}
+  const fds = new Map();
   let next = PREOPEN + 1;
   const out = { 1: [], 2: [] };
   let mem = null;
@@ -63,7 +59,7 @@ export function runWasi(module, args, files) {
     fd_fdstat_set_flags() { return ERRNO.SUCCESS; },
     path_open(dirfd, _dirflags, pathPtr, pathLen, oflags, _rb, _ri, _fdflags, fdPtr) {
       if (dirfd !== PREOPEN) return ERRNO.BADF;
-      if (oflags & 1) return ERRNO.NOTCAPABLE;               // O_CREAT: the program only reads
+      if (oflags & 1) return ERRNO.NOTCAPABLE;
       const path = new TextDecoder().decode(bytes().subarray(pathPtr, pathPtr + pathLen)).replace(/^\.\//, '');
       const data = table.get(path);
       if (!data) return ERRNO.NOENT;

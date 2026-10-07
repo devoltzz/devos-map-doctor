@@ -1,7 +1,4 @@
-// sw.js - the site's service worker: the site works offline after the first visit. build_site.py writes the version
-// (the engine's and a hash of every file) and the file list below; a new build is a new cache, and the old ones go.
-// Every request of the site is answered from the cache first; what is not in it (the file name index, names.npz,
-// fetched only when the page asks for it) is fetched and kept. The site sends nothing anywhere.
+// The site's service worker: the site works offline after the first visit.
 'use strict';
 
 const CACHE = 'doctor-__VERSION__';
@@ -12,7 +9,6 @@ self.addEventListener('install', event => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE);
     await cache.addAll(ASSETS);
-    // the game data (served from the host's own folder) and the like: kept when there, never a reason to fail
     await Promise.all(OPTIONAL.map(u => cache.add(u).catch(() => null)));
     await self.skipWaiting();
   })());

@@ -57,8 +57,9 @@ protections can only be partly undone; the report says what was left. Test the m
 ## Building
 
 `pip install -r requirements.txt`, then `python build.py` writes `dist/DevosMapDoctor.exe` (and the `doctor.exe` it
-carries, from `launcher/doctor_launcher.c`). `python build_linux.py` writes `dist/DevosMapDoctor-linux-x86_64` in a
-Docker container (`linux/Dockerfile`), from Windows or Linux. The site is built from the same code by
+carries, from `launcher/doctor_launcher.c`; with Rust installed, `cargo` also builds the script checks of
+`native/jass_checks`, which otherwise run in Python). `python build_linux.py` writes `dist/DevosMapDoctor-linux-x86_64`
+in a Docker container (`linux/Dockerfile`), from Windows or Linux. The site is built from the same code by
 `web/build_site.py` (the `site` workflow attaches it to each release; `deploy/` serves it). Third-party code is listed
 in `THIRD_PARTY_NOTICES.md`.
 

@@ -1,4 +1,5 @@
 # Reads war3map.doo and checks every doodad id against the game data.
+import os
 import re
 import struct
 
@@ -119,6 +120,15 @@ def game_ids(game=None, hd=False):
     hash_key = (game, hd)
     if hash_key in _GAME_CACHE:
         return _GAME_CACHE[hash_key]
+    disk_path = _ids_file(game, hd)
+    if disk_path and os.path.isfile(disk_path):
+        try:
+            with open(disk_path, 'rb') as f:
+                matches = set(x for x in f.read().split(b'\n') if x)
+            _GAME_CACHE[hash_key] = matches
+            return matches
+        except OSError:
+            pass
     matches = set()
     try:
         from doctor.data import casc_wc3
@@ -137,7 +147,29 @@ def game_ids(game=None, hd=False):
     except Exception:
         matches = set()
     _GAME_CACHE[hash_key] = matches
+    if disk_path and matches:
+        try:
+            os.makedirs(os.path.dirname(disk_path), exist_ok=True)
+            with open(disk_path + '.part', 'wb') as f:
+                f.write(b'\n'.join(sorted(matches)))
+            os.replace(disk_path + '.part', disk_path)
+        except OSError:
+            pass
     return matches
+
+
+def _ids_file(game, hd):
+    try:
+        from doctor.data import casc_wc3
+        import hashlib
+        import tempfile
+        folder = game or casc_wc3.DEFAULT_GAME
+        with open(os.path.join(folder, '.build.info'), 'rb') as f:
+            build = hashlib.sha1(f.read() + folder.encode('utf-8', 'replace')).hexdigest()[:16]
+    except Exception:
+        return None
+    base = os.environ.get('DOCTOR_CACHE') or os.path.join(tempfile.gettempdir(), 'devos_map_doctor_ui')
+    return os.path.join(base, 'doodad_ids_%s%s.txt' % (build, '_hd' if hd else ''))
 
 
 def invalid_ids(b, valid_ids, d=None):

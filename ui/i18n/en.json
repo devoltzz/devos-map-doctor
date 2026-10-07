@@ -664,7 +664,7 @@
   "Test the map in game before sharing it: the pack runs from the map main, and the obfuscator decrypts the strings in the first instruction of main.",
   "Text",
   "Thai",
-  "The (attributes) file of the map was kept as it was.",
+  "The (attributes) file of the map was updated with the checksums of the new files.",
   "The Devo's Map Doctor in your browser: the same program as the Windows download, run here. It opens protected Warcraft III maps, fixes what stops them on Reforged 3.0, prepares them for the World Editor and ports the maps of the KK and M16 platforms.",
   "The Doctor can move the lists to the script.",
   "The Doctor fixes them.",

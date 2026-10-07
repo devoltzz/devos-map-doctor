@@ -1,9 +1,4 @@
-// doctor.exe - the Doctor's command line on Windows (1.6.6). DevosMapDoctor.exe is a window program: it has no console
-// of its own, so a terminal would not wait for it nor show what it prints. This small console program runs it with
-// --cli and the rest of the command line, hands it this console (stdin, stdout, stderr), waits, and returns its exit
-// code. Ctrl+C stops it. It looks for DevosMapDoctor.exe in its own folder.
-//
-// Built by build.py with the zig from pip: python -m ziglang cc -target x86_64-windows-gnu -municode -O2 -s
+// doctor.exe: runs DevosMapDoctor.exe --cli in this console and returns its exit code.
 #include <windows.h>
 #include <wchar.h>
 
@@ -36,7 +31,6 @@ int wmain(void) {
         say(L"doctor: DevosMapDoctor.exe is not in the folder of doctor.exe\n");
         return 2;
     }
-    // the arguments as they came: the command line after the program's own name (quoted or not)
     const wchar_t *rest = GetCommandLineW();
     if (*rest == L'"') {
         rest++;

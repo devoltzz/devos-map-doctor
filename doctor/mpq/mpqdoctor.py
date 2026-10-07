@@ -512,6 +512,12 @@ def fix(path, out, name_list=(), clean_alias=False, prefix_hm3w=False, hide_junk
         bad, identical, unreadable_items = [], 0, 0
         for n in dict.fromkeys(all_items):
             try:
+                if orig.already_read(n) and orig.same_data(b, n):
+                    identical += 1
+                    continue
+            except Exception:
+                pass
+            try:
                 x = orig.read(n)
             except Exception:
                 unreadable_items += 1
@@ -519,7 +525,7 @@ def fix(path, out, name_list=(), clean_alias=False, prefix_hm3w=False, hide_junk
             if x is None:
                 continue
             try:
-                y = b.read(n)
+                y = x if orig.same_data(b, n) else b.read(n)
             except Exception:
                 y = None
             if x != y:

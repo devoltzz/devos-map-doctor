@@ -1,11 +1,4 @@
-/* mpqcrypt.c - the MPQ's hot loops in native code, for the pure-Python engine: the block decryption (StormLib's
- * DecryptMpqBlock, SBaseCommon.cpp, for mpqlib.decrypt_bytes, about 200 times the Python loop) and, since 1.6.2,
- * the key search of a nameless encrypted file (for mpqread) and the sound sectors (the Huffman and the ADPCM, for
- * mpq_wave.py); since 1.6.4 the PKWARE DCL (implode) sectors, for pkware.py. The same arithmetic as the Python, the
- * same bytes.
- * Built by mpqcrypt.py as a Windows DLL (the exe, through ctypes) and as WebAssembly (the site, through worker.js).
- * The decryption works in place, little-endian dwords; the bytes after the last whole dword are left as they are
- * (as in the Python). */
+// The MPQ hot loops in native code: the decryption, the key search, the sound and imploded sectors.
 #include <stdint.h>
 #include <stddef.h>
 
@@ -53,11 +46,34 @@ EXPORT("mpq_decrypt") void mpq_decrypt(uint8_t *data, size_t length, uint32_t ke
     }
 }
 
-/* [1.6.2] The key of an encrypted file without its name (StormLib's DetectFileKeyBySectorSize/ByKnownContent,
- * SBaseCommon.cpp:548-647; mpqread._detecta_todas): the keys that, decrypting the first encrypted dword `enc0`, give
- * `d0`, with what each makes of the second dword `enc1`, in the order StormLib tries them. `out` gets the pairs
- * (key, second dword); returns how many (at most 256). The caller keeps the ones whose second dword it accepts. A map
- * with hundreds of thousands of nameless blocks (a protector's junk) asks this ~5 times per block. */
+static uint32_t hash_one(const uint8_t *s, size_t n, uint32_t type) {
+    uint32_t s1 = 0x7FED7FED, s2 = 0xEEEEEEEE;
+    for (size_t i = 0; i < n; i++) {
+        uint32_t c = s[i];
+        if (c >= 0x61 && c <= 0x7A)
+            c -= 32;
+        else if (c == 0x2F)
+            c = 0x5C;
+        s1 = table[(type << 8) + c] ^ (s1 + s2);
+        s2 = c + s1 + s2 + (s2 << 5) + 3;
+    }
+    return s1;
+}
+
+EXPORT("mpq_hash") uint32_t mpq_hash(const uint8_t *s, size_t n, uint32_t type) {
+    if (!ready)
+        prepare();
+    return hash_one(s, n, type);
+}
+
+EXPORT("mpq_hash_many") void mpq_hash_many(const uint8_t *blob, const uint32_t *offs, size_t count, uint32_t type,
+                                          uint32_t *out) {
+    if (!ready)
+        prepare();
+    for (size_t i = 0; i < count; i++)
+        out[i] = hash_one(blob + offs[i], offs[i + 1] - offs[i], type);
+}
+
 EXPORT("mpq_key_candidates") int mpq_key_candidates(uint32_t enc0, uint32_t enc1, uint32_t d0, uint32_t *out) {
     if (!ready)
         prepare();
@@ -78,15 +94,7 @@ EXPORT("mpq_key_candidates") int mpq_key_candidates(uint32_t enc0, uint32_t enc1
     return n;
 }
 
-/* ------------------------------------------------------------------------------------------------ the sound sectors
- * [1.6.2] The MPQ sound compression, for mpq_wave.py: StormLib's adaptive Huffman (mask 0x01, huffman/huff.cpp) and
- * IMA ADPCM (0x40 mono / 0x80 stereo, adpcm/adpcm.cpp), the same steps as mpq_wave's Python port (its reference path:
- * the bit-by-bit descent of DecodeOneByte), ~100 times faster. Both write into an output buffer of `cap` bytes (the
- * sector's expected size, as StormLib) and return the bytes written; the Huffman returns -1 where the Python raises
- * (the caller then runs the Python, which raises the same error with its message). Each sector's tree lives on the
- * stack (two threads can decode at once); only the starting tree of each data type is kept (initial_tree). */
-
-#define ITEMS 515                 /* HUFF_ITEM_COUNT: the item pool; the list head is item 515 */
+#define ITEMS 515
 #define HEAD ITEMS
 #define NONE (-1)
 #define AFTER 1
@@ -96,7 +104,7 @@ EXPORT("mpq_key_candidates") int mpq_key_candidates(uint32_t enc0, uint32_t enc1
 #define ERROR_CODE 0x1FF
 
 static const uint8_t weights[9][256] = {
-    {   /* type 0 */
+    {
         0x0A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -114,7 +122,7 @@ static const uint8_t weights[9][256] = {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
     },
-    {   /* type 1 */
+    {
         0x54, 0x16, 0x16, 0x0D, 0x0C, 0x08, 0x06, 0x05, 0x06, 0x05, 0x06, 0x03, 0x04, 0x04, 0x03, 0x05,
         0x0E, 0x0B, 0x14, 0x13, 0x13, 0x09, 0x0B, 0x06, 0x05, 0x04, 0x03, 0x02, 0x03, 0x02, 0x02, 0x02,
         0x0D, 0x07, 0x09, 0x06, 0x06, 0x04, 0x03, 0x02, 0x04, 0x03, 0x03, 0x03, 0x03, 0x03, 0x02, 0x02,
@@ -132,7 +140,7 @@ static const uint8_t weights[9][256] = {
         0x02, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x03, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
         0x02, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x02, 0x02, 0x01, 0x01, 0x02, 0x02, 0x02, 0x06, 0x4B,
     },
-    {   /* type 2 */
+    {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x27, 0x00, 0x00, 0x23, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0xFF, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x02, 0x02, 0x01, 0x01, 0x06, 0x0E, 0x10, 0x04,
@@ -142,7 +150,7 @@ static const uint8_t weights[9][256] = {
         0x01, 0x29, 0x07, 0x16, 0x12, 0x40, 0x0A, 0x0A, 0x11, 0x25, 0x01, 0x03, 0x17, 0x10, 0x26, 0x2A,
         0x10, 0x01, 0x23, 0x23, 0x2F, 0x10, 0x06, 0x07, 0x02, 0x09, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00,
     },
-    {   /* type 3 */
+    {
         0xFF, 0x0B, 0x07, 0x05, 0x0B, 0x02, 0x02, 0x02, 0x06, 0x02, 0x02, 0x01, 0x04, 0x02, 0x01, 0x03,
         0x09, 0x01, 0x01, 0x01, 0x03, 0x04, 0x01, 0x01, 0x02, 0x01, 0x01, 0x01, 0x02, 0x01, 0x01, 0x01,
         0x05, 0x01, 0x01, 0x01, 0x0D, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
@@ -160,16 +168,16 @@ static const uint8_t weights[9][256] = {
         0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x07, 0x01, 0x01, 0x02, 0x01, 0x01, 0x01, 0x01,
         0x02, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x02, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x11,
     },
-    {   /* type 4 */
+    {
         0xFF, 0xFB, 0x98, 0x9A, 0x84, 0x85, 0x63, 0x64, 0x3E, 0x3E, 0x22, 0x22, 0x13, 0x13, 0x18, 0x17,
     },
-    {   /* type 5 */
+    {
         0xFF, 0xF1, 0x9D, 0x9E, 0x9A, 0x9B, 0x9A, 0x97, 0x93, 0x93, 0x8C, 0x8E, 0x86, 0x88, 0x80, 0x82,
         0x7C, 0x7C, 0x72, 0x73, 0x69, 0x6B, 0x5F, 0x60, 0x55, 0x56, 0x4A, 0x4B, 0x40, 0x41, 0x37, 0x37,
         0x2F, 0x2F, 0x27, 0x27, 0x21, 0x21, 0x1B, 0x1C, 0x17, 0x17, 0x13, 0x13, 0x10, 0x10, 0x0D, 0x0D,
         0x0B, 0x0B, 0x09, 0x09, 0x08, 0x08, 0x07, 0x07, 0x06, 0x05, 0x05, 0x04, 0x04, 0x04, 0x19, 0x18,
     },
-    {   /* type 6 */
+    {
         0xC3, 0xCB, 0xF5, 0x41, 0xFF, 0x7B, 0xF7, 0x21, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -180,7 +188,7 @@ static const uint8_t weights[9][256] = {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x7A, 0x46, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     },
-    {   /* type 7 */
+    {
         0xC3, 0xD9, 0xEF, 0x3D, 0xF9, 0x7C, 0xE9, 0x1E, 0xFD, 0xAB, 0xF1, 0x2C, 0xFC, 0x5B, 0xFE, 0x17,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -191,7 +199,7 @@ static const uint8_t weights[9][256] = {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x70, 0x6C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     },
-    {   /* type 8 */
+    {
         0xBA, 0xC5, 0xDA, 0x33, 0xE3, 0x6D, 0xD8, 0x18, 0xE5, 0x94, 0xDA, 0x23, 0xDF, 0x4A, 0xD1, 0x10,
         0xEE, 0xAF, 0xE4, 0x2C, 0xEA, 0x5A, 0xDE, 0x15, 0xF4, 0x87, 0xE9, 0x21, 0xF6, 0x43, 0xFC, 0x12,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -212,7 +220,7 @@ typedef struct {
     int used;
 } tree;
 
-static void remove_item(tree *t, int i) {                     /* RemoveItem (huff.cpp:415) */
+static void remove_item(tree *t, int i) {
     if (t->next[i] != NONE) {
         int a = t->prev[i], p = t->next[i];
         t->next[a] = (int16_t)p;
@@ -221,7 +229,7 @@ static void remove_item(tree *t, int i) {                     /* RemoveItem (huf
     }
 }
 
-static void link_items(tree *t, int a, int b) {               /* LinkTwoItems (:451): b right after a */
+static void link_items(tree *t, int a, int b) {
     int n = t->next[a];
     t->next[b] = (int16_t)n;
     t->prev[b] = t->prev[n];
@@ -229,7 +237,7 @@ static void link_items(tree *t, int a, int b) {               /* LinkTwoItems (:
     t->next[a] = (int16_t)b;
 }
 
-static int higher_or_equal(tree *t, int i, uint32_t w) {      /* FindHigherOrEqualItem (:480) */
+static int higher_or_equal(tree *t, int i, uint32_t w) {
     if (i != NONE)
         for (; i != HEAD; i = t->prev[i])
             if (t->weight[i] >= w)
@@ -237,7 +245,7 @@ static int higher_or_equal(tree *t, int i, uint32_t w) {      /* FindHigherOrEqu
     return HEAD;
 }
 
-static int new_item(tree *t, int value, uint32_t w, int where) {   /* CreateNewItem (:498) + InsertItem (:460) */
+static int new_item(tree *t, int value, uint32_t w, int where) {
     if (t->used >= ITEMS)
         return NONE;
     int i = t->used++;
@@ -253,7 +261,7 @@ static int new_item(tree *t, int value, uint32_t w, int where) {   /* CreateNewI
     return i;
 }
 
-static uint32_t fix_position(tree *t, int i, uint32_t max_weight) {   /* FixupItemPosByWeight (:521) */
+static uint32_t fix_position(tree *t, int i, uint32_t max_weight) {
     if (t->weight[i] < max_weight) {
         int higher = higher_or_equal(t, t->prev[HEAD], t->weight[i]);
         remove_item(t, i);
@@ -263,7 +271,7 @@ static uint32_t fix_position(tree *t, int i, uint32_t max_weight) {   /* FixupIt
     return t->weight[i];
 }
 
-static int build_tree(tree *t, int type) {                    /* BuildTree (:544) */
+static int build_tree(tree *t, int type) {
     for (int i = 0; i <= ITEMS; i++) {
         t->next[i] = t->prev[i] = t->parent[i] = t->child[i] = NONE;
         t->weight[i] = 0;
@@ -301,14 +309,14 @@ static int build_tree(tree *t, int type) {                    /* BuildTree (:544
     return 1;
 }
 
-static int inc_weights(tree *t, int i) {                      /* IncWeightsAndRebalance (:615); -1: degenerate */
+static int inc_weights(tree *t, int i) {
     while (i != NONE) {
         t->weight[i]++;
         int higher = higher_or_equal(t, t->prev[i], t->weight[i]);
         int hi = t->next[higher];
         if (hi != i) {
             if (t->parent[hi] == NONE || t->parent[i] == NONE)
-                return -1;                                    /* the C dereferences NULL here: an invalid stream */
+                return -1;
             remove_item(t, hi);
             link_items(t, i, hi);
             remove_item(t, i);
@@ -328,7 +336,7 @@ static int inc_weights(tree *t, int i) {                      /* IncWeightsAndRe
     return 0;
 }
 
-static int new_branch(tree *t, int v1, int v2) {              /* InsertNewBranchAndRebalance (:661) */
+static int new_branch(tree *t, int v1, int v2) {
     int last = t->prev[HEAD];
     if (v1 < 0 || v1 >= 258)
         return 0;
@@ -346,8 +354,6 @@ static int new_branch(tree *t, int v1, int v2) {              /* InsertNewBranch
     return inc_weights(t, lo) == 0;
 }
 
-/* The tree BuildTree gives each data type, built once (it is O(n^2) on the 258 leaves: most of a sector's time) and
- * copied into each sector's own tree. Published with release/acquire, so two threads may build the same one at once. */
 static tree templates[9];
 static int template_ready[9];
 
@@ -366,11 +372,6 @@ static int initial_tree(tree *t, int type) {
     return 1;
 }
 
-/* The decode table of the tree as it is now (mpq_wave._tabela, BITS and ESTAVEL there): TABLE_BITS bits of the stream
- * (bit 0 is the first) -> value | (bits used << 12), or LONG_CODE when the code is longer than the table (the
- * bit-by-bit descent answers it). Outside the sparse type the tree only changes on a new byte (the 0x101 escape); the
- * table is rebuilt after STABLE symbols without a change and read in place of the descent. The same tree, read at once:
- * the same symbols. */
 #define TABLE_BITS 10
 #define STABLE 64
 #define LONG_CODE (-1)
@@ -388,7 +389,7 @@ static void build_table(const tree *t, int32_t *table) {
         sp--;
         int i = stack[sp].item, code = stack[sp].code, n = stack[sp].n;
         int lo = t->child[i];
-        if (lo == NONE) {                                     /* a leaf: every entry that starts with its code */
+        if (lo == NONE) {
             if (n <= TABLE_BITS) {
                 int32_t e = t->value[i] | (n << 12);
                 for (int k = code; k < (1 << TABLE_BITS); k += 1 << n)
@@ -406,11 +407,10 @@ static void build_table(const tree *t, int32_t *table) {
 }
 
 EXPORT("mpq_huffman") int mpq_huffman(const uint8_t *in, size_t n, uint8_t *out, size_t cap) {
-    /* THuffmannTree::Decompress (huff.cpp:862) with the TInputStream (:272): bits LSB first, byte by byte. */
     tree t;
     if (n < 1 || cap < 1 || cap > 0x7FFFFFFF)
         return -1;
-    int sparse = in[0] == 0;                                  /* :876, before the & 0x0F of BuildTree */
+    int sparse = in[0] == 0;
     if (!initial_tree(&t, in[0]))
         return -1;
     size_t pos = 1, written = 0;
@@ -421,7 +421,7 @@ EXPORT("mpq_huffman") int mpq_huffman(const uint8_t *in, size_t n, uint8_t *out,
     for (;;) {
         int v = LONG_CODE;
         if (have_table) {
-            while (bits < TABLE_BITS && pos < n) {           /* load ahead (the same bits, in the same order) */
+            while (bits < TABLE_BITS && pos < n) {
                 buf |= (uint32_t)in[pos++] << bits;
                 bits += 8;
             }
@@ -432,7 +432,7 @@ EXPORT("mpq_huffman") int mpq_huffman(const uint8_t *in, size_t n, uint8_t *out,
                     buf >>= used;
                     bits -= used;
                     v = e & 0xFFF;
-                    if (v < 0x100) {                          /* the common case: a byte, and the tree stays */
+                    if (v < 0x100) {
                         if (written == cap)
                             break;
                         out[written++] = (uint8_t)v;
@@ -442,7 +442,7 @@ EXPORT("mpq_huffman") int mpq_huffman(const uint8_t *in, size_t n, uint8_t *out,
             }
         }
         int it = t.next[HEAD];
-        if (v < 0 && it != HEAD) {                            /* DecodeOneByte (:713): 1 = the heavier child */
+        if (v < 0 && it != HEAD) {
             v = ERROR_CODE;
             int lo = t.child[it];
             while (lo != NONE) {
@@ -468,7 +468,7 @@ EXPORT("mpq_huffman") int mpq_huffman(const uint8_t *in, size_t n, uint8_t *out,
             break;
         if (v == ERROR_CODE)
             return -1;
-        if (v == NEW_CODE) {                                  /* the 8 bits after the escape are a new byte */
+        if (v == NEW_CODE) {
             if (bits < 8) {
                 if (pos >= n)
                     return -1;
@@ -483,10 +483,10 @@ EXPORT("mpq_huffman") int mpq_huffman(const uint8_t *in, size_t n, uint8_t *out,
             if (!sparse) {
                 if (inc_weights(&t, t.by_byte[v]))
                     return -1;
-                have_table = since = 0;                       /* the tree changed: the table is stale */
+                have_table = since = 0;
             }
         }
-        if (written == cap)                                   /* the output buffer is full: stop (:904) */
+        if (written == cap)
             break;
         out[written++] = (uint8_t)v;
         if (sparse) {
@@ -500,12 +500,12 @@ EXPORT("mpq_huffman") int mpq_huffman(const uint8_t *in, size_t n, uint8_t *out,
     return (int)written;
 }
 
-static const int8_t next_step[32] = {                         /* adpcm.cpp:24 NextStepTable */
+static const int8_t next_step[32] = {
     -1, 0, -1, 4, -1, 2, -1, 6, -1, 1, -1, 5, -1, 3, -1, 7,
     -1, 1, -1, 5, -1, 3, -1, 7, -1, 2, -1, 4, -1, 6, -1, 8,
 };
 
-static const uint16_t step_size[89] = {                       /* adpcm.cpp:32 StepSizeTable */
+static const uint16_t step_size[89] = {
     7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31,
     34, 37, 41, 45, 50, 55, 60, 66, 73, 80, 88, 97, 107, 118, 130, 143,
     157, 173, 190, 209, 230, 253, 279, 307, 337, 371, 408, 449, 494, 544, 598, 658,
@@ -515,16 +515,15 @@ static const uint16_t step_size[89] = {                       /* adpcm.cpp:32 St
 };
 
 EXPORT("mpq_adpcm") int mpq_adpcm(const uint8_t *in, size_t n, int channels, uint8_t *out, size_t cap) {
-    /* DecompressADPCM (adpcm.cpp:302) -> 16-bit little-endian PCM, channels interleaved; stops when `cap` is full. */
     if (channels < 1 || channels > 2 || cap > 0x7FFFFFFF)
         return -1;
     size_t max_samples = cap / 2, count = 0, pos = 2;
     if (n < 2)
         return 0;
-    int shift = in[1] & 0x1F;                                 /* the x86 shifts modulo 32 */
+    int shift = in[1] & 0x1F;
     int predicted[2] = {0, 0}, index[2] = {0x2C, 0x2C};
 #define PUT(s) do { out[2 * count] = (uint8_t)(s); out[2 * count + 1] = (uint8_t)((s) >> 8); count++; } while (0)
-    for (int c = 0; c < channels; c++) {                      /* the first sample of each channel comes raw (:321) */
+    for (int c = 0; c < channels; c++) {
         if (pos + 2 > n || count >= max_samples)
             return (int)(2 * count);
         int s = (int16_t)(in[pos] | (in[pos + 1] << 8));
@@ -535,27 +534,27 @@ EXPORT("mpq_adpcm") int mpq_adpcm(const uint8_t *in, size_t n, int channels, uin
     int c = channels - 1;
     while (pos < n) {
         int e = in[pos++];
-        c = c + 1 == channels ? 0 : c + 1;                    /* (c + 1) % channels, without the division */
-        if (e == 0x80) {                                      /* repeat the sample, step -1 (:347) */
+        c = c + 1 == channels ? 0 : c + 1;
+        if (e == 0x80) {
             if (index[c])
                 index[c]--;
             if (count >= max_samples)
                 break;
             PUT(predicted[c]);
-        } else if (e == 0x81) {                               /* step +8; the next sample is the same channel (:355) */
+        } else if (e == 0x81) {
             index[c] = index[c] + 8 < 0x58 ? index[c] + 8 : 0x58;
             c = c + 1 == channels ? 0 : c + 1;
         } else {
             int i = index[c];
             int step = step_size[i];
-            int d = step >> shift;                            /* DecodeSample (:150), without branches */
+            int d = step >> shift;
             d += step & -(e & 1);
             d += (step >> 1) & -((e >> 1) & 1);
             d += (step >> 2) & -((e >> 2) & 1);
             d += (step >> 3) & -((e >> 3) & 1);
             d += (step >> 4) & -((e >> 4) & 1);
             d += (step >> 5) & -((e >> 5) & 1);
-            int down = predicted[c] - d, up = predicted[c] + d;   /* UpdatePredictedSample (:131): 0x40 is the sign */
+            int down = predicted[c] - d, up = predicted[c] + d;
             down = down < -32768 ? -32768 : down;
             up = up > 32767 ? 32767 : up;
             int p = (e & 0x40) ? down : up;
@@ -563,7 +562,7 @@ EXPORT("mpq_adpcm") int mpq_adpcm(const uint8_t *in, size_t n, int channels, uin
             if (count >= max_samples)
                 break;
             PUT(p);
-            i += next_step[e & 0x1F];                         /* GetNextStepIndex (:117) */
+            i += next_step[e & 0x1F];
             index[c] = i < 0 ? 0 : (i > 88 ? 88 : i);
         }
     }
@@ -571,12 +570,6 @@ EXPORT("mpq_adpcm") int mpq_adpcm(const uint8_t *in, size_t n, int channels, uin
     return (int)(2 * count);
 }
 
-/* ------------------------------------------------------------------ PKWARE DCL (implode), since 1.6.4
- * pkware.explode in C, for a sector whose size is known (the MPQ always knows it): StormLib's explode.c (tables :34-125,
- * GenDecodeTabs :130, GenAscTabs :151, WasteBits :230, DecodeLit :270, DecodeDist :360, Expand :391), through the
- * Python port, the same stops: the output ends at `expected` bytes, the 0x305 code, or the input; -1 for a stream the
- * Python would refuse (it redoes the sector and raises its own error). Measured on a protected map whose 3.043 files
- * are each one imploded 8 MB sector: 189 s of the Python loop in the diagnosis. */
 static const uint8_t dcl_dist_bits[64] = {
     0x02, 0x04, 0x04, 0x05, 0x05, 0x05, 0x05, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06,
     0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
@@ -645,12 +638,12 @@ typedef struct {
 } dcl;
 
 static void dcl_decode_tabs(uint8_t *positions, const uint8_t *starts, const uint8_t *bits, int count) {
-    for (int i = 0; i < count; i++)                            /* GenDecodeTabs (:130) */
+    for (int i = 0; i < count; i++)
         for (int k = starts[i]; k < 0x100; k += 1 << bits[i])
             positions[k] = (uint8_t)i;
 }
 
-static void dcl_asc_tabs(dcl *s) {                            /* GenAscTabs (:151) */
+static void dcl_asc_tabs(dcl *s) {
     for (int i = 0; i < 256; i++)
         s->bits_asc[i] = dcl_ch_bits_asc[i];
     for (int count = 0xFF; count >= 0; count--) {
@@ -681,7 +674,7 @@ static void dcl_asc_tabs(dcl *s) {                            /* GenAscTabs (:15
     }
 }
 
-static int dcl_waste(dcl *s, int bits) {                       /* WasteBits (:230); 1 = the input ended */
+static int dcl_waste(dcl *s, int bits) {
     if (bits <= s->extra) {
         s->extra -= bits;
         s->buf >>= bits;
@@ -699,7 +692,7 @@ static int dcl_waste(dcl *s, int bits) {                       /* WasteBits (:23
     return 0;
 }
 
-static int dcl_lit(dcl *s) {                                   /* DecodeLit (:270) */
+static int dcl_lit(dcl *s) {
     if (s->buf & 1) {
         if (dcl_waste(s, 1))
             return DCL_ERR;
@@ -747,7 +740,7 @@ static int dcl_lit(dcl *s) {                                   /* DecodeLit (:27
     return value;
 }
 
-static uint32_t dcl_dist(dcl *s, int rep) {                    /* DecodeDist (:360); 0 on error */
+static uint32_t dcl_dist(dcl *s, int rep) {
     int code = s->dist_codes[s->buf & 0xFF];
     if (dcl_waste(s, dcl_dist_bits[code]))
         return 0;
@@ -765,8 +758,7 @@ static uint32_t dcl_dist(dcl *s, int rep) {                    /* DecodeDist (:3
 }
 
 EXPORT("mpq_explode") int mpq_explode(const uint8_t *in, size_t n, uint8_t *out, size_t expected) {
-    /* `expected` bytes into `out` (Expand :391), or -1. The 0x08 mask of the MPQ sector in front is optional. */
-    dcl s;                              /* ~1.4 KB of tables, on the stack: no state between calls or threads */
+    dcl s;
     if (n <= 4 || expected > 0x7FFFFFFF)
         return -1;
     if (in[0] == 0x08 && in[1] <= 1)
@@ -788,7 +780,7 @@ EXPORT("mpq_explode") int mpq_explode(const uint8_t *in, size_t n, uint8_t *out,
     for (;;) {
         int lit = dcl_lit(&s);
         if (lit == DCL_ERR || lit == DCL_END)
-            break;                      /* nothing out yet, the end code, or a stream cut short: all short of expected */
+            break;
         if (lit >= 0x100) {
             int rep = lit - 0xFE;
             uint32_t back = dcl_dist(&s, rep);
@@ -803,12 +795,10 @@ EXPORT("mpq_explode") int mpq_explode(const uint8_t *in, size_t n, uint8_t *out,
         if (written >= expected)
             return (int)expected;
     }
-    return -1;                          /* the output ended short of `expected`: the Python raises */
+    return -1;
 }
 
 #if defined(__wasm__)
-/* WebAssembly: a buffer of `n` bytes after the program's data (the memory grows to fit); the page copies the block in,
- * calls mpq_decrypt on it and copies it out. One block at a time. */
 extern unsigned char __heap_base;
 EXPORT("mpq_buffer") uint8_t *mpq_buffer(size_t n) {
     size_t base = (size_t)&__heap_base;

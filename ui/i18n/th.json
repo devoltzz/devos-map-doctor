@@ -821,6 +821,7 @@
  "Text": "ข้อความ",
  "Thai": "ไทย",
  "The (attributes) file of the map was kept as it was.": "ไฟล์ (attributes) ของแมพถูกคงไว้ตามเดิม",
+ "The (attributes) file of the map was updated with the checksums of the new files.": "ไฟล์ (attributes) ของแผนที่ได้รับการอัปเดตด้วยค่าเช็คซัมของไฟล์ใหม่แล้ว",
  "The Devo's Map Doctor in your browser: the same program as the Windows download, run here. It opens protected Warcraft III maps, fixes what stops them on Reforged 3.0, prepares them for the World Editor and ports the maps of the KK and M16 platforms.": "Devo's Map Doctor ในเบราว์เซอร์ของคุณ: โปรแกรมเดียวกับที่ดาวน์โหลดสำหรับ Windows แต่รันที่นี่ เปิดแมพ Warcraft III ที่มีการป้องกัน แก้สิ่งที่ทำให้แมพรันบน Reforged 3.0 ไม่ได้ เตรียมแมพสำหรับ World Editor และพอร์ตแมพของแพลตฟอร์ม KK และ M16",
  "The Doctor can move the lists to the script.": "Doctor ย้ายรายการไปไว้ในสคริปต์ได้",
  "The Doctor fixes them.": "Doctor ซ่อมสิ่งเหล่านี้ให้",

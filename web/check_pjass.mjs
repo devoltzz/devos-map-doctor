@@ -1,8 +1,4 @@
-// check_pjass.mjs - pjass.wasm against pjass's own tests, run through the site's WASI (wasi_mini.js): every script of
-// tests/should-check must pass and every one of tests/should-fail must fail. The `site` workflow runs it before
-// building the site, so a release never ships a pjass that checks differently.
-//
-//   node web/check_pjass.mjs <pjass.wasm> <pjass source>
+// Runs pjass.wasm against pjass's own tests through the site's WASI.
 import fs from 'node:fs';
 import path from 'node:path';
 import { runWasi } from './wasi_mini.js';

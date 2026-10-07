@@ -1,3 +1,4 @@
+# Serves a built site on this computer with the headers of the real host, for testing.
 """serve_dev.py - the site served on this computer the way devo-site serves it: the same headers (deploy/headers.conf,
 the Content-Security-Policy included), /data/ from the game data folder, the types of .wasm, .mjs and .webmanifest.
 For testing a build before a release; it listens on 127.0.0.1 only.
@@ -16,7 +17,6 @@ TYPES = {'.wasm': 'application/wasm', '.mjs': 'text/javascript', '.js': 'text/ja
 
 
 def headers():
-    """[(name, value)] of the `add_header` lines of deploy/headers.conf."""
     with open(os.path.join(HERE, 'deploy', 'headers.conf'), encoding='utf-8') as f:
         return re.findall(r'^add_header ([\w-]+) "([^"]*)"', f.read(), re.M)
 
@@ -38,7 +38,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         super().end_headers()
 
     def log_message(self, *args):
-        pass                       # like the site: no access log
+        pass
 
 
 def main(argv):

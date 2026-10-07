@@ -329,6 +329,10 @@ def fix(path_in, path_out, files=None, progress=None, what=FIXES):
     if not repl:
         res['state'] = 'nothing_to_do'
         return res
+    r = a.find('(attributes)')
+    if r:
+        blocks.add(r[1])
+        slots.update(e[0] for e in a.hash_entries('(attributes)'))
     part = _part(path_out)
     try:
         p('Writing the new map')

@@ -821,6 +821,7 @@
  "Text": "文本",
  "Thai": "泰语",
  "The (attributes) file of the map was kept as it was.": "地图的 (attributes) 文件保持原样。",
+ "The (attributes) file of the map was updated with the checksums of the new files.": "地图的 (attributes) 文件已使用新文件的校验和进行更新。",
  "The Devo's Map Doctor in your browser: the same program as the Windows download, run here. It opens protected Warcraft III maps, fixes what stops them on Reforged 3.0, prepares them for the World Editor and ports the maps of the KK and M16 platforms.": "浏览器中的 Devo's Map Doctor：与 Windows 下载版是同一个程序，在这里运行。它能打开受保护的 Warcraft III 地图，修复让它们无法在 Reforged 3.0 上运行的问题，为 World Editor 做准备，并移植 KK 和 M16 平台的地图。",
  "The Doctor can move the lists to the script.": "Doctor 可以把这些列表移到脚本中。",
  "The Doctor fixes them.": "Doctor 会修复它们。",

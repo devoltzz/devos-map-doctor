@@ -1,5 +1,4 @@
-// Devo's Map Doctor 1.4 (the layout of 1.6.3): the page. It never touches a map: every job runs in the program's worker
-// (window.pywebview.api.start), and the events come back through window.doctor.onEvent.
+// The page: the modes, the tabs and the reports; every job runs in the program's worker.
 'use strict';
 
 const $ = (sel, root) => (root || document).querySelector(sel);
@@ -25,7 +24,6 @@ function el(tag, attrs, ...kids) {
 function mb(n) { return (n / 1e6).toFixed(n >= 1e8 ? 0 : 1) + ' MB'; }
 function clock(s) { s = Math.floor(s); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
 function base(path) { return (path || '').split(/[\\/]/).pop(); }
-// the site (1.6) has no folder to show: what a job saved is downloaded
 const web = () => !!(state.hello && state.hello.web);
 const WEB_LABELS = { 'Show in folder': 'Download the map', 'Show the report': 'Download the report' };
 const showLabel = what => web() ? WEB_LABELS[what] || 'Download' : what;
@@ -61,7 +59,7 @@ function dialog(title, body, buttons) {
 }
 
 async function copyText(text) {
-  try { await navigator.clipboard.writeText(text); return true; } catch (e) { /* the old way below */ }
+  try { await navigator.clipboard.writeText(text); return true; } catch (e) { }
   const ta = el('textarea', {}, text);
   document.body.appendChild(ta);
   ta.select();
@@ -70,7 +68,6 @@ async function copyText(text) {
   return ok;
 }
 
-// an image the engine sends as raw RGBA rows (base64), drawn into a canvas
 function rgbaCanvas(img, maxSide) {
   const c = el('canvas', { width: img.width, height: img.height });
   const bytes = Uint8ClampedArray.from(atob(img.rgba), ch => ch.charCodeAt(0));
@@ -79,39 +76,25 @@ function rgbaCanvas(img, maxSide) {
   return c;
 }
 
-// ------------------------------------------------------------------ the bridge
 const state = {
   hello: null, settings: {}, map: null, open: null, jobs: {}, running: null, results: {},
-  // `gen` counts the maps opened: what a job of an earlier map brings back is dropped; the quiet jobs of the map
-  // (the tabs loading in the background) are cancelled when another one opens
   gen: 0, tabState: {}, quietJobs: new Set(), images: {}, imageData: {},
-  // 1.6.3: the mode on screen and the tab each mode showed last
   mode: null, pane: {},
-  // the Translation tab: the files the texts come from (translation_groups) and the ones the user unticked
   trGroups: null, trSkip: new Set(),
   extras: { card: null, translation: null, models: null, modelNames: null, singlePlayer: null, portraits: null,
     dataPointers: null, kkTextures: null, disabledIcons: null, uabi: null, preload: null },
-  // the Cheatpacks tab: the answer of the backend (the packs this map's script language can take) and what the page
-  // picked (the pack id, the value of each option of it, and the result of the last injection)
   cheatpacks: null, cheatPack: { id: null, options: {}, result: null },
-  // the Files tab: the answer of "Read the raw codes", and null until the button is pressed (nothing is read on its own)
   rawcodes: null,
 };
 
 const api = () => window.pywebview.api;
 
-// the events of a job whose id the bridge has not returned yet (a worker that ends before `start` comes back): kept
-// here and replayed when the job registers; one that nobody claims is dropped after a while
 const pendingEvents = {};
 
-// `start` is awaited outside the Promise: when it throws (TEMP full, the worker blocked) the caller's catch gets the
-// error instead of a job that never ends
 async function run(task, params, opts) {
   opts = opts || {};
-  // `quiet`: the site runs the tabs that load in the background in a worker of their own (the exe ignores it)
   const id = await api().start(task, Object.assign({ map: state.map }, params || {},
     opts.quiet ? { quiet: true } : {}));
-  // the key the time of the job is learned under: the task, and the extras that change its length (Fix with Shrink)
   const ex = (params || {}).extras || {};
   const key = task + (Object.keys(ex).length ? ':' + Object.keys(ex).filter(k => ex[k]).sort().join(',') : '');
   return new Promise((resolve, reject) => {
@@ -153,7 +136,6 @@ window.doctor = {
     state.quietJobs.delete(ev.job);
     if (state.running === ev.job) hideJob();
     if (ev.type === 'result') { if (!job.quiet) learnTime(job); job.resolve(ev.data); }
-    // `kept`: the output already had its name when the cancel came (a "Fix map" cancelled during the extras)
     else if (ev.type === 'cancelled') job.reject({ cancelled: true, kept: !!ev.kept, output: ev.output || null });
     else job.reject({ message: ev.message, trace: ev.trace });
   },
@@ -171,12 +153,6 @@ function showJob(id, label) {
   setBusy(true);
 }
 
-// ------------------------------------------------------------------ the cat's line: idle, or the job with a bar and an ETA
-// The engine reports stages, not a percentage, so the time is LEARNED: after each job that ends well, the seconds per
-// MB of the map (and the seconds, for a job with no map size yet) and the point of the total at which each stage began
-// are kept in the settings (a moving average, per task and extras). The next run of the same job estimates its total
-// from the map size, and again at every stage it reaches (the stage began at 30 s and usually begins at 40% of the
-// job: about 75 s in all). A job never seen before gets a bar that sweeps and the time so far, without an ETA.
 const BAR = 14;
 function learnTime(job) {
   const secs = (Date.now() - job.started) / 1000;
@@ -220,14 +196,11 @@ function renderCat() {
   const e = estimate(job);
   let bar, tail;
   if (e) {
-    // the bar never goes back: a stage the history does not know (an extra the last run did not have) can lower the
-    // estimate of the total, and only the ETA follows it
     e.frac = job.shown = Math.max(job.shown || 0, e.frac);
     const full = Math.round(e.frac * BAR);
     bar = '[' + '\u2588'.repeat(full) + '\u2591'.repeat(BAR - full) + '] ' + Math.round(e.frac * 100) + '%';
     tail = e.left >= 1 ? '~' + clock(e.left) + ' left' : 'almost done';
   } else {
-    // no history yet: a block that sweeps from side to side
     const span = BAR - 3, k = Math.floor(now * 6) % (2 * span), at = k < span ? k : 2 * span - k;
     bar = '[' + '\u2591'.repeat(at) + '\u2588\u2588\u2588' + '\u2591'.repeat(span - at) + ']';
     tail = clock(now) + ' so far';
@@ -242,10 +215,8 @@ function hideJob() {
   setBusy(false);
 }
 function setBusy(busy) {
-  // a button that is off for a reason of its own (nothing to do for this map) carries data-off and stays off
   $$('.needs-idle').forEach(b => { b.disabled = busy || b.hasAttribute('data-off'); });
   $('#btnOpen').disabled = busy;
-  // the cat in the corner sleeps, and wakes up while a job runs
   $('#cat').classList.toggle('awake', busy);
   renderCat();
 }
@@ -264,8 +235,7 @@ function failed(e, what) {
   toast(what + ' failed: ' + msg, { bad: true, sticky: true, actions: [['Report a problem', reportProblem]] });
 }
 
-// ------------------------------------------------------------------ settings
-async function saveSettings() { try { await api().save_settings(state.settings); } catch (e) { /* not fatal */ } }
+async function saveSettings() { try { await api().save_settings(state.settings); } catch (e) { } }
 
 function remember(path) {
   const r = (state.settings.recent || []).filter(p => p !== path);
@@ -281,7 +251,6 @@ function showRecent() {
     onclick: () => openMap(p) }), el('span', { class: 'faint', text: '  ' + p }))));
 }
 
-// ------------------------------------------------------------------ opening a map
 async function pickMap() {
   if (state.running) return;
   const p = await api().pick_map();
@@ -295,7 +264,7 @@ async function openMap(path) {
   state.quietJobs.clear();
   state.map = path;
   state.open = null;
-  state.lastError = null;                   // the problem report of this map must not carry the error of the last one
+  state.lastError = null;
   state.card = state.files = state.reforged = null;
   state.images = {};
   state.imageData = {};
@@ -351,8 +320,6 @@ async function openMap(path) {
   }
 }
 
-// ------------------------------------------------------------------ the map header
-
 function renderHeader() {
   const o = state.open, s = o.summary;
   $('#mapTitle').textContent = o.name;
@@ -372,14 +339,10 @@ function renderHeader() {
   $('#diagLines').replaceChildren(reportLines(o.lines));
 }
 
-// 1.6.7: the engine's report is translated on screen like the rest of the page (its lines are templates of their own:
-// "Saved as: {0}" is longer than "Saved {0}", so it wins); what is copied or sent to an issue stays English, built from
-// the result's lines (plainReport), never from the screen
 function reportLines(lines) {
   return el('div', { class: 'report' }, lines.map(([style, text]) => el('div', { class: 'l ' + style, text })));
 }
 
-// the map's images, asked once per map (the header thumbnail and the map card share them); null when there is none
 function imageOf(which) {
   if (!state.images[which]) {
     state.images[which] = run('card_image', { which }, { quiet: true }).catch(() => null);
@@ -389,7 +352,7 @@ function imageOf(which) {
 
 async function loadThumb(gen) {
   const img = await imageOf('minimap');
-  if (gen !== state.gen || !img) return;     // no minimap: the empty frame stays
+  if (gen !== state.gen || !img) return;
   const c = rgbaCanvas(img);
   const ctx = $('#thumb').getContext('2d');
   ctx.imageSmoothingEnabled = true;
@@ -412,15 +375,12 @@ async function checkReforgedQuietly(gen) {
     const sp = r.single_player;
     if (sp && sp.found) { state.extras.singlePlayer = sp; renderActions(); }
     if (r.models && r.models.fixable) { state.extras.models = r.models; renderActions(); }
-    // 1.5.3: the extras of the new checks
     if (r.portraits && r.portraits.fixable) { state.extras.portraits = r.portraits; renderActions(); }
     if (r.data_pointers && r.data_pointers.fixable) { state.extras.dataPointers = r.data_pointers; renderActions(); }
-    // 1.6.2: the textures the KK platform encrypted (BLX1), and the imported icons without their disabled art
     if (r.kk_textures && r.kk_textures.fixable) { state.extras.kkTextures = r.kk_textures; renderActions(); }
     if (r.disabled_icons && r.disabled_icons.fixable) { state.extras.disabledIcons = r.disabled_icons; renderActions(); }
     if (r.uabi && r.uabi.distinct) { state.extras.uabi = r.uabi; renderActions(); }
     if (r.preload && (r.preload.units || r.preload.abilities)) { state.extras.preload = r.preload; renderActions(); }
-    // 1.5.6: os nomes de modelo que a ferramenta Model_Encrypt renomeou
     if (r.model_names && r.model_names.fixable) { state.extras.modelNames = r.model_names; renderActions(); }
   } catch (e) {
     if (gen !== state.gen) return;
@@ -430,7 +390,6 @@ async function checkReforgedQuietly(gen) {
   }
 }
 
-// ------------------------------------------------------------------ the two actions
 const ACTIONS = {
   fix: { title: 'Fix map', suffix: '_fixed', label: 'Fixing the map...',
     lead: 'Saves a copy without the protection and with the 3.0 fixes.' },
@@ -445,7 +404,6 @@ const EXTRA_STEPS = {
 };
 
 function choices(action) {
-  // what the user picked last time (when "remember" is on), over the defaults of this map
   const saved = state.settings.remember !== false ? ((state.settings.last || {})[action] || {}) : {};
   const out = {};
   for (const s of state.open.steps.filter(x => x.action === action)) {
@@ -496,7 +454,6 @@ function extraSteps(action) {
       on: false, applies: true, group: 'extra' });
     if (k === 'card' && x.card) out.push({ key: 'x:card', label: 'Apply the map card changes',
       detail: Object.keys(x.card).length + ' changed in the Map card tab.', on: true, applies: true, group: 'extra' });
-    // a translation whose check failed (`error`) is shown in its tab, never offered here
     if (k === 'translation' && x.translation && !x.translation.check.error) out.push({ key: 'x:translation',
       label: 'Apply the translation',
       detail: base(x.translation.file) + ', from the Translation tab.', on: true, applies: true, group: 'extra' });
@@ -507,14 +464,11 @@ function extraSteps(action) {
   return out;
 }
 
-// 1.6.3: each action lives in its own mode (Fix, Editor)
 function renderActions() {
   if (!state.open) return;
   for (const action of Object.keys(ACTIONS)) $('#action-' + action).replaceChildren(renderAction(action));
 }
 
-// the shell line under each action: the command the ticked boxes make, as if the Doctor ran in a terminal
-// (the step keys come in Portuguese from the archive's engine and in English from the release's)
 const FLAGS = { mpq: 'unprotect', falsos: 'fake-files', fake_list: 'fake-files', lista: 'listfile',
   listing: 'listfile', ids: 'ids', desprotecao: 'unprotect', unprotection: 'unprotect', script_de_volta: 'script-back',
   script_restore: 'script-back', arquivos_do_editor: 'editor-files', editor_only_files: 'editor-files',
@@ -531,7 +485,6 @@ function shellLine(action) {
   for (const box of $$('input[data-key]', card)) {
     if (!box.checked) continue;
     const k = box.dataset.key;
-    // the 3.0 data problems are one flag, however many tables the map has
     const f = /^(dados|data):/.test(k) ? 'data' : FLAGS[k] || k.replace(/^x:/, '').replace(/[:_]/g, '-');
     if (!flags.includes(f)) flags.push(f);
   }
@@ -697,7 +650,6 @@ function plainReport(lines) {
   return lines.map(([style, text]) => (style === 'title' ? '## ' : '') + text).join('\n');
 }
 
-// ------------------------------------------------------------------ report a problem
 async function reportProblem() {
   const parts = ['Version: ' + (state.hello ? state.hello.version : '?')];
   if (state.open) parts.push('Map: ' + state.open.name + ' (' + mb(state.open.size) + ')', '',
@@ -722,7 +674,6 @@ async function reportProblem() {
   if (v === 'gh') api().report_problem(title, text.value);
 }
 
-// ------------------------------------------------------------------ updates
 function offerUpdate(release) {
   const v = (release.version || '').replace(/^v/i, '');
   const u = $('#update');
@@ -748,17 +699,10 @@ function offerIndex(release, missing) {
     ['Later', () => {}]] });
 }
 
-// ------------------------------------------------------------------ tabs
-// Every tab but the two actions stays locked, with a spinner on its button, until ALL of its information is in: the data
-// tabs load in the background as soon as the map is checked, one after the other (a big map in several workers at
-// once would take that much more memory); "Runs on Reforged?" opens when its check ends; Translation and Compare
-// when the map is checked.
 const TABS = ['card', 'reforged', 'files', 'script', 'cheatpacks', 'triggers', 'translation', 'compare', 'port'];
 const TAB_DATA = { card: loadCard, files: loadFiles, script: loadScript, cheatpacks: loadCheatpacks,
   triggers: loadTriggers, reforged: checkReforgedQuietly };
 
-// 1.6.3: the tabs are grouped in modes, one button each on the left; a mode with one tab locks its own button while
-// that tab loads, a mode with several shows them as sub-tabs (the action of Fix and Editor never locks)
 const MODES = { fix: ['fix', 'reforged'], editor: ['editor', 'card', 'triggers'], port: ['port'],
   cheatpacks: ['cheatpacks'], translation: ['translation'], inspect: ['files', 'script', 'compare'] };
 const modeOf = name => Object.keys(MODES).find(m => MODES[m].includes(name));
@@ -795,7 +739,6 @@ function selectTab(name) {
   $('#main').scrollTop = 0;
 }
 
-// a mode opens on the tab it showed last, or on its first tab that is in
 function selectMode(mode) {
   if (!state.open && !state.map) return;
   const last = state.pane[mode];
@@ -804,7 +747,6 @@ function selectMode(mode) {
   if (name) selectTab(name);
 }
 
-// the empty parts (null, false) are skipped, as in el(): replaceChildren() would show them as the text "null"
 function tabBody(name, ...kids) {
   $('#tab-' + name).replaceChildren(...kids.flat().filter(k => k !== null && k !== undefined && k !== false));
 }
@@ -820,8 +762,6 @@ function tabFailed(name, what, e) {
   } })));
 }
 
-// ------------------------------------------------------------------ the map card
-// |cffRRGGBB...|r and |n as the game shows them
 function colored(text) {
   const out = el('div', { class: 'colorpreview', translate: 'no' });
   let color = null, buf = '';
@@ -919,8 +859,6 @@ function renderCard() {
   const images = el('div', { class: 'row wrap', style: 'gap:18px' },
     ['minimap', 'preview'].map(which => imageSlot(which, (c.images || {})[which])));
   const info = c.info || {};
-  // the commands as plain text, ONE PER LINE: the empty match ("any message") is not a command to type, and the "..."
-  // of a prefix match is not part of the command
   const chatCommandText = (list) => (list || [])
     .map(x => typeof x === 'string' ? x : String(x.text || ''))
     .map(t => t.trim()).filter(t => t).join('\n');
@@ -954,8 +892,6 @@ function describeLanguage(lang) {
   return (lang.language || 'unknown') + (lang.script ? ' (' + lang.script + ' script)' : '');
 }
 
-// 1.6.3: the chat commands as a table: the command, how the game matches it, how many triggers listen to it. A command
-// the script builds while running and the Doctor could not work out has no text: its expression is shown instead
 const MATCH_TEXT = { true: 'whole message', false: 'contains', null: 'decided by the script' };
 function chatCommandsBox(info, chatCommandText) {
   const list = (info.chat_commands || []).map(x => typeof x === 'string' ? { text: x, exact: true, count: 1 } : x);
@@ -1007,7 +943,6 @@ function describeSave(save) {
 }
 
 function imageSlot(which, name) {
-  // the image came in with the card (loadCard waits for both before the tab opens)
   const img = state.imageData[which];
   const box = el('div', { class: 'preview', style: 'width:200px;height:200px;min-height:0' },
     img ? rgbaCanvas(img, 180) : el('span', { class: 'faint', text: name ? 'cannot show it' : 'none' }));
@@ -1025,7 +960,6 @@ async function replaceImage(which, box) {
   if (!['png', 'jpg', 'jpeg', 'bmp'].includes(ext)) { toast('Pick a PNG, JPG or BMP image.', { bad: true }); return; }
   const img = new Image();
   img.onload = () => {
-    // the size the map already uses (the minimap is square, a power of two): the picture is fitted to it
     const size = which === 'minimap' ? 256 : Math.min(256, Math.max(img.width, img.height));
     const c = el('canvas', { width: size, height: size });
     const ctx = c.getContext('2d');
@@ -1040,13 +974,11 @@ async function replaceImage(which, box) {
     box.replaceChildren(c);
     renderActions();
   };
-  // a file the browser cannot decode (corrupt, or cut at the 32 MB the bridge reads): nothing changes, and it says so
   img.onerror = () => toast('The image ' + base(p) + ' could not be read: pick a valid PNG, JPG or BMP under 32 MB.',
     { bad: true });
   img.src = 'data:image/' + (ext === 'jpg' ? 'jpeg' : ext) + ';base64,' + b64;
 }
 
-// ------------------------------------------------------------------ runs on Reforged?
 function renderReforged() {
   const r = state.reforged;
   if (!r) { tabBody('reforged', el('div', { class: 'card muted', text: 'Checking...' })); return; }
@@ -1063,7 +995,6 @@ function renderReforged() {
         null)))) : el('p', { class: 'muted', text: 'Nothing found.' })));
 }
 
-// ------------------------------------------------------------------ files
 async function loadFiles(gen) {
   try {
     const f = await run('files', {}, { quiet: true });
@@ -1109,7 +1040,6 @@ function renderFiles() {
           try {
             const r = await run('extract', { names: Array.from(selected), folder: dir }, { label: 'Extracting...' });
             if (r.error) { failed({ message: r.error }, 'Extracting'); return; }
-            // `written` is a list of {name, path, size}; `failed` of {name, reason}; `exists` the ones left as they were
             const n = (r.written || []).length, bad = r.failed || [], kept = (r.exists || []).length;
             if (bad.length) toast(bad.length + (bad.length === 1 ? ' file' : ' files') + ' could not be extracted: ' +
               bad.slice(0, 5).map(x => x.name + (x.reason ? ' (' + x.reason + ')' : '')).join(', ') +
@@ -1118,7 +1048,6 @@ function renderFiles() {
               '.', { actions: [[showLabel('Show'), () => api().open_folder(dir)]] });
           } catch (e) { failed(e, 'Extracting'); }
         } })),
-    // the module never raises: when the map could not be read, its reason is here (and the list is empty)
     f.error ? el('div', { class: 'report' }, el('div', { class: 'l bad', text: f.error })) : null,
     (f.notes || []).map(n => el('p', { class: 'muted', text: n })),
     lintSummary(f),
@@ -1128,7 +1057,6 @@ function renderFiles() {
       rows)), preview)));
 }
 
-// 1.5.3: the import checks of a file (import_lint)
 const LINT_TEXT = {
   not_in_imp: ['not in the import list', 'The World Editor drops it on the next save.'],
   odd_extension: ['not a game file', 'The game does not load this type of file.'],
@@ -1148,7 +1076,6 @@ function lintSummary(f) {
 }
 
 async function showPreview(file, box) {
-  // one request counter per box: the answer of an earlier click (a slow model) must not replace the one shown
   const seq = box.previewSeq = (box.previewSeq || 0) + 1;
   box.replaceChildren(el('span', { class: 'faint', text: 'Loading...' }));
   try {
@@ -1170,10 +1097,6 @@ async function showPreview(file, box) {
   }
 }
 
-// ------------------------------------------------------------------ the raw codes
-// The four-character ids the map's object data uses (units, items, abilities, buffs, upgrades, doodads). The ids that
-// are not ASCII are the PG family: a protector renamed the objects to hide what they are. Nothing is read until the
-// user presses the button; the answer stays in the state, so the card is the same when the tab is drawn again.
 function rawcodesCard() {
   const body = el('div', {});
   if (state.rawcodes) drawRawcodes(body, state.rawcodes);
@@ -1186,7 +1109,6 @@ function rawcodesCard() {
       state.rawcodes = r;
       drawRawcodes(body, r);
     } catch (e) {
-      // the job itself failed: the red line the other tabs show, and the reason under it
       body.replaceChildren(el('div', { class: 'report' },
         el('div', { class: 'l bad', text: 'Reading the raw codes failed.' }),
         el('div', { class: 'l info', text: (e && e.message) || String(e) })));
@@ -1199,10 +1121,6 @@ function rawcodesCard() {
     body);
 }
 
-// how many of the ids are not printable ASCII (the PG family). It counts the UNIQUE ids of the kinds: the per-source
-// "ansii" can repeat the same id under two sources, and the "text" escapes the bytes Python reads as a line break, so
-// counting it would say less than the truth. The test catches both the control bytes of the PG family and the
-// surrogates of the ids above ASCII.
 function nonAsciiIds(text, kinds) {
   const ids = new Set();
   (kinds || []).forEach(k => (k.ids || []).forEach(i => ids.add(i)));
@@ -1217,8 +1135,6 @@ function nonAsciiIds(text, kinds) {
   return (kinds || []).reduce((a, k) => a + (k.ansii || 0), 0);
 }
 
-// an id as it can be read on screen: a byte outside printable ASCII (the PG family) as \xNN. The backend sends the
-// bytes above 0x7F as the surrogates U+DC80..U+DCFF (utf-8/surrogateescape) and a valid UTF-8 letter as itself.
 function visibleId(id) {
   let out = '';
   for (const ch of id) {
@@ -1230,8 +1146,6 @@ function visibleId(id) {
   return out;
 }
 
-// 1.6.3: the answer of the backend as one list: every unique id once, with its name, kind and first source; the kinds
-// as filters on top, a search over id and name, the short note under it and the count per file folded in "Sources"
 const RAW_LIMIT = 1500;
 function drawRawcodes(body, r) {
   if (r.error) {
@@ -1307,7 +1221,6 @@ function drawRawcodes(body, r) {
       el('span', { class: 'faint', text: 'One per line: kind, id, name.' })) : null);
 }
 
-// ------------------------------------------------------------------ script
 async function loadScript(gen) {
   try {
     const s = await run('script', {}, { quiet: true });
@@ -1331,8 +1244,6 @@ async function loadScript(gen) {
   } catch (e) { if (gen === state.gen) tabFailed('script', 'Reading the script', e); }
 }
 
-// 1.5.3: "Script checks" (script_checks.py): the handle leaks by how often they run, the start-up the script never
-// calls, the globals it reads and never sets
 const HEAT_TEXT = { hot: 'periodic timer', repeat: 'event', once: 'start', unused: 'never runs' };
 const RULE_TEXT = { discarded: 'created and thrown away', inline: 'created inside a call, never destroyed',
   never_destroyed: 'kept in a local, never destroyed' };
@@ -1363,19 +1274,12 @@ function scriptChecksCard() {
     el('h3', { class: 'grow', text: 'Script checks' }), btn), box);
 }
 
-// ------------------------------------------------------------------ cheat packs
-// A cheat pack (JJCP, NZCP, Devo's CP, OzzyCP) is a script of its own that goes INTO the map's script: the archive
-// keeps the packs in common/cheatpacks/ and reads them as data, never runs them. The backend hands back only the packs
-// of the language the map's script is written in (a Lua map gets the Lua packs, a JASS map the JASS ones), with the
-// options of each pack; this tab lists them, sets the options and injects the chosen one (always obfuscated), which
-// writes an edited copy of the map next to the original.
 async function loadCheatpacks(gen) {
   try {
     const s = await run('cheatpacks', {}, { quiet: true });
     if (gen !== state.gen) return;
     if (s.error) { tabFailed('cheatpacks', 'Reading the cheat packs', { message: s.error }); return; }
     state.cheatpacks = s;
-    // the page starts on the first pack; a pack the map still offers stays picked (this runs again on "Try again")
     const packs = s.packs || [];
     if (!packs.some(p => p.id === state.cheatPack.id)) state.cheatPack.id = packs.length ? packs[0].id : null;
     renderCheatpacks();
@@ -1399,13 +1303,10 @@ function renderCheatpacks() {
       (packs.length === 1 ? ' pack fits' : ' packs fit') + ' this map: pick one and inject it.' }) :
       el('p', { class: 'muted', text: d.why || 'The map script is not one the Doctor can write.' }),
     d.note ? el('p', { class: 'faint', text: d.note }) : null);
-  // what the map already carries comes first: that card only reads, the cards under it inject a pack
   tabBody('cheatpacks', head, cheatpackFound(d), packs.map(cheatpackCard),
     state.cheatPack.result ? cheatpackResult(state.cheatPack.result) : null);
 }
 
-// The packs the map's OWN script already carries (the "found" of the backend). Read-only: nothing here is injected,
-// the pack is only named, with what the player types to call it, where it was found and what gave it away.
 function cheatpackFound(d) {
   const found = d.found || [];
   return el('div', { class: 'card', id: 'cheatpacks-found' },
@@ -1416,8 +1317,6 @@ function cheatpackFound(d) {
       el('p', { class: 'muted', text: 'No cheat pack found in this map\'s script.' }));
 }
 
-// one detection: the name, the activator the player types (in mono, highlighted: it is the thing to try in game), where
-// it was found and the line of evidence, with the confidence as a badge ("certain", or "guess" when it is not proved)
 function cheatpackFoundItem(f) {
   return el('li', { class: 'step' }, el('div', { class: 'grow' },
     el('div', { class: 'row' }, el('span', { class: 'grow t', text: f.title || f.id }),
@@ -1441,8 +1340,6 @@ function cheatpackCard(p) {
         text: 'Inject the cheat pack', disabled: !!state.running, onclick: runCheatpack }))) : null);
 }
 
-// one option: a text field, or a tick box that spans the two columns of the form; the value is kept in the state as the
-// string the backend reads ('true'/'false' for a bool, as the pack's own default comes)
 function cheatpackField(o) {
   const v = state.cheatPack.options[o.key];
   const value = v === undefined ? o.default : v;
@@ -1456,7 +1353,6 @@ function cheatpackField(o) {
       oninput: e => { state.cheatPack.options[o.key] = e.target.value; } })];
 }
 
-// the options of the chosen pack, each one with its default when the page never touched it
 function cheatpackOptions() {
   const p = ((state.cheatpacks || {}).packs || []).find(x => x.id === state.cheatPack.id);
   const out = {};
@@ -1483,7 +1379,6 @@ async function runCheatpack() {
   } catch (e) {
     failed(e, 'Injecting the cheat pack');
     if (e && e.cancelled) { renderCheatpacks(); return; }
-    // the worker itself failed: the result card says what, with the trace, so it can be copied and reported
     const msg = (e && e.message) || String(e);
     const lines = [['bad', 'The injection stopped: ' + msg]];
     if (e && e.trace) e.trace.split('\n').filter(l => l.trim()).forEach(l => lines.push(['info', '  ' + l]));
@@ -1506,7 +1401,6 @@ function cheatpackResult(r) {
       ok ? null : el('button', { class: 'btn ghost', text: 'Report a problem', onclick: reportProblem })));
 }
 
-// ------------------------------------------------------------------ triggers
 async function loadTriggers(gen) {
   try {
     const t = await run('triggers', {}, { quiet: true });
@@ -1517,8 +1411,6 @@ async function loadTriggers(gen) {
 }
 
 function renderTriggers(t) {
-  // the module never raises: `error` is why nothing was read, `notes` what it saw on the way (the map's own trigger
-  // files the editor 3.0 cannot read, the game's data missing)
   const notes = (t.notes || []).map(n => el('p', { class: 'muted', text: n }));
   if (!t.categories || !t.categories.length) {
     tabBody('triggers', el('div', { class: 'card' },
@@ -1549,8 +1441,6 @@ function showTrigger(g, view) {
       g.actions)));
 }
 
-// ------------------------------------------------------------------ translation
-// one tick box with its title and a line under it, the same in every mode (Fix, Editor, Port, Cheatpacks, Translation)
 function optionItem(o) {
   return el('li', { class: 'step' + (o.disabled ? ' na' : '') },
     el('input', { type: 'checkbox', checked: !!o.checked, disabled: !!o.disabled, onchange: o.onchange }),
@@ -1559,8 +1449,6 @@ function optionItem(o) {
     o.count !== undefined ? el('span', { class: 'count', text: String(o.count) }) : null);
 }
 
-// 1.6.3: the files the texts come from, listed once per map in the background (it reads the whole script); every one
-// is ticked until the user unticks it, and the export takes only the ticked ones
 async function loadTranslationGroups(gen) {
   try {
     const r = await run('translation_groups', {}, { quiet: true });
@@ -1619,7 +1507,6 @@ function renderTranslation() {
         if (!p) return;
         try {
           const r = await run('translation_check', { file: p }, { label: 'Checking the translation...' });
-          // a check with `error` (the file or the map cannot be read) is kept to be shown, never applied
           state.extras.translation = { file: p, check: r };
           renderTranslation(); renderActions();
         } catch (e) { failed(e, 'Checking the translation'); }
@@ -1647,20 +1534,17 @@ async function exportTexts(kind) {
   if (!p) return;
   try {
     const r = await run('translation_export', { file: p, only: pickedGroups() }, { label: 'Exporting the texts...' });
-    // the module never raises: 'failed' comes with `error`, 'no_text' writes nothing
     if (r.state !== 'done') {
       failed({ message: r.error || (r.state === 'no_text' ? 'The map has no text to export.' :
         'The export did not finish.') }, 'Exporting the texts');
       return;
     }
-    // a text the script compares goes out with every copy of it, ticked or not (the import needs them all)
     toast('Exported ' + (r.entries || 0) + ' texts to ' + base(p) + '.' + (r.linked_added ? ' ' + r.linked_added +
       ' of them are from files left out: the script compares the same text, so they must be translated together.' :
       ''), { actions: [[showLabel('Show'), () => api().open_folder(p)]] });
   } catch (e) { failed(e, 'Exporting the texts'); }
 }
 
-// ------------------------------------------------------------------ compare
 function renderCompare(result) {
   const pick = el('button', { class: 'btn needs-idle', text: 'Pick the other version...', disabled: !!state.running,
     onclick: async () => {
@@ -1675,7 +1559,6 @@ function renderCompare(result) {
   const parts = [];
   if (result) {
     const f = result.files || {};
-    // the module never raises: `error` is why the comparison stopped (the other map cannot be read)
     if (result.error) parts.push(el('div', { class: 'report' }, el('div', { class: 'l bad', text: result.error })));
     const list = (title, items, fmt) => items && items.length ? el('div', {}, el('h3', { text: title + ' (' +
       items.length + ')' }), el('div', { class: 'scroll', style: 'max-height:220px;padding:6px 10px' },
@@ -1699,11 +1582,6 @@ function renderCompare(result) {
     el('p', { class: 'lead', text: 'What changed against another version of this map.' }), pick, ...parts));
 }
 
-// ------------------------------------------------------------------ start
-// ------------------------------------------------------------------ port to Reforged (1.5)
-// A map made for the KK or M16 platform (Chinese and Korean RPGs of patch 1.27/1.28) runs on Reforged only after its
-// platform natives get a body, its save becomes a local save and its menus become Reforged frames. The port does it
-// in one go and saves <map>_reforged.w3x and <map>_reforged.report.txt next to the original.
 function renderPort() {
   const s = state.open ? state.open.summary : null;
   const platform = s && /kk|j2b/.test(s.script || '') ? 'The KK script is turned back into JASS first.' : '';
@@ -1717,11 +1595,9 @@ function renderPort() {
       el('p', { class: 'muted', text: 'Big maps take minutes.' }),
       packagesBox(),
       el('ul', { class: 'steps', style: 'margin:6px 0 4px' },
-        // 1.5.1: the memory hacks of patch 1.2x (JN maps): the Reforged equivalents always; the rest neutralized
         optionItem({ checked: state.portMemory !== false, title: 'Neutralize memory hacks',
           detail: 'What read the old game\'s memory (smart cast, control groups, exit hooks) breaks.',
           onchange: e => { state.portMemory = e.target.checked; } }),
-        // 1.6.2: the KK platform's encrypted textures (BLX1), and the disabled art of the imported icons
         optionItem({ checked: state.portTextures !== false, title: 'Decrypt the KK textures',
           detail: 'The ones the platform keeps encrypted (BLX1), which the game cannot read.',
           onchange: e => { state.portTextures = e.target.checked; } }),
@@ -1733,8 +1609,6 @@ function renderPort() {
     r ? portResult(r) : null);
 }
 
-// the art packages: the platform client loaded models and icons from a package outside the map (.mix, .asi, a plugin
-// .dll or a plain .mpq). They are read as data, never run; the first in the list wins when two have the same file.
 function packagesBox() {
   const list = state.portPackages || [];
   return el('div', { style: 'margin:10px 0' },
@@ -1769,7 +1643,6 @@ async function runPort() {
   } catch (e) {
     failed(e, 'Port to Reforged');
     if (e && e.cancelled) return;
-    // the worker itself failed: the result card says what, with the trace, so it can be copied and reported
     const msg = (e && e.message) || String(e);
     const lines = [['bad', 'The port stopped: ' + msg]];
     if (e && e.trace) e.trace.split('\n').filter(l => l.trim()).forEach(l => lines.push(['info', '  ' + l]));
@@ -1811,8 +1684,6 @@ function portResult(r) {
       el('button', { class: 'btn ghost', text: 'Report a problem', onclick: reportProblem })));
 }
 
-// 1.6.5: the language of the page (i18n.js): the picker lists the dictionaries there are; the choice is kept in this
-// browser and in the program's settings (the exe's window may not keep the browser storage)
 function languagePicker(saved) {
   const i18n = window.doctorI18n;
   const sel = $('#lang');

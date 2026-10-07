@@ -1,5 +1,4 @@
-# site: builds the site (the Doctor in the browser) of a release and attaches it to the release as site-<tag>.zip and
-# its .sha256. The host picks it up by itself (deploy/sync.py); nothing here knows where the site is served.
+# Builds the site of a release and attaches it as site-<tag>.zip with its sha256.
 name: site
 
 on:

@@ -884,6 +884,14 @@ def check_content(original, output, exclude=()):
                 continue
             try:
                 r = a.find_locale(n) if a.find(n) else None
+                try:
+                    rb = b.find(n) if r and a.already_read(n, r[1]) else None
+                    equal = bool(rb) and a.same_data(b, n, bi=r[1], other_bi=rb[1])
+                except Exception:
+                    equal = False
+                if equal:
+                    out['identical'] += 1
+                    continue
                 x = a.read(n, bi=r[1]) if r else None
             except Exception:
                 out['unreadable_items'] += 1
@@ -891,7 +899,8 @@ def check_content(original, output, exclude=()):
             if x is None:
                 continue
             try:
-                y = b.read(n) if b.find(n) else None
+                rb = b.find(n)
+                y = (x if a.same_data(b, n, bi=r[1], other_bi=rb[1]) else b.read(n)) if rb else None
             except Exception:
                 y = None
             if y is None:

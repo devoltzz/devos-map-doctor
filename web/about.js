@@ -1,5 +1,4 @@
-// about.js - the About page: the version and the repository link from config.js (no inline script: the site's
-// Content-Security-Policy allows only the site's own scripts).
+// The About page: the version and the repository link from config.js.
 'use strict';
 (() => {
   const c = window.DOCTOR_WEB || {};

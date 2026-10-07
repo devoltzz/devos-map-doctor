@@ -128,36 +128,48 @@ EXT_EQUIV = [
     ('.ttf', '.otf'),
 ]
 PROTECTOR_PREFIXES = ('DIS', 'PAS', 'DISDIS', 'DISPAS')
+_EXT_EQUIV_OF = {}
+for _g in EXT_EQUIV:
+    for _e in _g:
+        _EXT_EQUIV_OF.setdefault(_e, tuple(x for _g2 in EXT_EQUIV if _e in _g2 for x in _g2 if x != _e))
 
 
 def variants(fname, cap=48, rounds=3):
     fname = fname.strip()
     if not fname:
         return set()
+    fast_path = ':' not in fname and '/' not in fname and fname[:2] != '\\\\'
+    join_lines = None if fast_path else os.path.join
+    split, splitext = os.path.split, os.path.splitext
+    equivalents = _EXT_EQUIV_OF
     current = {fname}
     direct = set()
     for r in range(rounds):
         new = set(current)
+        add = new.add
         for n in sorted(current):
             if r and len(new) >= cap:
                 break
-            root, ext = os.path.splitext(n)
+            root, ext = splitext(n)
             e = ext.lower()
-            for cluster in EXT_EQUIV:
-                if e in cluster:
-                    for height in cluster:
-                        if height != e:
-                            new.add(root + height)
-            base = os.path.basename(root)
-            folder = os.path.dirname(root)
+            for height in equivalents.get(e, ()):
+                add(root + height)
+            folder, base = split(root)
+            if join_lines is None:
+                pre = folder if not folder or folder[-1] == '\\' else folder + '\\'
+            base_upper = base.upper()
             for p in PROTECTOR_PREFIXES:
-                if base.upper().startswith(p):
-                    new.add(os.path.join(folder, base[len(p):].lstrip('_- ')) + ext)
+                if base_upper.startswith(p):
+                    x = base[len(p):].lstrip('_- ')
+                    add((pre + x if join_lines is None else join_lines(folder, x)) + ext)
+                elif join_lines is None:
+                    add(pre + p + base + ext)
+                    add(pre + p + '_' + base + ext)
                 else:
-                    new.add(os.path.join(folder, p + base) + ext)
-                    new.add(os.path.join(folder, p + '_' + base) + ext)
+                    add(join_lines(folder, p + base) + ext)
+                    add(join_lines(folder, p + '_' + base) + ext)
             if not root.upper().endswith('_PORTRAIT'):
-                new.add(root + '_PORTRAIT' + ext)
+                add(root + '_PORTRAIT' + ext)
         if r == 0:
             direct = set(new)
         if new == current or len(new) >= cap:

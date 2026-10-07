@@ -1,15 +1,4 @@
-// worker.js - the site's Web Worker (1.6; a module worker, Pyodide 314 has no classic one): Pyodide with the
-// Doctor's engine, the same jobs as the exe's worker process. The page (ponte.js) sends:
-//   {type: 'file', path, file}      a file the user picked (a map, a translation, an art package): mounted read-only at
-//                                   /in/<n>/ (WORKERFS, no copy) and linked at `path` (/maps/<name> or /in/<name>)
-//   {type: 'job', job}              a job (`job.id`, `job.task`, the params): one at a time, in order
-//   {type: 'read', rid, path}       the bytes of a file the jobs wrote (a folder comes as a zip), for a download
-//   {type: 'index', url}            the file name index (names.npz) next to the engine
-//   {type: 'delete', rid, path}     a file the queue already saved, removed from memory
-//   {type: 'zip', rid, paths, name} several files the jobs wrote, as one zip (the queue in Firefox)
-// and gets {type: 'boot', label}, {type: 'ready'}, {type: 'boot_failed', message}, {type: 'event', event} (the job's
-// progress, result or error, as JSON) and {type: 'read', rid, name, bytes | error}.
-
+// The site's Web Worker: Pyodide with the engine, the same jobs as the exe's worker process.
 import { loadPyodide } from './pyodide/pyodide.mjs';
 import { runWasi } from './wasi_mini.js';
 import { windowsRules } from './fs_windows.js';
@@ -37,26 +26,19 @@ async function unpack(url, dir, required) {
 async function boot() {
   post({ type: 'boot', label: 'Loading Python...' });
   py = await loadPyodide({ indexURL: new URL('pyodide/', import.meta.url).href, stdout: () => {}, stderr: () => {} });
-  windowsRules(py.FS);             // the Windows rules for paths, which the engine was written for
+  windowsRules(py.FS);
   post({ type: 'boot', label: 'Loading numpy and Pillow...' });
   await py.loadPackage(['numpy', 'pillow'], { messageCallback: () => {} });
   post({ type: 'boot', label: 'Loading the engine...' });
   await unpack('engine.zip', ENGINE, true);
-  // the game's data files (the pack of `casc_wc3`): without them the engine runs as on a PC without the game
-  // (the release calls the variable WC3_GAME, the archive WC3_JOGO)
   if (await unpack('data/game_data.zip', GAME, false)) {
     py.runPython(`import os; os.environ['WC3_GAME'] = os.environ['WC3_JOGO'] = '${GAME}'`);
   }
-  // pjass as WebAssembly (the port's gates, the GUI triggers' proof, the cheat packs): worker.py sends it the calls
   const pj = await fetch('pjass.wasm');
   if (pj.ok) {
     const mod = await WebAssembly.compile(await pj.arrayBuffer());
     self.runPjass = (args, files) => runWasi(mod, Array.from(args), files);
   }
-  // the MPQ's hot loops in native code (mpqcrypt.c as WebAssembly): the decryption (~200x the Python loop), the key
-  // search of nameless encrypted files and the sound sectors' Huffman and ADPCM (~100x); mpqcrypt.py hands them to
-  // mpqlib, mpqread and mpq_wave. Without the file the
-  // engine does it all in Python, the same bytes
   const mc = await fetch('mpqcrypt.wasm');
   if (mc.ok) {
     const native = mpqNative(await mc.arrayBuffer());
@@ -67,11 +49,10 @@ async function boot() {
     if (native.explode) self.mpqExplode = native.explode;
   }
   for (const d of ['/maps', '/in', '/out']) py.FS.mkdirTree(d);
-  // the file name index, when the browser already keeps it (the page offers it once: check_update in ponte.js)
   try {
     const idx = 'caches' in self ? await caches.match('names.npz') : null;
     if (idx) py.FS.writeFile(ENGINE + '/names.npz', new Uint8Array(await idx.arrayBuffer()));
-  } catch (e) { /* no cache in this browser */ }
+  } catch (e) { }
   const glue = await (await fetch('worker.py')).text();
   py.FS.writeFile('/home/pyodide/doctor_worker.py', glue);
   py.runPython('import sys; sys.path.insert(0, "/home/pyodide")');
@@ -86,7 +67,7 @@ function addFile(path, file) {
   const dir = '/in/' + (mounts++);
   py.FS.mkdirTree(dir);
   py.FS.mount(py.FS.filesystems.WORKERFS, { files: [file] }, dir);
-  try { py.FS.unlink(path); } catch (e) { /* not there yet */ }
+  try { py.FS.unlink(path); } catch (e) { }
   py.FS.mkdirTree(path.slice(0, path.lastIndexOf('/')) || '/');
   py.FS.symlink(dir + '/' + file.name, path);
 }
@@ -113,7 +94,7 @@ self.onmessage = ev => {
     if (m.type === 'file') addFile(m.path, m.file);
     else if (m.type === 'read') readFile(m.rid, m.path);
     else if (m.type === 'delete') {
-      try { py.FS.unlink(m.path); } catch (e) { /* already gone */ }
+      try { py.FS.unlink(m.path); } catch (e) { }
       post({ type: 'read', rid: m.rid, name: '', bytes: new Uint8Array(0) });
     } else if (m.type === 'zip') {
       try {

@@ -1250,7 +1250,7 @@ def _write_checked(a, part, repl, imgs, lobby, w3i_edit, texts, p):
         _check_image(name, _get(b, name), w, h, px, alpha)
     if w3i_changed:
         _check_w3i(m, m2, _get(b, 'war3map.w3i'), w3i_changed)
-    same = _other_files_same(a, b, [n for n, _d in repl])
+    same = _other_files_same(a, b, [n for n, _d in repl] + (['(attributes)'] if a.find('(attributes)') else []))
     if lobby is not None and _lobby(part)[0] != lobby:
         raise CardError('check_failed', 'The new lobby name does not read back.')
     _bb, mb, howb, devb, _wb, sb = _model_of(b)
@@ -1364,7 +1364,7 @@ def _write(path_in, path_out, changes, p):
         eol = '\r\n' if '\r\n' in listed or not listed else '\n'
         repl.append(('(listfile)', (eol.join(lines) + eol).encode('utf-8', 'surrogateescape')))
     if a.find('(attributes)') and repl:
-        notes.append('The (attributes) file of the map was kept as it was.')
+        notes.append('The (attributes) file of the map was updated with the checksums of the new files.')
 
     if repl:
         _writable(a)

@@ -1,12 +1,4 @@
-"""sync.py - devo-sync: keeps devo-site on the latest release of the program. Every INTERVAL seconds it asks GitHub's
-public API for the latest release of REPOSITORY, and when the release has a site zip (site-<tag>.zip and its .sha256,
-attached by the `site` workflow) that is not the one served, it downloads both, checks the sha256, unpacks the zip
-into WWW/releases/<tag> and points WWW/current at it in one step (the old site serves until then; the last KEEP
-releases stay, for going back by hand). Standard library only; no token: the API is public and asked 4 times an hour.
-
-Environment: REPOSITORY (owner/name), WWW (/srv/www), INTERVAL (900), KEEP (3), API (https://api.github.com).
-  python sync.py [--once]
-"""
+# devo-sync: keeps the site on the latest release, the site zip checked by its sha256.
 import hashlib
 import json
 import os
@@ -37,13 +29,11 @@ def get(url, binary=False):
 
 
 def served():
-    """The tag WWW/current points at, or None."""
     link = os.path.join(WWW, 'current')
     return os.path.basename(os.readlink(link)) if os.path.islink(link) else None
 
 
 def safe_extract(zip_path, target):
-    """The zip into `target`, refusing a member that would land outside it."""
     root = os.path.realpath(target)
     with zipfile.ZipFile(zip_path) as z:
         for m in z.infolist():
@@ -54,7 +44,6 @@ def safe_extract(zip_path, target):
 
 
 def switch(tag):
-    """WWW/current -> releases/<tag>, replaced in one rename (never a moment without a site)."""
     tmp = os.path.join(WWW, '.current.new')
     if os.path.lexists(tmp):
         os.remove(tmp)
@@ -71,7 +60,6 @@ def prune(keep_tag):
 
 
 def once():
-    """-> the tag served after this check."""
     rel = json.loads(get('%s/repos/%s/releases/latest' % (API, REPOSITORY)))
     tag = rel['tag_name']
     if served() == tag:
@@ -115,7 +103,7 @@ def main(argv):
     while True:
         try:
             once()
-        except Exception as e:  # noqa: BLE001 -- the next check tries again; the site already served keeps serving
+        except Exception as e:  # noqa: BLE001
             log('check failed: %s: %s' % (type(e).__name__, e))
         if '--once' in argv:
             return 0

@@ -1,0 +1,16 @@
+# The Rust package of the script checks: a C library, no dependencies.
+[package]
+name = "jass_checks"
+version = "0.1.0"
+edition = "2021"
+description = "Devo's Map Doctor: the JASS script checks (script_checks.py) in native code, no dependencies"
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

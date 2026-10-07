@@ -1,3 +1,4 @@
+# Builds the site (the Doctor in the browser) from a release folder.
 """build_site.py - the Devo's Map Doctor site (the Doctor in the browser), built from a release of the program.
 
   python web/build_site.py --engine=<release folder> --out=<folder> [--ui=<page folder>] [--pjass=<pjass.wasm>]
@@ -38,12 +39,8 @@ WEB_FILES = ('ponte.js', 'fila.js', 'worker.js', 'worker.py', 'wasi_mini.js', 'f
              'about.html', 'about.js')
 PACKAGES = ('numpy', 'pillow')
 CORE = ('pyodide.js', 'pyodide.mjs', 'pyodide.asm.mjs', 'pyodide.asm.wasm', 'python_stdlib.zip', 'pyodide-lock.json')
-# a map above this needs more memory than a browser gives a page (measured: 238 MiB takes 1.5 GiB of the 4 GiB a
-# WebAssembly memory can have)
 SIZE_LIMIT = 450 * 1024 * 1024
 THEME = '#121418'
-# what the service worker does not keep at install: the game data (the host's own folder) and the index (62 MB, only
-# when the page asks for it)
 OPTIONAL = ('data/game_data.zip',)
 NOT_CACHED = ('sw.js', 'names.npz')
 
@@ -80,7 +77,6 @@ def engine_zip(engine, target):
 
 
 def pyodide(source, target, wheels):
-    """Pyodide's core and the wheels of PACKAGES (and what they depend on). -> the Pyodide version."""
     if not os.path.isfile(os.path.join(source, 'pyodide-lock.json')):
         raise SystemExit('build_site: no Pyodide in %s (npm install in web/)' % source)
     with open(os.path.join(source, 'package.json'), encoding='utf-8') as f:
@@ -114,7 +110,6 @@ def pyodide(source, target, wheels):
 
 
 def icons(engine, out):
-    """icon-192.png and icon-256.png from the program's icon (assets/devos_map_doctor.ico, 256 px at most)."""
     from PIL import Image
     ico = os.path.join(engine, 'assets', 'devos_map_doctor.ico')
     if not os.path.isfile(ico):
@@ -158,7 +153,6 @@ def page(ui, out, config):
 
 
 def service_worker(out, version):
-    """sw.js with the version (the engine's and a hash of every file) and the list of what it keeps at install."""
     files = []
     h = hashlib.sha256()
     for root, dirs, names in os.walk(out):
@@ -191,9 +185,6 @@ def site_zip(out, target):
 
 
 def native_decryption(engine, out, wasm=None):
-    """mpqcrypt.wasm: the given one, or built from the engine's doctor/mpq/mpqcrypt.c with zig from pip (the MPQ's hot
-    loops in native code: the decryption ~200x the Python loop, the key search, the sound sectors; without it the
-    engine does it all in Python, the same bytes)."""
     target = os.path.join(out, 'mpqcrypt.wasm')
     if wasm:
         shutil.copyfile(wasm, target)
@@ -210,7 +201,6 @@ def native_decryption(engine, out, wasm=None):
 
 def build(engine, out, ui=None, pjass=None, data=None, index=None, pyodide_dir=None, wheels=None, repository=None,
           zip_path=None, mpqcrypt=None):
-    """-> {'version', 'cache', 'files', 'pyodide'}."""
     engine = os.path.abspath(engine)
     if not os.path.isfile(os.path.join(engine, 'DevosMapDoctor.py')):
         raise SystemExit('build_site: %s is not a release (no DevosMapDoctor.py)' % engine)

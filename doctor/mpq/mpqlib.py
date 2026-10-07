@@ -79,8 +79,24 @@ def encrypt(vals, key):
 MPQ_UPPERCASE = bytes(c - 32 if 0x61 <= c <= 0x7A else (0x5C if c == 0x2F else c) for c in range(256))
 
 
+_NATIVE_HASH = [None]
+
+
+def _native_hash():
+    if _NATIVE_HASH[0] is None:
+        try:
+            from doctor.mpq import mpqcrypt
+            _NATIVE_HASH[0] = mpqcrypt.load_hash() or False
+        except Exception:
+            _NATIVE_HASH[0] = False
+    return _NATIVE_HASH[0]
+
+
 def hashstr(s, ht):
     b = s if isinstance(s, (bytes, bytearray)) else s.encode('utf-8', 'surrogateescape')
+    native_hash_pair = _NATIVE_HASH[0] if _NATIVE_HASH[0] is not None else _native_hash()
+    if native_hash_pair:
+        return native_hash_pair[0](bytes(b), ht)
     s1, s2 = 0x7FED7FED, 0xEEEEEEEE
     for c in b.translate(MPQ_UPPERCASE):
         s1 = CRYPT[(ht << 8) + c] ^ ((s1 + s2) & 0xFFFFFFFF)
@@ -89,10 +105,15 @@ def hashstr(s, ht):
 
 
 def hashstr_batch(name_list, ht):
+    native_hash_pair = _NATIVE_HASH[0] if _NATIVE_HASH[0] is not None else _native_hash()
     try:
         import numpy as np
     except ImportError:
+        if native_hash_pair:
+            return list(native_hash_pair[1]([bytes(n) for n in name_list], ht))
         return [hashstr(n, ht) for n in name_list]
+    if native_hash_pair:
+        return np.frombuffer(native_hash_pair[1]([bytes(n) for n in name_list], ht), dtype=np.uint32)
     out = np.zeros(len(name_list), dtype=np.uint32)
     by_size = {}
     for i, b in enumerate(name_list):

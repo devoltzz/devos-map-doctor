@@ -12,7 +12,6 @@ REPOSITORY = 'devoltzz/devos-map-doctor'
 API = 'https://api.github.com/repos/{}/releases/latest'
 TIMEOUT = 6
 INDEX = 'names.npz'
-# the program of this system among the release's files (1.6.6: Windows and Linux)
 PROGRAM = 'DevosMapDoctor-linux-x86_64' if sys.platform.startswith('linux') else 'DevosMapDoctor.exe'
 
 

@@ -15,4 +15,6 @@ web/wheels/
 deploy/.env
 doctor/mpq/mpqcrypt.dll
 doctor/mpq/mpqcrypt.so
+doctor/script/jass_checks.dll
+doctor/script/jass_checks.so
 doctor/script/pjass

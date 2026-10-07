@@ -1,24 +1,16 @@
-// ponte.js - the bridge of the Doctor's page in the browser (1.6). The page (app.js, the same as the exe's) talks to
-// `window.pywebview.api`; in the exe that is pywebview and a worker process per job, here it is two Web Workers with
-// Pyodide (worker.js): `main` for the actions and `quiet` for the tabs that load in the background, so a Fix does not
-// wait for the tabs. Nothing leaves the computer: the map is read by the worker from the file the user picked, and
-// what the jobs write comes back as a download.
-//
-// window.DOCTOR_WEB (config.js, written by build_site.py): {version, repository, sizeLimit}.
-// window.doctorWeb: what the site's own parts use (fila.js, the queue of several maps): jobs that do not show in the
-// page, the files they wrote, the size limit.
+// The bridge between the page and the site's Web Workers (window.pywebview.api).
 'use strict';
 
 (() => {
   const CONFIG = window.DOCTOR_WEB || {};
   const SETTINGS = 'doctor.settings';
   const SIZE_LIMIT = CONFIG.sizeLimit || 450 * 1024 * 1024;
-  const workers = {};            // key -> {w, ready: Promise}
-  const picked = new Map();      // the worker path of each file the user picked -> File
-  const where = new Map();       // the worker path of each file a job wrote -> worker key
-  const jobs = new Map();        // job id -> {key, outs, silent?: {resolve, progress}}
-  let newVersion = false;        // a new version of the site took over (see the service worker below)
-  const reads = new Map();       // read id -> {resolve, reject}
+  const workers = {};
+  const picked = new Map();
+  const where = new Map();
+  const jobs = new Map();
+  let newVersion = false;
+  const reads = new Map();
   let next = 0;
 
   const emit = ev => window.doctor && window.doctor.onEvent(ev);
@@ -60,8 +52,6 @@
 
   function worker(key) { return workers[key] || spawn(key); }
 
-  // the end of a job: its files are fetched from the worker that wrote them; a file it saved where the page asked
-  // (`pick_save`, `pick_folder`: under /out) is downloaded at once, as the exe would have written it there
   function finish(key, e) {
     const job = jobs.get(e.job);
     jobs.delete(e.job);
@@ -103,8 +93,6 @@
     saveBytes(r.bytes, r.name);
   }
 
-  // a file picked with the browser's dialog, or dropped on the page: given to both workers under a worker path. A map
-  // above the size limit is refused here (the browser would run out of memory half way): the Windows program does it
   function tooBig(file) {
     if (file.size <= SIZE_LIMIT) return false;
     say(file.name + ' is ' + mb(file.size) + ': maps above ' + mb(SIZE_LIMIT) + ' need more memory than a browser ' +
@@ -192,8 +180,6 @@
       return true;
     },
     start: async (task, params) => startJob(task, params, null),
-    // a job is stopped by ending its worker: the other jobs queued there end as cancelled too, and a new worker
-    // starts with the picked files (what the old one wrote is gone, as the exe drops a cancelled job's output)
     cancel: async id => {
       const job = jobs.get(id);
       if (!job) return false;
@@ -209,14 +195,13 @@
       return true;
     },
     busy: async () => jobs.size > 0,
-    // the exe offers the file name index when it is missing; here it is missing until the browser keeps it
     check_update: async () => {
       try {
         if (!('caches' in window) || await caches.match('names.npz')) return false;
         const r = await fetch('names.npz', { method: 'HEAD' });
         if (!r.ok) return false;
         emit({ type: 'index', release: { index_size: Number(r.headers.get('content-length')) || 0 }, missing: true });
-      } catch (e) { /* offline or no index on this host */ }
+      } catch (e) { }
       return true;
     },
     install_update: async () => false,
@@ -232,7 +217,6 @@
     sizeLimit: SIZE_LIMIT,
     tooBig,
     addPicked,
-    // a job that does not show in the page: -> Promise of its last event (result, error or cancelled)
     run: (task, params, progress) => new Promise(resolve => startJob(task, params, { resolve, progress })),
     cancelAll: async () => { for (const id of [...jobs.keys()]) if (jobs.get(id).silent) await api.cancel(id); },
     read: path => fetchFile(path),
@@ -245,13 +229,11 @@
     saveBytes,
   };
 
-  // a map dropped on the page: the exe's window sends its path in a `dropped` event; here the file itself is read
   document.addEventListener('drop', e => {
     const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
     if (f && /\.w3[xmn]$/i.test(f.name) && !tooBig(f)) emit({ type: 'dropped', path: addPicked(f, '/maps') });
   });
 
-  // what is different in the browser: the About page, where the results go, and the browsers it is made for
   function adapt() {
     const report = document.getElementById('btnReport');
     if (report && !document.getElementById('btnAbout')) {
@@ -277,11 +259,6 @@
     }
   }
 
-  // 1.6.3: a new version takes over by itself. The service worker answers from its cache, so the page that opened came
-  // from the old one; when the new worker (skipWaiting + clients.claim in sw.js) takes control, the page reloads to be
-  // the new version too -- by itself only on the home screen with nothing running (what the user sees right after
-  // opening the site); with a map open or a job running, a notice with a Reload button, so no result on screen is lost.
-  // Not on the first visit: there the page is already the newest. `update()` checks for a new sw.js as the page opens.
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     const hadController = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', () => {

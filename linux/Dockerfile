@@ -1,7 +1,4 @@
-# The Linux build of Devo's Map Doctor (build_linux.py runs it). Ubuntu 22.04, so the program runs on glibc 2.35 and
-# newer (Ubuntu 22.04+, Debian 12+, Fedora 36+, Mint 21+); Python 3.14 from deadsnakes (with its shared libpython, which
-# PyInstaller needs); PyGObject built against the system's GObject introspection for the window (GTK and WebKitGTK stay
-# the user's system's: build.py leaves them out of the program).
+# The Linux build: Ubuntu 22.04 (glibc 2.35), Python 3.14, zlib-ng (build_linux.py runs it).
 FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update -q \
@@ -12,9 +9,6 @@ RUN apt-get update -q \
     libgirepository1.0-dev libcairo2-dev gir1.2-gtk-3.0 gir1.2-webkit2-4.1 flex bison git binutils ca-certificates \
     cmake curl \
  && rm -rf /var/lib/apt/lists/*
-# zlib-ng 2.2.4 in zlib-compatible mode, the one the Windows Python 3.14 compresses with (zlib.ZLIBNG_VERSION): another
-# zlib writes other deflate bytes for the same file, and the maps would not come out byte for byte the exe's. Installed
-# in /usr/local/lib, which the loader searches first, so Python's zlib module (and the program) takes it
 RUN curl -sL https://github.com/zlib-ng/zlib-ng/archive/refs/tags/2.2.4.tar.gz | tar xz -C /tmp \
  && cmake -S /tmp/zlib-ng-2.2.4 -B /tmp/zng -DZLIB_COMPAT=ON -DZLIB_ENABLE_TESTS=OFF -DWITH_GTEST=OFF \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local >/dev/null \
