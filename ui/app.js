@@ -372,8 +372,10 @@ function renderHeader() {
   $('#diagLines').replaceChildren(reportLines(o.lines));
 }
 
+// the engine's report stays in English (i18n.js leaves translate="no" alone): a page template like "Saved {0}" would
+// otherwise take half of its "Saved as: ..." line
 function reportLines(lines) {
-  return el('div', { class: 'report' }, lines.map(([style, text]) => el('div', { class: 'l ' + style, text })));
+  return el('div', { class: 'report', translate: 'no' }, lines.map(([style, text]) => el('div', { class: 'l ' + style, text })));
 }
 
 // the map's images, asked once per map (the header thumbnail and the map card share them); null when there is none
@@ -1808,6 +1810,22 @@ function portResult(r) {
       el('button', { class: 'btn ghost', text: 'Report a problem', onclick: reportProblem })));
 }
 
+// 1.6.5: the language of the page (i18n.js): the picker lists the dictionaries there are; the choice is kept in this
+// browser and in the program's settings (the exe's window may not keep the browser storage)
+function languagePicker(saved) {
+  const i18n = window.doctorI18n;
+  const sel = $('#lang');
+  if (!i18n || !sel) return;
+  if (saved && saved !== i18n.lang) i18n.setLang(saved, true);
+  sel.replaceChildren(...Object.entries(i18n.langs).map(([code, name]) => el('option', { value: code, text: name })));
+  sel.value = i18n.lang;
+  sel.onchange = () => {
+    i18n.setLang(sel.value);
+    state.settings.lang = sel.value;
+    saveSettings();
+  };
+}
+
 function wire() {
   $('#btnOpen').onclick = pickMap;
   $('#btnOpen2').onclick = pickMap;
@@ -1828,6 +1846,7 @@ window.addEventListener('pywebviewready', async () => {
   state.settings = h.settings || {};
   $('#version').textContent = 'v' + h.version;
   $('#where').textContent = web() ? ' · runs in your browser' : ' · runs on your computer';
+  languagePicker(h.settings && h.settings.lang);
   showRecent();
   if (h.map) openMap(h.map);
   api().check_update();
