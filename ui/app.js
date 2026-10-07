@@ -372,10 +372,11 @@ function renderHeader() {
   $('#diagLines').replaceChildren(reportLines(o.lines));
 }
 
-// the engine's report stays in English (i18n.js leaves translate="no" alone): a page template like "Saved {0}" would
-// otherwise take half of its "Saved as: ..." line
+// 1.6.7: the engine's report is translated on screen like the rest of the page (its lines are templates of their own:
+// "Saved as: {0}" is longer than "Saved {0}", so it wins); what is copied or sent to an issue stays English, built from
+// the result's lines (plainReport), never from the screen
 function reportLines(lines) {
-  return el('div', { class: 'report', translate: 'no' }, lines.map(([style, text]) => el('div', { class: 'l ' + style, text })));
+  return el('div', { class: 'report' }, lines.map(([style, text]) => el('div', { class: 'l ' + style, text })));
 }
 
 // the map's images, asked once per map (the header thumbnail and the map card share them); null when there is none
@@ -679,7 +680,7 @@ function renderResult(action, r) {
     ch.files.length || ch.notes.length ? el('div', {}, el('h3', { text: 'What changed' }),
       ch.files.length ? el('div', { class: 'scroll', style: 'max-height:240px' }, el('table', { class: 'grid' },
         el('thead', {}, el('tr', {}, el('th', { text: 'File' }), el('th', { text: 'How' }), el('th', { text: 'Why' }))),
-        el('tbody', {}, ch.files.map(f => el('tr', {}, el('td', { class: 'mono', text: f.file }),
+        el('tbody', {}, ch.files.map(f => el('tr', {}, el('td', { class: /[.\\(]/.test(f.file) ? 'mono' : null, text: f.file }),
           el('td', { text: f.how }), el('td', { class: 'muted', text: f.why })))))) : null,
       ch.notes.map(n => el('div', { class: 'muted', text: n }))) : null,
     el('div', { class: 'foot row', style: 'margin-top:14px' },
@@ -822,7 +823,7 @@ function tabFailed(name, what, e) {
 // ------------------------------------------------------------------ the map card
 // |cffRRGGBB...|r and |n as the game shows them
 function colored(text) {
-  const out = el('div', { class: 'colorpreview' });
+  const out = el('div', { class: 'colorpreview', translate: 'no' });
   let color = null, buf = '';
   const flush = () => { if (buf) out.appendChild(el('span', { style: color ? 'color:#' + color : null, text: buf }));
     buf = ''; };
@@ -1553,7 +1554,7 @@ function showTrigger(g, view) {
 function optionItem(o) {
   return el('li', { class: 'step' + (o.disabled ? ' na' : '') },
     el('input', { type: 'checkbox', checked: !!o.checked, disabled: !!o.disabled, onchange: o.onchange }),
-    el('div', { class: 'grow' }, el('div', { class: 't' }, o.title, o.tag ? el('span', { class: 'tag', text: o.tag }) :
+    el('div', { class: 'grow' }, el('div', { class: 't' }, o.title, o.tag ? el('span', { class: 'tag', text: o.tag, translate: o.tagIsName ? 'no' : null }) :
       null), o.detail ? el('div', { class: 'd', text: o.detail }) : null),
     o.count !== undefined ? el('span', { class: 'count', text: String(o.count) }) : null);
 }
@@ -1592,7 +1593,7 @@ function translationGroupsBox() {
       text: 'What to export' }), el('span', { class: 'faint', text: total + ' texts' }),
     el('button', { class: 'btn small ghost', text: all ? 'None' : 'All', onclick: () => set(!all) })),
     el('ul', { class: 'steps' }, g.groups.map(x => optionItem({ checked: !state.trSkip.has(x.key), title: x.label,
-      tag: x.key, count: x.count, onchange: e => {
+      tag: x.key, tagIsName: true, count: x.count, onchange: e => {
         if (e.target.checked) state.trSkip.delete(x.key); else state.trSkip.add(x.key);
         renderTranslation(); } }))));
 }

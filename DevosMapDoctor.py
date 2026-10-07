@@ -5,7 +5,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 from doctor.fix import unprotect as D
 
-VERSION = '1.6.6'
+VERSION = '1.6.7'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -284,9 +284,7 @@ def diagnosis_text(d):
         if lf['status'] == 'ok':
             out.append(('info', 'File list: complete (%s).' % pluralize(lf['file_set'], 'file', 'files')))
         elif lf['status'] == 'absent':
-            out.append(
-                ('info', 'File list: missing (%s no name).' % pluralize(lf['file_set'], 'file has', 'files have'))
-            )
+            out.append(('info', 'File list: missing (%s without a name).' % pluralize(lf['file_set'], 'file', 'files')))
         else:
             out.append(('info', 'File list: %s of %s files are named.' % (num(lf['named']), num(lf['file_set']))))
     out.append(('', ''))
@@ -334,8 +332,15 @@ def diagnosis_text(d):
             out.append(('warning', 'World Editor: needs %s.' % missing))
         if ed.get('missing_items'):
             missing_items = list(ed['missing_items'])
-            extra = ' (+%d more)' % (len(missing_items) - 4) if len(missing_items) > 4 else ''
-            out.append(('warning', 'World Editor: missing %s%s.' % (', '.join(missing_items[:4]), extra)))
+            if len(missing_items) > 4:
+                out.append(
+                    (
+                        'warning',
+                        'World Editor: missing %s (+%d more).' % (', '.join(missing_items[:4]), len(missing_items) - 4),
+                    )
+                )
+            else:
+                out.append(('warning', 'World Editor: missing %s.' % ', '.join(missing_items)))
         out.append(('ok', 'Click "Open in World Editor".'))
     else:
         out.append(('invalid', 'World Editor: ' + editor_reason(status)))

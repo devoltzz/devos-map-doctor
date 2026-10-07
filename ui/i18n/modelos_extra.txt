@@ -1,1 +1,26 @@
 working
+{0} ({1} script)
+{0} files, {1} without a name
+{0} files
+{0} texts
+editor-only
+script
+text
+image
+model
+sound
+other
+map data
+han
+kana
+hangul
+cyrillic
+greek
+arabic
+thai
+latin
+rewritten
+added
+changed
+removed
+applied
