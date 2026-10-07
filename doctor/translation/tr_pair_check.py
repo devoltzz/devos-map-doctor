@@ -279,6 +279,13 @@ def fixable(item, entry, en):
     return en, done
 
 
+RX_THOUSANDS = re.compile(r'(?<![\d.,])\d{1,3}(?:,\d{3})+(?![\d,]|\.\d)')
+
+
+def without_thousands(t):
+    return RX_THOUSANDS.sub(lambda m: m.group(0).replace(',', ''), t)
+
+
 def errors_of(item, entry, en):
     errs = tv.check(entry, en)
     if entry['kind'] == 'command' and not entry['text'].startswith('-'):
@@ -286,10 +293,14 @@ def errors_of(item, entry, en):
     if isinstance(en, str) and len(en) <= 3.5 * len(entry['text']) + 40:
         errs = [e for e in errs if not e.startswith('muito longo')]
     if isinstance(en, str):
+        en_numbers = en if item.get('level_list') else without_thousands(en)
         if tg.e_gradient(item['t']):
-            zh_n, en_n = numbers(RX_COLOR.sub('', item['t'])), numbers(RX_COLOR.sub('', en), origin=False)
+            zh_n, en_n = numbers(RX_COLOR.sub('', item['t'])), numbers(RX_COLOR.sub('', en_numbers), origin=False)
         else:
-            zh_n, en_n = numbers(item['t']), numbers(en, origin=False)
+            zh_n, en_n = (
+                numbers(item['t'] if item.get('level_list') else without_thousands(item['t'])),
+                numbers(en_numbers, origin=False),
+            )
         a, b = collections.Counter(zh_n), collections.Counter(en_n)
         if set((a - b) + (b - a)) <= {'1'}:
             zh_n = en_n

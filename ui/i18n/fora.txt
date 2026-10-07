@@ -7,3 +7,4 @@ mono rc-id warn
 $ doctor open
 JASS
 Lua
+When the original gives each character its own color, keep the codes between whole words, with the space before the code: "Fire |cffff8000Rain |cffffff00Bow", not "Fire|cffff8000Rain|cffffff00Bow".

@@ -75,6 +75,8 @@ RX_SECTION = re.compile(r'^\[(.+)\]\s*$')
 HELP = (
     'Fill "translation" for each entry you translate; leave it empty to keep the original text.',
     'Keep every color code (|cAARRGGBB ... |r) and line break code (|n) in the same order, every number, %s and %d.',
+    'When the original gives each character its own color, keep the codes between whole words, with the space before '
+    'the code: "Fire |cffff8000Rain |cffffff00Bow", not "Fire|cffff8000Rain|cffffff00Bow".',
     'Script entries are JASS strings: keep \\" and \\\\ as they are and write no real line break.',
     'Profile entries with commas are lists of levels: keep the same number of commas.',
     'Chat commands stay as they are, also when a tooltip quotes them.',
@@ -756,6 +758,27 @@ def _is_cjk_language(language):
     return (language or '').strip().lower().startswith(CJK_LANGUAGES)
 
 
+RX_COLOR_RUN = re.compile(r'(?:\|[cC][0-9a-fA-F]{8}|\|[rR])+')
+
+
+def unglue(text, translation, language=''):
+    if not isinstance(translation, str) or not _cjk(text) or _is_cjk_language(language):
+        return translation, 0
+    count = [0]
+
+    def put(m):
+        s, end = m.start(), m.end()
+        before = translation[s - 1] if s else ''
+        after = translation[end] if end < len(translation) else ''
+        if s >= 2 and translation[s - 2] == '|' and before in 'nN':
+            return m.group(0)
+        if 'a' <= before <= 'z' and 'A' <= after <= 'Z':
+            count[0] += 1
+            return ' ' + m.group(0)
+        return m.group(0)
+    return RX_COLOR_RUN.sub(put, translation), count[0]
+
+
 def check_entry(e, translation, language=''):
     if not isinstance(translation, str):
         return ['not a string']
@@ -965,6 +988,7 @@ def _plan(mt, doc):
         elif t.get('text') != e['text']:
             reason = 'the text in the map is not the one in the file'
         else:
+            tr = unglue(e['text'], tr, language)[0]
             errs = check_entry(e, tr, language)
             if errs:
                 reason = '; '.join(errs)
