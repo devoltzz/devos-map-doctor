@@ -31,7 +31,10 @@ def ui_folder():
 
 
 def settings_path():
-    base = os.environ.get('APPDATA') or os.path.expanduser('~')
+    if sys.platform.startswith('linux'):
+        base = os.environ.get('XDG_CONFIG_HOME') or os.path.join(os.path.expanduser('~'), '.config')
+    else:
+        base = os.environ.get('APPDATA') or os.path.expanduser('~')
     return os.path.join(base, 'DevosMapDoctor', 'settings.json')
 
 
@@ -548,6 +551,8 @@ TOOLS = {'card': _card, 'card_image': _card_image, 'gradient': _gradient, 'refor
 
 def worker_main(window=None):
     window = window or sys.modules['__main__']
+    from doctor.app import windows_rules
+    windows_rules.apply()
     out = os.fdopen(os.dup(1), 'w', encoding='utf-8', newline='\n')
     sys.stdout = sys.stderr
     lock = threading.Lock()
@@ -669,10 +674,17 @@ class Api:
         return True
 
     def open_folder(self, path):
-        if path and os.path.exists(path):
+        if not path or not os.path.exists(path):
+            return False
+        if os.name == 'nt':
             subprocess.Popen(['explorer', '/select,', os.path.normpath(path)])
             return True
-        return False
+        folder = path if os.path.isdir(path) else os.path.dirname(os.path.abspath(path))
+        try:
+            subprocess.Popen(['xdg-open', folder], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except OSError:
+            return False
+        return True
 
     def open_url(self, url):
         if isinstance(url, str) and url.startswith('https://'):
@@ -846,4 +858,26 @@ def run(version, initial_map=None, updater=None, icon=None):
 
     window.events.closing += closing
     window.events.loaded += loaded
-    webview.start(gui='edgechromium', icon=icon)
+    if os.name == 'nt':
+        webview.start(gui='edgechromium', icon=icon)
+    else:
+        try:
+            import gi
+            gi.require_version('Gtk', '3.0')
+        except (ImportError, ValueError) as e:
+            raise SystemExit(LINUX_WINDOW_MISSING % e)
+        if getattr(sys, 'frozen', False):
+            if os.environ.get('LD_LIBRARY_PATH_ORIG') is not None:
+                os.environ['LD_LIBRARY_PATH'] = os.environ['LD_LIBRARY_PATH_ORIG']
+            else:
+                os.environ.pop('LD_LIBRARY_PATH', None)
+        webview.start(gui='gtk', icon=icon)
+
+
+LINUX_WINDOW_MISSING = '''The window needs GTK and WebKitGTK, which this system does not have (%s).
+
+  Debian, Ubuntu, Mint:  sudo apt install libgirepository-1.0-1 gir1.2-gtk-3.0 gir1.2-webkit2-4.1
+  Fedora:                sudo dnf install gobject-introspection gtk3 webkit2gtk4.1
+  Arch:                  sudo pacman -S gobject-introspection gtk3 webkit2gtk-4.1
+
+Without the window, the command line does everything the window does: DevosMapDoctor --help'''

@@ -1,4 +1,6 @@
-# Builds dist/DevosMapDoctor.exe (one file, no console) with PyInstaller.
+# Builds the program, one file, with PyInstaller: on Windows dist/DevosMapDoctor.exe (no console) and the doctor.exe
+# it carries (the command line, launcher/doctor_launcher.c); on Linux dist/DevosMapDoctor (build_linux.py runs this in
+# a container, for an old enough glibc).
 import os
 import re
 import shutil
@@ -7,9 +9,26 @@ import sys
 ROOT = os.path.dirname(os.path.abspath(__file__))
 ENGINE = os.path.join(ROOT, 'doctor')
 NAME = 'DevosMapDoctor'
+LINUX = sys.platform.startswith('linux')
+# Linux: the window's libraries stay the system's (GTK, WebKitGTK and the glib under them, and the C++ runtime they
+# need in their own version): a copy older than the system's GTK breaks the window, and the window uses the system's
+# WebKitGTK as the Windows exe uses the system's WebView2. What Python itself needs (expat, zlib, OpenSSL, libffi...)
+# goes in, so the command line runs on a bare system too. Only the system's copies go: the ones a wheel carries
+# (pillow.libs/libxcb-*, libpng16-*...) stay, or PIL does not load (the map thumbnail, icons and textures failed)
+SYSTEM_LIBS = ('/lib/', '/usr/lib/', '/lib64/', '/usr/lib64/')
+GUI_LIBS = re.compile(r'^lib(glib-2|gobject-2|gio-2|gmodule-2|gthread-2|girepository|mount|blkid|pcre|selinux|'
+                      r'stdc\+\+|gcc_s|cairo|pixman|png16|freetype|fontconfig|harfbuzz|pango|gtk|gdk|atk|webkit|'
+                      r'javascriptcore|soup|X|xcb|wayland|xkbcommon|epoxy|dbus)')
+# the GTK side of pywebview reaches GTK through these at run time (from the system's typelibs); bundling them would
+# also bring PyInstaller's GTK hooks, which point GTK at the bundle
+GI_MODULES = ('Gtk', 'Gdk', 'GLib', 'GObject', 'Gio', 'WebKit2', 'WebKit', 'Soup', 'JavaScriptCore', 'GdkPixbuf',
+              'Pango', 'cairo', 'Atk', 'HarfBuzz', 'freetype2', 'GModule', 'xlib', 'GioUnix', 'GLibUnix',
+              # the GStreamer ones come through gi.overrides: their hook pointed GStreamer at the bundle, and WebKit's
+              # helper process tried Python's own .so files as media plugins
+              'Gst', 'GstBase', 'GstVideo', 'GstAudio', 'GstController', 'GstPbutils', 'GstApp')
 EXCLUDE = ('cv2', 'lupa', 'matplotlib', 'pytest', 'setuptools', 'pip', 'unittest', 'pydoc_data', 'tkinter')
 PACKAGES = ('numpy', 'pillow', 'pywebview', 'pythonnet', 'clr_loader', 'bottle', 'proxy_tools', 'cffi',
-            'pycparser', 'typing_extensions')
+            'pycparser', 'typing_extensions', 'PyGObject', 'pycairo', 'zopfli')
 
 VERSION_FILE = """VSVersionInfo(
   ffi=FixedFileInfo(filevers=({v}), prodvers=({v}), mask=0x3f, flags=0x0, OS=0x40004, fileType=0x1,
@@ -37,7 +56,13 @@ def notices():
     from importlib import metadata
     text = open(os.path.join(ROOT, 'THIRD_PARTY_NOTICES.md'), encoding='utf-8').read()
     parts = [text, '\n## Python %d.%d.%d\n\n' % sys.version_info[:3]]
-    parts.append(open(os.path.join(sys.base_prefix, 'LICENSE.txt'), encoding='utf-8', errors='replace').read())
+    for p in (os.path.join(sys.base_prefix, 'LICENSE.txt'), os.path.join(os.path.dirname(os.__file__), 'LICENSE.txt'),
+              '/usr/share/doc/python%d.%d/copyright' % sys.version_info[:2]):
+        if os.path.isfile(p):
+            parts.append(open(p, encoding='utf-8', errors='replace').read())
+            break
+    else:
+        parts.append('Python Software Foundation License Version 2 (https://docs.python.org/3/license.html)\n')
     for name in PACKAGES:
         try:
             dist = metadata.distribution(name)
@@ -47,22 +72,108 @@ def notices():
         licenses = '\n\n'.join(f.read_text(encoding='utf-8') or '' for f in files)
         declared = dist.metadata.get('License-Expression') or dist.metadata.get('License') or ''
         parts.append('\n## %s %s\n\n' % (dist.metadata['Name'], dist.version) + (licenses or declared) + '\n')
+    if LINUX:
+        parts.append(ZLIB_NG_LICENSE)
     return ''.join(parts)
+
+
+# the Linux build carries zlib-ng (linux/Dockerfile) as Python's zlib
+ZLIB_NG_LICENSE = """
+## zlib-ng 2.2.4 (https://github.com/zlib-ng/zlib-ng)
+
+(C) 1995-2024 Jean-loup Gailly and Mark Adler
+
+This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held
+liable for any damages arising from the use of this software.
+
+Permission is granted to anyone to use this software for any purpose, including commercial applications, and to alter
+it and redistribute it freely, subject to the following restrictions:
+
+1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software.
+   If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is
+   not required.
+2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original
+   software.
+3. This notice may not be removed or altered from any source distribution.
+"""
 
 
 def native_decryption():
     # the MPQ's hot loops in native code (doctor/mpq/mpqcrypt.c: the decryption, the key search, the sound sectors):
     # built with zig from pip when missing or older than the source (a DLL from an earlier version lacks what the new
-    # source added); without it the exe does it all in Python, the same bytes
-    dll = os.path.join(ENGINE, 'mpq', 'mpqcrypt.dll')
+    # source added); without it the program does it all in Python, the same bytes
+    lib = os.path.join(ENGINE, 'mpq', 'mpqcrypt.so' if LINUX else 'mpqcrypt.dll')
     source = os.path.join(ENGINE, 'mpq', 'mpqcrypt.c')
-    if os.path.isfile(dll) and os.path.getmtime(dll) >= os.path.getmtime(source):
+    if os.path.isfile(lib) and os.path.getmtime(lib) >= os.path.getmtime(source):
         return
     import subprocess
-    r = subprocess.run([sys.executable, '-m', 'ziglang', 'cc', '-target', 'x86_64-windows-gnu', '-shared', '-O2', '-s',
-                        '-o', dll, source], capture_output=True, text=True)
+    target = ['-target', 'x86_64-linux-gnu.2.17', '-fPIC'] if LINUX else ['-target', 'x86_64-windows-gnu']
+    r = subprocess.run([sys.executable, '-m', 'ziglang', 'cc'] + target + ['-shared', '-O2', '-s', '-o', lib, source],
+                       capture_output=True, text=True)
     if r.returncode:
-        print('mpqcrypt.dll could not be built (pip install ziglang): the exe decrypts maps in Python')
+        print(
+            '%s could not be built (pip install ziglang): the program decrypts maps in Python' % os.path.basename(lib)
+        )
+
+
+def launcher(work):
+    # Windows: doctor.exe, the console program that runs the exe with --cli in the terminal (the exe has no console);
+    # the exe carries it and puts it next to itself when it opens
+    out = os.path.join(work, 'doctor.exe')
+    import subprocess
+
+    r = subprocess.run(
+        [
+            sys.executable,
+            '-m',
+            'ziglang',
+            'cc',
+            '-target',
+            'x86_64-windows-gnu',
+            '-municode',
+            '-O2',
+            '-s',
+            '-o',
+            out,
+            os.path.join(ROOT, 'launcher', 'doctor_launcher.c'),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if r.returncode:
+        print('doctor.exe could not be built (pip install ziglang): the exe has no command line launcher')
+        return None
+    return out
+
+
+def linux_spec(args, work):
+    # the spec PyInstaller would write, with the window's libraries taken out of the binaries (GUI_LIBS)
+    from PyInstaller.utils.cliutils import makespec
+    spec_args, skip = [], False
+    for a in args:
+        if skip:
+            skip = False
+        elif a in ('--workpath', '--distpath'):
+            skip = True
+        elif a not in ('--noconfirm', '--clean'):
+            spec_args.append(a)
+    sys.argv = ['pyi-makespec'] + spec_args
+    makespec.run()
+    spec = os.path.join(work, NAME + '.spec')
+    with open(spec, encoding='utf-8') as f:
+        text = f.read()
+    cut = ('\nimport re as _re\n'
+           'a.binaries = [b for b in a.binaries if not (str(b[1]).startswith(%r) and '
+           '_re.match(%r, os.path.basename(str(b[0]))))]\n'
+           # the typelibs too: the window reads the system's (a bundled one may not match its library)
+           'a.datas = [d for d in a.datas if not str(d[0]).startswith(\'gi_typelibs\')]\n'
+           % (SYSTEM_LIBS, GUI_LIBS.pattern))
+    text = text.replace('\npyz = PYZ(', cut + 'pyz = PYZ(', 1)
+    if 'a.binaries = [b for b' not in text:
+        raise SystemExit('the spec PyInstaller wrote has no PYZ line: cannot take the window libraries out')
+    with open(spec, 'w', encoding='utf-8') as f:
+        f.write('import os\n' + text)
+    return spec
 
 
 def main():
@@ -70,16 +181,30 @@ def main():
     native_decryption()
     version = app_version()
     numbers = (re.findall(r'\d+', version) + ['0'] * 4)[:4]
-    work = os.path.join(ROOT, 'build')
+    work = os.path.join(ROOT, 'build', 'linux' if LINUX else 'windows')
     os.makedirs(work, exist_ok=True)
-    version_file = os.path.join(work, 'version.txt')
-    with open(version_file, 'w', encoding='utf-8') as f:
-        f.write(VERSION_FILE.replace('{v}', ', '.join(numbers)).replace('{s}', version).replace('{n}', NAME))
     icon = os.path.join(ROOT, 'assets', 'devos_map_doctor.ico')
-    args = [os.path.join(ROOT, 'DevosMapDoctor.py'), '--onefile', '--windowed', '--noconfirm', '--clean',
-            '--name', NAME, '--icon', icon, '--add-data', icon + os.pathsep + '.',
-            '--version-file', version_file, '--workpath', work, '--distpath', os.path.join(ROOT, 'dist'),
+    args = [os.path.join(ROOT, 'DevosMapDoctor.py'), '--onefile', '--noconfirm', '--clean', '--name', NAME,
+            '--add-data', icon + os.pathsep + '.', '--workpath', work, '--distpath', os.path.join(ROOT, 'dist'),
             '--specpath', work, '--add-data', os.path.join(ROOT, 'ui') + os.pathsep + 'ui']
+    if LINUX:
+        # GTK does not read an .ico with PNG images inside: the window takes a .png made from it
+        from PIL import Image
+        png = os.path.join(work, 'devos_map_doctor.png')
+        with Image.open(icon) as im:
+            im.save(png)
+        args += ['--add-data', png + os.pathsep + '.']
+    if not LINUX:
+        version_file = os.path.join(work, 'version.txt')
+        with open(version_file, 'w', encoding='utf-8') as f:
+            f.write(VERSION_FILE.replace('{v}', ', '.join(numbers)).replace('{s}', version).replace('{n}', NAME))
+        args += ['--windowed', '--icon', icon, '--version-file', version_file]
+        doctor = launcher(work)
+        if doctor:
+            args += ['--add-binary', doctor + os.pathsep + '.']
+    # the native files of the other system stay out (the Windows pjass.exe and DLL on Linux, the .so on Windows)
+    native = ('.so',) if LINUX else ('.exe', '.dll')
+    other = ('.exe', '.dll') if LINUX else ('.so',)
     for folder, dirs, files in os.walk(ENGINE):
         dirs[:] = [d for d in dirs if d != '__pycache__']
         rel = os.path.relpath(folder, ROOT)
@@ -88,26 +213,40 @@ def main():
                 name = f[:-3]
                 package = rel.replace(os.sep, '.')
                 args += ['--hidden-import', package if name == '__init__' else package + '.' + name]
-            elif f.endswith(('.exe', '.dll')):
+            elif f.endswith(native) or (LINUX and f == 'pjass'):
                 args += ['--add-binary', os.path.join(folder, f) + os.pathsep + rel]
+            elif f.endswith(other):
+                continue
             elif not f.endswith('.pyc'):
                 args += ['--add-data', os.path.join(folder, f) + os.pathsep + rel]
+    pjass_name = 'pjass' if LINUX else 'pjass.exe'
     pjass = os.environ.get('PJASS')
     if pjass and os.path.isfile(pjass):
         args += ['--add-binary', pjass + os.pathsep + os.path.join('doctor', 'script')]
-    elif not os.path.isfile(os.path.join(ENGINE, 'script', 'pjass.exe')):
-        print('pjass.exe not found (doctor/script/pjass.exe or PJASS): the exe cannot port maps')
+    elif not os.path.isfile(os.path.join(ENGINE, 'script', pjass_name)):
+        print('%s not found (doctor/script/%s or PJASS): the program cannot port maps' % (pjass_name, pjass_name))
     for module in EXCLUDE:
         args += ['--exclude-module', module]
-    PyInstaller.__main__.run(args)
-    with open(os.path.join(ROOT, 'dist', 'THIRD_PARTY_NOTICES.txt'), 'w', encoding='utf-8') as f:
+    if LINUX:
+        for module in GI_MODULES:
+            args += ['--exclude-module', 'gi.repository.' + module]
+        # PyGObject's Python side whole (gi.overrides: without it GLib.idle_add is the raw typelib call and the page
+        # never showed); the typelibs and the libraries stay the system's
+        args += ['--collect-submodules', 'gi']
+        PyInstaller.__main__.run([linux_spec(args, work), '--noconfirm', '--clean', '--workpath', work,
+                                  '--distpath', os.path.join(ROOT, 'dist')])
+    else:
+        PyInstaller.__main__.run(args)
+    # each build its own (the Linux one carries PyGObject and pycairo, the Windows one pythonnet)
+    notices_name = 'THIRD_PARTY_NOTICES-linux.txt' if LINUX else 'THIRD_PARTY_NOTICES.txt'
+    with open(os.path.join(ROOT, 'dist', notices_name), 'w', encoding='utf-8') as f:
         f.write(notices())
     index = os.path.join(ROOT, 'names.npz')
     if os.path.isfile(index):
         shutil.copyfile(index, os.path.join(ROOT, 'dist', 'names.npz'))
     else:
         print('names.npz not found: download it from the latest release to ship it with the exe')
-    print('built', os.path.join(ROOT, 'dist', NAME + '.exe'))
+    print('built', os.path.join(ROOT, 'dist', NAME + ('' if LINUX else '.exe')))
 
 
 if __name__ == '__main__':

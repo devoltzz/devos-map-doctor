@@ -5,7 +5,8 @@ import subprocess
 import sys
 
 
-PJASS_NEXT_TO_MODULE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pjass.exe')
+PJASS_NAME = 'pjass' if sys.platform.startswith('linux') else 'pjass.exe'
+PJASS_NEXT_TO_MODULE = os.path.join(os.path.dirname(os.path.abspath(__file__)), PJASS_NAME)
 PJASS_DEFAULT = PJASS_NEXT_TO_MODULE if os.path.isfile(PJASS_NEXT_TO_MODULE) else os.path.normpath(os.path.join(
     os.path.dirname(os.path.abspath(__file__)), '..', '..', 'terceiros', 'ffmpeg', 'bin', 'pjass.exe'))
 REF_30 = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'ref', '3.0'))

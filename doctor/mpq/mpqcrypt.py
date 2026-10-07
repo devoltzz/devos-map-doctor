@@ -6,7 +6,7 @@ from array import array
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DLL = 'mpqcrypt.dll'
+DLL = 'mpqcrypt.so' if sys.platform.startswith('linux') else 'mpqcrypt.dll'
 _LOADED_DLL = [None]
 
 
@@ -48,7 +48,7 @@ def _through_js():
 def _dll():
     if _LOADED_DLL[0] is None:
         _LOADED_DLL[0] = False
-        if os.name == 'nt':
+        if os.name == 'nt' or sys.platform.startswith('linux'):
             for p in _paths():
                 if not os.path.isfile(p):
                     continue

@@ -5,7 +5,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 from doctor.fix import unprotect as D
 
-VERSION = '1.6.5'
+VERSION = '1.6.6'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -751,12 +751,16 @@ def window(initial_map_path=None):
         icon_file = None
     if updater is not None:
         updater.cleanup()
+    from doctor.app import doctor_cli
+    doctor_cli.install_launcher()
     doctor_app.run(VERSION, initial_map_path, updater, icon_file)
 
 
 def icon_ico():
     base = getattr(sys, '_MEIPASS', os.path.join(HERE, 'assets'))
     p = os.path.join(base, 'devos_map_doctor.ico')
+    if sys.platform.startswith('linux'):
+        p = os.path.splitext(p)[0] + '.png'
     if not os.path.isfile(p):
         raise OSError('no icon')
     return p
@@ -774,6 +778,10 @@ def main(argv=None):
     if '--worker' in argv:
         from doctor.app import doctor_app
         return doctor_app.worker_main(sys.modules[__name__])
+    from doctor.app import doctor_cli
+    if '--cli' in argv or (argv and not argv[0].startswith('--') and not os.path.isfile(argv[0])) or \
+            (argv and argv[0] in ('--help', '-h', '--version')):
+        return doctor_cli.main([a for a in argv if a != '--cli'], sys.modules[__name__], VERSION)
     if '--text' in argv:
         log = next((a.split('=', 1)[1] for a in argv if a.startswith('--log=')), None)
         out = open(log, 'w', encoding='utf-8') if log else sys.stdout

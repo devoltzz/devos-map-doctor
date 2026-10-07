@@ -562,6 +562,14 @@ def _category(warning):
     return warning.split(': ', 2)[1]
 
 
+def _entries(text):
+    n = 0
+    for raw in RX_LINES.split(text.lstrip('\ufeff')):
+        s = raw.strip()
+        n += bool(s) and not s.startswith('//') and not (s.startswith('[') and s.endswith(']')) and '=' in s
+    return n
+
+
 def summary(td):
     out = ['TriggerData.txt: %s' % td.source, '  md5 %s' % td.md5,
            '  categories %d, types %d (%d with a default value), presets %d' % (

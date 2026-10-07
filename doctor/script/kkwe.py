@@ -145,6 +145,9 @@ def is_loader(bc):
     for j, (k, fname) in enumerate(fs):
         end_pos = fs[j + 1][0] if j + 1 < len(fs) else bc.n
         bodies[fname] = range(k + 1, end_pos)
+    if 'main' not in bodies and 'config' in bodies and any(
+            bc.op[k] == OP['CALLNATIVE'] and bc.fname(bc.arg[k]) == 'DzSetMemory' for k in range(bc.n)):
+        return True, None
     if 'main' not in bodies or 'config' not in bodies:
         return False, None
     main_calls = [k for k in bodies['main'] if bc.op[k] in (OP['CALLNATIVE'], OP['CALLJASS'])]

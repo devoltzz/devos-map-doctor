@@ -22,7 +22,10 @@
     try { saved = localStorage.getItem(KEY); } catch (e) { /* storage off: the system's language */ }
     if (saved && LANGS[saved]) return saved;
     for (const l of navigator.languages || [navigator.language || 'en']) {
-      const code = String(l).toLowerCase().split('-')[0];
+      const low = String(l).toLowerCase();
+      // Chinese in Traditional script: Taiwan, Hong Kong, Macau, or zh-Hant anywhere
+      if (/^zh-(tw|hk|mo|hant)\b/.test(low) && LANGS['zh-TW']) return 'zh-TW';
+      const code = low.split('-')[0];
       if (LANGS[code]) return code;
     }
     return 'en';

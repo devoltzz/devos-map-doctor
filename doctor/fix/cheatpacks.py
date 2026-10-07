@@ -11,7 +11,7 @@ import tempfile
 PACKS_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'cheatpacks'))
 JASS = 'jass'
 LUA = 'lua'
-NO_WINDOW = 0x08000000
+NO_WINDOW = 0x08000000 if os.name == 'nt' else 0
 PACK_FILE = {JASS: 'pack.j', LUA: 'pack.lua'}
 _PACKS = None
 
@@ -492,8 +492,9 @@ def _pjass_exe():
             return exe
     except Exception:
         pass
-    for p in (os.path.join(aqui, 'pjass.exe'), os.path.normpath(os.path.join(aqui, '..', 'script', 'pjass.exe')),
-              os.path.normpath(os.path.join(aqui, '..', 'kk', 'pjass.exe'))):
+    name = 'pjass' if sys.platform.startswith('linux') else 'pjass.exe'
+    for p in (os.path.join(aqui, name), os.path.normpath(os.path.join(aqui, '..', 'script', name)),
+              os.path.normpath(os.path.join(aqui, '..', 'kk', name))):
         if os.path.isfile(p):
             return p
     return None

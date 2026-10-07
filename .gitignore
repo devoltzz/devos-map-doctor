@@ -14,3 +14,5 @@ web/node_modules/
 web/wheels/
 deploy/.env
 doctor/mpq/mpqcrypt.dll
+doctor/mpq/mpqcrypt.so
+doctor/script/pjass

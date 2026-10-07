@@ -1,11 +1,13 @@
 """build_pjass.py - pjass (github.com/lep/pjass, BSD-2), the JASS checker, built as WebAssembly (WASI) for the site.
 
-  python web/build_pjass.py --src=<pjass source> --out=<folder> [--flex=flex] [--bison=bison]
+  python web/build_pjass.py --src=<pjass source> --out=<folder> [--flex=flex] [--bison=bison] [--native]
 
 The source is copied to <out>/_build (the source folder is not touched); the parser and the lexer come from
 `bison -d grammar.y` and `flex token.l`; the build is pjass's own amalgamated one (its GNUmakefile's `pjass.exe`
 target: every .c included in one unit, -DPJASS_AMALGATION), with zig from pip (`python -m ziglang cc -target
 wasm32-wasi`). Writes <out>/pjass.wasm and <out>/pjass.json (the source commit, the tools, the sha256).
+`--native` (1.6.6) also writes <out>/pjass, the same unit for Linux (x86_64, static with musl: it runs on any
+distribution), for the Linux build of the program.
 """
 import hashlib
 import json
@@ -36,7 +38,7 @@ def source_commit(src):
     return r.stdout.strip() or 'unknown'
 
 
-def build(src, out, flex='flex', bison='bison'):
+def build(src, out, flex='flex', bison='bison', native=False):
     """-> the pjass.json record."""
     if not os.path.isfile(os.path.join(src, 'grammar.y')):
         raise SystemExit('build_pjass: no pjass source in %s (git clone https://github.com/lep/pjass)' % src)
@@ -61,6 +63,10 @@ def build(src, out, flex='flex', bison='bison'):
     wasm = os.path.join(out, 'pjass.wasm')
     run([sys.executable, '-m', 'ziglang', 'cc', '-target', 'wasm32-wasi', '-O2', '-s', '-w', '-DPJASS_AMALGATION',
          '-DVERSIONSTR="git-%s-wasm"' % commit, '-Wl,-z,stack-size=%d' % STACK, '-o', wasm, 'amalgamation.c'], work)
+    if native:
+        run([sys.executable, '-m', 'ziglang', 'cc', '-target', 'x86_64-linux-musl', '-static', '-O2', '-s', '-w',
+             '-DPJASS_AMALGATION', '-DVERSIONSTR="git-%s-linux"' % commit, '-o', os.path.join(out, 'pjass'),
+             'amalgamation.c'], work)
     with open(wasm, 'rb') as f:
         data = f.read()
     info = {'commit': commit, 'zig': run([sys.executable, '-m', 'ziglang', 'version'], work).strip(),
@@ -79,7 +85,7 @@ def main(argv):
         print(__doc__)
         return 2
     info = build(os.path.abspath(op['src']), os.path.abspath(op['out']), op.get('flex') or 'flex',
-                 op.get('bison') or 'bison')
+                 op.get('bison') or 'bison', 'native' in op)
     print('pjass %s -> %s (%d bytes, zig %s, flex %s, bison %s)' % (info['commit'], op['out'], info['bytes'],
                                                                     info['zig'], info['flex'], info['bison']))
     return 0

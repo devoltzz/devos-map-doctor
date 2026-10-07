@@ -3,3 +3,4 @@ pillow>=10.0
 pywebview>=6.2
 pyinstaller>=6.0
 ziglang>=0.16
+zopfli==0.4.3

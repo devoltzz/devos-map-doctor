@@ -12,6 +12,8 @@ REPOSITORY = 'devoltzz/devos-map-doctor'
 API = 'https://api.github.com/repos/{}/releases/latest'
 TIMEOUT = 6
 INDEX = 'names.npz'
+# the program of this system among the release's files (1.6.6: Windows and Linux)
+PROGRAM = 'DevosMapDoctor-linux-x86_64' if sys.platform.startswith('linux') else 'DevosMapDoctor.exe'
 
 
 def version_tuple(text):
@@ -28,7 +30,7 @@ def latest_release():
     with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
         data = json.load(response)
     assets = data.get('assets', [])
-    exe = next((a for a in assets if a.get('name', '').lower().endswith('.exe')), {})
+    exe = next((a for a in assets if a.get('name', '').lower() == PROGRAM.lower()), {})
     index = next((a for a in assets if a.get('name', '').lower() == INDEX), {})
     return {'version': data.get('tag_name', ''), 'page': data.get('html_url', ''),
             'exe': exe.get('browser_download_url'), 'size': exe.get('size'),
@@ -101,6 +103,8 @@ def install(release):
         os.remove(old)
     os.replace(exe, old)
     os.replace(new, exe)
+    if not sys.platform.startswith('win'):
+        os.chmod(exe, 0o755)
     subprocess.Popen([exe], close_fds=True)
     return True
 
