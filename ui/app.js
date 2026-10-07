@@ -1,4 +1,4 @@
-// Devo's Map Doctor 1.4: the page. It never touches a map: every job runs in the program's worker
+// Devo's Map Doctor 1.4 (the layout of 1.6.3): the page. It never touches a map: every job runs in the program's worker
 // (window.pywebview.api.start), and the events come back through window.doctor.onEvent.
 'use strict';
 
@@ -31,7 +31,12 @@ const WEB_LABELS = { 'Show in folder': 'Download the map', 'Show the report': 'D
 const showLabel = what => web() ? WEB_LABELS[what] || 'Download' : what;
 const folderButton = (path, what) => el('button', { class: 'btn', text: showLabel(what || 'Show in folder'),
   onclick: () => api().open_folder(path) });
-function status(text) { $('#status').textContent = text; }
+function status(text) {
+  state.say = text;
+  state.sayAt = Date.now();
+  renderCat();
+  setTimeout(renderCat, 10500);
+}
 
 function toast(text, opts) {
   opts = opts || {};
@@ -80,6 +85,10 @@ const state = {
   // `gen` counts the maps opened: what a job of an earlier map brings back is dropped; the quiet jobs of the map
   // (the tabs loading in the background) are cancelled when another one opens
   gen: 0, tabState: {}, quietJobs: new Set(), images: {}, imageData: {},
+  // 1.6.3: the mode on screen and the tab each mode showed last
+  mode: null, pane: {},
+  // the Translation tab: the files the texts come from (translation_groups) and the ones the user unticked
+  trGroups: null, trSkip: new Set(),
   extras: { card: null, translation: null, models: null, modelNames: null, singlePlayer: null, portraits: null,
     dataPointers: null, kkTextures: null, disabledIcons: null, uabi: null, preload: null },
   // the Cheatpacks tab: the answer of the backend (the packs this map's script language can take) and what the page
@@ -102,8 +111,12 @@ async function run(task, params, opts) {
   // `quiet`: the site runs the tabs that load in the background in a worker of their own (the exe ignores it)
   const id = await api().start(task, Object.assign({ map: state.map }, params || {},
     opts.quiet ? { quiet: true } : {}));
+  // the key the time of the job is learned under: the task, and the extras that change its length (Fix with Shrink)
+  const ex = (params || {}).extras || {};
+  const key = task + (Object.keys(ex).length ? ':' + Object.keys(ex).filter(k => ex[k]).sort().join(',') : '');
   return new Promise((resolve, reject) => {
-    state.jobs[id] = { task, resolve, reject, started: Date.now(), label: opts.label, quiet: opts.quiet };
+    state.jobs[id] = { task, key, resolve, reject, started: Date.now(), label: opts.label, quiet: opts.quiet,
+      size: state.open ? state.open.size : null, stage: null, marks: [] };
     if (opts.quiet) state.quietJobs.add(id);
     else showJob(id, opts.label || 'Working...');
     const early = pendingEvents[id];
@@ -128,6 +141,10 @@ window.doctor = {
       return;
     }
     if (ev.type === 'progress') {
+      if (!job.quiet) {
+        job.stage = { label: ev.label, at: (Date.now() - job.started) / 1000 };
+        job.marks.push(job.stage);
+      }
       if (!job.quiet && state.running === ev.job) $('#jobLabel').textContent = ev.label;
       if (job.onProgress) job.onProgress(ev.label);
       return;
@@ -135,7 +152,7 @@ window.doctor = {
     delete state.jobs[ev.job];
     state.quietJobs.delete(ev.job);
     if (state.running === ev.job) hideJob();
-    if (ev.type === 'result') job.resolve(ev.data);
+    if (ev.type === 'result') { if (!job.quiet) learnTime(job); job.resolve(ev.data); }
     // `kept`: the output already had its name when the cancel came (a "Fix map" cancelled during the extras)
     else if (ev.type === 'cancelled') job.reject({ cancelled: true, kept: !!ev.kept, output: ev.output || null });
     else job.reject({ message: ev.message, trace: ev.trace });
@@ -150,9 +167,74 @@ function showJob(id, label) {
   $('#jobCard').classList.remove('hidden');
   const t0 = Date.now();
   clearInterval(timer);
-  timer = setInterval(() => { $('#jobTime').textContent = clock((Date.now() - t0) / 1000); }, 500);
+  timer = setInterval(() => { $('#jobTime').textContent = clock((Date.now() - t0) / 1000); renderCat(); }, 250);
   setBusy(true);
 }
+
+// ------------------------------------------------------------------ the cat's line: idle, or the job with a bar and an ETA
+// The engine reports stages, not a percentage, so the time is LEARNED: after each job that ends well, the seconds per
+// MB of the map (and the seconds, for a job with no map size yet) and the point of the total at which each stage began
+// are kept in the settings (a moving average, per task and extras). The next run of the same job estimates its total
+// from the map size, and again at every stage it reaches (the stage began at 30 s and usually begins at 40% of the
+// job: about 75 s in all). A job never seen before gets a bar that sweeps and the time so far, without an ETA.
+const BAR = 14;
+function learnTime(job) {
+  const secs = (Date.now() - job.started) / 1000;
+  if (secs < 1) return;
+  const timing = state.settings.timing = Object.assign({}, state.settings.timing);
+  for (const k of new Set([job.key, job.task])) {
+    const h = Object.assign({ n: 0, stages: {} }, timing[k]);
+    const mix = (old, now) => old === undefined || old === null || !h.n ? now : old * 0.6 + now * 0.4;
+    h.secs = mix(h.secs, secs);
+    if (job.size) h.mbps = mix(h.mbps, secs / Math.max(job.size / 1e6, 0.1));
+    const stages = Object.assign({}, h.stages);
+    for (const m of job.marks) stages[m.label] = mix(stages[m.label], m.at / secs);
+    h.stages = stages;
+    h.n = Math.min(h.n + 1, 20);
+    timing[k] = h;
+  }
+  saveSettings();
+}
+
+function estimate(job) {
+  const t = state.settings.timing || {};
+  const h = t[job.key] || t[job.task];
+  if (!h) return null;
+  const now = (Date.now() - job.started) / 1000;
+  let total = job.size && h.mbps ? h.mbps * job.size / 1e6 : h.secs;
+  const st = job.stage, f = st && h.stages ? h.stages[st.label] : null;
+  if (f > 0.05 && st.at > 1) total = total > 0 ? (total + 2 * st.at / f) / 3 : st.at / f;
+  if (!(total > 0)) return null;
+  return { frac: Math.min(now / total, 0.97), left: Math.max(total - now, 0) };
+}
+
+function renderCat() {
+  const line = $('#catline');
+  const job = state.running && state.jobs[state.running];
+  if (!job) {
+    const fresh = state.say && state.say !== 'Ready.' && Date.now() - (state.sayAt || 0) < 10000;
+    line.textContent = fresh ? state.say.replace(/\.$/, '').toLowerCase() : 'idle';
+    return;
+  }
+  const now = (Date.now() - job.started) / 1000;
+  const e = estimate(job);
+  let bar, tail;
+  if (e) {
+    // the bar never goes back: a stage the history does not know (an extra the last run did not have) can lower the
+    // estimate of the total, and only the ETA follows it
+    e.frac = job.shown = Math.max(job.shown || 0, e.frac);
+    const full = Math.round(e.frac * BAR);
+    bar = '[' + '\u2588'.repeat(full) + '\u2591'.repeat(BAR - full) + '] ' + Math.round(e.frac * 100) + '%';
+    tail = e.left >= 1 ? '~' + clock(e.left) + ' left' : 'almost done';
+  } else {
+    // no history yet: a block that sweeps from side to side
+    const span = BAR - 3, k = Math.floor(now * 6) % (2 * span), at = k < span ? k : 2 * span - k;
+    bar = '[' + '\u2591'.repeat(at) + '\u2588\u2588\u2588' + '\u2591'.repeat(span - at) + ']';
+    tail = clock(now) + ' so far';
+  }
+  line.textContent = 'working\n' + bar + '\n' + tail;
+}
+
 function hideJob() {
   state.running = null;
   clearInterval(timer);
@@ -163,6 +245,9 @@ function setBusy(busy) {
   // a button that is off for a reason of its own (nothing to do for this map) carries data-off and stays off
   $$('.needs-idle').forEach(b => { b.disabled = busy || b.hasAttribute('data-off'); });
   $('#btnOpen').disabled = busy;
+  // the cat in the corner sleeps, and wakes up while a job runs
+  $('#cat').classList.toggle('awake', busy);
+  renderCat();
 }
 
 function failed(e, what) {
@@ -221,6 +306,8 @@ async function openMap(path) {
     dataPointers: null, kkTextures: null, disabledIcons: null, uabi: null, preload: null };
   state.cheatpacks = null;
   state.cheatPack = { id: null, options: {}, result: null };
+  state.trGroups = null;
+  state.trSkip = new Set();
   state.rawcodes = null;
   TABS.forEach(n => setTabState(n, 'wait'));
   $('#welcome').classList.add('hidden');
@@ -230,10 +317,11 @@ async function openMap(path) {
   $('#mapPath').textContent = path;
   $('#badges').replaceChildren(el('span', { class: 'badge', text: 'Checking...' }));
   $('#diagLines').replaceChildren();
-  $('#actions').replaceChildren();
-  $('#results').replaceChildren();
-  $$('.tab').forEach(t => { if (t.id !== 'tab-actions') t.replaceChildren(); });
-  selectTab('actions');
+  $$('.tab').forEach(t => { if (!ACTIONS[t.id.slice(4)]) t.replaceChildren(); });
+  Object.keys(ACTIONS).forEach(a => { $('#action-' + a).replaceChildren(); $('#results-' + a).replaceChildren(); });
+  state.pane = {};
+  $('#app').classList.add('hasmap');
+  selectTab('fix');
   const ctx = $('#thumb').getContext('2d');
   ctx.clearRect(0, 0, 96, 96);
   status('Checking the map...');
@@ -416,10 +504,37 @@ function extraSteps(action) {
   return out;
 }
 
+// 1.6.3: each action lives in its own mode (Fix, Editor)
 function renderActions() {
   if (!state.open) return;
-  const box = $('#actions');
-  box.replaceChildren(...Object.keys(ACTIONS).map(renderAction));
+  for (const action of Object.keys(ACTIONS)) $('#action-' + action).replaceChildren(renderAction(action));
+}
+
+// the shell line under each action: the command the ticked boxes make, as if the Doctor ran in a terminal
+// (the step keys come in Portuguese from the archive's engine and in English from the release's)
+const FLAGS = { mpq: 'unprotect', falsos: 'fake-files', fake_list: 'fake-files', lista: 'listfile',
+  listing: 'listfile', ids: 'ids', desprotecao: 'unprotect', unprotection: 'unprotect', script_de_volta: 'script-back',
+  script_restore: 'script-back', arquivos_do_editor: 'editor-files', editor_only_files: 'editor-files',
+  contagem_inflada: 'counts', inflated_counts: 'counts', doodads_invalidos: 'doodads', invalid_doodads: 'doodads',
+  gatilhos_gui: 'gui-triggers', objetos_do_script: 'script-objects', unidades_seguras: 'safe-units', 'x:models': 'models', 'x:modelNames': 'model-names', 'x:portraits': 'portraits',
+  'x:dataPointers': 'data-pointers', 'x:kkTextures': 'kk-textures', 'x:disabledIcons': 'green-icons',
+  'x:uabi': 'uabi', 'x:preload': 'preload', 'x:singlePlayer': 'single-player', 'x:card': 'card',
+  'x:translation': 'translation', 'x:shrink': 'shrink' };
+
+function shellLine(action) {
+  const card = $('.action[data-action="' + action + '"]');
+  if (!card) return;
+  const flags = [];
+  for (const box of $$('input[data-key]', card)) {
+    if (!box.checked) continue;
+    const k = box.dataset.key;
+    // the 3.0 data problems are one flag, however many tables the map has
+    const f = /^(dados|data):/.test(k) ? 'data' : FLAGS[k] || k.replace(/^x:/, '').replace(/[:_]/g, '-');
+    if (!flags.includes(f)) flags.push(f);
+  }
+  const name = state.open ? state.open.name : base(state.map);
+  $('.shell .cmd', card).textContent = 'doctor ' + action + ' "' + name + '"' +
+    flags.map(f => ' --' + f).join('');
 }
 
 function renderAction(action) {
@@ -448,14 +563,16 @@ function renderAction(action) {
         'data-off': !any, onclick: () => runAction(action) }),
       hidden ? el('label', { class: 'show-na' }, el('input', { type: 'checkbox', checked: showNa, onchange: e => {
         state.settings.showNa = Object.assign({}, state.settings.showNa, { [action]: e.target.checked });
-        saveSettings(); renderActions(); } }), ' show the ' + hidden + ' steps not needed') : null));
+        saveSettings(); renderActions(); } }), ' show the ' + hidden + ' steps not needed') : null),
+    any ? el('div', { class: 'shell' }, '$ ', el('span', { class: 'cmd' }), el('span', { class: 'cursor' })) : null);
+  if (any) setTimeout(() => shellLine(action));
   return card;
 }
 
 function stepItem(action, s, checked) {
   const locked = s.locked && s.applies;
   const box = el('input', { type: 'checkbox', checked: !!checked, disabled: locked || !s.applies,
-    'data-key': s.key, onchange: () => rememberChoice(action) });
+    'data-key': s.key, onchange: () => { rememberChoice(action); shellLine(action); } });
   return el('li', { class: 'step' + (locked ? ' locked' : '') + (s.applies ? '' : ' na') },
     box, el('div', {}, el('div', { class: 't', text: s.label }),
       s.detail ? el('div', { class: 'd', text: s.detail }) : null,
@@ -569,7 +686,7 @@ function renderResult(action, r) {
         await copyText(plainReport(r.lines)); toast('The report is in the clipboard.'); } }),
       el('button', { class: 'btn ghost', text: 'Report a problem', onclick: reportProblem })));
   const old = $('#result-' + action);
-  if (old) old.replaceWith(card); else $('#results').prepend(card);
+  if (old) old.replaceWith(card); else $('#results-' + action).prepend(card);
   card.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -629,7 +746,7 @@ function offerIndex(release, missing) {
 }
 
 // ------------------------------------------------------------------ tabs
-// Every tab but Actions stays locked, with a spinner on its button, until ALL of its information is in: the data
+// Every tab but the two actions stays locked, with a spinner on its button, until ALL of its information is in: the data
 // tabs load in the background as soon as the map is checked, one after the other (a big map in several workers at
 // once would take that much more memory); "Runs on Reforged?" opens when its check ends; Translation and Compare
 // when the map is checked.
@@ -637,15 +754,21 @@ const TABS = ['card', 'reforged', 'files', 'script', 'cheatpacks', 'triggers', '
 const TAB_DATA = { card: loadCard, files: loadFiles, script: loadScript, cheatpacks: loadCheatpacks,
   triggers: loadTriggers, reforged: checkReforgedQuietly };
 
+// 1.6.3: the tabs are grouped in modes, one button each on the left; a mode with one tab locks its own button while
+// that tab loads, a mode with several shows them as sub-tabs (the action of Fix and Editor never locks)
+const MODES = { fix: ['fix', 'reforged'], editor: ['editor', 'card', 'triggers'], port: ['port'],
+  cheatpacks: ['cheatpacks'], translation: ['translation'], inspect: ['files', 'script', 'compare'] };
+const modeOf = name => Object.keys(MODES).find(m => MODES[m].includes(name));
+
 function setTabState(name, st) {
   state.tabState[name] = st;
-  const b = $('#tabs button[data-tab="' + name + '"]');
-  if (!b) return;
-  b.disabled = st === 'wait';
-  b.classList.toggle('loading', st === 'wait');
-  b.classList.toggle('failed', st === 'failed');
-  b.title = st === 'wait' ? 'Loading: the tab opens when its information is in.' :
-    st === 'failed' ? 'Loading failed: open the tab to try again.' : '';
+  for (const b of $$('[data-tab="' + name + '"]')) {
+    b.disabled = st === 'wait';
+    b.classList.toggle('loading', st === 'wait');
+    b.classList.toggle('failed', st === 'failed');
+    b.title = st === 'wait' ? 'Loading: the tab opens when its information is in.' :
+      st === 'failed' ? 'Loading failed: open the tab to try again.' : '';
+  }
 }
 
 async function loadTabsInBackground(gen) {
@@ -653,12 +776,29 @@ async function loadTabsInBackground(gen) {
     if (gen !== state.gen) return;
     await TAB_DATA[name](gen);
   }
+  if (gen === state.gen) await loadTranslationGroups(gen);
 }
 
 function selectTab(name) {
-  if (name !== 'actions' && state.tabState[name] === 'wait') return;
-  $$('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
-  $$('.tab').forEach(t => t.classList.toggle('hidden', t.id !== 'tab-' + name));
+  if (!ACTIONS[name] && state.tabState[name] === 'wait') return;
+  const mode = modeOf(name);
+  state.mode = mode;
+  state.pane[mode] = name;
+  $$('#modes button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
+  $$('.mode').forEach(m => m.classList.toggle('hidden', m.id !== 'mode-' + mode));
+  const box = $('#mode-' + mode);
+  $$('.subtabs button', box).forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+  $$('.tab', box).forEach(t => t.classList.toggle('hidden', t.id !== 'tab-' + name));
+  $('#main').scrollTop = 0;
+}
+
+// a mode opens on the tab it showed last, or on its first tab that is in
+function selectMode(mode) {
+  if (!state.open && !state.map) return;
+  const last = state.pane[mode];
+  const ready = n => ACTIONS[n] || state.tabState[n] !== 'wait';
+  const name = last && ready(last) ? last : MODES[mode].find(ready);
+  if (name) selectTab(name);
 }
 
 // the empty parts (null, false) are skipped, as in el(): replaceChildren() would show them as the text "null"
@@ -672,7 +812,7 @@ function tabFailed(name, what, e) {
     el('div', { class: 'l info', text: (e && e.message) || '' })),
   el('button', { class: 'btn small', text: 'Try again', onclick: () => {
     setTabState(name, 'wait');
-    selectTab('actions');
+    tabBody(name, el('div', { class: 'card muted', text: 'Loading again...' }));
     TAB_DATA[name](state.gen);
   } })));
 }
@@ -784,22 +924,12 @@ function renderCard() {
   const infoCard = el('div', { class: 'card' }, el('h2', { text: 'What the map says about itself' }),
     el('div', { class: 'form' },
       el('label', { text: 'Language' }), el('div', { style: 'padding-top:7px', text: describeLanguage(info.language) }),
-      el('label', { text: 'Save' }), el('div', { style: 'padding-top:7px', text: describeSave(info.save) }),
-      el('label', { text: 'Chat commands' }), el('div', { style: 'padding-top:7px' },
-        (info.chat_commands || []).length ? el('div', {},
-          el('div', { class: 'mono', style: 'white-space:pre-wrap',
-            text: info.chat_commands.map(x => typeof x === 'string' ? x : x.text === '' ? '(any message)' :
-              x.text + (x.exact === false ? '...' : '')).join('   ') }),
-          chatCommandText(info.chat_commands) ? el('button', { class: 'btn small ghost', style: 'margin-top:6px',
-            text: 'Copy all (one per line)', onclick: async () => {
-              await copyText(chatCommandText(info.chat_commands));
-              toast('The commands are in the clipboard.');
-            } }) : null) :
-          el('span', { class: 'muted', text: 'none found in the script' }))));
+      el('label', { text: 'Save' }), el('div', { style: 'padding-top:7px', text: describeSave(info.save) })),
+    chatCommandsBox(info, chatCommandText));
   tabBody('card',
     el('div', { class: 'card' }, el('h2', { text: 'Map card' }),
       el('p', { class: 'lead', text: 'Changes go into the next copy ("Apply the map card changes" in ' +
-        'Actions).' }),
+        'Fix or Editor).' }),
       form, players, forces,
       el('h3', { text: 'Images' }), images),
     infoCard);
@@ -819,6 +949,44 @@ function describeLanguage(lang) {
   if (!lang) return 'unknown';
   if (typeof lang === 'string') return lang;
   return (lang.language || 'unknown') + (lang.script ? ' (' + lang.script + ' script)' : '');
+}
+
+// 1.6.3: the chat commands as a table: the command, how the game matches it, how many triggers listen to it. A command
+// the script builds while running and the Doctor could not work out has no text: its expression is shown instead
+const MATCH_TEXT = { true: 'whole message', false: 'contains', null: 'decided by the script' };
+function chatCommandsBox(info, chatCommandText) {
+  const list = (info.chat_commands || []).map(x => typeof x === 'string' ? { text: x, exact: true, count: 1 } : x);
+  const compared = info.chat_compared || [];
+  const head = el('div', { class: 'row', style: 'margin:16px 0 6px' },
+    el('h3', { class: 'grow', style: 'margin:0', text: 'Chat commands' }),
+    list.length ? el('span', { class: 'faint', text: list.length + (list.length === 1 ? ' command' : ' commands') }) :
+      null,
+    chatCommandText(list) ? el('button', { class: 'btn small ghost', text: 'Copy all', onclick: async () => {
+      await copyText(chatCommandText(list));
+      toast('The commands are in the clipboard, one per line.');
+    } }) : null);
+  if (!list.length && !compared.length) {
+    return el('div', {}, head, el('p', { class: 'muted', text: 'None found in the script.' }));
+  }
+  const cell = x => {
+    if (x.text === '') return el('td', { class: 'faint', text: '(any message)' });
+    if (x.text === null || x.text === undefined) {
+      return el('td', { class: 'faint' }, el('span', { class: 'mono', text: x.expr || '?' }),
+        el('span', { class: 'tag', text: 'built by the script' }));
+    }
+    return el('td', {}, el('span', { class: 'mono cmd', text: x.text }),
+      x.decoded ? el('span', { class: 'tag', text: 'decoded' }) : null);
+  };
+  return el('div', {}, head,
+    list.length ? el('div', { class: 'scroll', style: 'max-height:360px' }, el('table', { class: 'grid chat' },
+      el('thead', {}, el('tr', {}, el('th', { text: 'Command' }), el('th', { text: 'Match' }),
+        el('th', { text: 'Triggers' }))),
+      el('tbody', {}, list.map(x => el('tr', {}, cell(x),
+        el('td', { class: 'muted', text: MATCH_TEXT[x.exact === undefined ? null : x.exact] }),
+        el('td', { class: 'muted', text: String(x.count || 1) })))))) : null,
+    compared.length ? el('div', { style: 'margin-top:10px' },
+      el('div', { class: 'faint', style: 'margin-bottom:6px', text: 'Also compared with the chat message:' }),
+      el('div', { class: 'chips' }, compared.map(t => el('span', { class: 'chip static mono', text: t })))) : null);
 }
 
 function describeSave(save) {
@@ -1024,8 +1192,7 @@ function rawcodesCard() {
   } });
   return el('div', { class: 'card' },
     el('div', { class: 'row' }, el('h2', { class: 'grow', text: 'Raw codes' }), btn),
-    el('p', { class: 'lead', text: 'The four-character ids the object data uses. Non-ASCII ones are the PG ' +
-      'family.' }),
+    el('p', { class: 'lead', text: 'Every object id in the map, with its name.' }),
     body);
 }
 
@@ -1047,29 +1214,84 @@ function nonAsciiIds(text, kinds) {
   return (kinds || []).reduce((a, k) => a + (k.ansii || 0), 0);
 }
 
-// the answer of the backend: the summary line, one table row per kind (its first ids as a preview), the note, and the
-// two buttons that hand over the whole list the same way the Script tab exports its script
+// an id as it can be read on screen: a byte outside printable ASCII (the PG family) as \xNN. The backend sends the
+// bytes above 0x7F as the surrogates U+DC80..U+DCFF (utf-8/surrogateescape) and a valid UTF-8 letter as itself.
+function visibleId(id) {
+  let out = '';
+  for (const ch of id) {
+    const c = ch.codePointAt(0);
+    if (c >= 0xDC80 && c <= 0xDCFF) out += '\\x' + (c - 0xDC00).toString(16).padStart(2, '0');
+    else if (c < 0x20 || c === 0x7f) out += '\\x' + c.toString(16).padStart(2, '0');
+    else out += ch;
+  }
+  return out;
+}
+
+// 1.6.3: the answer of the backend as one list: every unique id once, with its name, kind and first source; the kinds
+// as filters on top, a search over id and name, the short note under it and the count per file folded in "Sources"
+const RAW_LIMIT = 1500;
 function drawRawcodes(body, r) {
   if (r.error) {
     body.replaceChildren(el('div', { class: 'report' }, el('div', { class: 'l bad', text: r.error })));
     return;
   }
   const kinds = r.kinds || [];
-  const total = r.total === undefined || r.total === null ? kinds.reduce((n, k) => n + (k.count || 0), 0) : r.total;
+  const names = r.names || {};
+  const rows = [], seen = new Set(), perKind = {};
+  for (const k of kinds) {
+    for (const id of k.ids || []) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const shown = visibleId(id);
+      rows.push({ id, shown, odd: shown !== id, name: names[id] || '', kind: k.kind, source: k.source });
+      perKind[k.kind] = (perKind[k.kind] || 0) + 1;
+    }
+  }
+  const total = r.total === undefined || r.total === null ? rows.length : r.total;
   const ansii = nonAsciiIds(r.text, kinds);
+  const named = rows.filter(x => x.name).length;
+  const view = { kind: null, q: '' };
+  const tbody = el('tbody', {});
+  const count = el('span', { class: 'faint' });
+  const chips = el('div', { class: 'chips' });
+  const draw = () => {
+    const q = view.q.toLowerCase();
+    const hit = rows.filter(x => (!view.kind || x.kind === view.kind) &&
+      (!q || x.shown.toLowerCase().includes(q) || x.name.toLowerCase().includes(q)));
+    tbody.replaceChildren(...hit.slice(0, RAW_LIMIT).map(x => el('tr', {},
+      el('td', { class: 'mono rc-id' + (x.odd ? ' warn' : ''), text: x.shown }),
+      el('td', { class: x.name ? '' : 'faint', text: x.name || '-' }),
+      el('td', { class: 'mono muted', text: x.kind }),
+      el('td', { class: 'mono faint', text: x.source }))));
+    count.textContent = hit.length > RAW_LIMIT ? 'showing ' + RAW_LIMIT + ' of ' + hit.length :
+      hit.length + (hit.length === 1 ? ' code' : ' codes');
+    chips.replaceChildren(...[[null, 'all', rows.length]].concat(Object.entries(perKind).map(([k, n]) => [k, k, n]))
+      .map(([k, label, n]) => el('button', { class: 'chip' + (view.kind === k ? ' on' : ''), onclick: () => {
+        view.kind = k; draw(); } }, label, el('span', { class: 'n', text: String(n) }))));
+  };
+  const search = el('input', { class: 'field', type: 'search', placeholder: 'Search an id or a name',
+    oninput: e => { view.q = e.target.value.trim(); draw(); } });
+  draw();
   body.replaceChildren(
-    el('p', { class: 'lead', text: total + ' raw codes, ' + ansii + ' of them not ASCII (the PG family).' }),
-    kinds.length ? el('div', { class: 'scroll', style: 'max-height:320px' }, el('table', { class: 'grid' },
-      el('thead', {}, el('tr', {}, el('th', { text: 'Kind' }), el('th', { text: 'From' }), el('th', { text: 'Count' }),
-        el('th', { text: 'Not ASCII' }), el('th', { text: 'First ids' }))),
-      el('tbody', {}, kinds.map(k => {
-        const ids = k.ids || [];
-        return el('tr', {}, el('td', { class: 'mono', text: k.kind }), el('td', { class: 'muted', text: k.source }),
-          el('td', { text: String(k.count === undefined || k.count === null ? ids.length : k.count) }),
-          el('td', { class: k.ansii ? 'warn' : 'faint', text: String(k.ansii || 0) }),
-          el('td', { class: 'mono', text: ids.slice(0, 8).join('  ') + (ids.length > 8 ? '  ...' : '') }));
-      })))) : el('p', { class: 'muted', text: 'No object data to read in this map.' }),
-    r.note ? el('p', { class: 'muted', text: r.note }) : null,
+    el('div', { class: 'rc-stats' },
+      el('span', {}, el('b', { text: String(total) }), ' raw codes'),
+      el('span', {}, el('b', { text: String(named) }), ' with a name'),
+      el('span', { class: ansii ? 'warn' : '' }, el('b', { text: String(ansii) }), ' not ASCII (the PG family)')),
+    rows.length ? el('div', {}, chips,
+      el('div', { class: 'row rc-tools' }, search, count),
+      el('div', { class: 'scroll', style: 'max-height:440px' }, el('table', { class: 'grid rc' },
+        el('thead', {}, el('tr', {}, el('th', { text: 'Id' }), el('th', { text: 'Name' }), el('th', { text: 'Kind' }),
+          el('th', { text: 'Source' }))), tbody))) :
+      el('p', { class: 'muted', text: 'No object data to read in this map.' }),
+    r.note ? el('p', { class: 'faint', style: 'margin:8px 0 0', text: r.note }) : null,
+    kinds.length ? el('details', { class: 'rc-about' }, el('summary', { text: 'Sources' }),
+      el('table', { class: 'grid', style: 'margin:8px 0' },
+        el('thead', {}, el('tr', {}, el('th', { text: 'Source' }), el('th', { text: 'Kind' }),
+          el('th', { text: 'Codes' }), el('th', { text: 'Not ASCII' }))),
+        el('tbody', {}, kinds.map(k => el('tr', {}, el('td', { class: 'mono', text: k.source }),
+          el('td', { class: 'muted', text: k.kind }),
+          el('td', { text: String(k.count === undefined || k.count === null ? (k.ids || []).length : k.count) }),
+          el('td', { class: k.ansii ? 'warn' : 'faint', text: String(k.ansii || 0) })))))) : null,
     r.text ? el('div', { class: 'row', style: 'margin-top:12px' },
       el('button', { class: 'btn', text: 'Copy all', onclick: async () => {
         await copyText(r.text);
@@ -1078,7 +1300,8 @@ function drawRawcodes(body, r) {
       el('button', { class: 'btn', text: 'Save as...', onclick: async () => {
         const p = await api().pick_save(base(state.map).replace(/\.\w+$/, '') + '_rawcodes.txt', 'text');
         if (p) { await api().write_text(p, r.text); toast('Saved ' + base(p) + '.'); }
-      } })) : null);
+      } }),
+      el('span', { class: 'faint', text: 'One per line: kind, id, name.' })) : null);
 }
 
 // ------------------------------------------------------------------ script
@@ -1221,9 +1444,9 @@ function cheatpackField(o) {
   const v = state.cheatPack.options[o.key];
   const value = v === undefined ? o.default : v;
   if (o.kind === 'bool') {
-    return [el('label', { class: 'show-na', style: 'grid-column:1 / -1;padding-top:0' },
-      el('input', { type: 'checkbox', checked: String(value).toLowerCase() === 'true', onchange: e => {
-        state.cheatPack.options[o.key] = e.target.checked ? 'true' : 'false'; } }), ' ' + o.label)];
+    return [el('ul', { class: 'steps', style: 'grid-column:1 / -1' }, optionItem({
+      checked: String(value).toLowerCase() === 'true', title: o.label, onchange: e => {
+        state.cheatPack.options[o.key] = e.target.checked ? 'true' : 'false'; } }))];
   }
   return [el('label', { text: o.label }),
     el('input', { class: 'field', type: 'text', value: value === null || value === undefined ? '' : String(value),
@@ -1324,37 +1547,87 @@ function showTrigger(g, view) {
 }
 
 // ------------------------------------------------------------------ translation
+// one tick box with its title and a line under it, the same in every mode (Fix, Editor, Port, Cheatpacks, Translation)
+function optionItem(o) {
+  return el('li', { class: 'step' + (o.disabled ? ' na' : '') },
+    el('input', { type: 'checkbox', checked: !!o.checked, disabled: !!o.disabled, onchange: o.onchange }),
+    el('div', { class: 'grow' }, el('div', { class: 't' }, o.title, o.tag ? el('span', { class: 'tag', text: o.tag }) :
+      null), o.detail ? el('div', { class: 'd', text: o.detail }) : null),
+    o.count !== undefined ? el('span', { class: 'count', text: String(o.count) }) : null);
+}
+
+// 1.6.3: the files the texts come from, listed once per map in the background (it reads the whole script); every one
+// is ticked until the user unticks it, and the export takes only the ticked ones
+async function loadTranslationGroups(gen) {
+  try {
+    const r = await run('translation_groups', {}, { quiet: true });
+    if (gen !== state.gen) return;
+    state.trGroups = r;
+  } catch (e) {
+    if (gen !== state.gen) return;
+    state.trGroups = { state: 'failed', error: (e && e.message) || String(e) };
+  }
+  renderTranslation();
+}
+
+function pickedGroups() {
+  const g = state.trGroups;
+  if (!g || !g.groups) return null;
+  const keys = g.groups.map(x => x.key).filter(k => !state.trSkip.has(k));
+  return keys.length === g.groups.length ? null : keys;
+}
+
+function translationGroupsBox() {
+  const g = state.trGroups;
+  if (!g) return el('p', { class: 'faint', text: 'Listing the texts of the map...' });
+  if (g.state === 'failed') return el('div', { class: 'report' }, el('div', { class: 'l bad', text: g.error }));
+  if (!(g.groups || []).length) return el('p', { class: 'muted', text: 'The map has no text to export.' });
+  const all = g.groups.every(x => !state.trSkip.has(x.key));
+  const set = on => { state.trSkip = on ? new Set() : new Set(g.groups.map(x => x.key)); renderTranslation(); };
+  const total = g.groups.filter(x => !state.trSkip.has(x.key)).reduce((n, x) => n + x.count, 0);
+  return el('div', {},
+    el('div', { class: 'row', style: 'margin:4px 0 6px' }, el('h3', { class: 'grow', style: 'margin:0',
+      text: 'What to export' }), el('span', { class: 'faint', text: total + ' texts' }),
+    el('button', { class: 'btn small ghost', text: all ? 'None' : 'All', onclick: () => set(!all) })),
+    el('ul', { class: 'steps' }, g.groups.map(x => optionItem({ checked: !state.trSkip.has(x.key), title: x.label,
+      tag: x.key, count: x.count, onchange: e => {
+        if (e.target.checked) state.trSkip.delete(x.key); else state.trSkip.add(x.key);
+        renderTranslation(); } }))));
+}
+
 function renderTranslation() {
   const tr = state.extras.translation;
-  tabBody('translation', el('div', { class: 'card' }, el('h2', { text: 'Translate the map' }),
-    el('p', { class: 'lead', text: 'Export every text a player sees, translate it, load it back. The ' +
-      'checks run before anything is applied.' }),
-    el('p', { class: 'muted', text: 'Two formats: JSON, or a web page for Google Translate or DeepL; load ' +
-      'the translated page back here.' }),
-    el('div', { class: 'row' },
-      el('button', { class: 'btn needs-idle', text: 'Export texts...', disabled: !!state.running,
+  const none = state.trGroups && state.trGroups.groups && pickedGroups() !== null && !pickedGroups().length;
+  tabBody('translation', el('div', { class: 'card' }, el('h2', { text: 'Export' }),
+    el('p', { class: 'lead', text: 'Pick the texts, export them, translate the file, then load it back below.' }),
+    translationGroupsBox(),
+    el('div', { class: 'row', style: 'margin-top:12px' },
+      el('button', { class: 'btn needs-idle', text: 'Export as JSON...', disabled: !!state.running || none,
         onclick: () => exportTexts('json') }),
-      el('button', { class: 'btn needs-idle', text: 'Export for machine translation...', disabled: !!state.running,
-        onclick: () => exportTexts('html') }),
-      el('button', { class: 'btn needs-idle', text: 'Load a translation...', disabled: !!state.running,
-        onclick: async () => {
-          if (state.running) return;
-          const p = await api().pick_file('translation');
-          if (!p) return;
-          try {
-            const r = await run('translation_check', { file: p }, { label: 'Checking the translation...' });
-            // a check with `error` (the file or the map cannot be read) is kept to be shown, never applied
-            state.extras.translation = { file: p, check: r };
-            renderTranslation(); renderActions();
-          } catch (e) { failed(e, 'Checking the translation'); }
-        } })),
+      el('button', { class: 'btn needs-idle', text: 'Export for Google Translate / DeepL...',
+        disabled: !!state.running || none, onclick: () => exportTexts('html') }))),
+  el('div', { class: 'card' }, el('h2', { text: 'Import' }),
+    el('p', { class: 'lead', text: 'Load the translated file. It is checked first; then tick "Apply the translation" ' +
+      'in Fix or Editor.' }),
+    el('button', { class: 'btn needs-idle', text: 'Load a translation...', disabled: !!state.running,
+      onclick: async () => {
+        if (state.running) return;
+        const p = await api().pick_file('translation');
+        if (!p) return;
+        try {
+          const r = await run('translation_check', { file: p }, { label: 'Checking the translation...' });
+          // a check with `error` (the file or the map cannot be read) is kept to be shown, never applied
+          state.extras.translation = { file: p, check: r };
+          renderTranslation(); renderActions();
+        } catch (e) { failed(e, 'Checking the translation'); }
+      } }),
     tr && tr.check.error ? el('div', { style: 'margin-top:14px' }, el('div', { class: 'report' },
       el('div', { class: 'l bad', text: base(tr.file) + ': ' + tr.check.error })),
     el('button', { class: 'btn small', style: 'margin-top:10px', text: 'Forget this translation', onclick: () => {
       state.extras.translation = null; renderTranslation(); renderActions(); } })) :
     tr ? el('div', { style: 'margin-top:14px' }, el('div', { class: 'notice info', text: base(tr.file) + ': ' +
       (tr.check.ok || 0) + ' texts pass the checks' + (tr.check.rejected && tr.check.rejected.length ? ', ' +
-      tr.check.rejected.length + ' left out' : '') + '. Tick "Apply the translation" in Actions.' }),
+      tr.check.rejected.length + ' left out' : '') + '.' }),
     tr.check.rejected && tr.check.rejected.length ? el('div', { class: 'scroll', style: 'margin-top:10px;max-height:300px' },
       el('table', { class: 'grid' }, el('thead', {}, el('tr', {}, el('th', { text: 'Text' }), el('th', { text: 'Why' }))),
         el('tbody', {}, tr.check.rejected.slice(0, 500).map(x => el('tr', {}, el('td', { class: 'mono',
@@ -1370,15 +1643,17 @@ async function exportTexts(kind) {
     kind === 'html' ? 'translation_html' : 'translation');
   if (!p) return;
   try {
-    const r = await run('translation_export', { file: p }, { label: 'Exporting the texts...' });
+    const r = await run('translation_export', { file: p, only: pickedGroups() }, { label: 'Exporting the texts...' });
     // the module never raises: 'failed' comes with `error`, 'no_text' writes nothing
     if (r.state !== 'done') {
       failed({ message: r.error || (r.state === 'no_text' ? 'The map has no text to export.' :
         'The export did not finish.') }, 'Exporting the texts');
       return;
     }
-    toast('Exported ' + (r.entries || 0) + ' texts to ' + base(p) + '.', { actions: [[showLabel('Show'), () =>
-      api().open_folder(p)]] });
+    // a text the script compares goes out with every copy of it, ticked or not (the import needs them all)
+    toast('Exported ' + (r.entries || 0) + ' texts to ' + base(p) + '.' + (r.linked_added ? ' ' + r.linked_added +
+      ' of them are from files left out: the script compares the same text, so they must be translated together.' :
+      ''), { actions: [[showLabel('Show'), () => api().open_folder(p)]] });
   } catch (e) { failed(e, 'Exporting the texts'); }
 }
 
@@ -1438,21 +1713,18 @@ function renderPort() {
       platform ? el('p', { class: 'muted', text: platform }) : null,
       el('p', { class: 'muted', text: 'Big maps take minutes.' }),
       packagesBox(),
-      // 1.5.1: the memory hacks of patch 1.2x (JN maps): the Reforged equivalents always; the rest neutralized when ticked
-      el('label', { class: 'show-na', style: 'display:block;margin:6px 0 10px' },
-        el('input', { type: 'checkbox', checked: state.portMemory !== false, onchange: e => {
-          state.portMemory = e.target.checked; } }),
-        ' Neutralize memory hacks: what read the old game\'s memory (smart cast, control groups, ' +
-        'exit hooks) breaks.'),
-      // 1.6.2: the KK platform's encrypted textures (BLX1), and the disabled art of the imported icons
-      el('label', { class: 'show-na', style: 'display:block;margin:0 0 6px' },
-        el('input', { type: 'checkbox', checked: state.portTextures !== false, onchange: e => {
-          state.portTextures = e.target.checked; } }),
-        ' Decrypt the KK textures: the ones the platform keeps encrypted (BLX1), which the game cannot read.'),
-      el('label', { class: 'show-na', style: 'display:block;margin:0 0 10px' },
-        el('input', { type: 'checkbox', checked: state.portIcons !== false, onchange: e => {
-          state.portIcons = e.target.checked; } }),
-        ' Fix the green icons: make the disabled art of the imported icons (a dead hero, another unit\'s items).'),
+      el('ul', { class: 'steps', style: 'margin:6px 0 4px' },
+        // 1.5.1: the memory hacks of patch 1.2x (JN maps): the Reforged equivalents always; the rest neutralized
+        optionItem({ checked: state.portMemory !== false, title: 'Neutralize memory hacks',
+          detail: 'What read the old game\'s memory (smart cast, control groups, exit hooks) breaks.',
+          onchange: e => { state.portMemory = e.target.checked; } }),
+        // 1.6.2: the KK platform's encrypted textures (BLX1), and the disabled art of the imported icons
+        optionItem({ checked: state.portTextures !== false, title: 'Decrypt the KK textures',
+          detail: 'The ones the platform keeps encrypted (BLX1), which the game cannot read.',
+          onchange: e => { state.portTextures = e.target.checked; } }),
+        optionItem({ checked: state.portIcons !== false, title: 'Fix the green icons',
+          detail: 'Makes the disabled art of the imported icons (a dead hero, another unit\'s items).',
+          onchange: e => { state.portIcons = e.target.checked; } })),
       el('div', { class: 'foot' }, el('button', { class: 'btn primary needs-idle', text: 'Port to Reforged',
         disabled: !!state.running, onclick: runPort }))),
     r ? portResult(r) : null);
@@ -1541,7 +1813,8 @@ function wire() {
   $('#btnOpen2').onclick = pickMap;
   $('#btnReport').onclick = reportProblem;
   $('#btnCancel').onclick = () => { if (state.running) api().cancel(state.running); };
-  $$('#tabs button').forEach(b => { b.onclick = () => selectTab(b.dataset.tab); });
+  $$('#modes button').forEach(b => { b.onclick = () => selectMode(b.dataset.mode); });
+  $$('.subtabs button').forEach(b => { b.onclick = () => selectTab(b.dataset.tab); });
   const drop = $('#drop');
   document.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
   document.addEventListener('dragleave', e => { if (!e.relatedTarget) drop.classList.remove('over'); });
@@ -1554,6 +1827,7 @@ window.addEventListener('pywebviewready', async () => {
   state.hello = h;
   state.settings = h.settings || {};
   $('#version').textContent = 'v' + h.version;
+  $('#where').textContent = web() ? ' · runs in your browser' : ' · runs on your computer';
   showRecent();
   if (h.map) openMap(h.map);
   api().check_update();

@@ -3,6 +3,7 @@ import os
 import re
 
 from doctor.mpq import mpqread
+from doctor.data import object_names
 from doctor.data import objbin
 from doctor.data import slk
 
@@ -30,8 +31,18 @@ CANONICAL_LOWER = set(name.lower() for name in CANONICAL)
 RX_TABLE = re.compile(r'^(units|doodads)\\.+\.(slk|txt)$', re.I)
 KIND_KEYS = (('abilitybuff', 'buff'), ('ability', 'ability'), ('destructable', 'destructable'), ('upgrade', 'upgrade'),
                ('buff', 'buff'), ('item', 'item'), ('unit', 'unit'), ('doodad', 'doodad'))
-BREAKS = (('\n', '\\x0a'), ('\r', '\\x0d'), ('\x0b', '\\x0b'), ('\x0c', '\\x0c'), ('\x1c', '\\x1c'), ('\x1d', '\\x1d'),
-          ('\x1e', '\\x1e'), ('\u2028', '\\u2028'), ('\u2029', '\\u2029'))
+BREAKS = (
+    ('\t', '\\x09'),
+    ('\n', '\\x0a'),
+    ('\r', '\\x0d'),
+    ('\x0b', '\\x0b'),
+    ('\x0c', '\\x0c'),
+    ('\x1c', '\\x1c'),
+    ('\x1d', '\\x1d'),
+    ('\x1e', '\\x1e'),
+    ('\u2028', '\\u2028'),
+    ('\u2029', '\\u2029'),
+)
 
 
 def _nothing(*_args):
@@ -59,6 +70,11 @@ def _line(ident):
         if c in ident:
             ident = ident.replace(c, escape)
     return ident
+
+
+def _row(kind, ident, names):
+    name = (names or {}).get(ident)
+    return '%s\t%s%s\n' % (kind, _line(ident), '\t' + _line(name) if name else '')
 
 
 def _kind_of_name(name):
@@ -137,9 +153,28 @@ def _table_ids(data, name):
     return _four_byte_ids(list(slk.parse_ini_bytes(data)))
 
 
-def extract(path, progress=None):
+def _names(a):
+    def read(name):
+        data = _read(a, name)
+        return data if isinstance(data, bytes) else None
+    try:
+        table = object_names.names(read)
+    except Exception:
+        return {}
+    out = {}
+    for ident, name in table.items():
+        try:
+            b = ident.encode('latin-1')
+        except UnicodeEncodeError:
+            b = _bytes(ident)
+        if len(b) == 4 and name:
+            out.setdefault(_text(b), name)
+    return out
+
+
+def extract(path, progress=None, names=True):
     p = progress or _nothing
-    r = {'kinds': [], 'total': 0, 'text': '', 'duplicates': [], 'note': '', 'error': None}
+    r = {'kinds': [], 'total': 0, 'names': {}, 'text': '', 'duplicates': [], 'note': '', 'error': None}
     p('read_map')
     try:
         a = mpqread.Archive(path)
@@ -201,37 +236,19 @@ def extract(path, progress=None):
                 order.append(ident)
                 sources_of_id[ident] = [name]
     r['kinds'] = kinds
+    if names and order:
+        p('name_list')
+        table = _names(a)
+        r['names'] = dict((ident, table[ident]) for ident in order if ident in table)
     r['duplicates'] = [{'id': ident, 'kind': kind_of_id[ident], 'sources': sources_of_id[ident]}
                        for ident in order if len(sources_of_id[ident]) > 1]
-    r['text'] = ''.join('%s\t%s\n' % (kind_of_id[ident], _line(ident)) for ident in order)
+    r['text'] = ''.join(_row(kind_of_id[ident], ident, r['names']) for ident in order)
     r['total'] = len(order)
-    breaks = sum(1 for ident in order if any(c in ident for c, _e in BREAKS))
-    parts = [
-        'Read only from the map itself: the object files (war3map.w3u/w3t/w3a/w3b/w3d/w3h/w3q and the war3mapSkin '
-        'twins) and the Units\\*/Doodads\\* .slk/.txt tables the map carries. The tables of the installed game are not '
-        'read, so an id that exists only in the game is not listed.',
-        'Rawcodes the script builds at run time (a JASS/Lua \'xxxx\' literal, the sum of two rawcodes, a number) are '
-        'not read: this is the bytes of the map files, not the script.',
-        'A table row counts as an id only when its name is exactly 4 bytes; the zero-filled id slot is not an id.',
-        '\'ansii\' counts the ids of a source with a byte outside printable ASCII (0x20..0x7E): the PG family ships '
-        'ids of control bytes and every one of them is kept byte for byte (the text is utf-8/surrogateescape, so '
-        'ident.encode(\'utf-8\', \'surrogateescape\') is the id of the file).',
-        'An id in more than one source is listed once, in the first source that has it, and every source of it is in '
-        'duplicates.',
-        'The kind of a Units\\*.txt profile comes from the file name: Units\\CommonAbilityStrings.txt mixes ability '
-        'and buff ids under the ability kind, and Units\\AbilityBuffData.slk is the table that declares the buffs.',
-    ]
+    parts = ['Read from the object files and tables inside the map; ids that exist only in the game are not listed.']
     if zeros:
-        parts.append('%d id slot(s) were zero-filled.' % zeros)
-    if not_four:
-        parts.append('%d row(s) of a table were not a 4-byte name and stayed out.' % not_four)
-    if ignored:
-        parts.append('Not an object table, stayed out: %s.' % ', '.join(_visible(n) for n in ignored))
+        parts.append('%d empty id slot(s) skipped.' % zeros)
     if unreadable:
         parts.append('Could not be read: %s.' % ', '.join(_visible(n) for n in unreadable))
-    if breaks:
-        parts.append('%d id(s) carry a byte Python reads as a line break and are written as \\xNN in text, so one line '
-                      'holds one id; ids and the json keep the byte as it is.' % breaks)
     r['note'] = ' '.join(parts)
     return r
 
@@ -256,5 +273,6 @@ def report(r, path):
     print('ids with a byte outside printable ASCII: %d' % len(outside))
     if outside:
         print('examples (escaped): %s' % ', '.join(_visible(ident) for ident in outside[:8]))
+    print('ids with a name: %d' % len(r.get('names') or {}))
     print('ids in more than one source: %d' % len(r['duplicates']))
     print('note: %s' % r['note'])

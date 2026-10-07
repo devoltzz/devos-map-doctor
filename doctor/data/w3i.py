@@ -53,7 +53,24 @@ class W(object):
 def parse(data):
     r = R(data)
     m = _header(r)
-    _sections(r, m, m['version'])
+    first_pos = r.p
+    v = m['version']
+    options = (True, False) if v >= 37 else (False,)
+    for hud in options:
+        r.p = first_pos
+        m['player_hud'] = hud
+        try:
+            _sections(r, m, v)
+        except (struct.error, ValueError, IndexError):
+            continue
+        plausible = all(0 <= p['type'] <= 4 and 0 <= p['race'] <= 4 and 0 <= p['fixed_start'] <= 3
+                        for p in m['players'])
+        if r.p == len(data) and plausible:
+            m['_tail'] = b''
+            return m
+    r.p = first_pos
+    m['player_hud'] = v >= 39
+    _sections(r, m, v)
     m['_tail'] = data[r.p:]
     return m
 
@@ -77,6 +94,8 @@ def _header(r):
     m['tileset'] = r.raw(1)
     if v >= 25:
         m['loading_bg'] = r.i32()
+        if v >= 37:
+            m['race_crest'] = r.i32()
         m['loading_model'] = r.s()
     else:
         m['loading_bg'] = r.i32()
@@ -97,6 +116,10 @@ def _header(r):
         m['fog_end'] = r.f32()
         m['fog_density'] = r.f32()
         m['fog_color'] = r.raw(4)
+        if v >= 36:
+            m['fog_heights'] = [r.f32() for _ in range(4)]
+        if v >= 39:
+            m['fog_extra'] = [r.f32(), r.i32()]
         m['weather'] = r.raw(4)
         m['sound_env'] = r.s()
         m['light_env'] = r.raw(1)
@@ -108,10 +131,17 @@ def _header(r):
         m['game_data_version'] = r.i32()
     if v >= 33:
         m['v33_extra'] = [r.i32(), r.i32(), r.i32()]
+    if v >= 34:
+        m['hd_water'] = [r.i32() for _ in range(7)] + [r.raw(4)]
+    if v >= 35:
+        m['hd_water_envmap'] = r.i32()
+    if v >= 38:
+        m['minimap_alpha_color'] = r.raw(4)
     return m
 
 
 def _sections(r, m, v):
+    hud = m.get('player_hud')
     n = r.i32()
     players = []
     for _ in range(n):
@@ -119,6 +149,8 @@ def _sections(r, m, v):
         p['number'] = r.i32()
         p['type'] = r.i32()
         p['race'] = r.i32()
+        if hud:
+            p['hud'] = r.i32()
         p['fixed_start'] = r.i32()
         p['name'] = r.s()
         p['x'] = r.f32()
@@ -316,7 +348,10 @@ def _tolerant_sections(r, m, v, type0_short):
             players.append(_hke_player(r, v))
             deviations.append('player_type0_short')
             continue
-        p = {'number': r.i32(), 'type': r.i32(), 'race': r.i32(), 'fixed_start': r.i32(), 'name': r.s()}
+        p = {'number': r.i32(), 'type': r.i32(), 'race': r.i32()}
+        if m.get('player_hud'):
+            p['hud'] = r.i32()
+        p['fixed_start'], p['name'] = r.i32(), r.s()
         if not (0 <= p['number'] < 28 and p['type'] in PLAYER_TYPES and 0 <= p['race'] <= 5 and
                 0 <= p['fixed_start'] <= 15):
             raise ValueError('implausible player: %r' % p)
@@ -363,10 +398,12 @@ def parse_tolerant(data):
     if len(data) < 4:
         raise ValueError('w3i too short: %d byte(s), not even the version fits' % len(data))
     best = None
-    for type0_short in (False, True):
+    huds = (False, True) if struct.unpack_from('<i', data, 0)[0] >= 37 else (False,)
+    for type0_short, hud in [(t, h) for t in (False, True) for h in huds]:
         r = R(data)
         try:
             m = _header(r)
+            m['player_hud'] = hud
             deviations = _tolerant_sections(r, m, m['version'], type0_short)
         except (ValueError, IndexError, TypeError, struct.error, _Short):
             continue
@@ -423,6 +460,8 @@ def write(m, version=None):
     w.i32(m['flags'])
     w.raw(m['tileset'])
     w.i32(m['loading_bg'])
+    if v >= 37:
+        w.i32(m.get('race_crest', 0))
     if v >= 25:
         w.s(m.get('loading_model', b''))
     w.s(m['loading_text'])
@@ -442,6 +481,13 @@ def write(m, version=None):
         w.f32(m.get('fog_end', 0.0))
         w.f32(m.get('fog_density', 0.0))
         w.raw(m.get('fog_color', b'\0\0\0\0'))
+        if v >= 36:
+            for x in m.get('fog_heights', [0.0, 0.0, 0.0, 0.0]):
+                w.f32(x)
+        if v >= 39:
+            fx = m.get('fog_extra', [1.0, 0])
+            w.f32(fx[0])
+            w.i32(fx[1])
         w.raw(m.get('weather', b'\0\0\0\0'))
         w.s(m.get('sound_env', b''))
         w.raw(m.get('light_env', b'\0'))
@@ -454,11 +500,23 @@ def write(m, version=None):
     if v >= 33:
         for x in m.get('v33_extra', [0, 0, 0]):
             w.i32(x)
+    if v >= 34:
+        hd = m.get('hd_water') or [0] * 7 + [b'\xff\xff\xff\xff']
+        for x in hd[:7]:
+            w.i32(x)
+        w.raw(hd[7])
+    if v >= 35:
+        w.i32(m.get('hd_water_envmap', 0))
+    if v >= 38:
+        w.raw(m.get('minimap_alpha_color', b'\0\0\0\xff'))
+    hud = m.get('player_hud', v >= 39) if v >= 37 else False
     w.i32(len(m['players']))
     for p in m['players']:
         w.i32(p['number'])
         w.i32(p['type'])
         w.i32(p['race'])
+        if hud:
+            w.i32(p.get('hud', 0))
         w.i32(p['fixed_start'])
         w.s(p['name'])
         w.f32(p['x'])

@@ -185,7 +185,7 @@ def read_camera(r, v, new_ones, dof=True):
         cpath['dof'] = [r.f32() for _ in range(3)]
     cpath['fname'] = r.s()
     if dof and v >= 3:
-        r.i32()
+        cpath['kind'] = r.i32()
     return cpath
 
 
@@ -224,7 +224,7 @@ def write_w3c(cameras, version_num=0, new_ones=False, dof=False):
         fname = c.get('fname') or b''
         out.append((fname.encode('utf-8', 'replace') if isinstance(fname, str) else fname) + b'\x00')
         if dof and version_num >= 3:
-            out.append(struct.pack('<i', 0))
+            out.append(struct.pack('<i', int(c.get('kind', 0))))
     return b''.join(out)
 
 
@@ -1075,9 +1075,7 @@ def _from_script(fname, script, x, declared=None, context=None):
             return data_bytes, info
         try:
             data_bytes = (
-                write(item_entries, new_ones=_camera_with_local(context))
-                if fname == 'war3map.w3c'
-                else write(item_entries)
+                write(item_entries, **_camera_layout(context)) if fname == 'war3map.w3c' else write(item_entries)
             )
         except _DOES_NOT_FIT:
             return None
@@ -1086,6 +1084,28 @@ def _from_script(fname, script, x, declared=None, context=None):
                             'where': where, 'singular': singular, 'plural': plural,
                             'report': ('%s: %d %s from `%s` in the script' % (fname, len(item_entries), plural, where))}
     return None
+
+
+EDITOR_W3C_V3 = 7000
+
+
+def _camera_layout(context):
+    current = context.get('current')
+    if current:
+        try:
+            d = read_w3c(current)
+            if d and d.get('regs') and d.get('layout'):
+                return {
+                    'version_num': d.get('version_num') or 0,
+                    'new_ones': bool(d['layout'][0]),
+                    'dof': bool(d['layout'][1]),
+                }
+        except Exception:
+            pass
+    editor = context.get('editor_w3i')
+    if editor is not None and editor >= EDITOR_W3C_V3:
+        return {'version_num': 3, 'new_ones': True, 'dof': True}
+    return {'version_num': 0, 'new_ones': _camera_with_local(context), 'dof': False}
 
 
 def _camera_with_local(context):
@@ -1325,10 +1345,13 @@ CAMERA_FIELDS = {'CAMERA_FIELD_ZOFFSET': 'z', 'CAMERA_FIELD_ROTATION': 'rotation
                  'CAMERA_FIELD_ROLL': 'roll', 'CAMERA_FIELD_FIELD_OF_VIEW': 'fov',
                  'CAMERA_FIELD_FARZ': 'far', 'CAMERA_FIELD_NEARZ': 'near',
                  'CAMERA_FIELD_LOCAL_PITCH': 'local0', 'CAMERA_FIELD_LOCAL_YAW': 'local1',
-                 'CAMERA_FIELD_LOCAL_ROLL': 'local2'}
+                 'CAMERA_FIELD_LOCAL_ROLL': 'local2',
+                 'CAMERA_FIELD_DEPTH_OF_FIELD_DISTANCE': 'dof0', 'CAMERA_FIELD_DEPTH_OF_FIELD_SCALE': 'dof1',
+                 'CAMERA_FIELD_ZABSOLUTE': 'dof2'}
 RX_CAM = re.compile(r'(gg_cam_[A-Za-z0-9_]+)\s*=\s*CreateCameraSetup\(')
 RX_CAM_FIELD = re.compile(r'CameraSetupSetField\(\s*(gg_cam_[A-Za-z0-9_]+)\s*,\s*(CAMERA_FIELD_[A-Z_]+)\s*,\s*([^,]+),')
 RX_CAM_POS = re.compile(r'CameraSetupSetDestPosition\(\s*(gg_cam_[A-Za-z0-9_]+)\s*,\s*([^,]+),\s*([^,]+),')
+RX_CAM_TYPE = re.compile(r'BlzCameraSetupSetCameraType\(\s*(\w+)\s*,\s*([^)]+?)\s*\)')
 
 
 RX_ANY_CAM = re.compile(r'set\s+(\w+)\s*=\s*CreateCameraSetup\(')
@@ -1370,8 +1393,17 @@ def cameras_from_script(body_text):
             continue
         if field_id.startswith('local'):
             c.setdefault('local', [0.0, 0.0, 0.0])[int(field_id[-1])] = v
+        elif field_id.startswith('dof'):
+            c.setdefault('dof', [0.0, 0.0, 0.0])[int(field_id[-1])] = v
         else:
             c[field_id] = v
+    for m in RX_CAM_TYPE.finditer(body_text):
+        c = hits.get(m.group(1))
+        if c:
+            try:
+                c['kind'] = int(_num(m.group(2)))
+            except ValueError:
+                pass
     for m in rx_pos.finditer(body_text):
         c = hits.get(m.group(1))
         if not c:

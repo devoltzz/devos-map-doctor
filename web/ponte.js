@@ -17,6 +17,7 @@
   const picked = new Map();      // the worker path of each file the user picked -> File
   const where = new Map();       // the worker path of each file a job wrote -> worker key
   const jobs = new Map();        // job id -> {key, outs, silent?: {resolve, progress}}
+  let newVersion = false;        // a new version of the site took over (see the service worker below)
   const reads = new Map();       // read id -> {resolve, reject}
   let next = 0;
 
@@ -276,8 +277,25 @@
     }
   }
 
+  // 1.6.3: a new version takes over by itself. The service worker answers from its cache, so the page that opened came
+  // from the old one; when the new worker (skipWaiting + clients.claim in sw.js) takes control, the page reloads to be
+  // the new version too -- by itself only on the home screen with nothing running (what the user sees right after
+  // opening the site); with a map open or a job running, a notice with a Reload button, so no result on screen is lost.
+  // Not on the first visit: there the page is already the newest. `update()` checks for a new sw.js as the page opens.
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
-    navigator.serviceWorker.register('sw.js').catch(() => null);
+    const hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || newVersion) return;
+      newVersion = true;
+      const home = document.getElementById('welcome');
+      if (!jobs.size && (!home || !home.classList.contains('hidden'))) {
+        location.reload();
+        return;
+      }
+      say('A new version of the Doctor is ready: reload the page to use it.',
+        { sticky: true, actions: [['Reload', () => location.reload()]] });
+    });
+    navigator.serviceWorker.register('sw.js').then(r => r.update()).catch(() => null);
   }
   worker('main');
   window.addEventListener('DOMContentLoaded', () => {

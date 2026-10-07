@@ -514,9 +514,15 @@ def _cheatpack_inject(job, progress, emit=lambda event: None):
 
 def _translation_export(job, progress):
     from doctor.translation import translation_io
+    only = job.get('only')
     if job['file'].lower().endswith(('.html', '.htm')):
-        return translation_io.export_html(job['map'], job['file'], progress)
-    return translation_io.export(job['map'], job['file'], progress)
+        return translation_io.export_html(job['map'], job['file'], progress, only)
+    return translation_io.export(job['map'], job['file'], progress, only)
+
+
+def _translation_groups(job, progress):
+    from doctor.translation import translation_io
+    return translation_io.groups(job['map'], progress)
 
 
 def _translation_check(job, progress):
@@ -533,7 +539,8 @@ TOOLS = {'card': _card, 'card_image': _card_image, 'gradient': _gradient, 'refor
          'preview': _preview, 'extract': _extract, 'script': _script, 'script_checks': _script_checks,
          'triggers': _triggers, 'cheatpacks': _cheatpacks, 'cheatpack_inject': _cheatpack_inject,
          'rawcodes': _rawcodes,
-         'translation_export': _translation_export, 'translation_check': _translation_check, 'compare': _compare}
+         'translation_export': _translation_export, 'translation_groups': _translation_groups,
+         'translation_check': _translation_check, 'compare': _compare}
 
 
 def worker_main(window=None):

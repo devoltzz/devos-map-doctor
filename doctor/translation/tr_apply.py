@@ -93,26 +93,26 @@ def classifica_occurrence(ln, pos, lit, caution_as_screen=False):
     before = ln[max(0, pos - 400):pos]
     after_diag = ln[pos + len(lit) + 2:pos + len(lit) + 13]
     if re.search(r'[=!]=\s*$', before) or after_diag.lstrip().startswith(('==', '!=')):
-        return 'prudencia:comparacao'
+        return 'caution:comparison'
     fn, idx = call_envolvente(before)
     if fn is None:
         return 'screen:no call (assignment/list)'
     if fn == 'StringHash':
-        return 'key:StringHash'
+        return 'hash_key:StringHash'
     if fn in FUNCTIONS_CAUTION:
-        return 'prudencia:' + fn
+        return 'caution:' + fn
     if fn in ARGUMENTS_KEY:
         keys = ARGUMENTS_KEY[fn]
         if keys is ALL_OS_ARGUMENTS or idx in keys:
-            return 'key:' + fn
-        return 'tela:' + fn
+            return 'hash_key:' + fn
+        return 'screen:' + fn
     for p in PREFIXES_KEY:
         if fn.startswith(p):
-            return 'key:' + fn
+            return 'hash_key:' + fn
     for p, idxs in PREFIXES_KEY_ARGS.items():
         if fn.startswith(p) and idx in idxs:
-            return 'key:' + fn
-    return 'tela:' + fn
+            return 'hash_key:' + fn
+    return 'screen:' + fn
 
 
 def apply_by_occurrence(body_text, by_text, caution_as_screen=False, all_entries=None):
@@ -134,7 +134,7 @@ def apply_by_occurrence_lines(line_list, by_text, caution_as_screen=False, all_e
         if inside and inside[line_no]:
             for pos, lit in lits:
                 if lit in by_text:
-                    cats['dado:funcao protegida'] += 1
+                    cats['datum:protected function'] += 1
                     detail.setdefault(lit, Counter())['datum'] += 1
             continue
         out, last, changed = [], 0, False
@@ -145,7 +145,7 @@ def apply_by_occurrence_lines(line_list, by_text, caution_as_screen=False, all_e
                 en = by_text.get(key2)
             if en is None:
                 continue
-            cat = 'todas:decisao explicita' if lit in all_entries else \
+            cat = 'all_entries:explicit decision' if lit in all_entries else \
                 classifica_occurrence(line, pos, lit, caution_as_screen)
             cluster = cat.split(':', 1)[0]
             cats[cat] += 1

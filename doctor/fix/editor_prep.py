@@ -26,7 +26,7 @@ EDITOR_ESSENTIALS = ('war3map.wtg', 'war3map.wct', 'war3map.imp')
 ENGINE_TEXTURES = ('Textures\\white.blp',)
 
 EXTRA_JASSHELPER = b'[MapExtraInfo]\nEnableJassHelper=true\n\n'
-KNOWN_W3I = 33
+KNOWN_W3I = 39
 
 
 def enable_jasshelper(extra):

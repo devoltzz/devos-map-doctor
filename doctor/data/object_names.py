@@ -7,7 +7,7 @@ from doctor.data import slk_patch
 
 
 FILES = (('w3u', 'unam', False), ('w3t', 'unam', False), ('w3a', 'anam', True), ('w3q', 'gnam', True),
-         ('w3h', 'fnam', False), ('w3b', 'bnam', False))
+         ('w3h', 'fnam', False), ('w3b', 'bnam', False), ('w3d', 'dnam', True))
 RX_GAME_STRINGS = re.compile(r'_locales\\enus\.w3mod:units\\\w+strings\.txt$')
 RX_WTS = re.compile(rb'^(?:\xef\xbb\xbf)?STRING[ \t]+(\d+)[^\n]*\n(?:[ \t]*(?://[^\n]*)?\r?\n)*[ \t]*\{[^\n]*\n'
                     rb'(.*?)\r?\n?^\}', re.S | re.M)
@@ -26,7 +26,7 @@ def game_names():
                 for key in sorted(casc.file_set):
                     if RX_GAME_STRINGS.search(key):
                         for section, fields in slk.parse_ini_bytes(casc.read_data(casc.file_set[key][0])).items():
-                            name = fields.get('Name') or fields.get('name')
+                            name = _name_field(fields)
                             if name and len(section) == 4:
                                 _GAME.setdefault(section, name.split(',')[0].strip('"'))
             finally:
@@ -34,6 +34,13 @@ def game_names():
         except Exception:
             _GAME = {}
     return _GAME
+
+
+def _name_field(fields):
+    for key in ('Name', 'name', 'Bufftip', 'EditorName'):
+        if fields.get(key):
+            return fields[key]
+    return None
 
 
 def strings(wts):
@@ -55,7 +62,7 @@ def profile_names(read, texts):
         except Exception:
             continue
         for section, fields in sections.items():
-            name = fields.get('Name') or fields.get('name')
+            name = _name_field(fields)
             if name and len(section) == 4:
                 value = name.split(',')[0].strip('"')
                 m = re.match(r'TRIGSTR_(\d+)$', value)

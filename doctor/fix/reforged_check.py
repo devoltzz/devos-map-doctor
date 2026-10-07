@@ -338,6 +338,12 @@ def _script_items(src, diag, progress):
         else:
             items.append(_item('script_syntax', 'blocker', 'The %s script does not compile (%s).' % (
                 'JASS' if lang == 'jass' else 'Lua', e), 'none'))
+    if lang == 'jass':
+        from doctor.script import ydwe_lua
+        lua = ydwe_lua.detect(text, lambda name: unprotect._read(a, name))
+        if lua:
+            items.append(_item('ydwe_lua_engine', 'blocker' if lua['all_lua'] else 'warning', ydwe_lua.message(lua),
+                               'none', entries=lua['entries'], modules=[m['name'] for m in lua['modules']]))
     if tree is not None and lang == 'jass':
         p('Checking the natives')
         own = unprotect._read(a, 'scripts\\blizzard.j')
@@ -411,7 +417,21 @@ def check(path, progress=None, diag=None):
             code, sev, text = _SLK[x['code']]
             items.append(_item(code, sev, text, 'doctor', count=x.get('n'), files=x.get('file_set')))
     if diag.get('kind') == 'campaign_info':
-        items.append(_item('campaign', 'info', 'This is a campaign: check each of its maps on its own.', 'none'))
+        from doctor.data import campaign_info
+        try:
+            camp = campaign_info.read(path) or {}
+        except Exception:
+            camp = {}
+        maps = [m for m in camp.get('maps') or [] if m.get('title') or m.get('file')]
+        text = 'This is a campaign: check each of its maps on its own.'
+        if camp.get('name') and not camp.get('error'):
+            text = 'This is the campaign "%s"%s, with %d map%s%s: check each of its maps on its own.' % (
+                camp['name'], ' by %s' % camp['author'] if camp.get('author') else '', len(maps),
+                '' if len(maps) == 1 else 's',
+                ' (%s%s)' % (', '.join(m['title'] or m['file'] for m in maps[:6]), ', ...' if len(maps) > 6 else '')
+                if maps else '')
+        items.append(_item('campaign', 'info', text, 'none', name=camp.get('name'), author=camp.get('author'),
+                           maps=maps[:60]))
         return _finish(res, True)
     unknown = False
     src = _source(path, diag, codes)

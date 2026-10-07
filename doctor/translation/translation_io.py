@@ -399,7 +399,7 @@ def _collect_script(mt, a, read):
         groups = collections.Counter()
         for cat, n in c.items():
             groups[cat.split(':', 1)[0]] += n
-        calls = [cat.split(':', 1)[1] for cat in c if cat.startswith('tela:')]
+        calls = [cat.split(':', 1)[1] for cat in c if cat.startswith('screen:')]
         if 'localizada' in e['uses']:
             reason = 'a game string key'
         elif groups['caution'] or groups['datum']:
@@ -514,6 +514,64 @@ def _error(e):
     return '%s: %s' % (type(e).__name__, e) if str(e) else type(e).__name__
 
 
+OBJECT_LABEL = {'w3u': 'Units', 'w3t': 'Items', 'w3a': 'Abilities', 'w3h': 'Buffs', 'w3q': 'Upgrades',
+                'w3b': 'Destructables'}
+GROUP_ORDER = {'w3i': 0, 'wts': 1, 'script': 2, 'object': 3, 'profile': 4}
+
+
+def group_label(key, source):
+    low = key.lower()
+    ext = low.rsplit('.', 1)[-1]
+    if source == 'w3i':
+        return 'Map info'
+    if source == 'wts':
+        return 'Trigger strings'
+    if source == 'script':
+        return 'Script'
+    if source == 'object' and ext in OBJECT_LABEL:
+        return OBJECT_LABEL[ext] + (' (skin)' if 'skin' in low else '')
+    if os.path.basename(low.replace('\\', '/')) in ('war3mapskin.txt', 'war3mapmisc.txt'):
+        return 'Interface texts'
+    return 'Object profile'
+
+
+def _groups_of(entries):
+    out, order = collections.OrderedDict(), {}
+    kinds = list(OBJECT_LABEL)
+    for e in entries:
+        g = out.get(e['file'])
+        if g is None:
+            g = out[e['file']] = {'key': e['file'], 'label': group_label(e['file'], e['source']), 'count': 0}
+            ext = e['file'].lower().rsplit('.', 1)[-1]
+            order[e['file']] = (GROUP_ORDER[e['source']], kinds.index(ext) if ext in kinds else len(kinds),
+                                'skin' in e['file'].lower(), e['file'].lower())
+        g['count'] += 1
+    return sorted(out.values(), key=lambda g: order[g['key']])
+
+
+def _only(entries, only):
+    keep = set(only)
+    picked = [e for e in entries if e['file'] in keep]
+    linked = set(e['text'] for e in picked if e.get('_group'))
+    ids = set(id(e) for e in picked)
+    extra = set(id(e) for e in entries if id(e) not in ids and e.get('_group') and e['text'] in linked)
+    return [e for e in entries if id(e) in ids or id(e) in extra], len(extra)
+
+
+def groups(path, progress=None):
+    p = progress or _nothing
+    rep = {'state': None, 'error': None, 'groups': [], 'entries': 0}
+    try:
+        p('reading map')
+        mt = collect(_open(path), p)
+    except (Exception, SystemExit) as e:
+        rep.update(state='failed', error='cannot read the map (%s)' % _error(e))
+        return rep
+    rep.update(groups=_groups_of(mt.entries), entries=len(mt.entries),
+               state='done' if mt.entries else 'no_text')
+    return rep
+
+
 def public(e):
     out = collections.OrderedDict((k, e[k]) for k in ('id', 'source', 'file', 'context', 'text'))
     out['context'] = _encode(out['context']).decode('utf-8', 'replace')
@@ -524,10 +582,10 @@ def public(e):
     return out
 
 
-def export(path, out_file, progress=None):
+def export(path, out_file, progress=None, only=None):
     p = progress or _nothing
     rep = {'state': None, 'error': None, 'file': None, 'map_name': None, 'script': None, 'entries': 0,
-           'by_source': {}, 'skipped': {}, 'linked': 0}
+           'by_source': {}, 'skipped': {}, 'linked': 0, 'linked_added': 0}
     try:
         p('reading map')
         a = _open(path)
@@ -535,6 +593,8 @@ def export(path, out_file, progress=None):
     except (Exception, SystemExit) as e:
         rep.update(state='failed', error='cannot read the map (%s)' % _error(e))
         return rep
+    if only is not None:
+        mt.entries, rep['linked_added'] = _only(mt.entries, only)
     rep.update(map_name=mt.map_name, script=mt.script, skipped=dict(sorted(mt.skipped.items())),
                entries=len(mt.entries), linked=sum(1 for e in mt.entries if e.get('_group')),
                by_source=dict(collections.Counter(e['source'] for e in mt.entries)))
@@ -581,10 +641,10 @@ def _html_text(s):
     return ''.join(out)
 
 
-def export_html(path, out_file, progress=None):
+def export_html(path, out_file, progress=None, only=None):
     import html
     tmp = out_file + '.json.part'
-    rep = export(path, tmp, progress)
+    rep = export(path, tmp, progress, only)
     if rep['state'] != 'done':
         return rep
     try:

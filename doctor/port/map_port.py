@@ -104,6 +104,23 @@ def game_reference(root, log):
     return ref
 
 
+def lua_engine_check(map_path):
+    from doctor.script import ydwe_lua
+    a = mpqread.Archive(map_path)
+
+    def read_data(n):
+        try:
+            return a.read(n) if a.find(n) is not None else None
+        except Exception:
+            return None
+    script = read_data('war3map.j') or read_data('scripts\\war3map.j') or b''
+    finding = ydwe_lua.detect(script.decode('latin-1'), read_data)
+    if finding and finding['all_lua']:
+        raise Aborts(ydwe_lua.message(finding))
+    if finding:
+        WARNINGS.append(ydwe_lua.message(finding))
+
+
 def names_and_extraction(map_path, extract, log):
     from doctor.fix import unprotect
     from doctor.port import new_port
@@ -576,6 +593,8 @@ def report_text(details):
         if st:
             L.append('A stub compiles and returns the neutral value (0, false, "", null): implement the native, or '
                      'change what depends on it, if that part of the map matters.')
+    if not details.get('output'):
+        return '\n'.join(L) + '\n'
     L += ['', 'Check in game', '-' * 13,
           '- the save and the load (the platform save became a local save in CustomMapData); two players, to see that '
           'loading does not desync',
@@ -690,6 +709,7 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
             log('0. SProtect undone')
         else:
             original = unprotected_result(map_path, root, log)
+        lua_engine_check(original)
         a, name_list = names_and_extraction(original, extract, log)
         raw_data, forma = map_script(a, extract, os.path.join(root, 'scripts'), log)
         details['forma'] = forma

@@ -8,73 +8,116 @@
 </head>
 <body>
 <div id="app">
-  <header class="top">
-    <div class="brand"><h1>Devo's Map Doctor</h1><span class="ver" id="version"></span></div>
-    <div class="grow"></div>
-    <span id="update" class="hidden"></span>
-    <button class="btn hidden" id="btnOpen">Open another map...</button>
-    <button class="btn ghost" id="btnReport" title="Open a GitHub issue with this report">Report a problem</button>
-  </header>
+  <!-- 1.6.3: the modes on the left; each one is a part of the work, never a mix of fixing and editing -->
+  <aside class="side">
+    <div class="brand">
+      <h1>DEVO'S MAP DOCTOR</h1>
+      <div class="ver"><span id="version"></span><span id="where"></span></div>
+    </div>
+    <nav class="modes" id="modes" aria-label="Modes">
+      <button data-mode="fix"><span class="code">01</span><span class="name">FIX</span>
+        <span class="hint">unprotect and fix</span></button>
+      <button data-mode="editor"><span class="code">02</span><span class="name">EDITOR</span>
+        <span class="hint">open in World Editor</span></button>
+      <button data-mode="port" data-tab="port"><span class="code">03</span><span class="name">PORT</span>
+        <span class="hint">KK and M16 maps</span></button>
+      <button data-mode="cheatpacks" data-tab="cheatpacks"><span class="code">04</span><span class="name">CHEATPACKS</span>
+        <span class="hint">add cheats</span></button>
+      <button data-mode="translation" data-tab="translation"><span class="code">05</span><span class="name">TRANSLATION</span>
+        <span class="hint">export and import</span></button>
+      <button data-mode="inspect"><span class="code">06</span><span class="name">INSPECT</span>
+        <span class="hint">files, script and compare</span></button>
+    </nav>
+    <div class="cat" id="cat" aria-hidden="true">
+      <div class="zz"><span>z</span><span>z</span><span>Z</span></div>
+<pre class="asleep">  /\_/\
+ ( -.- )_______
+ (  u u        )~
+  `-----------'</pre>
+<pre class="awake">  /\_/\
+ ( o.o )_______
+ (  u u        )~~
+  `-----------'</pre>
+      <div class="catline" id="catline">idle</div>
+    </div>
+  </aside>
 
-  <main id="main">
-    <!-- no map yet -->
-    <section id="welcome">
-      <div class="drop" id="drop">
-        <h2>Drop a Warcraft III map here</h2>
-        <p>Or open one: .w3x, .w3m and .w3n. The map is checked as soon as it opens.</p>
-        <button class="btn primary" id="btnOpen2">Open map...</button>
-        <p class="faint" style="margin-top:22px">Your map is never changed: results are saved as new files next to it.</p>
-      </div>
-      <div class="recent hidden" id="recent"><h3 class="muted">Recent maps</h3><ul id="recentList"></ul></div>
-    </section>
+  <div class="column">
+    <header class="top">
+      <span id="update" class="hidden"></span>
+      <div class="grow"></div>
+      <button class="btn hidden" id="btnOpen">Open another map...</button>
+      <button class="btn ghost" id="btnReport" title="Open a GitHub issue with this report">Report a problem</button>
+    </header>
 
-    <!-- a map is open -->
-    <section id="mapview" class="hidden">
-      <div class="card maphead">
-        <canvas class="thumb" id="thumb" width="96" height="96"></canvas>
-        <div class="grow">
-          <div class="title" id="mapTitle"></div>
-          <div class="path" id="mapPath"></div>
-          <div class="badges" id="badges"></div>
-          <details class="diag" id="diagBox"><summary>Diagnosis</summary><div class="report" id="diagLines"></div></details>
+    <main id="main">
+      <!-- no map yet -->
+      <section id="welcome">
+        <div class="drop" id="drop">
+          <div class="code">$ doctor open <span class="cursor"></span></div>
+          <h2>Drop a Warcraft III map here</h2>
+          <p>Or open one: .w3x, .w3m and .w3n. The map is checked as soon as it opens.</p>
+          <button class="btn primary" id="btnOpen2">Open map...</button>
+          <p class="faint" style="margin-top:22px">Your map is never changed: results are saved as new files next to it.</p>
         </div>
-      </div>
+        <div class="recent hidden" id="recent"><h3 class="muted">Recent maps</h3><ul id="recentList"></ul></div>
+      </section>
 
-      <div class="card hidden" id="jobCard">
-        <div class="job"><div class="spinner"></div><div class="label" id="jobLabel"></div>
-          <span class="time" id="jobTime">0:00</span><button class="btn danger small" id="btnCancel">Cancel</button></div>
-      </div>
+      <!-- a map is open -->
+      <section id="mapview" class="hidden">
+        <div class="card maphead">
+          <canvas class="thumb" id="thumb" width="96" height="96"></canvas>
+          <div class="grow">
+            <div class="title" id="mapTitle"></div>
+            <div class="path" id="mapPath"></div>
+            <div class="badges" id="badges"></div>
+            <details class="diag" id="diagBox"><summary>Diagnosis</summary><div class="report" id="diagLines"></div></details>
+          </div>
+        </div>
 
-      <nav class="tabs" id="tabs">
-        <button data-tab="actions" class="on">Actions</button>
-        <button data-tab="card">Map card</button>
-        <button data-tab="reforged">Runs on Reforged?</button>
-        <button data-tab="files">Files</button>
-        <button data-tab="script">Script</button>
-        <button data-tab="cheatpacks">Cheatpacks</button>
-        <button data-tab="triggers">Triggers</button>
-        <button data-tab="translation">Translation</button>
-        <button data-tab="compare">Compare</button>
-        <button data-tab="port">Port to Reforged</button>
-      </nav>
+        <div class="card hidden" id="jobCard">
+          <div class="job"><div class="spinner"></div><div class="label" id="jobLabel"></div>
+            <span class="time" id="jobTime">0:00</span><button class="btn danger small" id="btnCancel">Cancel</button></div>
+        </div>
 
-      <div class="tab" id="tab-actions">
-        <div class="actions" id="actions"></div>
-        <div id="results"></div>
-      </div>
-      <div class="tab hidden" id="tab-card"></div>
-      <div class="tab hidden" id="tab-reforged"></div>
-      <div class="tab hidden" id="tab-files"></div>
-      <div class="tab hidden" id="tab-script"></div>
-      <div class="tab hidden" id="tab-cheatpacks"></div>
-      <div class="tab hidden" id="tab-triggers"></div>
-      <div class="tab hidden" id="tab-translation"></div>
-      <div class="tab hidden" id="tab-compare"></div>
-      <div class="tab hidden" id="tab-port"></div>
-    </section>
-  </main>
+        <section class="mode" id="mode-fix">
+          <div class="modehead"><div class="code">01 / FIX</div><h2>Fix the map</h2></div>
+          <nav class="subtabs"><button data-tab="fix">Fix map</button><button data-tab="reforged">Runs on Reforged?</button></nav>
+          <div class="tab" id="tab-fix"><div id="action-fix"></div><div id="results-fix"></div></div>
+          <div class="tab hidden" id="tab-reforged"></div>
+        </section>
+        <section class="mode hidden" id="mode-editor">
+          <div class="modehead"><div class="code">02 / EDITOR</div><h2>Open in World Editor</h2></div>
+          <nav class="subtabs"><button data-tab="editor">Prepare</button><button data-tab="card">Map card</button>
+            <button data-tab="triggers">Triggers</button></nav>
+          <div class="tab" id="tab-editor"><div id="action-editor"></div><div id="results-editor"></div></div>
+          <div class="tab hidden" id="tab-card"></div>
+          <div class="tab hidden" id="tab-triggers"></div>
+        </section>
+        <section class="mode hidden" id="mode-port">
+          <div class="modehead"><div class="code">03 / PORT</div><h2>Port to Reforged</h2></div>
+          <div class="tab" id="tab-port"></div>
+        </section>
+        <section class="mode hidden" id="mode-cheatpacks">
+          <div class="modehead"><div class="code">04 / CHEATPACKS</div><h2>Cheat packs</h2></div>
+          <div class="tab" id="tab-cheatpacks"></div>
+        </section>
+        <section class="mode hidden" id="mode-translation">
+          <div class="modehead"><div class="code">05 / TRANSLATION</div><h2>Translation</h2></div>
+          <div class="tab" id="tab-translation"></div>
+        </section>
+        <section class="mode hidden" id="mode-inspect">
+          <div class="modehead"><div class="code">06 / INSPECT</div><h2>Inspect</h2></div>
+          <nav class="subtabs"><button data-tab="files">Files</button><button data-tab="script">Script</button>
+            <button data-tab="compare">Compare</button></nav>
+          <div class="tab" id="tab-files"></div>
+          <div class="tab hidden" id="tab-script"></div>
+          <div class="tab hidden" id="tab-compare"></div>
+        </section>
+      </section>
+    </main>
 
-  <footer class="bottom"><span id="status">Ready.</span></footer>
+  </div>
 </div>
 <div id="toasts"></div>
 <script src="app.js"></script>

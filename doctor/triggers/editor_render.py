@@ -1114,7 +1114,13 @@ FLAG_CUSTOM_FORCES = 0x40
 FLAG_TERRAIN_FOG, FLAG_WATER_TINT = 0x2000, 0x10000
 
 
+DNC_GUID = {'u': ('57bbe30b-ffae-4b08-a82a-4efc1fb02dbd.mdl', '4dd55159-b249-4499-a0d1-e163854c068d.mdl')}
+TERRAIN_LIGHTS['R'] = 'Dalaran'
+
+
 def _dnc(letter, kind):
+    if letter in DNC_GUID:
+        return DNC_GUID[letter][0 if kind == 'Terrain' else 1]
     name = TERRAIN_LIGHTS.get(letter, 'Lordaeron')
     return 'Environment\\\\DNC\\\\DNC%s\\\\DNC%s%s\\\\DNC%s%s.mdl' % (name, name, kind, name, kind)
 

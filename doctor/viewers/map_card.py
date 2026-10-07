@@ -27,7 +27,7 @@ from doctor.translation import tr_gradient
 from doctor.data import w3i
 
 
-KNOWN_W3I = (18, 25, 28, 31, 33)
+KNOWN_W3I = (18, 25, 28, 31, 33, 34, 35, 36, 37, 38, 39)
 RX_WTS = re.compile(rb'^(?:\xef\xbb\xbf)?STRING[ \t]+(\d+)[^\n]*\n(?:[ \t]*(?://[^\n]*)?\r?\n)*[ \t]*\{[^\n]*\n'
                     rb'(.*?)\r?\n?^\}', re.S | re.M)
 RX_TRIGSTR = re.compile(r'TRIGSTR_(\d+)\s*$')
