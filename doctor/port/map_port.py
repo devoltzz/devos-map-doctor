@@ -199,25 +199,21 @@ def map_script(a, extract, scripts_dir, log):
     constant_calls = details.get('constant_calls') or {}
     if constant_calls:
         WARNINGS.append(
-            '%d call(s) in %d function(s) had been replaced by constants inside the compiled script (%s): the map '
-            'evaluates their arguments and uses a fixed value instead of calling. They came back to JASS as that '
-            'constant, checked statement by statement' % (sum(constant_calls.values()), len(constant_calls),
-                                                         ', '.join(sorted(constant_calls)[:6]))
+            '%d call(s) in %d function(s) had been replaced by constants inside the compiled script (%s): the '
+            'map evaluates their arguments and uses a fixed value instead of calling. They came back to JASS '
+            'as that constant, checked statement by statement'
+            % (sum(constant_calls.values()), len(constant_calls), ', '.join(sorted(constant_calls)[:6]))
         )
     compared = details.get('constant_comparisons') or {}
     if compared:
-        WARNINGS.append(
-            '%d comparison(s) in %d function(s) had been replaced by a constant inside the compiled script (%s): '
-            'they came back to JASS as that constant, checked statement by statement'
-            % (sum(compared.values()), len(compared), ', '.join(sorted(compared)[:6]))
-        )
+        WARNINGS.append('%d comparison(s) in %d function(s) had been replaced by a constant inside the compiled script '
+                        '(%s): they came back to JASS as that constant, checked statement by statement'
+                        % (sum(compared.values()), len(compared), ', '.join(sorted(compared)[:6])))
     removed = details.get('removed_conditions') or {}
     if removed:
-        WARNINGS.append(
-            '%d if(s) in %d function(s) had their condition removed from the compiled script (%s): their block always '
-            'runs. They came back to JASS that way, checked statement by statement'
-            % (sum(removed.values()), len(removed), ', '.join(sorted(removed)[:6]))
-        )
+        WARNINGS.append('%d if(s) in %d function(s) had their condition removed from the compiled script (%s): their '
+                        'block always runs. They came back to JASS that way, checked statement by statement'
+                        % (sum(removed.values()), len(removed), ', '.join(sorted(removed)[:6])))
     from doctor.fix import editor_prep
     body_text, _real_ones = editor_prep.real_literal_return(body_text)
     raw_data = os.path.join(scripts_dir, 'war3map.j')

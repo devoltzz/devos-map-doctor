@@ -17,4 +17,5 @@ doctor/mpq/mpqcrypt.dll
 doctor/mpq/mpqcrypt.so
 doctor/script/jass_checks.dll
 doctor/script/jass_checks.so
+native/jass_checks/Cargo.lock
 doctor/script/pjass

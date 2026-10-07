@@ -963,29 +963,22 @@ class Printer(object):
         return '\n'.join(header + types + ([''] if types else []) + [body])
 
 
-# Natives that only read: the arguments of a call patched out of the bytecode may be dropped when they only use these.
 PURE_NATIVES = frozenset((
     'Player', 'GetTriggerPlayer', 'GetOwningPlayer', 'GetLocalPlayer', 'GetEnumPlayer', 'GetFilterPlayer',
     'ConvertedPlayer', 'GetConvertedPlayerId', 'GetPlayerId', 'GetHandleId', 'GetTriggeringTrigger', 'GetExpiredTimer',
     'GetTriggerUnit', 'GetEnumUnit', 'GetFilterUnit', 'GetPlayerName', 'I2S', 'S2I', 'R2S', 'R2I', 'I2R', 'S2R',
     'StringHash', 'LoadInteger', 'LoadReal', 'LoadStr', 'LoadBoolean', 'LoadPlayerHandle', 'LoadUnitHandle',
     'GetUnitTypeId', 'GetItemTypeId', 'GetPlayerController', 'GetPlayerSlotState', 'StringLength', 'SubString',
-    'GetUnitUserData', 'GetItemUserData',
-    'ConvertedPlayer', 'GetConvertedPlayerId', 'StringHashBJ'))  # the last ones are Blizzard.j functions (CALLJASS)
+    'GetUnitUserData', 'GetItemUserData', 'StringHashBJ'))
 _WRITES = frozenset((LIT, MOVRV, MOVRCODE, MOVRA, I2R, NEG, NOT, POP, 24, 25, 36)) | frozenset(BINOP)
 
 
 def _dropped_arguments(bc, ref, p):
-    """The positions that computed the stack slots dropped by the stray POPN at p (whose constant is at p - 1)."""
     return _dead_code(bc, ref, p - 2, bc.b2[p])
 
 
 def _dead_code(bc, ref, j, need_stack):
-    """The positions, from j backwards, that computed need_stack stack slots and the value left in the register j
-    writes, when nothing uses them anymore - or (None, reason). Walks back through the data flow: stack slots, and
-    the registers that fed them."""
     need_regs, take = set(), []
-    # the last argument: computed into a register, its push replaced along with the call
     if bc.op[j] in _WRITES and bc.b2[j] != 0:
         need_regs.add(bc.b2[j])
     elif bc.op[j] == CALLN or (bc.op[j] == POPN and j >= 1 and bc.op[j - 1] == CALLJ):
@@ -1006,7 +999,7 @@ def _dead_code(bc, ref, j, need_stack):
             need_regs.discard(b2)
             need_regs.update((b0, b1))
         elif o in (I2R, NEG, NOT) and b2 in need_regs:
-            pass  # rewrites its own register; whatever wrote it comes earlier
+            pass
         elif o == POP and b2 in need_regs:
             need_regs.discard(b2)
             need_stack += 1
@@ -1026,7 +1019,6 @@ def _dead_code(bc, ref, j, need_stack):
             j -= 2
             continue
         elif o == POPN and 0 in need_regs and j >= 1 and bc.op[j - 1] == LIT and bc.b2[j - 1] == 0:
-            # an argument that is itself a call patched into a constant: its own dropped arguments go too
             need_regs.discard(0)
             need_stack += bc.b2[j]
             take.extend((j, j - 1))
@@ -1043,8 +1035,6 @@ def _dead_code(bc, ref, j, need_stack):
 
 
 def _result_unused(bc, k):
-    """True when the value put in r0 at k is overwritten before anything reads it (a call statement whose call was
-    replaced by a constant). Only straight-line instructions that clearly don't read r0 are crossed."""
     j = k + 1
     while j < bc.n:
         o, b0, b1, b2 = bc.op[j], bc.b0[j], bc.b1[j], bc.b2[j]
@@ -1065,11 +1055,6 @@ def _result_unused(bc, k):
 
 
 def strip_constant_calls(bc, ref):
-    """Some maps had calls patched out of their compiled script (8.7.8 K1: the DzAPI_Map_* platform calls, inline
-    and in their wrappers): the arguments are still evaluated and pushed, then a constant goes into the result
-    register r0 and a POPN drops the arguments; the call never happens. No compiler emits that. Removes the dead
-    argument code, so the call reads as the constant it became, and returns {function: calls}; those functions are
-    proven statement by statement (see prove_map). Sites whose arguments do more than read are left alone."""
     drop, found, skipped = set(), collections.Counter(), []
     fstart, fname = 0, None
     for k in range(bc.n):
@@ -1088,18 +1073,14 @@ def strip_constant_calls(bc, ref):
         drop.update(take)
         drop.add(k)
         if _result_unused(bc, k):
-            drop.add(k - 1)  # a `call` statement: the constant it became is never used
+            drop.add(k - 1)
         found[fname] += 1
-    # A call without arguments replaced by a constant: a literal into the result register r0 that is then stored or
-    # pushed (a compiler only writes literals into r0 for a `return`). Nothing to remove, only to prove differently.
     fname = None
     for k in range(bc.n - 1):
         if bc.op[k] == FUNCTION:
             fname = bc.fname(bc.arg[k])
         if bc.op[k] == LIT and bc.b2[k] == 0 and bc.op[k + 1] in (MOVVR, MOVAR, PUSH):
             found[fname] += 1
-    # A comparison replaced by a constant: `POP rX` then a literal into rX, where the operator using rX would be.
-    # The popped value and the other operand are computed and thrown away.
     comparisons = collections.Counter()
     fname = None
     for k in range(2, bc.n):
@@ -1113,8 +1094,6 @@ def strip_constant_calls(bc, ref):
             drop.update(take)
             drop.add(k - 1)
             comparisons[fname] += 1
-    # An `if` whose condition jump was removed from the bytecode: `JUMP L2; LABEL L1; LABEL L2` with nothing jumping
-    # to L1 and only that JUMP to L2. The then-branch always runs; the leftover jump lands on the next instruction.
     targets = collections.Counter(bc.arg[k] for k in range(bc.n) if bc.op[k] in (JIT, JIF, JUMP))
     conditions = collections.Counter()
     fname = None
@@ -1134,8 +1113,6 @@ def strip_constant_calls(bc, ref):
         bc.arg = array.array('i', (bc.arg[k] for k in keep))
         bc.n = len(keep)
     if found:
-        # The VM takes any non-zero integer as true: a patched-in integer constant that feeds a conditional jump
-        # (`if <call> then`) becomes the boolean it acts as, so the JASS compiles (`if true then`, not `if 1 then`).
         b1, arg, fname = bytearray(bc.b1), bc.arg, None
         for k in range(bc.n - 1):
             if bc.op[k] == FUNCTION:
@@ -1164,7 +1141,7 @@ def grafts_of(bc, segments):
     patched = set()
     for kind in ('constant_calls', 'removed_conditions', 'constant_comparisons'):
         patched |= set(getattr(bc, kind, None) or ())
-    if patched:  # calls patched into constants (strip_constant_calls): proven statement by statement, like a graft
+    if patched:
         out += [bc.fname(bc.arg[b]) for b, _e in segments
                 if bc.op[b] == FUNCTION and bc.fname(bc.arg[b]) in patched and bc.fname(bc.arg[b]) not in out]
     return out
