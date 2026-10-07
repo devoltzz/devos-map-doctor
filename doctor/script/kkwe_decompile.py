@@ -963,6 +963,194 @@ class Printer(object):
         return '\n'.join(header + types + ([''] if types else []) + [body])
 
 
+# Natives that only read: the arguments of a call patched out of the bytecode may be dropped when they only use these.
+PURE_NATIVES = frozenset((
+    'Player', 'GetTriggerPlayer', 'GetOwningPlayer', 'GetLocalPlayer', 'GetEnumPlayer', 'GetFilterPlayer',
+    'ConvertedPlayer', 'GetConvertedPlayerId', 'GetPlayerId', 'GetHandleId', 'GetTriggeringTrigger', 'GetExpiredTimer',
+    'GetTriggerUnit', 'GetEnumUnit', 'GetFilterUnit', 'GetPlayerName', 'I2S', 'S2I', 'R2S', 'R2I', 'I2R', 'S2R',
+    'StringHash', 'LoadInteger', 'LoadReal', 'LoadStr', 'LoadBoolean', 'LoadPlayerHandle', 'LoadUnitHandle',
+    'GetUnitTypeId', 'GetItemTypeId', 'GetPlayerController', 'GetPlayerSlotState', 'StringLength', 'SubString',
+    'GetUnitUserData', 'GetItemUserData',
+    'ConvertedPlayer', 'GetConvertedPlayerId', 'StringHashBJ'))  # the last ones are Blizzard.j functions (CALLJASS)
+_WRITES = frozenset((LIT, MOVRV, MOVRCODE, MOVRA, I2R, NEG, NOT, POP, 24, 25, 36)) | frozenset(BINOP)
+
+
+def _dropped_arguments(bc, ref, p):
+    """The positions that computed the stack slots dropped by the stray POPN at p (whose constant is at p - 1)."""
+    return _dead_code(bc, ref, p - 2, bc.b2[p])
+
+
+def _dead_code(bc, ref, j, need_stack):
+    """The positions, from j backwards, that computed need_stack stack slots and the value left in the register j
+    writes, when nothing uses them anymore - or (None, reason). Walks back through the data flow: stack slots, and
+    the registers that fed them."""
+    need_regs, take = set(), []
+    # the last argument: computed into a register, its push replaced along with the call
+    if bc.op[j] in _WRITES and bc.b2[j] != 0:
+        need_regs.add(bc.b2[j])
+    elif bc.op[j] == CALLN or (bc.op[j] == POPN and j >= 1 and bc.op[j - 1] == CALLJ):
+        need_regs.add(0)
+    while need_stack or need_regs:
+        if j < 0:
+            return None, 'ran out of code'
+        o, b0, b1, b2 = bc.op[j], bc.b0[j], bc.b1[j], bc.b2[j]
+        if o == PUSH and need_stack:
+            need_stack -= 1
+            need_regs.add(b2)
+        elif o in (LIT, MOVRV, MOVRCODE) and b2 in need_regs:
+            need_regs.discard(b2)
+        elif o == MOVRA and b2 in need_regs:
+            need_regs.discard(b2)
+            need_regs.add(b1)
+        elif (o in BINOP or o in (24, 25, 36)) and b2 in need_regs:
+            need_regs.discard(b2)
+            need_regs.update((b0, b1))
+        elif o in (I2R, NEG, NOT) and b2 in need_regs:
+            pass  # rewrites its own register; whatever wrote it comes earlier
+        elif o == POP and b2 in need_regs:
+            need_regs.discard(b2)
+            need_stack += 1
+        elif o == CALLN and 0 in need_regs:
+            fname = bc.fname(bc.arg[j])
+            if fname not in PURE_NATIVES:
+                return None, 'an argument calls %s' % fname
+            need_regs.discard(0)
+            need_stack += len(ref.native(fname)[0])
+        elif o == POPN and 0 in need_regs and j >= 1 and bc.op[j - 1] == CALLJ:
+            fname = bc.fname(bc.arg[j - 1])
+            if fname not in PURE_NATIVES:
+                return None, 'an argument calls %s' % fname
+            need_regs.discard(0)
+            need_stack += bc.b2[j]
+            take.extend((j, j - 1))
+            j -= 2
+            continue
+        elif o == POPN and 0 in need_regs and j >= 1 and bc.op[j - 1] == LIT and bc.b2[j - 1] == 0:
+            # an argument that is itself a call patched into a constant: its own dropped arguments go too
+            need_regs.discard(0)
+            need_stack += bc.b2[j]
+            take.extend((j, j - 1))
+            j -= 2
+            if j >= 0 and bc.op[j] == LIT and bc.b2[j] != 0 and bc.b2[j] not in need_regs:
+                take.append(j)
+                j -= 1
+            continue
+        else:
+            return None, '%s inside the dropped arguments' % kkwe.OPS.get(o, o)
+        take.append(j)
+        j -= 1
+    return take, None
+
+
+def _result_unused(bc, k):
+    """True when the value put in r0 at k is overwritten before anything reads it (a call statement whose call was
+    replaced by a constant). Only straight-line instructions that clearly don't read r0 are crossed."""
+    j = k + 1
+    while j < bc.n:
+        o, b0, b1, b2 = bc.op[j], bc.b0[j], bc.b1[j], bc.b2[j]
+        if (o == LIT and b2 == 0) or o in (CALLN, CALLJ):
+            return True
+        if o in (LIT, MOVRV, MOVRCODE) and b2 != 0:
+            pass
+        elif o in (PUSH, POP) and b2 != 0:
+            pass
+        elif o == MOVRA and b2 != 0 and b1 != 0:
+            pass
+        elif (o in BINOP or o in (24, 25, 36)) and 0 not in (b0, b1, b2):
+            pass
+        else:
+            return False
+        j += 1
+    return False
+
+
+def strip_constant_calls(bc, ref):
+    """Some maps had calls patched out of their compiled script (8.7.8 K1: the DzAPI_Map_* platform calls, inline
+    and in their wrappers): the arguments are still evaluated and pushed, then a constant goes into the result
+    register r0 and a POPN drops the arguments; the call never happens. No compiler emits that. Removes the dead
+    argument code, so the call reads as the constant it became, and returns {function: calls}; those functions are
+    proven statement by statement (see prove_map). Sites whose arguments do more than read are left alone."""
+    drop, found, skipped = set(), collections.Counter(), []
+    fstart, fname = 0, None
+    for k in range(bc.n):
+        o = bc.op[k]
+        if o == FUNCTION:
+            fstart, fname = k, bc.fname(bc.arg[k])
+        if o != POPN or k < 1 or bc.op[k - 1] == CALLJ:
+            continue
+        if bc.op[k - 1] != LIT or bc.b2[k - 1] != 0:
+            skipped.append((fname, k, 'POPN not after a constant into the result register'))
+            continue
+        take, why = _dropped_arguments(bc, ref, k)
+        if take is None or (take and min(take) <= fstart):
+            skipped.append((fname, k, why or 'reaches the function header'))
+            continue
+        drop.update(take)
+        drop.add(k)
+        if _result_unused(bc, k):
+            drop.add(k - 1)  # a `call` statement: the constant it became is never used
+        found[fname] += 1
+    # A call without arguments replaced by a constant: a literal into the result register r0 that is then stored or
+    # pushed (a compiler only writes literals into r0 for a `return`). Nothing to remove, only to prove differently.
+    fname = None
+    for k in range(bc.n - 1):
+        if bc.op[k] == FUNCTION:
+            fname = bc.fname(bc.arg[k])
+        if bc.op[k] == LIT and bc.b2[k] == 0 and bc.op[k + 1] in (MOVVR, MOVAR, PUSH):
+            found[fname] += 1
+    # A comparison replaced by a constant: `POP rX` then a literal into rX, where the operator using rX would be.
+    # The popped value and the other operand are computed and thrown away.
+    comparisons = collections.Counter()
+    fname = None
+    for k in range(2, bc.n):
+        if bc.op[k] == FUNCTION:
+            fname = bc.fname(bc.arg[k])
+        if bc.op[k] == LIT and bc.op[k - 1] == POP and bc.b2[k] == bc.b2[k - 1] and bc.b2[k] != 0:
+            take, why = _dead_code(bc, ref, k - 2, 1)
+            if take is None or k - 1 in drop or any(x in drop for x in take):
+                skipped.append((fname, k, why or 'overlaps another patched site'))
+                continue
+            drop.update(take)
+            drop.add(k - 1)
+            comparisons[fname] += 1
+    # An `if` whose condition jump was removed from the bytecode: `JUMP L2; LABEL L1; LABEL L2` with nothing jumping
+    # to L1 and only that JUMP to L2. The then-branch always runs; the leftover jump lands on the next instruction.
+    targets = collections.Counter(bc.arg[k] for k in range(bc.n) if bc.op[k] in (JIT, JIF, JUMP))
+    conditions = collections.Counter()
+    fname = None
+    for k in range(1, bc.n - 1):
+        if bc.op[k] == FUNCTION:
+            fname = bc.fname(bc.arg[k])
+        if (bc.op[k] == LABEL and targets[bc.arg[k]] == 0 and bc.op[k - 1] == JUMP and bc.op[k + 1] == LABEL
+                and bc.arg[k + 1] == bc.arg[k - 1] and targets[bc.arg[k + 1]] == 1):
+            drop.update((k - 1, k, k + 1))
+            conditions[fname] += 1
+    if drop:
+        keep = [k for k in range(bc.n) if k not in drop]
+        bc.b0 = bytes(bytearray(bc.b0[k] for k in keep))
+        bc.b1 = bytes(bytearray(bc.b1[k] for k in keep))
+        bc.b2 = bytes(bytearray(bc.b2[k] for k in keep))
+        bc.op = bytes(bytearray(bc.op[k] for k in keep))
+        bc.arg = array.array('i', (bc.arg[k] for k in keep))
+        bc.n = len(keep)
+    if found:
+        # The VM takes any non-zero integer as true: a patched-in integer constant that feeds a conditional jump
+        # (`if <call> then`) becomes the boolean it acts as, so the JASS compiles (`if true then`, not `if 1 then`).
+        b1, arg, fname = bytearray(bc.b1), bc.arg, None
+        for k in range(bc.n - 1):
+            if bc.op[k] == FUNCTION:
+                fname = bc.fname(bc.arg[k])
+            if (fname in found and bc.op[k] == LIT and bc.b2[k] == 0 and b1[k] == 4 and bc.op[k + 1] in (JIT, JIF)
+                    and bc.b2[k + 1] == 0):
+                b1[k] = 8
+                arg[k] = 1 if arg[k] else 0
+        bc.b1 = bytes(b1)
+    bc.constant_calls = dict(found)
+    bc.removed_conditions = dict(conditions)
+    bc.constant_comparisons = dict(comparisons)
+    return dict(found), skipped
+
+
 def grafts_of(bc, segments):
     out, prev_reg = [], None
     for begin, end_pos in segments:
@@ -973,6 +1161,12 @@ def grafts_of(bc, segments):
             out.append(bc.fname(bc.arg[begin]))
         elif regs:
             prev_reg = regs[-1]
+    patched = set()
+    for kind in ('constant_calls', 'removed_conditions', 'constant_comparisons'):
+        patched |= set(getattr(bc, kind, None) or ())
+    if patched:  # calls patched into constants (strip_constant_calls): proven statement by statement, like a graft
+        out += [bc.fname(bc.arg[b]) for b, _e in segments
+                if bc.op[b] == FUNCTION and bc.fname(bc.arg[b]) in patched and bc.fname(bc.arg[b]) not in out]
     return out
 
 
@@ -1203,6 +1397,7 @@ def _decompile(bc, common, blizzard, extra_natives, map_own, header_text, no_cla
             extra_natives = fh.read().decode('utf-8', 'surrogateescape')
     ref = Reference(common, blizzard, extra_natives, map_own)
     ref.bytecode_types(bc)
+    constant_calls, constants_skipped = strip_constant_calls(bc, ref)
     try:
         globals_block, funcs, natives, _region = decompile(bc, ref)
     except (IndexError, KeyError, struct.error, RecursionError) as e:
@@ -1249,5 +1444,8 @@ def _decompile(bc, common, blizzard, extra_natives, map_own, header_text, no_cla
                        'natives': len(natives), 'hooks': len(hooks) - len(outside), 'hooks_left_out': outside,
                        'clashes': clashes, 'global_clashes': global_clashes, 'handles': len(types),
                        'bad_flows': len(inf.bad_ones), 'jumps_restored': len(restored_jumps),
-                       'grafts_of': grafted}
+                       'grafts_of': [g for g in grafted if g not in constant_calls and g not in bc.removed_conditions
+                                     and g not in bc.constant_comparisons],
+                       'constant_calls': constant_calls, 'constant_calls_skipped': constants_skipped,
+                       'removed_conditions': bc.removed_conditions, 'constant_comparisons': bc.constant_comparisons}
 
