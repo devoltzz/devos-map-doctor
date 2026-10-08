@@ -1,4 +1,5 @@
 # Gives back the name of the models the "Model_Encrypt" tool renamed, and rewrites the citations.
+import hashlib
 import os
 import re
 import shutil
@@ -18,6 +19,10 @@ RX_MARK_B = re.compile(rb'^(?P<base>.+?)(?P<mark>' + b'|'.join(MARK_BYTES) +
 _RX_CHARS = rb'A-Za-z0-9_\-\\/\. \[\]\(\)\+!#\$%&@\^~{}=\x80-\xff'
 RX_CITED_B = re.compile(rb'[' + _RX_CHARS + rb']{3,180}?(?:' + b'|'.join(MARK_BYTES) + rb')(?:_portrait)?\.(?:mdl|mdx)',
                         re.I)
+# names that are not UTF-8 (GBK bytes of an obfuscator, like "|<gbk>_<gbk symbols>_...mdl"): the game reads the script
+# as UTF-8 and folds them all into the same string, so they get a unique ASCII name
+RX_CITED_ANY_B = re.compile(rb'[' + _RX_CHARS + rb'|]{3,180}?\.(?:mdl|mdx)', re.I)
+RX_MODEL_B = re.compile(rb'^(?P<stem>.*?)(?P<portrait>_portrait)?\.(?P<ext>mdl|mdx)$', re.I)
 
 
 def _split_bytes(name):
@@ -39,9 +44,37 @@ def marked(name):
     return _parts(name) is not None
 
 
+def not_utf8(name):
+    try:
+        name.encode('utf-8', 'surrogateescape').decode('utf-8')
+    except UnicodeDecodeError:
+        return True
+    return False
+
+
+def _other_ext(name):
+    low = name[-4:].lower()
+    return name[:-4] + {'.mdl': '.mdx', '.mdx': '.mdl'}[low] if low in MODEL_EXTS else None
+
+
+def ascii_name(name):
+    folder, base = _split_bytes(name)
+    m = RX_MODEL_B.match(base)
+    if m is None:
+        return None
+    try:
+        folder_s = folder.decode('utf-8')
+    except UnicodeDecodeError:
+        folder_s = ''
+    h = hashlib.md5((folder + m.group('stem')).lower()).hexdigest()[:12]
+    return '%sobf_%s%s.%s' % (folder_s, h, (m.group('portrait') or b'').decode('ascii'), m.group('ext').decode('ascii'))
+
+
 def clean_name(name):
     part = _parts(name)
-    return None if part is None else '%s%s%s.%s' % part
+    if part is None:
+        return ascii_name(name) if not_utf8(name) else None
+    return '%s%s%s.%s' % part
 
 
 def _readings(raw):
@@ -93,6 +126,16 @@ def _marked_names(a, names=()):
             for cand in _readings(m.group(0)):
                 if marked(cand) and a.find(cand):
                     out.append(cand)
+        for m in RX_CITED_ANY_B.finditer(data):
+            if not any(b >= 0x80 for b in m.group(0)):
+                continue
+            for cand in _readings(m.group(0)):
+                if not not_utf8(cand):
+                    continue
+                for c in (cand, _other_ext(cand)):
+                    if c and a.find(c):
+                        out.append(c)
+                        break
     return list(dict.fromkeys(out))
 
 
@@ -136,6 +179,20 @@ def _pairs(a, base):
     n_port = 0
     for old, clean in list(pairs):
         part = _parts(old)
+        if part is None and not_utf8(old):
+            mo, mc = RX_MODEL_B.match(_split_bytes(old)[1]), RX_MODEL_B.match(_split_bytes(clean)[1])
+            if mo and mc and not mo.group('portrait'):
+                fo = _split_bytes(old)[0].decode('utf-8', 'surrogateescape')
+                fc = _split_bytes(clean)[0].decode('utf-8', 'surrogateescape')
+                for ext in MODEL_EXTS:
+                    po = '%s%s_portrait%s' % (fo, mo.group('stem').decode('utf-8', 'surrogateescape'), ext)
+                    pn = '%s%s_portrait%s' % (fc, mc.group('stem').decode('ascii'), ext)
+                    if (po, pn) in seen or not a.find(po) or a.find(pn):
+                        continue
+                    seen.add((po, pn))
+                    pairs.append((po, pn))
+                    n_port += 1
+            continue
         if part is None or part[2]:
             continue
         folder, base_name, _port, _ext = part
@@ -153,10 +210,15 @@ def _pairs(a, base):
 def _cite(data, pairs):
     out = data
     for old, clean in pairs:
-        for vo, vn in ((old, clean), (old.replace('\\', '/'), clean.replace('\\', '/'))):
-            b_old = vo.encode('utf-8', 'surrogateescape')
-            if b_old in out:
-                out = out.replace(b_old, vn.encode('utf-8', 'surrogateescape'))
+        variants = [(old, clean)]
+        if not_utf8(old) and _other_ext(old) and _other_ext(clean):
+            # the map cites a model as .mdl or .mdx whatever the file is; the citation keeps its own extension
+            variants.append((_other_ext(old), _other_ext(clean)))
+        for o, c in variants:
+            for vo, vn in ((o, c), (o.replace('\\', '/'), c.replace('\\', '/'))):
+                b_old = vo.encode('utf-8', 'surrogateescape')
+                if b_old in out:
+                    out = out.replace(b_old, vn.encode('utf-8', 'surrogateescape'))
     return out
 
 

@@ -2607,7 +2607,8 @@ function DB_mod_indexa takes nothing returns nothing
         set f=DB_mod_sem_ext(SLK_U_FILE_v[i])
         if f!=null and f!="" then
             set k=StringHash(f)
-            if not HaveSavedInteger(DB_mod_ht,0,k) then
+            // the port's model carriers ('z...', model_carriers.py) win over map types that share the model
+            if not HaveSavedInteger(DB_mod_ht,0,k) or SLK_U_FILE_k[i]/0x1000000=='z' then
                 call SaveInteger(DB_mod_ht,0,k,SLK_U_FILE_k[i])
             endif
         endif
@@ -2717,6 +2718,11 @@ function DzSetUnitModel takes unit whichUnit,string path returns nothing
         return
     endif
     set t=DB_mod_tipo(path)
+    // several types can share a model: when it is the unit's own model, its own skin is the right one (the first
+    // type of the table would bring another unit's scale, tint and portrait)
+    if t!=0 and t!=GetUnitTypeId(whichUnit) and StringHash(DB_mod_sem_ext(SLK_U_FILE(GetUnitTypeId(whichUnit))))==StringHash(DB_mod_sem_ext(path)) then
+        set t=GetUnitTypeId(whichUnit)
+    endif
     if t!=0 then
         call BlzSetUnitSkin(whichUnit,t)
         //{{KK_SE:KK_FX_LOCAL}}
