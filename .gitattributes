@@ -5,3 +5,5 @@
 doctor/cheatpacks/* -text
 doctor/cheatpacks/** -text
 doctor/ref/3.0/*.j -text
+doctor/ref/** linguist-vendored
+doctor/cheatpacks/** linguist-vendored
