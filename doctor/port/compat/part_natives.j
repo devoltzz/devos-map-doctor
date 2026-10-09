@@ -721,10 +721,37 @@ function DzFrameSetEnable takes integer name,boolean enable returns nothing
     endif
 endfunction
 
+//{{KK_SE:KK_UI_ALFA}}
+function DB_ui_alfa takes string s returns string
+    local integer i=0
+    local integer n=StringLength(s)
+    local string r=""
+    local string c
+    if s==null or n<4 then
+        return s
+    endif
+    loop
+        exitwhen i>=n
+        set c=SubString(s, i, i+4)
+        if c=="|c00" or c=="|C00" then
+            set r=r+"|cff"
+            set i=i+4
+        else
+            set r=r+SubString(s, i, i+1)
+            set i=i+1
+        endif
+    endloop
+    return r
+endfunction
+//{{KK_FIMSE:KK_UI_ALFA}}
+
 function DzFrameSetText takes integer frame,string text returns nothing
     local framehandle f=DB_fh(frame)
     local integer pai
     if f!=null then
+        //{{KK_SE:KK_UI_ALFA}}
+        set text=DB_ui_alfa(text)
+        //{{KK_FIMSE:KK_UI_ALFA}}
         if text==null then
             call BlzFrameSetText(f, "")
         else
@@ -1864,6 +1891,11 @@ function DzSyncData takes string prefix,string data returns nothing
         return
     endif
     //{{KK_FIMSE:KK_SYNC_FATIA}}
+    //{{KK_SE:KK_SYNC_VAZIO}}
+    if data=="" then
+        set data="~KKvazio~"
+    endif
+    //{{KK_FIMSE:KK_SYNC_VAZIO}}
     call BlzSendSyncData(prefix, data)
 endfunction
 
@@ -1881,6 +1913,11 @@ function DzGetTriggerSyncData takes nothing returns string
     if r==null then
         return ""
     endif
+    //{{KK_SE:KK_SYNC_VAZIO}}
+    if r=="~KKvazio~" then
+        return ""
+    endif
+    //{{KK_FIMSE:KK_SYNC_VAZIO}}
     return r
 endfunction
 

@@ -162,6 +162,101 @@ def return_literal(body_text, natives):
     return None
 
 
+RX_GAME_END = re.compile(r'\b(?:EndGame|CustomDefeatBJ|CustomDefeatDialogBJ|RemovePlayer|RemovePlayerSimple)\s*\(')
+
+
+def jnuse_gate(body_text):
+    t = body_text.replace('\r\n', '\n').replace('\r', '\n')
+    if 'JNUse' not in t:
+        return 'false'
+    name_list = set(m.group(1) for m in re.finditer(r'\bset[ \t]+(\w+)[ \t]*=[ \t]*JNUse[ \t]*\([ \t]*\)', t))
+    rx = re.compile(r'\bJNUse[ \t]*\([ \t]*\)' + ''.join(r'|\b%s\b' % re.escape(n) for n in name_list))
+    for body in re.findall(r'(?ms)^[ \t]*function\s+\w+.*?^[ \t]*endfunction', t):
+        if not RX_GAME_END.search(body):
+            continue
+        for ln in body.split('\n'):
+            if re.match(r'[ \t]*(?:if|elseif)\b', ln) and rx.search(ln):
+                return 'true'
+    return 'false'
+
+
+def jninit_gate(body_text):
+    t = body_text
+    if re.search(r'\b(?:User)?StorageDownload___', t):
+        return 'true'
+    if re.search(r'==\s*\(?\s*-\s*1\b', t) and re.search(r'==\s*\(?\s*-\s*2\b', t) and \
+            re.search(r'==\s*\(?\s*-\s*3\b', t) and 'JNObject' in t and 'Init' in t:
+        return 'true'
+    return 'false'
+
+
+RX_PLUGIN = re.compile(r'\bJNServerPluginVersion[ \t]*\([ \t]*\)[ \t]*(<=|<|>=|>|==)[ \t]*\(?[ \t]*(\d+)')
+
+
+def jnplugin_gate(body_text):
+    v = None
+    for ln in body_text.replace('\r\n', '\n').split('\n'):
+        code = ln.split('//', 1)[0]
+        for m in RX_PLUGIN.finditer(code):
+            n = int(m.group(2)) + (1 if m.group(1) in ('<=', '>') else 0)
+            v = n if v is None else max(v, n)
+    return v
+
+
+RX_STATE_14 = re.compile(r'ConvertUnitState\s*\(\s*(?:0[xX]0*14|\$0*14|20)\s*\)|\bUNIT_STATE_DAMAGE_MIN\b|'
+                         r'\bDB_estado_le\s*\([^()]*(?:\([^()]*\)[^()]*)*,\s*0[xX]14\s*\)')
+
+
+def ui_alpha(body_text):
+    return 'true' if 'DzFrameSetText' in body_text and re.search(r'\|[cC]00[0-9A-Fa-f]{6}', body_text) else 'false'
+
+
+RX_FDF_BUTTON = re.compile(
+    r'(?<![\w"])Frame\s+"(?:BUTTON|GLUEBUTTON|GLUETEXTBUTTON|SIMPLEBUTTON)"\s+"([^"|\\]+)"', re.I
+)
+
+
+def fdf_buttons(extract, body_text):
+    if 'DzCreateFrame' not in body_text or not extract or not os.path.isdir(extract):
+        return None
+    name_list = set()
+    for d, _ds, fs in os.walk(extract):
+        for f in fs:
+            if f.lower().endswith('.fdf'):
+                t = open(os.path.join(d, f), 'rb').read().decode('latin-1')
+                name_list.update(m.group(1) for m in RX_FDF_BUTTON.finditer(t))
+    in_use = sorted(n for n in name_list if re.search(r'\bDzCreateFrame\s*\(\s*"%s"' % re.escape(n), body_text))
+    if not in_use:
+        return None
+    return '|%s|' % '|'.join(in_use)
+
+
+def buttons_in_chunks(listing, chunks=8, byte_size=1000):
+    name_list = [n for n in listing.split('|') if n]
+    out, current, i = {}, '|', 1
+    for n in name_list:
+        if len(current) + len(n) + 1 > byte_size:
+            out['KK_UI_BOTOES_%d' % i] = current
+            i += 1
+            current = '|'
+            if i > chunks:
+                break
+        current += n + '|'
+    if i <= chunks:
+        out['KK_UI_BOTOES_%d' % i] = current
+    for k in range(1, chunks + 1):
+        out.setdefault('KK_UI_BOTOES_%d' % k, '')
+    return out
+
+
+def empty_sync(body_text):
+    return 'true' if re.search(r'\bDzSyncData(?:Immediately)?\s*\([^,()]+,\s*""\s*\)', body_text) else 'false'
+
+
+def reads_state_14(body_text):
+    return 'true' if RX_STATE_14.search(body_text) else 'false'
+
+
 def inclusion_points():
     pts = set()
     folder = os.path.join(HERE, 'compat')

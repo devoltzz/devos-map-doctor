@@ -8,20 +8,18 @@ from doctor.port import swap_calls
 
 PREFIX = 'QoL'
 MARK = PREFIX + '_Init'
-DEFAULTS = {
-    'xp': 1.0,
-    'gold': 1.0,
-    'lumber': 1.0,
-    'respawn': 1.0,
-    'drop': 1.0,
-    'craft': 1.0,
-    'noshake': False,
-    'noshake_default': False,
-    'reveal': False,
-    'vip': False,
+DEFAULTS = {'xp': 1.0, 'gold': 1.0, 'lumber': 1.0, 'respawn': 1.0, 'creep': 1.0, 'drop': 1.0, 'craft': 1.0,
+            'noshake': False, 'noshake_default': False,
+            'reveal': False, 'vip': False}
+LIMITS = {
+    'xp': (0.0, 100.0),
+    'gold': (0.0, 100.0),
+    'lumber': (0.0, 100.0),
+    'respawn': (0.0, 10.0),
+    'creep': (0.0, 10.0),
+    'drop': (0.0, 100.0),
+    'craft': (0.0, 100.0),
 }
-LIMITS = {'xp': (0.0, 100.0), 'gold': (0.0, 100.0), 'lumber': (0.0, 100.0), 'respawn': (0.0, 10.0),
-          'drop': (0.0, 100.0), 'craft': (0.0, 100.0)}
 XP_CALLS = {'SetPlayerHandicapXP': PREFIX + '_HandicapXP', 'SetPlayerHandicapXPBJ': PREFIX + '_HandicapXPBJ',
             'AddHeroXP': PREFIX + '_AddHeroXP', 'AddHeroXPSwapped': PREFIX + '_AddHeroXPSwapped'}
 SHAKE_CALLS = {'CameraSetEQNoiseForPlayer': PREFIX + '_EQNoise', 'CameraSetSourceNoise': PREFIX + '_SourceNoise',
@@ -160,6 +158,22 @@ def respawn_sites(text, tree):
             if swap_calls.sitios(lines[k - 1], REVIVE):
                 revive.add(f.name)
                 last[f.name] = k
+    wrappers = set()
+    for f in funcs:
+        code = [_code_part(lines[k - 1]).strip() for k in range(f.line + 1, f.end_line)]
+        code = [c for c in code if c and not c.startswith('local ')]
+        if f.name in revive and len(code) <= 4 and not any(w in ' '.join(code) for w in WAITS):
+            wrappers.add(f.name)
+    if wrappers:
+        wnames = dict((n, n) for n in wrappers)
+        for f in funcs:
+            if f.name in wrappers:
+                continue
+            for k in range(f.line, f.end_line):
+                l = lines[k - 1]
+                if any(n in l for n in wnames) and swap_calls.sitios(l, wnames):
+                    revive.add(f.name)
+                    last[f.name] = k
     via = {}
     names = dict((n, n) for n in revive)
     for f in funcs:
@@ -195,6 +209,32 @@ def respawn_sites(text, tree):
                 timers.setdefault(whole, set()).update(runs)
                 if base:
                     arrays.setdefault(base, set()).update(runs)
+
+    local_timers = {}
+    for f in funcs:
+        for k in range(f.line + 1, f.end_line):
+            l = lines[k - 1]
+            if 'TimerExpireEvent' not in l:
+                continue
+            for name, args, _spans in _calls(l, LINKS):
+                if name != 'TriggerRegisterTimerExpireEvent' or len(args) != 2:
+                    continue
+                trig = args[0].strip()
+                if not re.match(r'^\w+$', trig):
+                    continue
+                rx = re.compile(
+                    r'\bTriggerAdd(?:Action|Condition)\s*\(\s*%s\s*,\s*(?:Condition\s*\(\s*)?function\s+(\w+)'
+                    % re.escape(trig)
+                )
+                for j in range(k + 1, f.end_line):
+                    lj = _code_part(lines[j - 1])
+                    if re.match(r'\s*set\s+%s\s*=' % re.escape(trig), lj):
+                        break
+                    m = rx.search(lj)
+                    if m:
+                        if m.group(1) in revive:
+                            local_timers[(f.name, re.sub(r'\s+', '', args[1]))] = m.group(1)
+                        break
 
     def timer_runs(expr, k):
         whole, base, literal = _timer_key(al.resolve(expr, k))
@@ -243,19 +283,101 @@ def respawn_sites(text, tree):
                 why, runs = 'wait in %s' % fn, ({fn} if fn in revive else set()) | via.get(fn, set())
             elif callback in revive:
                 why, runs = 'timer that runs %s' % callback, {callback}
+            elif name in ('StartTimerBJ', 'TimerStart') and args and (fn, re.sub(r'\s+', '', args[0])) in local_timers:
+                callback = local_timers[(fn, re.sub(r'\s+', '', args[0]))]
+                why, runs = 'timer that runs %s' % callback, {callback}
             elif name in ('StartTimerBJ', 'TimerStart') and args and timer_runs(args[0], k):
                 why, runs = 'timer %s' % args[0], timer_runs(args[0], k)
             if why and (k, spans[at][0]) not in seen:
                 seen.add((k, spans[at][0]))
                 covered |= runs
                 sites.append((k - 1, spans[at][0], spans[at][1], fn, why))
-    return sites, sorted(revive), sorted(revive - covered)
+    return sites, sorted(revive - wrappers), sorted(revive - covered - wrappers)
+
+
+CREEP_MAKE = {'CreateUnit': 1, 'CreateUnitAtLoc': 1, 'CreateUnitAtLocSaveLast': 1, 'CreateNUnitsAtLoc': 1,
+              'CreateNUnitsAtLocFacingLocBJ': 1, 'BlzCreateUnitWithSkin': 1}
+RX_POINT_VALUE = re.compile(r'\bGetUnitPointValue(?:ByType)?\s*\(')
+RX_OWN_TYPE = re.compile(r'^\(?\s*GetUnitTypeId\s*\(\s*(?:GetDyingUnit|GetTriggerUnit)\s*\(\s*\)\s*\)\s*\)?$')
+RX_TYPE_SET = re.compile(
+    r'^\s*(?:set|local\s+integer)\s+(\w+)\s*=\s*(GetUnitTypeId\s*\(\s*(?:GetDyingUnit|GetTriggerUnit)'
+    r'\s*\(\s*\)\s*\))\s*$'
+)
+
+
+RX_ADD_ACTION = re.compile(
+    r'\bTriggerAdd(?:Action|Condition)\s*\(\s*(\w+)\s*,\s*(?:Condition\s*\(\s*)?(?:function\s+)?(\w+)'
+)
+
+
+def death_actions(text):
+    dead = set(re.findall(r'\bTriggerRegister\w*Event\w*\s*\(\s*(\w+)\s*,[^\n]*?_DEATH\b', text))
+    return set(f for t, f in RX_ADD_ACTION.findall(text) if t in dead)
+
+
+def creep_sites(text, tree):
+    lines = _lines(text)
+    sites = []
+    dead = death_actions(text)
+    funcs = _functions(tree)
+    respawners, makers = set(), set()
+    for f in funcs:
+        body = ''.join(_code_part(lines[k - 1]) for k in range(f.line, f.end_line))
+        if any(c in body for c in CREEP_MAKE) and _calls(body, CREEP_MAKE):
+            makers.add(f.name)
+        if 'GetExpiredTimer' in body and 'PLAYER_NEUTRAL_AGGRESSIVE' in body and any(c in body for c in CREEP_MAKE):
+            for name, args, _s in _calls(body, CREEP_MAKE):
+                owner = args[2] if name.startswith('CreateNUnits') else args[0] if args else ''
+                kind = args[1].strip() if len(args) > 1 else ''
+                if 'PLAYER_NEUTRAL_AGGRESSIVE' in owner and not re.match(r"^(?:'.{4}'|\$?\d+|0x[0-9A-Fa-f]+)$",
+                                                                       kind):
+                    respawners.add(f.name)
+    for f in funcs:
+        own, waits = set(), []
+        died = f.name in dead or 'GetDyingUnit' in ''.join(lines[f.line - 1:f.end_line])
+        for k in range(f.line, f.end_line):
+            code = _code_part(lines[k - 1])
+            m = RX_TYPE_SET.match(code)
+            if m:
+                own.add(m.group(1))
+            if any(w in code for w in WAITS):
+                for name, args, spans in _calls(code, WAITS):
+                    at = WAITS[name]
+                    if at >= len(spans):
+                        continue
+                    if RX_POINT_VALUE.search(args[at]):
+                        sites.append((k - 1, spans[at][0], spans[at][1], f.name, 'point value in %s' % f.name))
+                    elif name == 'TimerStart' and len(args) == 4 and args[2].strip() == 'false' and \
+                            'TimerGetRemaining' not in args[1]:
+                        cb = re.match(r'^function\s+(\w+)$', args[3].strip())
+                        lit = re.match(r'^\(?\s*(\d*\.?\d*)\s*\)?$', args[1].strip())
+                        short = bool(lit and lit.group(1) not in ('', '.') and float(lit.group(1)) < 5)
+                        named = cb and RX_REVIVE_NAME.search(cb.group(1) + ' ' + args[1]) and cb.group(1) in makers
+                        if cb and cb.group(1) != f.name and (cb.group(1) in respawners or named) and not short:
+                            sites.append((k - 1, spans[at][0], spans[at][1], f.name,
+                                          'timer that runs %s' % cb.group(1)))
+                    elif name in ('TriggerSleepAction', 'PolledWait'):
+                        waits.append((k - 1, spans[at][0], spans[at][1]))
+            if waits and died and any(c in code for c in CREEP_MAKE):
+                for name, args, _spans in _calls(code, CREEP_MAKE):
+                    t = args[1].strip() if len(args) > 1 else ''
+                    if RX_OWN_TYPE.match(t) or t in own:
+                        sites += [(wk, s, e, f.name, 'wait in %s' % f.name) for wk, s, e in waits]
+                        waits = []
+                        break
+    out, seen = [], set()
+    for x in sites:
+        if (x[0], x[1]) not in seen:
+            seen.add((x[0], x[1]))
+            out.append(x)
+    return out
 
 
 ITEM_MAKE = {'CreateItem': 1, 'CreateItemLoc': 1, 'UnitAddItemById': 1, 'UnitAddItemByIdSwapped': 1,
              'UnitAddItemToSlotById': 1, 'AddItemToStock': 1, 'AddItemToAllStock': 1, 'RandomDistChoose': 1}
 ITEM_TAKE = {'RemoveItem': 1, 'UnitRemoveItem': 1, 'UnitRemoveItemFromSlot': 1, 'UnitRemoveItemSwapped': 1,
              'UnitRemoveItemFromSlotSwapped': 1}
+RX_ITEM_EVENT = re.compile(r'\b(?:GetSoldItem|GetManipulatedItem)\b')
 RX_DEATH = re.compile(r'\b(?:GetDyingUnit|GetKillingUnit|GetDyingItem)\b')
 RANDOM = {'GetRandomInt': 'GetRandomInt', 'GetRandomReal': 'GetRandomReal'}
 OPS = {'<': 1, '<=': 2, '>': 3, '>=': 4, '==': 5, '!=': 6}
@@ -356,6 +478,51 @@ def _alone_after(code, i):
     while k < len(code) and code[k] in ' \t':
         k += 1
     return k >= len(code) or code[k] in '),' or bool(re.match(r'(and|or|then)\b', code[k:]))
+
+
+RX_SCALE_AFTER = re.compile(r'\s*([*/])\s*(\d+\.?\d*|\.\d+)(?![\w.])')
+RX_SCALE_BEFORE = re.compile(r'(?<![\w.])(\d+\.?\d*|\.\d+)\s*\*\s*$')
+
+
+def _draw_span(code, s, e, real):
+    f = 1.0
+    while True:
+        m = re.search(r'\bI2R\s*\(\s*$', code[:s])
+        a = re.match(r'\s*\)', code[e:])
+        if m and a:
+            s, e, real = m.start(), e + a.end(), True
+            continue
+        m = re.search(r'\(\s*$', code[:s])
+        if m and a:
+            k = m.start()
+            while k > 0 and code[k - 1] in ' \t':
+                k -= 1
+            if k == 0 or not (code[k - 1].isalnum() or code[k - 1] == '_'):
+                s, e = m.start(), e + a.end()
+                continue
+        m = RX_SCALE_AFTER.match(code, e)
+        if m and float(m.group(2)) > 0 and (m.group(1) == '*' or real or '.' in m.group(2)):
+            c = float(m.group(2))
+            f = f * c if m.group(1) == '*' else f / c
+            real = real or '.' in m.group(2) or m.group(1) == '/'
+            e = m.end()
+            continue
+        m = RX_SCALE_BEFORE.search(code[:s])
+        if m and float(m.group(1)) > 0:
+            k = m.start()
+            while k > 0 and code[k - 1] in ' \t':
+                k -= 1
+            if k == 0 or code[k - 1] not in '*/':
+                f *= float(m.group(1))
+                s = m.start()
+                real = real or '.' in m.group(1)
+                continue
+        break
+    if f == 1.0:
+        return s, e, lambda x: x
+    if f >= 1:
+        return s, e, lambda x: '((%s) / %r)' % (x, f)
+    return s, e, lambda x: '((%s) * %r)' % (x, 1 / f)
 
 
 def _comparisons(code, spans):
@@ -616,10 +783,29 @@ def chance_sites(text, tree, item_vals=None):
                 d.append((j, m.group(1).strip(), m.group(2) == 'GetRandomInt', lo, hi))
         return d
 
+    upgrades = set(f.name for f in funcs if f.name not in makes and f.name not in keeps and
+                   RX_ITEM_EVENT.search(''.join(body(f))) and 'GetRandom' in ''.join(body(f)))
+
+    def upgrade(f, k, op, cs, ce):
+        code = _code_part(lines[k - 1])
+        s = code.strip()
+        if op not in ('<', '<=') or not re.match(r'if\b', s):
+            return None
+        cond = re.sub(r'^\s*if\b|\bthen\s*$', '', code).strip()
+        while cond.startswith('(') and cond.endswith(')') and (_args(cond, 0) or (0, -1))[1] == len(cond) - 1:
+            cond = cond[1:-1].strip()
+        if cond != code[cs:ce].strip():
+            return None
+        branch, final = _blocks(lines, k, f.end_line)
+        if not any(_code_part(lines[j - 1]).strip() for j in branch) or \
+                not any(_code_part(lines[j - 1]).strip() for j in final):
+            return None
+        return False
+
     out, groups = [], {}
     for f in funcs:
         owners = []
-        if f.name in makes or f.name in keeps:
+        if f.name in makes or f.name in keeps or f.name in upgrades:
             owners.append((f, None, None))
         if f.name in conds:
             ds = set(d for _c, _k, d in conds[f.name])
@@ -638,8 +824,9 @@ def chance_sites(text, tree, item_vals=None):
                     if a is None or len(a[0]) != 2:
                         continue
                     lo, hi = (code[x:y].strip() for x, y in a[0])
-                    for cs, ce, op, x in _comparisons(code, [(ini_, a[1] + 1)]):
-                        found.append((cs, ce, op, x, code[ini_:a[1] + 1], lo, hi, name == 'GetRandomInt', None))
+                    ds, de, conv = _draw_span(code, ini_, a[1] + 1, name == 'GetRandomReal')
+                    for cs, ce, op, x in _comparisons(code, [(ds, de)]):
+                        found.append((cs, ce, op, conv(x), code[ini_:a[1] + 1], lo, hi, name == 'GetRandomInt', None))
             for c, ck, _d in owners:
                 upto = k if c is f else ck
                 for j, var, is_int, lo, hi in reversed(draws(c)):
@@ -653,13 +840,16 @@ def chance_sites(text, tree, item_vals=None):
                         found.append((cs, ce, op, x, var, lo, hi, is_int, (c.name, j)))
                     break
             for cs, ce, op, x, v, lo, hi, is_int, group in found:
+                up = False
                 if f.name in makes or f.name in keeps:
                     d, kf = direction(f, k), f
-                else:
+                elif owners[-1][0] is not f:
                     d, kf = owners[-1][2], owners[-1][0]
+                else:
+                    d, kf, up = upgrade(f, k, op, cs, ce), f, True
                 if d is None or (op in ('==', '!=') and not is_int):
                     continue
-                kind = kind_of(kf)
+                kind = 'craft' if up else kind_of(kf)
                 rep = 'QoL_Roll%s(%s, %s, %s, %s, %d, %s, QoL_%s)' % ('I' if is_int else 'R', v, lo, hi, x, OPS[op],
                                                                        'true' if d else 'false', kind)
                 out.append((k - 1, cs, ce, rep, kind, f.name))
@@ -714,6 +904,27 @@ def vip_sites(text):
         for cs, ce, op, x in _comparisons(code, spans):
             if op in ('==', '!=') and re.match(r'^"(?:[^"\\]|\\.)*"$', x.strip()) and 'WorldEdit' not in x:
                 out.append((k, cs, ce, '(true)' if op == '==' else '(false)', x.strip()[1:-1]))
+    return out
+
+
+RESTORE_CALLS = {'AdjustPlayerStateBJ': PREFIX + '_RestoreAdjust', 'SetPlayerStateBJ': PREFIX + '_RestoreSetBJ',
+                 'SetPlayerState': PREFIX + '_RestoreSet'}
+
+
+def restore_sites(text):
+    out = []
+    for k, l in enumerate(_lines(text)):
+        if 'S2I' not in l or 'PLAYER_STATE_RESOURCE_' not in l:
+            continue
+        code = _code_part(l)
+        for ini, fim, name in swap_calls.sitios(code, RESTORE_CALLS):
+            a = _args(code, code.index('(', fim))
+            if a is None or len(a[0]) != 3:
+                continue
+            args = [code[x:y] for x, y in a[0]]
+            if any(re.search(r'\bS2I\s*\(', x) for x in args) and \
+                    any(re.search(r'\bPLAYER_STATE_RESOURCE_(?:GOLD|LUMBER)\b', x) for x in args):
+                out.append((k, ini, fim, RESTORE_CALLS[name]))
     return out
 
 
@@ -893,12 +1104,13 @@ def scan(path):
         'xp_calls': _count(text, XP_CALLS),
         'xp_set': _count(text, SET_XP),
         'gold_script': len(re.findall(r'PLAYER_STATE_RESOURCE_(?:GOLD|LUMBER)', text)),
-        'save_load': bool(RX_SAVE.search(text)),
+        'save_load': bool(RX_SAVE.search(text) or restore_sites(text)),
         'shake_calls': _count(text, SHAKE_CALLS),
         'fog_calls': _count(text, FOG_CALLS),
         'revive_functions': len(revive),
         'revive_waits': len(sites),
         'revive_untouched': untouched[:20],
+        'creep_waits': len(creep_sites(text, tree)),
         'drop_chances': sum(1 for c in chances if c[4] == 'drop'),
         'drop_tables': dist_items(text),
         'craft_chances': sum(1 for c in chances if c[4] == 'craft'),
@@ -911,6 +1123,7 @@ def scan(path):
 
 LUA_HEAD = """-- Devo's Map Doctor: the quality of life edits (the QoL tab).
 QoL = {xp = %(xp)s, gold = %(gold)s, lumber = %(lumber)s, drop = %(drop)s, craft = %(craft)s, respawn = %(respawn)s,
+  creep = %(creep)s,
   reveal = %(reveal)s, noshake = %(noshake)s, still = {}, last = {}, dsum = 0}
 do
   local Q = QoL
@@ -1507,6 +1720,51 @@ def lua_respawn_sites(lc):
     return sites, sorted(revive), [u for u in untouched if u not in covered]
 
 
+def lua_creep_sites(lc):
+    out, seen = [], set()
+    dead = death_actions(lc.text)
+    for name, own, span in lc.funcs:
+        types, waits = set(), []
+        died = name in dead or (span is not None and 'GetDyingUnit' in lc.text[span[0]:span[1]])
+        for st in own:
+            if not st.span:
+                continue
+            t = type(st).__name__
+            src = lc.text[st.span[0]:st.span[1]]
+            if t in ('LocalStmt', 'AssignStmt'):
+                m = re.match(r'^(?:local\s+)?(\w+)\s*=\s*(.+)$', src.strip(), re.S)
+                if m and RX_OWN_TYPE.match(m.group(2).strip()):
+                    types.add(m.group(1))
+            if t != 'CallStmt' or type(st.call.func).__name__ != 'Name':
+                continue
+            fn = st.call.func.name
+            i = lc.tok_at(st.span[0])
+            ar = lc.args(i + 1) if lc.toks[i + 1] == '(' else None
+            if not ar:
+                continue
+            at = {'TriggerSleepAction': 0, 'PolledWait': 0, 'TimerStart': 1, 'StartTimerBJ': 2}.get(fn)
+            if at is not None and at < len(ar):
+                a, b = ar[at]
+                arg = lc.src(a, b)
+                if RX_POINT_VALUE.search(arg):
+                    if st.span not in seen:
+                        seen.add(st.span)
+                        out.append((lc.offs[a], lc.tok_end(b - 1), '(%s) * QoL.creep' % arg, name,
+                                    'point value in %s' % name))
+                elif fn in ('TriggerSleepAction', 'PolledWait'):
+                    waits.append((st.span, a, b))
+            if fn in CREEP_MAKE and waits and died and len(ar) > 1:
+                ty = lc.src(*ar[1]).strip()
+                if RX_OWN_TYPE.match(ty) or ty in types:
+                    for sp, a, b in waits:
+                        if sp not in seen:
+                            seen.add(sp)
+                            out.append((lc.offs[a], lc.tok_end(b - 1), '(%s) * QoL.creep' % lc.src(a, b), name,
+                                        'wait in %s' % name))
+                    waits = []
+    return out
+
+
 def lua_found(text):
     vips = lua_vip_sites(text)
     out = {'lua': True, 'xp_calls': lua_count(text, ('AddHeroXP', 'SetPlayerHandicapXP', 'SetPlayerHandicapXPBJ',
@@ -1525,6 +1783,7 @@ def lua_found(text):
     sites, revive, untouched = lua_respawn_sites(lc)
     chances = lua_chance_sites(lc)
     out.update(revive_functions=len(revive), revive_waits=len(sites), revive_untouched=untouched[:12],
+               creep_waits=len(lua_creep_sites(lc)),
                drop_chances=sum(1 for c in chances if c[3] == 'drop'),
                craft_chances=sum(1 for c in chances if c[3] == 'craft'))
     return out
@@ -1536,11 +1795,17 @@ def _lua_bool(b):
 
 def lua_edit(text, o, rep):
     done = {}
-    if o['respawn'] != 1 or o['drop'] != 1 or o['craft'] != 1:
+    if o['respawn'] != 1 or o['creep'] != 1 or o['drop'] != 1 or o['craft'] != 1:
         lc = _LuaCode(text)
         edits = []
+        if o['creep'] != 1:
+            cs = lua_creep_sites(lc)
+            edits += [(a, b, r) for a, b, r, _f, _w in cs]
+            rep['creep'] = [(f, w) for _a, _b, _r, f, w in cs]
         if o['respawn'] != 1:
             sites, revive, untouched = lua_respawn_sites(lc)
+            taken_c = set((a, b) for a, b, _r in edits)
+            sites = [x for x in sites if (x[0], x[1]) not in taken_c]
             edits += [(a, b, r) for a, b, r, _f, _w in sites]
             rep['respawn'] = {'sites': [(f, w) for _a, _b, _r, f, w in sites], 'revive': revive,
                               'untouched': untouched}
@@ -1564,7 +1829,7 @@ def lua_edit(text, o, rep):
     if o['reveal']:
         done['fog'] = lua_count(text, tuple(FOG_CALLS))
     v = {'xp': _real(o['xp']), 'gold': _real(o['gold']), 'lumber': _real(o['lumber']), 'drop': _real(o['drop']),
-         'craft': _real(o['craft']), 'respawn': _real(o['respawn']),
+         'craft': _real(o['craft']), 'respawn': _real(o['respawn']), 'creep': _real(o['creep']),
          'reveal': _lua_bool(o['reveal']), 'noshake': _lua_bool(o['noshake'] or o['noshake_default']),
          'noshake_default': _lua_bool(o['noshake_default'])}
     nl = '\r\n' if text.count('\r\n') * 2 > text.count('\n') else '\n'
@@ -1621,7 +1886,7 @@ endfunction''')
         init.append(players % '        call SetPlayerHandicapXP(Player(i), GetPlayerHandicapXP(Player(i)) * QoL_xp)\n')
     if o['gold'] != 1 or o['lumber'] != 1:
         g += ['    real QoL_gold = %s' % _real(o['gold']), '    real QoL_lumber = %s' % _real(o['lumber']),
-              '    integer array QoL_last']
+              '    integer array QoL_last', '    boolean QoL_hold = false']
         f.append('''function QoL_Gain takes nothing returns nothing
     local player p = GetTriggerPlayer()
     local playerstate s = GetEventPlayerState()
@@ -1632,7 +1897,7 @@ endfunction''')
         set k = k + 1
         set m = QoL_lumber
     endif
-    if v > QoL_last[k] and m != 1. then
+    if v > QoL_last[k] and m != 1. and not QoL_hold then
         set v = R2I(RMaxBJ(RMinBJ(I2R(QoL_last[k]) + I2R(v - QoL_last[k]) * m, 1000000000.), 0.))
         set QoL_last[k] = v
         call DisableTrigger(GetTriggeringTrigger())
@@ -1642,6 +1907,31 @@ endfunction''')
     set QoL_last[k] = GetPlayerState(p, s)
     set p = null
     set s = null
+endfunction
+function QoL_Keep takes player p, playerstate s returns nothing
+    if s == PLAYER_STATE_RESOURCE_GOLD then
+        set QoL_last[GetPlayerId(p) * 2] = GetPlayerState(p, s)
+    elseif s == PLAYER_STATE_RESOURCE_LUMBER then
+        set QoL_last[GetPlayerId(p) * 2 + 1] = GetPlayerState(p, s)
+    endif
+endfunction
+function QoL_RestoreAdjust takes integer d, player p, playerstate s returns nothing
+    set QoL_hold = true
+    call AdjustPlayerStateBJ(d, p, s)
+    set QoL_hold = false
+    call QoL_Keep(p, s)
+endfunction
+function QoL_RestoreSetBJ takes player p, playerstate s, integer v returns nothing
+    set QoL_hold = true
+    call SetPlayerStateBJ(p, s, v)
+    set QoL_hold = false
+    call QoL_Keep(p, s)
+endfunction
+function QoL_RestoreSet takes player p, playerstate s, integer v returns nothing
+    set QoL_hold = true
+    call SetPlayerState(p, s, v)
+    set QoL_hold = false
+    call QoL_Keep(p, s)
 endfunction''')
         init.append('    set t = CreateTrigger()\n' + players % (
             '        set QoL_last[i * 2] = GetPlayerState(Player(i), PLAYER_STATE_RESOURCE_GOLD)\n'
@@ -1652,6 +1942,8 @@ endfunction''')
             'GREATER_THAN_OR_EQUAL, 0)\n') + '    call TriggerAddAction(t, function QoL_Gain)\n')
     if o['respawn'] != 1:
         g.append('    real QoL_respawn = %s' % _real(o['respawn']))
+    if o['creep'] != 1:
+        g.append('    real QoL_creep = %s' % _real(o['creep']))
     if o['drop'] != 1 or o['craft'] != 1:
         g += ['    real QoL_drop = %s' % _real(o['drop']), '    real QoL_craft = %s' % _real(o['craft']),
               '    integer QoL_dsum = 0']
@@ -1769,10 +2061,21 @@ def edit(text, o, rep, item_vals=None):
                 edits.append((k, s, e, ' (' + lines[k][s:e].strip() + ') * QoL_respawn'))
         rep['respawn'] = {'sites': [(fn, why) for _k, _s, _e, fn, why in sites], 'revive': revive,
                           'untouched': untouched}
+    if o['creep'] != 1:
+        taken_r = set((k, s) for k, s, *_r in edits)
+        cs = [c for c in creep_sites(text, tree) if (c[0], c[1]) not in taken_r]
+        lines = _lines(text)
+        edits += [(k, s, e, ' (' + lines[k][s:e].strip() + ') * QoL_creep') for k, s, e, _fn, _w in cs]
+        rep['creep'] = [(fn, why) for _k, _s, _e, fn, why in cs]
     if o['drop'] != 1 or o['craft'] != 1:
         chances = [c for c in chance_sites(text, tree, item_vals) if o[c[4]] != 1]
         edits += [(k, s, e, r) for k, s, e, r, _kind, _fn in chances]
         rep['chances'] = [(kind, fn) for _k, _s, _e, _r, kind, fn in chances]
+    if o['gold'] != 1 or o['lumber'] != 1:
+        rs = restore_sites(text)
+        edits += rs
+        if rs:
+            done['restore'] = len(rs)
     if o['vip']:
         vips = vip_sites(text)
         edits += [(k, s, e, r) for k, s, e, r, _n in vips]
@@ -1888,7 +2191,10 @@ def report(o, done, rep, text):
                                 'as they are.' % n))
     if o['gold'] != 1 or o['lumber'] != 1:
         out.append(('info', 'Gold x%g, lumber x%g, on every gain of every player.' % (o['gold'], o['lumber'])))
-        if RX_SAVE.search(text):
+        if done.get('restore'):
+            out.append(('info', 'The gold and lumber a load gives back from the save are not multiplied (%d place(s)).'
+                        % done['restore']))
+        elif RX_SAVE.search(text):
             out.append(('warn', 'The map has a save/load code: gold a load gives back is a gain too, and gets '
                                 'multiplied.'))
     if o['respawn'] != 1:
@@ -1908,6 +2214,15 @@ def report(o, done, rep, text):
         if alt:
             out.append(('info', 'Revive at an altar x%g (the gameplay constants): %s.' % (o['respawn'], ', '.join(
                 '%s %g -> %g' % (k, alt[k][0], alt[k][1]) for k, _d in ALTAR if k in alt))))
+    if o['creep'] != 1:
+        cs = rep.get('creep') or []
+        if cs:
+            out.append(('info', 'Monster respawn time x%g: %d wait(s) or timer(s) in %d place(s).'
+                        % (o['creep'], len(cs), len(set(fn for fn, _w in cs)))))
+            for fn, why in cs[:12]:
+                out.append(('info', '  %s' % why))
+        else:
+            out.append(('warn', 'Monster respawn time: no wait or timer of a monster respawn was found.'))
     if o['noshake'] or o['noshake_default']:
         out.append(('info', '-noshake turns the camera shakes off and on (%d call(s) of the map rerouted)%s.'
                     % (done.get('shake', 0), '; every player starts with them off' if o['noshake_default'] else '')))

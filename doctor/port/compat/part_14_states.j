@@ -433,6 +433,24 @@ function KK_morfo_antes takes unit u returns nothing
 endfunction
 //{{KK_FIMSE:KK_MORFO_ESTADO}}
 
+//{{KK_SE:KK_EST_14}}
+function DB_est_primario takes unit u returns real
+    local integer a
+    if not IsUnitType(u,UNIT_TYPE_HERO) then
+        return 0.0
+    endif
+    set a=BlzGetUnitIntegerField(u,UNIT_IF_PRIMARY_ATTRIBUTE)
+    if a==1 then
+        return I2R(GetHeroStr(u,true))
+    elseif a==2 then
+        return I2R(GetHeroInt(u,true))
+    elseif a==3 then
+        return I2R(GetHeroAgi(u,true))
+    endif
+    return 0.0
+endfunction
+//{{KK_FIMSE:KK_EST_14}}
+
 function DB_estado_le takes unit u,integer st returns real
     local integer h
     if u==null then
@@ -458,6 +476,11 @@ function DB_estado_le takes unit u,integer st returns real
         return I2R(BlzGetUnitDiceSides(u,0))
     endif
     set h=DB_est_h(u)
+    //{{KK_SE:KK_EST_14}}
+    if st==0x14 then
+        return I2R(BlzGetUnitBaseDamage(u,0)+BlzGetUnitDiceNumber(u,0))+DB_est_primario(u)+LoadReal(DB_est_ht,h,DB_EST_BONUS)
+    endif
+    //{{KK_FIMSE:KK_EST_14}}
     if st==0x15 then
         return I2R(BlzGetUnitBaseDamage(u,0))+DB_est_media_dados(u)+LoadReal(DB_est_ht,h,DB_EST_BONUS)
     elseif st==0x51 then

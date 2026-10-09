@@ -1,6 +1,37 @@
+//{{KK_SE:KK_UI_BOTOES}}
+//@GLOBALS
+hashtable DB_ui_botoes=null
+//@ENDGLOBALS
+
+function DB_ui_e_botao takes string nome returns boolean
+    local string lista="{{KK_UI_BOTOES_1}}"+"{{KK_UI_BOTOES_2}}"+"{{KK_UI_BOTOES_3}}"+"{{KK_UI_BOTOES_4}}"+"{{KK_UI_BOTOES_5}}"+"{{KK_UI_BOTOES_6}}"+"{{KK_UI_BOTOES_7}}"+"{{KK_UI_BOTOES_8}}"
+    local integer i=0
+    local integer n
+    local integer ini=0
+    if DB_ui_botoes==null then
+        set DB_ui_botoes=InitHashtable()
+        set n=StringLength(lista)
+        loop
+            exitwhen i>n
+            if i==n or SubString(lista, i, i+1)=="|" then
+                if i>ini then
+                    call SaveBoolean(DB_ui_botoes, 0, StringHash(SubString(lista, ini, i)), true)
+                endif
+                set ini=i+1
+            endif
+            set i=i+1
+        endloop
+    endif
+    return LoadBoolean(DB_ui_botoes, 0, StringHash(nome))
+endfunction
+//{{KK_FIMSE:KK_UI_BOTOES}}
+
 function DzCreateFrame takes string frame,integer parent,integer id returns integer
     local framehandle p=DB_fh(parent)
     local framehandle f
+    //{{KK_SE:KK_UI_BOTOES}}
+    local integer nid
+    //{{KK_FIMSE:KK_UI_BOTOES}}
     if p==null then
         set p=DB_fh(DzGetGameUI())
     endif
@@ -11,6 +42,16 @@ function DzCreateFrame takes string frame,integer parent,integer id returns inte
     if f==null then
         return 0
     endif
+    //{{KK_SE:KK_UI_BOTOES}}
+    if DB_ui_e_botao(frame) then
+        set nid=DB_fid(f)
+        call DB_ui_ht_ok()
+        call SaveBoolean(DB_ui_ht, nid, 2, true)
+        call DB_ui_foco(f, nid)
+        call DB_ui_roda_registra(f, nid)
+        return nid
+    endif
+    //{{KK_FIMSE:KK_UI_BOTOES}}
     return DB_fid(f)
 endfunction
 
@@ -57,6 +98,13 @@ function DzFrameGetHeroHPBar takes integer buttonId returns integer
 endfunction
 
 function DzFrameGetUpperButtonBarButton takes integer buttonId returns integer
+    //{{KK_SE:KK_UI_SISTEMA}}
+    if buttonId==0 then
+        return DB_origin(ORIGIN_FRAME_SYSTEM_BUTTON, 3)
+    elseif buttonId>=1 and buttonId<=3 then
+        return DB_origin(ORIGIN_FRAME_SYSTEM_BUTTON, buttonId-1)
+    endif
+    //{{KK_FIMSE:KK_UI_SISTEMA}}
     return DB_origin(ORIGIN_FRAME_SYSTEM_BUTTON, buttonId)
 endfunction
 

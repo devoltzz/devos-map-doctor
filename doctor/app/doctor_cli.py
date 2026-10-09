@@ -19,10 +19,10 @@ usage: doctor <command> <map> [options]
   cheat <map> --pack=<id> [--set <key>=<value> ...] [--strip-indent]
                                   adds a cheat pack: saves <map>_<pack>.w3x
   qol <map>                       what the map has for each quality of life edit
-  qol <map> [--xp=<x>] [--gold=<x>] [--lumber=<x>] [--drop=<x>] [--craft=<x>] [--respawn=<x>]
+  qol <map> [--xp=<x>] [--gold=<x>] [--lumber=<x>] [--drop=<x>] [--craft=<x>] [--respawn=<x>] [--creep=<x>]
             [--noshake] [--noshake-off] [--reveal] [--vip] [--strip-indent]
                                   the quality of life edits (multipliers; --respawn=0.5 halves the hero revive
-                                  time): saves <map>_qol.w3x
+                                  time, --creep=0.5 the monster respawn time): saves <map>_qol.w3x
   translation groups <map>        the files the texts come from
   translation export <map> <file.txt|file.html> [--only=<group>,...]
   translation check <map> <file>  checks a translated file against the map (apply it: fix --translation=<file>)
@@ -325,7 +325,7 @@ def build_job(command, pos, opts, run):
     if command == 'qol':
         need(pos, 2, '<map>')
         options = {}
-        for k in ('xp', 'gold', 'lumber', 'drop', 'craft', 'respawn'):
+        for k in ('xp', 'gold', 'lumber', 'drop', 'craft', 'respawn', 'creep'):
             if k in opts:
                 try:
                     options[k] = float(opts[k])

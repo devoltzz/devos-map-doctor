@@ -5,7 +5,7 @@ from doctor.port import swap_calls as T
 
 
 KNOWN_NAMES = {'SetUnitState': 1, 'GetUnitState': 1}
-RX_CONVERT = re.compile(r'^ConvertUnitState\(\s*(0[xX][0-9A-Fa-f]+|\d+)\s*\)$')
+RX_CONVERT = re.compile(r'^ConvertUnitState\(\s*(0[xX][0-9A-Fa-f]+|\$[0-9A-Fa-f]+|\d+)\s*\)$')
 LABEL_TEXT = 'japi states -> part_14'
 
 
@@ -44,6 +44,8 @@ def classify_items(fname, st):
         x = m.group(1)
         if x[:2].lower() == '0x':
             n = int(x, 16)
+        elif x[0] == '$':
+            n = int(x[1:], 16)
         elif len(x) > 1 and x[0] == '0':
             try:
                 n = int(x, 8)

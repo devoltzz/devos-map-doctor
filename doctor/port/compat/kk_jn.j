@@ -906,6 +906,9 @@ function JNObjectCharacterInit takes string MapId,string UserId,string SecretKey
     if KKJN_LoadOnce(KKJN_ObjChar(u, c), KKJN_BaseChar(u, c)) then
         return 0
     endif
+    //{{KK_SE:KK_JN_INIT_ZERO}}
+    return 0
+    //{{KK_FIMSE:KK_JN_INIT_ZERO}}
     return 1
 endfunction
 
@@ -1076,8 +1079,17 @@ function JNObjectUserInit takes string MapId,string Userid,string SecretKey,stri
     if KKJN_LoadOnce(KKJN_ObjUser(u, ns), KKJN_BaseUser(u, ns)) then
         return 0
     endif
+    //{{KK_SE:KK_JN_INIT_ZERO}}
+    return 0
+    //{{KK_FIMSE:KK_JN_INIT_ZERO}}
     return 1
 endfunction
+
+//{{KK_SE:KK_JN_INIT2}}
+function JNObjectUserInit2 takes string MapId,string Userid,string SecretKey,string Character returns integer
+    return JNObjectUserInit(MapId, Userid, SecretKey, Character)
+endfunction
+//{{KK_FIMSE:KK_JN_INIT2}}
 
 function JNObjectUserSave takes string MapId,string UserId,string SecretKey,string Character returns string
     local string u
@@ -1744,6 +1756,9 @@ function JNProcessStart takes string fileName,string arguments returns boolean
 endfunction
 
 function JNServerPluginVersion takes nothing returns integer
+    //{{KK_SE:KK_JN_PLUGIN}}
+    return {{KK_JN_PLUGIN_VER}}
+    //{{KK_FIMSE:KK_JN_PLUGIN}}
     return 0
 endfunction
 

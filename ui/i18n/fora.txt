@@ -66,3 +66,9 @@ item(s) in the item tables of the World Editor.
 Call
 the item rolls: the share of the draw that makes the item times m (100% at most), as QoL_RollI/R of the JASS maps
 ({0}) * QoL.respawn
+{0}_RestoreAdjust
+{0}_RestoreSet
+{0}_RestoreSetBJ
+({0}) * QoL.creep
+({0}) * QoL_creep
+real QoL_creep = {0}

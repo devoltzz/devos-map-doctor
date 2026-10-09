@@ -30,7 +30,7 @@ never runs the game.
 | **Fix map** | Removes the protection and repairs the map: fake file tables, scrambled ids, data the 3.0 engine refuses, broken SLK tables, models that crash the game, portrait cameras, data pointers, ability lists, single player. Extras for the map card, the translation and the size. |
 | **Open in World Editor** | Writes a copy the editor opens, with the GUI triggers rebuilt from the script when the round trip proves them. |
 | **Port to Reforged** | KK, KKWE, DzAPI, YDWE and j2b maps get their natives implemented and their scripts back in JASS. Maps whose game runs on the YDWE Lua engine become Reforged Lua maps (their Lua 5.3 bytecode translated to source). |
-| **QoL** | A quality of life version of the map: more experience, gold, lumber, item drops and craft success, a faster hero revive, a -noshake command, the map revealed, VIP for everyone. |
+| **QoL** | A quality of life version of the map: more experience, gold, lumber, item drops and craft success, a faster hero revive and monster respawn, a -noshake command, the map revealed, VIP for everyone. |
 | **Tabs** | Map card, "Runs on Reforged?", files (previews, raw codes), script and its checks, triggers, translation export and import, compare two versions, cheat packs. |
 
 <table>
@@ -46,7 +46,7 @@ never runs the game.
 
 ### New in 1.7.1
 
-- A new QoL tab: a quality of life version of an old RPG, made from its own script. Experience, gold and lumber multipliers, item drop and craft success chances (100% at most, tiers kept), a shorter hero revive, a -noshake command, the map revealed and VIP for everyone. The item tables of the World Editor and the revive at an altar follow the same multipliers. Lua maps take every edit too, the rolls and the revive waits of their code included. The tab shows what the map has for each one before anything is written.
+- A new QoL tab: a quality of life version of an old RPG, made from its own script. Experience, gold and lumber multipliers, item drop and craft success chances (100% at most, tiers kept), a shorter hero revive and monster respawn, a -noshake command, the map revealed and VIP for everyone. The item tables of the World Editor and the revive at an altar follow the same multipliers. Lua maps take every edit too, the rolls and the revive waits of their code included. The tab shows what the map has for each one before anything is written.
 - The JASS parser reads vJass too, and a map with vJass that was never compiled gets a clearer report.
 
 ### New in 1.7.0
@@ -151,7 +151,9 @@ Use "Report a problem" in the window: it opens an issue here with the report fil
 
 - [caiohsr14](https://github.com/caiohsr14), for the exact models of `DzSetUnitModel` and the unique ASCII names of
   models whose names are not UTF-8 (#9).
-- sangje_wc3, whose w3x2lni with 3.0 support pointed out gaps the Doctor now covers in its own code.
+- sangje_wc3 ([hachamacha106](https://github.com/hachamacha106)), whose
+  [w3x2lni-reforged](https://github.com/hachamacha106/w3x2lni-reforged), the w3x2lni fork for Warcraft III 3.0 maps,
+  pointed out gaps the Doctor now covers in its own code.
 
 ## License
 

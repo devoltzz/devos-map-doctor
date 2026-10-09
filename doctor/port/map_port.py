@@ -418,7 +418,15 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
         'KK_UI_ANCORA': 'true',
         'KK_UI_MSG': 'true',
         'KK_Z_4': 'true',
+        'KK_EST_14': new.reads_state_14(body_text),
+        'KK_UI_ALFA': new.ui_alpha(body_text),
+        'KK_SYNC_VAZIO': new.empty_sync(body_text),
     }
+    pair['KK_UI_SISTEMA'] = 'true'
+    buttons = new.fdf_buttons(extract, body_text)
+    pair['KK_UI_BOTOES'] = 'true' if buttons else 'false'
+    if buttons:
+        pair.update(new.buttons_in_chunks(buttons))
     if diag['jn']:
         found_key = channel_table.jn_ability(extract)
         if not found_key:
@@ -431,9 +439,14 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
             'KK_JN_HABILIDADE': "'%s'" % ability_id,
             'KK_JN_SALVO': saved if saved is not None else '|cff00ff00Save OK|r',
             'KK_JN_DIARIO': diario if diario is not None else 'Checked',
-            'KK_JN_USE': 'false', 'KK_JN_CONEXAO': "'BNET'", 'KK_JN_HOST': 'false',
+            'KK_JN_USE': new.jnuse_gate(body_text), 'KK_JN_CONEXAO': "'BNET'", 'KK_JN_HOST': 'false',
+            'KK_JN_INIT_ZERO': new.jninit_gate(body_text),
+            'KK_JN_PLUGIN': 'true' if new.jnplugin_gate(body_text) is not None else 'false',
+            'KK_JN_INIT2': 'true' if re.search(r'\bnative\s+JNObjectUserInit2\b', body_text) else 'false',
         })
         pair.update(dict((k, v) for k, v in new.JN_PARAMETERS.items() if not k.startswith('_')))
+        if new.jnplugin_gate(body_text) is not None:
+            pair['KK_JN_PLUGIN_VER'] = str(new.jnplugin_gate(body_text))
         new.save(os.path.join(compat, 'kk_sv_prepara_tde.j'), '    call KKJN_init()\n')
     new.save(os.path.join(root, 'port', 'kk_parametros.json'), json.dumps(pair, ensure_ascii=False, indent=1) + '\n')
     log('4. the map part of the layer: %d natives of the engine, save folder %r%s'

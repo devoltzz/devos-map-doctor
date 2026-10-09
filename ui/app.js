@@ -1427,8 +1427,10 @@ const QOL_NUMBERS = [
   ['drop', 'Item drop chance', 'Multiplies the chance of the item drops the script rolls (100% at most).'],
   ['craft', 'Craft success chance', 'Multiplies the chance of the crafts the script rolls (100% at most).'],
   ['respawn', 'Hero revive time', 'Multiplies the time a dead hero waits: 0.5 is half the time, 0 is at once.'],
+  ['creep', 'Monster respawn time', 'Multiplies the time a dead monster takes to come back: 0.5 is half the time.'],
 ];
 const QOL_FLAGS = { xp: 'xp', gold: 'gold', lumber: 'lumber', drop: 'drop', craft: 'craft', respawn: 'respawn',
+  creep: 'creep',
   noshake: 'noshake', noshake_default: 'noshake-off', reveal: 'reveal', vip: 'vip' };
 
 async function loadQol(gen) {
@@ -1479,6 +1481,7 @@ function qolHint(key, f) {
       ' item(s) in the item tables of the World Editor.';
   }
   if (key === 'craft') return f.craft_chances + ' craft roll(s) found.';
+  if (key === 'creep') return f.creep_waits + ' wait(s) or timer(s) of a monster respawn found.';
   if (key === 'respawn') {
     return f.revive_waits + ' wait(s) or timer(s) of a hero revive found, in ' + f.revive_functions +
       ' function(s) that revive.';
@@ -1508,7 +1511,7 @@ function renderQol() {
     const hint = qolHint(key, f);
     rows.push(el('label', { text: label }), el('div', {},
       el('div', { class: 'row' }, el('span', { class: 'mono', text: 'x' }), el('input', { class: 'field', type: 'number',
-        min: '0', step: key === 'respawn' ? '0.1' : '0.5', value: String(qolValue(key)), style: 'width:110px',
+        min: '0', step: key === 'respawn' || key === 'creep' ? '0.1' : '0.5', value: String(qolValue(key)), style: 'width:110px',
         'aria-label': label, oninput: e => { state.qolOpt[key] = e.target.value; qolShell(); } })),
       el('div', { class: 'faint', text: detail }), hint ? el('div', { class: 'muted', text: hint }) : null));
   }
