@@ -423,6 +423,7 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
         'KK_SYNC_VAZIO': new.empty_sync(body_text),
     }
     pair['KK_UI_SISTEMA'] = 'true'
+    pair['KK_UI_CICLO'] = 'true'
     buttons = new.fdf_buttons(extract, body_text)
     pair['KK_UI_BOTOES'] = 'true' if buttons else 'false'
     if buttons:

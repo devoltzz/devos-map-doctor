@@ -881,6 +881,103 @@ function DB_borda_direita takes nothing returns real
     return DB_pad_dir
 endfunction
 
+//{{KK_SE:KK_UI_CICLO}}
+hashtable DB_anc_ht=null
+integer DB_anc_marca=0
+integer DB_anc_desfeitos=0
+
+function DB_anc_grava takes integer f,integer p,integer r,integer rp,real x,real y returns nothing
+    if DB_anc_ht==null then
+        set DB_anc_ht=InitHashtable()
+    endif
+    call SaveBoolean(DB_anc_ht, f, 340+p, true)
+    call SaveInteger(DB_anc_ht, f, 300+p, r)
+    call SaveInteger(DB_anc_ht, f, 310+p, rp)
+    call SaveReal(DB_anc_ht, f, 320+p, x)
+    call SaveReal(DB_anc_ht, f, 330+p, y)
+endfunction
+
+function DB_anc_limpa takes integer f returns nothing
+    local integer p=0
+    if DB_anc_ht==null then
+        return
+    endif
+    loop
+        exitwhen p>8
+        call RemoveSavedBoolean(DB_anc_ht, f, 340+p)
+        set p=p+1
+    endloop
+endfunction
+
+function DB_anc_alcanca takes integer de,integer alvo,integer prof returns boolean
+    local integer p=0
+    if de==alvo then
+        return true
+    endif
+    if de==0 or prof>24 or DB_anc_ht==null then
+        return false
+    endif
+    if LoadInteger(DB_anc_ht, de, 399)==DB_anc_marca then
+        return false
+    endif
+    call SaveInteger(DB_anc_ht, de, 399, DB_anc_marca)
+    loop
+        exitwhen p>8
+        if LoadBoolean(DB_anc_ht, de, 340+p) then
+            if DB_anc_alcanca(LoadInteger(DB_anc_ht, de, 300+p), alvo, prof+1) then
+                return true
+            endif
+        endif
+        set p=p+1
+    endloop
+    return false
+endfunction
+
+function DB_anc_desfaz takes integer f,integer r returns nothing
+    local integer p=0
+    local integer q
+    local integer rr
+    local integer rq
+    local real x2
+    local real y2
+    local framehandle h=DB_fh(r)
+    loop
+        exitwhen p>8
+        if LoadBoolean(DB_anc_ht, r, 340+p) and LoadInteger(DB_anc_ht, r, 300+p)==f then
+            set q=LoadInteger(DB_anc_ht, r, 310+p)
+            if LoadBoolean(DB_anc_ht, f, 340+q) and LoadInteger(DB_anc_ht, f, 300+q)!=r and h!=null then
+                set rr=LoadInteger(DB_anc_ht, f, 300+q)
+                set rq=LoadInteger(DB_anc_ht, f, 310+q)
+                set x2=LoadReal(DB_anc_ht, r, 320+p)+LoadReal(DB_anc_ht, f, 320+q)
+                set y2=LoadReal(DB_anc_ht, r, 330+p)+LoadReal(DB_anc_ht, f, 330+q)
+                if rr==0 then
+                    call BlzFrameSetAbsPoint(h, DB_p(p), x2, y2)
+                elseif DB_fh(rr)!=null then
+                    call BlzFrameSetPoint(h, DB_p(p), DB_fh(rr), DB_p(rq), x2, y2)
+                endif
+                call DB_anc_grava(r, p, rr, rq, x2, y2)
+                set DB_anc_desfeitos=DB_anc_desfeitos+1
+            endif
+        endif
+        set p=p+1
+    endloop
+    set h=null
+endfunction
+
+function DB_anc_pode takes integer frame,integer relativeFrame returns boolean
+    if relativeFrame==0 or DB_anc_ht==null then
+        return true
+    endif
+    set DB_anc_marca=DB_anc_marca+1
+    if not DB_anc_alcanca(relativeFrame, frame, 0) then
+        return true
+    endif
+    call DB_anc_desfaz(frame, relativeFrame)
+    set DB_anc_marca=DB_anc_marca+1
+    return not DB_anc_alcanca(relativeFrame, frame, 0)
+endfunction
+//{{KK_FIMSE:KK_UI_CICLO}}
+
 function DzFrameSetPoint takes integer frame,integer point,integer relativeFrame,integer relativePoint,real x,real y returns nothing
     local framehandle f=DB_fh(frame)
     local framehandle r=DB_fh(relativeFrame)
@@ -915,6 +1012,16 @@ function DzFrameSetPoint takes integer frame,integer point,integer relativeFrame
             set x=x+pad
         endif
     endif
+    //{{KK_SE:KK_UI_CICLO}}
+    if r!=null and not DB_anc_pode(frame, relativeFrame) then
+        return
+    endif
+    if r!=null then
+        call DB_anc_grava(frame, point, relativeFrame, relativePoint, x, y)
+    else
+        call DB_anc_grava(frame, point, 0, point, x, y)
+    endif
+    //{{KK_FIMSE:KK_UI_CICLO}}
     if r!=null then
         call BlzFrameSetPoint(f, DB_p(point), r, DB_p(relativePoint), x, y)
     else
@@ -930,6 +1037,9 @@ function DzFrameSetAbsolutePoint takes integer frame,integer point,real x,real y
     endif
     //{{KK_FIMSE:KK_UI_MSG}}
     if f!=null then
+        //{{KK_SE:KK_UI_CICLO}}
+        call DB_anc_grava(frame, point, 0, point, x, y)
+        //{{KK_FIMSE:KK_UI_CICLO}}
         call BlzFrameSetAbsPoint(f, DB_p(point), x, y)
     endif
 endfunction
@@ -942,6 +1052,9 @@ function DzFrameClearAllPoints takes integer frame returns nothing
     endif
     //{{KK_FIMSE:KK_UI_MSG}}
     if f!=null then
+        //{{KK_SE:KK_UI_CICLO}}
+        call DB_anc_limpa(frame)
+        //{{KK_FIMSE:KK_UI_CICLO}}
         call BlzFrameClearAllPoints(f)
     endif
 endfunction
@@ -957,6 +1070,13 @@ function DzFrameSetAllPoints takes integer frame,integer relativeFrame returns b
         return false
     endif
     //{{KK_FIMSE:KK_UI_MSG}}
+    //{{KK_SE:KK_UI_CICLO}}
+    if not DB_anc_pode(frame, relativeFrame) then
+        return false
+    endif
+    call DB_anc_grava(frame, 0, relativeFrame, 0, 0.0, 0.0)
+    call DB_anc_grava(frame, 8, relativeFrame, 8, 0.0, 0.0)
+    //{{KK_FIMSE:KK_UI_CICLO}}
     call BlzFrameSetAllPoints(f, r)
     return true
 endfunction

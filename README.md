@@ -44,6 +44,10 @@ never runs the game.
 </tr>
 </table>
 
+### New in 1.7.2
+
+- Port to Reforged: maps whose game runs on the YDWE Lua engine get their interface in the program too (the frame definitions they write while they run are collected), and a map no longer closes during the loading screen when its interface anchors frames in a loop the old game accepted (#15, #16).
+
 ### New in 1.7.1
 
 - A new QoL tab: a quality of life version of an old RPG, made from its own script. Experience, gold and lumber multipliers, item drop and craft success chances (100% at most, tiers kept), a shorter hero revive and monster respawn, a -noshake command, the map revealed and VIP for everyone. The item tables of the World Editor and the revive at an altar follow the same multipliers. Lua maps take every edit too, the rolls and the revive waits of their code included. The tab shows what the map has for each one before anything is written.

@@ -563,7 +563,7 @@ def join_versions(versions):
 def generated_files(lua_p, seconds=15.0, log=None, extract=None, textures=None):
     import shutil
     import tempfile
-    import simulate
+    from doctor.port import simulate
     folder = tempfile.mkdtemp(prefix='ydwe_generated_')
     try:
         details = simulate.simulate(lua_p, seconds, 1, log=lambda *a: None,

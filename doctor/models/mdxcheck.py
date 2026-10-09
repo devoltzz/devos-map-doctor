@@ -1,4 +1,5 @@
 # Checks the structure of an MDX model: what makes the game read outside the file.
+import os
 import struct
 import sys
 
@@ -21,7 +22,18 @@ def arg(fname, default_value=None):
     return default_value
 
 
-def walk(d):
+def finds(tgt):
+    if os.path.isfile(tgt):
+        return [tgt]
+    outside = []
+    for root, _, files_ in os.walk(tgt):
+        for n in files_:
+            if n.lower().endswith('.mdx'):
+                outside.append(os.path.join(root, n))
+    return sorted(outside)
+
+
+def walk_path(d):
     if d[:4] not in MAGICS:
         return [], 'unknown magic %r (neither MDLX nor one of the known family)' % d[:4]
     p = 4
