@@ -48,6 +48,7 @@ never runs the game.
 
 - A new QoL tab: a quality of life version of an old RPG, made from its own script. Experience, gold and lumber multipliers, item drop and craft success chances (100% at most, tiers kept), a shorter hero revive and monster respawn, a -noshake command, the map revealed and VIP for everyone. The item tables of the World Editor and the revive at an altar follow the same multipliers. Lua maps take every edit too, the rolls and the revive waits of their code included. The tab shows what the map has for each one before anything is written.
 - The JASS parser reads vJass too, and a map with vJass that was never compiled gets a clearer report.
+- Port to Reforged: maps of the M16/JN and KK platforms that ended the game as soon as they loaded, could not log in to their own save, lost their menu button or dealt 0 damage now play (#10, #11, #12, #13, #14).
 
 ### New in 1.7.0
 
