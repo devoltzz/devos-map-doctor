@@ -24,11 +24,12 @@ usage: doctor <command> <map> [options]
                                   the quality of life edits (multipliers; --respawn=0.5 halves the hero revive
                                   time, --creep=0.5 the monster respawn time): saves <map>_qol.w3x
   translation groups <map>        the files the texts come from
-  translation export <map> <file.txt|file.html> [--only=<group>,...]
+  translation export <map> <file.txt|file.html> [--only=<group>,...] [--images]
   translation check <map> <file>  checks a translated file against the map (apply it: fix --translation=<file>)
-  translation machine <map> <file.json> [--quality=best|fast] [--only=<group>,...]
+  translation machine <map> <file.json> [--quality=best|fast] [--only=<group>,...] [--images]
                                   translates the texts into English on this computer (an open translation model,
                                   downloaded the first time) and checks the file against the map
+  --images (export, machine): the text drawn in the map's images too (read by OCR; the import redraws them)
   files <map>                     the files inside the map
   extract <map> <name>... [--to=<folder>]
   script <map> [--to=<file>]      the map script (printed, or saved)
@@ -241,6 +242,11 @@ def show(command, r):
             r.get('file')))
         for why, n in sorted((r.get('rejected') or {}).items()):
             print('  %d left in the original: %s' % (n, why))
+        im = r.get('images') or {}
+        if im:
+            print(
+                '  %d text(s) in images%s' % (im.get('entries') or 0, (': ' + im['error']) if im.get('error') else '')
+            )
         c = r.get('check') or {}
         print('%d pass the checks' % (c.get('ok') or 0))
         return
@@ -364,7 +370,8 @@ def build_job(command, pos, opts, run):
             need(rest, 3, '<map> <file>')
             only = [x for x in str(opts['only']).split(',') if x] if isinstance(opts.get('only'), str) else None
             return 'translation export', {'task': 'translation_export', 'map': rest[1],
-                                          'file': os.path.abspath(rest[2]), 'only': only}
+                                          'file': os.path.abspath(rest[2]), 'only': only,
+                                          'images': opts.get('images') is True}
         if sub == 'check':
             need(rest, 3, '<map> <file>')
             return 'translation check', {'task': 'translation_check', 'map': rest[1], 'file': os.path.abspath(rest[2])}
@@ -375,7 +382,8 @@ def build_job(command, pos, opts, run):
             if quality not in ('best', 'fast'):
                 raise UsageError('--quality=best or --quality=fast')
             return 'translation machine', {'task': 'translation_machine', 'map': rest[1],
-                                           'file': os.path.abspath(rest[2]), 'only': only, 'quality': quality}
+                                           'file': os.path.abspath(rest[2]), 'only': only, 'quality': quality,
+                                           'images': opts.get('images') is True}
         raise UsageError('translation groups | export | check | machine')
     if command == 'files':
         need(pos, 2, '<map>')

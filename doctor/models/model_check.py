@@ -23,7 +23,7 @@ def _nothing(*_a, **_k):
 
 
 def _structure(data):
-    chunks, err = mdxcheck.walk(data)
+    chunks, err = mdxcheck.walk_path(data)
     if not err:
         return None
     tags = [c[0] for c in chunks]
@@ -94,14 +94,14 @@ def _check(data):
 
 
 def model_version(data):
-    chunks, _err = mdxcheck.walk(bytes(data))
+    chunks, _err = mdxcheck.walk_path(bytes(data))
     return next((struct.unpack_from('<I', data, off)[0] for tag, size, off in chunks if tag == b'VERS' and size >= 4),
                 None)
 
 
 def camera_at_risk(data):
     data = bytes(data)
-    chunks, err = mdxcheck.walk(data)
+    chunks, err = mdxcheck.walk_path(data)
     if err or data[:4] != b'MDLX':
         return False
     v = model_version(data)
@@ -110,7 +110,7 @@ def camera_at_risk(data):
 
 def drop_cameras(data):
     data = bytes(data)
-    chunks, err = mdxcheck.walk(data)
+    chunks, err = mdxcheck.walk_path(data)
     if err:
         return None
     cut = [(off - 8, off + size) for tag, size, off in chunks if tag == b'CAMS']
@@ -122,7 +122,7 @@ def drop_cameras(data):
         p = b
     out.append(data[p:])
     new = b''.join(out)
-    chunks2, err2 = mdxcheck.walk(new)
+    chunks2, err2 = mdxcheck.walk_path(new)
     if err2 or any(t == b'CAMS' for t, _s, _o in chunks2) or len(chunks2) != len(chunks) - len(cut):
         return None
     return new

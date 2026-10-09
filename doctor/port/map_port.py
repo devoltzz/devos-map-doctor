@@ -424,6 +424,10 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
     }
     pair['KK_UI_SISTEMA'] = 'true'
     pair['KK_UI_CICLO'] = 'true'
+    pair['KK_UI_MOUSE_POS'] = new.ui_mouse_pos(body_text)
+    pair['KK_UI_BORDAS'] = new.ui_borders(body_text)
+    pair['KK_UI_RETRATO'] = new.ui_portrait(body_text)
+    pair['KK_EST_VIDA_GRANDE'] = new.big_life(extract)
     buttons = new.fdf_buttons(extract, body_text)
     pair['KK_UI_BOTOES'] = 'true' if buttons else 'false'
     if buttons:
@@ -444,6 +448,7 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
             'KK_JN_INIT_ZERO': new.jninit_gate(body_text),
             'KK_JN_PLUGIN': 'true' if new.jnplugin_gate(body_text) is not None else 'false',
             'KK_JN_INIT2': 'true' if re.search(r'\bnative\s+JNObjectUserInit2\b', body_text) else 'false',
+            'KK_JN_REGEX': new.jnregex_gate(body_text),
         })
         pair.update(dict((k, v) for k, v in new.JN_PARAMETERS.items() if not k.startswith('_')))
         if new.jnplugin_gate(body_text) is not None:

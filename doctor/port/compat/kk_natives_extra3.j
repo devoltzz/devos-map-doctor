@@ -134,6 +134,12 @@ function DzFrameHideInterface takes nothing returns nothing
 endfunction
 
 function DzFrameEditBlackBorders takes real upperHeight,real bottomHeight returns nothing
+    //{{KK_SE:KK_UI_BORDAS}}
+    if bottomHeight<=0.0 then
+        set DB_bordas_zero=true
+        call DB_bordas_aplica()
+    endif
+    //{{KK_FIMSE:KK_UI_BORDAS}}
 endfunction
 
 function DzClickFrame takes integer frame returns nothing

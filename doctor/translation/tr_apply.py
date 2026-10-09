@@ -39,12 +39,21 @@ for _t in _KINDS_HASHTABLE:
         ARGUMENTS_KEY[_p + _t] = frozenset((1, 2))
 ARGUMENTS_KEY['FlushChildHashtable'] = frozenset((1,))
 ARGUMENTS_KEY['FlushParentHashtable'] = frozenset()
-for _f in ('StoreString', 'StoreInteger', 'StoreReal', 'StoreBoolean',
-           'GetStoredString', 'GetStoredInteger', 'GetStoredReal', 'GetStoredBoolean',
-           'HaveStoredString', 'HaveStoredInteger', 'HaveStoredReal', 'HaveStoredBoolean',
-           'FlushStoredString', 'FlushStoredInteger', 'FlushStoredReal', 'FlushStoredBoolean',
-           'FlushStoredMission',
-           'YDWESaveStringByString', 'YDWESaveStringByInteger',
+for _t in ('Integer', 'Real', 'Boolean', 'String', 'Unit'):
+    for _p in ('Store', 'GetStored', 'HaveStored', 'FlushStored', 'SyncStored'):
+        ARGUMENTS_KEY[_p + _t] = frozenset((1, 2))
+ARGUMENTS_KEY['RestoreUnit'] = frozenset((1, 2))
+ARGUMENTS_KEY['FlushStoredMission'] = frozenset((1,))
+ARGUMENTS_KEY['InitGameCache'] = frozenset((0,))
+for _t in ('Integer', 'Real', 'Boolean', 'String', 'Unit'):
+    ARGUMENTS_KEY['Store%sBJ' % _t] = frozenset((1, 2))
+    ARGUMENTS_KEY['GetStored%sBJ' % _t] = frozenset((0, 1))
+for _f in ('RestoreUnitLocFacingAngleBJ', 'RestoreUnitLocFacingPointBJ'):
+    ARGUMENTS_KEY[_f] = frozenset((0, 1))
+ARGUMENTS_KEY['HaveStoredValue'] = frozenset((0, 2))
+ARGUMENTS_KEY['FlushStoredMissionBJ'] = frozenset((0,))
+ARGUMENTS_KEY['InitGameCacheBJ'] = frozenset((0,))
+for _f in ('YDWESaveStringByString', 'YDWESaveStringByInteger',
            'YDWEGetStringByString', 'YDWEGetStringByInteger',
            'YDWEHaveSavedIntegerByString', 'YDWEHaveSavedIntegerByInteger',
            'YDWEFlushStoredIntegerByString', 'YDWEFlushStoredIntegerByInteger'):

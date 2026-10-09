@@ -1056,6 +1056,12 @@ function DzFrameClearAllPoints takes integer frame returns nothing
         call DB_anc_limpa(frame)
         //{{KK_FIMSE:KK_UI_CICLO}}
         call BlzFrameClearAllPoints(f)
+        //{{KK_SE:KK_UI_RETRATO}}
+        if frame==DzFrameGetPortrait() then
+            call BlzFrameSetAbsPoint(f, FRAMEPOINT_CENTER, -1.0, -1.0)
+            call BlzFrameSetSize(f, 0.0001, 0.0001)
+        endif
+        //{{KK_FIMSE:KK_UI_RETRATO}}
     endif
 endfunction
 
@@ -1482,6 +1488,16 @@ function DB_mov_registra takes trigger trig returns nothing
     endloop
 endfunction
 
+//{{KK_SE:KK_UI_BORDAS}}
+boolean DB_bordas_zero=false
+
+function DB_bordas_aplica takes nothing returns nothing
+    if DB_bordas_zero and DB_fundo_tela!=null then
+        call BlzFrameSetSize(DB_fundo_tela, 0.0, 0.0001)
+    endif
+endfunction
+
+//{{KK_FIMSE:KK_UI_BORDAS}}
 function DB_ui_pos_init takes nothing returns nothing
     local integer i=0
     set DB_pos_init=true
@@ -1506,6 +1522,9 @@ function DB_ui_pos_init takes nothing returns nothing
         set i=i+1
     endloop
     set DB_fundo_tela=BlzGetFrameByName("ConsoleUIBackdrop", 0)
+    //{{KK_SE:KK_UI_BORDAS}}
+    call DB_bordas_aplica()
+    //{{KK_FIMSE:KK_UI_BORDAS}}
     call DB_mov_registra(DB_mundo_trig)
     set i=0
     loop
@@ -1644,9 +1663,36 @@ function DzGetWindowY takes nothing returns integer
     return 0
 endfunction
 
+//{{KK_SE:KK_UI_MOUSE_POS}}
+boolean DB_mouse_virt=false
+integer DB_mouse_vx=0
+integer DB_mouse_vy=0
+
+function DB_mouse_rx takes nothing returns integer
+    local integer w=BlzGetLocalClientWidth()
+    if w<=0 then
+        return 0
+    endif
+    return R2I(BlzPixelToFrameX(BlzGetMouseScreenPosX())/0.8*w+0.5)
+endfunction
+
+function DB_mouse_ry takes nothing returns integer
+    local integer h=BlzGetLocalClientHeight()
+    if h<=0 then
+        return 0
+    endif
+    return R2I((1.0-BlzPixelToFrameY(BlzGetMouseScreenPosY())/0.6)*h+0.5)
+endfunction
+
+//{{KK_FIMSE:KK_UI_MOUSE_POS}}
 function DzGetMouseXRelative takes nothing returns integer
     local integer w=BlzGetLocalClientWidth()
     local real fx=BlzPixelToFrameX(BlzGetMouseScreenPosX())
+    //{{KK_SE:KK_UI_MOUSE_POS}}
+    if DB_mouse_virt then
+        return DB_mouse_vx
+    endif
+    //{{KK_FIMSE:KK_UI_MOUSE_POS}}
     if w<=0 then
         return 0
     endif
@@ -1656,6 +1702,11 @@ endfunction
 function DzGetMouseYRelative takes nothing returns integer
     local integer h=BlzGetLocalClientHeight()
     local real fy=BlzPixelToFrameY(BlzGetMouseScreenPosY())
+    //{{KK_SE:KK_UI_MOUSE_POS}}
+    if DB_mouse_virt then
+        return DB_mouse_vy
+    endif
+    //{{KK_FIMSE:KK_UI_MOUSE_POS}}
     if h<=0 then
         return 0
     endif
@@ -1682,6 +1733,11 @@ function DB_mouse_mundo takes nothing returns nothing
     local integer i=GetPlayerId(GetTriggerPlayer())
     set DB_mouse_wx[i]=BlzGetTriggerPlayerMouseX()
     set DB_mouse_wy[i]=BlzGetTriggerPlayerMouseY()
+    //{{KK_SE:KK_UI_MOUSE_POS}}
+    if GetLocalPlayer()==GetTriggerPlayer() then
+        set DB_mouse_virt=false
+    endif
+    //{{KK_FIMSE:KK_UI_MOUSE_POS}}
 endfunction
 
 function DzGetWheelDelta takes nothing returns integer
@@ -1701,6 +1757,17 @@ function DzIsWindowActive takes nothing returns boolean
 endfunction
 
 function DzSetMousePos takes integer x,integer y returns nothing
+    //{{KK_SE:KK_UI_MOUSE_POS}}
+    set x=x-DzGetWindowX()
+    set y=y-DzGetWindowY()
+    if x==DB_mouse_rx() and y==DB_mouse_ry() then
+        set DB_mouse_virt=false
+    else
+        set DB_mouse_virt=true
+        set DB_mouse_vx=x
+        set DB_mouse_vy=y
+    endif
+    //{{KK_FIMSE:KK_UI_MOUSE_POS}}
 endfunction
 
 function DzEnableWideScreen takes boolean enable returns nothing

@@ -82,3 +82,8 @@ main page
 see also
 not translated
 and but or the a an it its this that these those then when if with for to of in on at by each every deal deals increase increases increased reduce reduces reduced slow slows slowed lasts last can will also while after before which who and makes make causes cause gives give gains gain restores restore recovers recover heals heal is are was were has have
+img:
+Image entries are the text drawn in an image (read by OCR): the translation is drawn in its place; for a text in several lines, the words are spread over them.
+(the four tiles of a loading screen)
+image {0}x{1}{2}, {3} line(s) at {4},{5}
+img:{0}:{1}:{2}

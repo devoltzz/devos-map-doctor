@@ -7,3 +7,4 @@ zopfli==0.4.3
 lupa==2.8
 ctranslate2==4.8.2
 sentencepiece==0.2.2
+onnxruntime==1.31.0

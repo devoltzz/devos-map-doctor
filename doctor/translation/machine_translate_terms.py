@@ -16,6 +16,11 @@ TERMS = {
         ('晕眩', 'Stun'), ('特殊效果', 'Special Effect'), ('自动施法', 'Autocast'), ('副本', 'Dungeon'),
         ('神器', 'Artifact'), ('装备', 'Equipment'), ('合成', 'Combine'), ('需求', 'Requires'), ('售价', 'Price'),
         ('价格', 'Price'), ('使用次数', 'Charges'), ('召唤物', 'Summons'), ('英雄', 'Hero'),
+        ('大法师', 'Archmage'), ('法师', 'Mage'), ('刺客', 'Assassin'), ('德鲁伊', 'Druid'), ('猎人', 'Hunter'), ('骑士', 'Knight'),
+        ('术士', 'Warlock'), ('战士', 'Warrior'), ('牧师', 'Priest'), ('圣骑士', 'Paladin'), ('萨满', 'Shaman'),
+        ('死亡骑士', 'Death Knight'), ('盗贼', 'Rogue'), ('工匠', 'Craftsman'),
+        ('不肝不氪', 'no grinding, no paying'), ('氪金', 'paying'), ('休闲娱乐', 'casual fun'),
+        ('魔兽争霸', 'Warcraft'), ('对战平台', 'battle platform'),
     ],
     'ko': [
         ('추가 대미지', 'Bonus Damage'), ('추가 데미지', 'Bonus Damage'), ('마법 대미지', 'Magic Damage'),

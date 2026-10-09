@@ -47,6 +47,7 @@ never runs the game.
 ### New in 1.7.3
 
 - Local machine translation, in the Translation tab: the texts of a Chinese, Korean, Japanese, Russian, Vietnamese or Thai map translated into English on your computer, with an open translation model (OPUS-MT). Nothing is sent anywhere: the model the map needs is downloaded once (60 to 220 MB). The result is the same translation file as an export, checked and ready to apply, and it can be reviewed first.
+- The text drawn in the map's images (buttons, loading screens, interface art) can be read too (OCR), translated and drawn back in its place, after a review where each image shows as it is and as it will be, and every line can be corrected or left out.
 
 ## Get it
 

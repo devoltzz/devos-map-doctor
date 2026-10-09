@@ -125,7 +125,12 @@ def model_for(lang, quality='best'):
 
 
 def info(lang):
-    out = {'language': lang or '', 'name': LANGUAGE_NAMES.get(lang, ''), 'models': []}
+    out = {'language': lang or '', 'name': LANGUAGE_NAMES.get(lang, ''), 'models': [], 'ocr': None}
+    try:
+        from doctor.translation import image_translate
+        out['ocr'] = image_translate.ocr_info(lang)
+    except Exception:
+        pass
     for q in ('best', 'fast'):
         name = (MODELS.get(lang) or {}).get(q)
         if name:
@@ -158,10 +163,11 @@ def _ssl_context():
     return ctx
 
 
-def download(name, progress=None):
+def download(name, progress=None, complete=None, table=None):
     import urllib.request
     p = progress or _nothing
-    want = MODEL_ZIPS.get(name) or {}
+    complete = complete or globals()['complete']
+    want = (MODEL_ZIPS if table is None else table).get(name) or {}
     os.makedirs(models_dir(), exist_ok=True)
     part = model_path(name) + '.zip.part'
     url = model_url(name)
@@ -720,10 +726,10 @@ def translate_entries(entries, lang, engine, progress=None, language=''):
     return result, {'pieces': n_inputs, 'seconds': round(time.time() - t0, 1), 'rejected': dict(rejected)}
 
 
-def translate_map(path, out_file, progress=None, only=None, quality='best', lang=None, threads=0):
+def translate_map(path, out_file, progress=None, only=None, quality='best', lang=None, threads=0, images=False):
     p = progress or _nothing
     rep = {'state': None, 'error': None, 'file': None, 'entries': 0, 'language': '', 'model': None, 'translated': 0,
-           'left': 0, 'rejected': {}, 'pieces': 0, 'seconds': 0}
+           'left': 0, 'rejected': {}, 'pieces': 0, 'seconds': 0, 'images': None}
     try:
         p('reading map')
         a = translation_io._open(path)
@@ -754,9 +760,13 @@ def translate_map(path, out_file, progress=None, only=None, quality='best', lang
     except Exception as e:
         rep.update(state='failed', error='cannot get the translation model %s (%s)' % (name, translation_io._error(e)))
         return rep
+    if images:
+        n, _lang, err = translation_io.add_images(mt, path, p)
+        rep['images'] = {'entries': n, 'error': err}
+        rep['entries'] = len(mt.entries)
     result, info = translate_entries(mt.entries, lang, engine, p)
     rep.update(info)
-    order = {'w3i': 0, 'wts': 1, 'object': 2, 'profile': 3, 'script': 4}
+    order = {'w3i': 0, 'wts': 1, 'object': 2, 'profile': 3, 'fdf': 4, 'script': 5, 'image': 6}
     entries = []
     for e in sorted(mt.entries, key=lambda e: order[e['source']]):
         x = translation_io.public(e)

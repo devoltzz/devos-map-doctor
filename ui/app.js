@@ -81,6 +81,7 @@ const state = {
   gen: 0, tabState: {}, quietJobs: new Set(), images: {}, imageData: {},
   mode: null, pane: {},
   trGroups: null, trSkip: new Set(), mtQuality: 'best',
+  trImages: false, trReview: null,
   extras: { card: null, translation: null, models: null, modelNames: null, singlePlayer: null, portraits: null,
     dataPointers: null, kkTextures: null, disabledIcons: null, uabi: null, preload: null },
   cheatpacks: null, cheatPack: { id: null, options: {}, result: null },
@@ -1667,6 +1668,7 @@ function renderTranslation() {
   tabBody('translation', el('div', { class: 'card' }, el('h2', { text: 'Export' }),
     el('p', { class: 'lead', text: 'Pick the texts, export them, translate the file, then load it back below.' }),
     translationGroupsBox(),
+    imagesOption(),
     el('div', { class: 'row', style: 'margin-top:12px' },
       el('button', { class: 'btn needs-idle', text: 'Export as JSON...', disabled: !!state.running || none,
         onclick: () => exportTexts('json') }),
@@ -1694,12 +1696,94 @@ function renderTranslation() {
     tr ? el('div', { style: 'margin-top:14px' }, el('div', { class: 'notice info', text: base(tr.file) + ': ' +
       (tr.check.ok || 0) + ' texts pass the checks' + (tr.check.rejected && tr.check.rejected.length ? ', ' +
       tr.check.rejected.length + ' left out' : '') + '.' }),
+    tr.check.images && !web() ? el('button', { class: 'btn needs-idle', style: 'margin-top:10px',
+      text: 'Review the images (' + tr.check.images + ')...', disabled: !!state.running, onclick: () => loadReview() }) :
+      null,
     tr.check.rejected && tr.check.rejected.length ? el('div', { class: 'scroll', style: 'margin-top:10px;max-height:300px' },
       el('table', { class: 'grid' }, el('thead', {}, el('tr', {}, el('th', { text: 'Text' }), el('th', { text: 'Why' }))),
         el('tbody', {}, tr.check.rejected.slice(0, 500).map(x => el('tr', {}, el('td', { class: 'mono',
           text: x.id || x.text }), el('td', { class: 'muted', text: x.reason || x.why || '' })))))) : null,
     el('button', { class: 'btn small', style: 'margin-top:10px', text: 'Forget this translation', onclick: () => {
-      state.extras.translation = null; renderTranslation(); renderActions(); } })) : null));
+      state.extras.translation = null; state.trReview = null; renderTranslation(); renderActions(); } })) : null),
+  reviewCard());
+}
+
+function imagesOption() {
+  if (web()) return null;
+  const m = state.trGroups && state.trGroups.machine;
+  const ocr = m && m.ocr;
+  if (!ocr) return null;
+  return el('label', { style: 'display:flex;gap:8px;align-items:center;margin-top:10px;cursor:pointer' },
+    el('input', { type: 'checkbox', checked: state.trImages, onchange: e => { state.trImages = e.target.checked; } }),
+    el('span', { text: 'Also read the text in the images (OCR, slower)' }),
+    ocr.installed ? null : el('span', { class: 'faint', text: Math.max(1, Math.round(ocr.size / 1048576)) +
+      ' MB to download' }));
+}
+
+async function loadReview() {
+  const tr = state.extras.translation;
+  if (!tr || state.running) return;
+  try {
+    const r = await run('translation_images', { file: tr.file }, { label: 'Drawing the images...' });
+    if (r.error) { failed({ message: r.error }, 'Drawing the images'); return; }
+    state.trReview = { file: tr.file, images: (r.images || []).map(x => Object.assign(x, {
+      entries: x.entries.map(e => Object.assign(e, { apply: !!e.translation, edit: e.translation })) })) };
+    renderTranslation();
+  } catch (e) { failed(e, 'Drawing the images'); }
+}
+
+function reviewCard() {
+  const rv = state.trReview;
+  if (!rv || !state.extras.translation || state.extras.translation.file !== rv.file) return null;
+  const save = async () => {
+    if (state.running) return;
+    const changes = {};
+    rv.images.forEach(x => x.entries.forEach(e => { changes[e.id] = e.apply ? e.edit : ''; }));
+    try {
+      const r = await run('translation_update', { file: rv.file, changes }, { label: 'Saving the changes...' });
+      if (r.error) { failed({ message: r.error }, 'Saving the changes'); return; }
+      state.extras.translation.check = r.check;
+      rv.images.forEach(x => x.entries.forEach(e => { e.translation = e.apply ? e.edit : ''; }));
+      renderTranslation(); renderActions();
+      toast('Saved ' + (r.changed || 0) + ' changes to ' + base(rv.file) + '.');
+    } catch (e) { failed(e, 'Saving the changes'); }
+  };
+  return el('div', { class: 'card' }, el('div', { class: 'row' }, el('h2', { class: 'grow', text: 'The images' }),
+    el('button', { class: 'btn needs-idle', text: 'Save the changes', disabled: !!state.running, onclick: save })),
+    el('p', { class: 'lead', text: 'Each image as it is and as it will be. Fix the English of a line, or untick it to ' +
+      'keep the original; "Update preview" redraws the image, "Save the changes" writes them to the translation file.' }),
+    rv.images.map(x => reviewImage(x)));
+}
+
+function reviewImage(x) {
+  const pic = (b64, label) => el('figure', { style: 'margin:0;text-align:center' },
+    el('img', { src: 'data:image/png;base64,' + b64, style: 'max-width:100%;image-rendering:pixelated;' +
+      'border:1px solid var(--line, #333)' }), el('figcaption', { class: 'faint', text: label }));
+  const imgs = x.error ? el('div', { class: 'notice', text: x.error }) :
+    el('div', { style: 'display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0' },
+      pic(x.original, 'Now'), el('div', { class: 'prev' }, pic(x.preview, 'Translated')));
+  const holder = el('div', {}, imgs);
+  const refresh = async () => {
+    if (state.running) return;
+    try {
+      const r = await run('translation_image_preview', { entries: x.entries.map(e => ({ id: e.id,
+        translation: e.apply ? e.edit : '' })) }, { label: 'Drawing the image...' });
+      if (r.error) { failed({ message: r.error }, 'Drawing the image'); return; }
+      x.preview = r.preview;
+      const prev = holder.querySelector('.prev img');
+      if (prev) prev.src = 'data:image/png;base64,' + r.preview;
+    } catch (e) { failed(e, 'Drawing the image'); }
+  };
+  return el('div', { style: 'border-top:1px solid var(--line, #333);padding-top:12px;margin-top:12px' },
+    el('div', { class: 'mono faint', translate: 'no', text: x.members.join('  ') }),
+    holder,
+    x.entries.map(e => el('div', { class: 'row', style: 'margin:6px 0;gap:8px;align-items:center' },
+      el('input', { type: 'checkbox', checked: e.apply, title: 'Apply this line',
+        onchange: ev => { e.apply = ev.target.checked; } }),
+      el('span', { class: 'muted', translate: 'no', style: 'min-width:120px', text: e.text }),
+      el('input', { type: 'text', value: e.edit, class: 'grow', style: 'min-width:0',
+        oninput: ev => { e.edit = ev.target.value; if (e.edit) e.apply = true; } }))),
+    x.error ? null : el('button', { class: 'btn small needs-idle', text: 'Update preview', onclick: refresh }));
 }
 
 const MT_LANGUAGES = { zh: 'Chinese', ko: 'Korean', ja: 'Japanese', ru: 'Russian', vi: 'Vietnamese', th: 'Thai' };
@@ -1744,7 +1828,8 @@ async function machineTranslate(model) {
   const p = await api().pick_save(base(state.map).replace(/\.\w+$/, '') + '.en.translation.json', 'translation');
   if (!p) return;
   try {
-    const r = await run('translation_machine', { file: p, only: pickedGroups(), quality: model.quality },
+    const r = await run('translation_machine', { file: p, only: pickedGroups(), quality: model.quality,
+      images: state.trImages },
       { label: 'Translating on this computer...' });
     if (r.state !== 'done') {
       failed({ message: r.error || (r.state === 'no_text' ? 'The map has no text to export.' :
@@ -1767,7 +1852,8 @@ async function exportTexts(kind) {
     kind === 'html' ? 'translation_html' : 'translation');
   if (!p) return;
   try {
-    const r = await run('translation_export', { file: p, only: pickedGroups() }, { label: 'Exporting the texts...' });
+    const r = await run('translation_export', { file: p, only: pickedGroups(), images: kind === 'json' &&
+      state.trImages }, { label: 'Exporting the texts...' });
     if (r.state !== 'done') {
       failed({ message: r.error || (r.state === 'no_text' ? 'The map has no text to export.' :
         'The export did not finish.') }, 'Exporting the texts');

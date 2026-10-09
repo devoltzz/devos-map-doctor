@@ -81,7 +81,9 @@ HELP = (
     'Profile entries with commas are lists of levels: keep the same number of commas.',
     'Chat commands stay as they are, also when a tooltip quotes them.',
     'An entry with a "note" about the script comparing it: give every entry with that text the same translation.',
-    'For a Chinese, Japanese or Korean translation, set "language" (zh, ja or ko).')
+    'For a Chinese, Japanese or Korean translation, set "language" (zh, ja or ko).',
+    'Image entries are the text drawn in an image (read by OCR): the translation is drawn in its place; for a text '
+    'in several lines, the words are spread over them.')
 REASONS = (('empty', 'empty translation'), ('CJK restante', 'Chinese, Japanese or Korean text left'),
            ('mencao a IA', 'mentions AI or translation'), ('raw line break', 'a real line break (use |n)'),
            ('codigos de cor diferentes', 'color codes changed'),
@@ -174,6 +176,7 @@ class MapText(object):
         self.compared_trigstr = set()
         self.name_trigstr = set()
         self.layer_texts = collections.Counter()
+        self.archive = None
 
     def add(self, **kw):
         self.entries.append(kw)
@@ -334,6 +337,79 @@ def _collect_profiles(mt, read, names):
             mt.add(id='txt:%s:%s:%s' % (name, sections[e['line']], e['key']), source='profile', file=name,
                    context='%s [%s] %s' % (name, sections[e['line']], e['key']), text=e['text'], _kind='tip',
                    _where=e['line'], _key=e['key'], _misc=True)
+
+
+RX_FDF_TEXT = re.compile(r'^(\s*Text\s+")((?:[^"\\\r\n]|\\.)*)("\s*,?\s*(?://.*)?)$')
+RX_TOC_LITERAL = re.compile(r'"([^"\r\n]{1,200}?\.toc)"', re.I)
+RX_FDF_INCLUDE = re.compile(r'^\s*IncludeFile\s+"([^"]+\.fdf)"', re.I | re.M)
+
+
+def map_names(a):
+    listed = unprotect.listfile_names(a)
+    if listed:
+        return listed
+    path = getattr(a, 'path', None)
+    if not path or not os.path.isfile(path):
+        return []
+    st = os.stat(path)
+    key = hashlib.sha1(('%s|%d|%d' % (os.path.abspath(path).lower(), st.st_size, int(st.st_mtime))).encode())
+    import tempfile
+    folder = os.environ.get('DOCTOR_CACHE') or os.path.join(tempfile.gettempdir(), 'devos_map_doctor_ui')
+    cache = os.path.join(folder, 'names_%s.json' % key.hexdigest())
+    try:
+        with open(cache, encoding='utf-8') as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        pass
+    from doctor.viewers import map_files
+    names = [x['name'] for x in map_files.list_files(path).get('files') or []]
+    try:
+        os.makedirs(folder, exist_ok=True)
+        with open(cache, 'w', encoding='utf-8') as f:
+            json.dump(names, f, ensure_ascii=False)
+    except OSError:
+        pass
+    return names
+
+
+def _fdf_names(a, read, mt):
+    names = [n for n in map_names(a) if n.lower().endswith(('.fdf', '.toc'))]
+    for sname in ('war3map.j', 'scripts\\war3map.j', 'war3map.lua'):
+        b = mt.files.get(sname) or read(sname)
+        if b:
+            names += [m.group(1).replace('\\\\', '\\') for m in RX_TOC_LITERAL.finditer(_decode(b))]
+    seen, fdfs, todo = set(), [], list(names)
+    while todo:
+        n = todo.pop(0)
+        if n.lower() in seen:
+            continue
+        seen.add(n.lower())
+        b = read(n)
+        if not b:
+            continue
+        t = _decode(b)
+        if n.lower().endswith('.toc'):
+            todo += [line.strip() for line in t.splitlines() if line.strip().lower().endswith('.fdf')]
+        else:
+            fdfs.append((n, b))
+            todo += RX_FDF_INCLUDE.findall(t)
+    return fdfs
+
+
+def _collect_fdf(mt, a, read):
+    for name, b in _fdf_names(a, read, mt):
+        text = _decode(b)
+        lines = tr_extract.line_break(text)[0]
+        found = False
+        for ln, line in enumerate(lines):
+            m = RX_FDF_TEXT.match(line)
+            if not m or not is_text(m.group(2)) or path_like(m.group(2)):
+                continue
+            found = True
+            mt.add(id='fdf:%s:%d' % (name, ln + 1), source='fdf', file=name, context='%s line %d (Text of a frame)'
+                   % (name, ln + 1), text=m.group(2), _kind='tip', _where=ln)
+        if found:
+            mt.files[name] = b
 
 
 def _script_candidate(lit):
@@ -533,6 +609,7 @@ def _wts_contexts(mt):
 def collect(a, progress=None):
     p = progress or _nothing
     mt = MapText()
+    mt.archive = a
 
     def read(name):
         return _read(a, name)
@@ -546,6 +623,8 @@ def collect(a, progress=None):
     _collect_profiles(mt, read, unprotect.listfile_names(a))
     p('script')
     src, script_entries = _collect_script(mt, a, read)
+    p('frame definitions')
+    _collect_fdf(mt, a, read)
     _comparison_rules(mt, src, script_entries, wts_texts)
     _wts_contexts(mt)
     m = RX_TRIGSTR.match(mt.map_name)
@@ -574,7 +653,7 @@ def _error(e):
 
 OBJECT_LABEL = {'w3u': 'Units', 'w3t': 'Items', 'w3a': 'Abilities', 'w3h': 'Buffs', 'w3q': 'Upgrades',
                 'w3b': 'Destructables'}
-GROUP_ORDER = {'w3i': 0, 'wts': 1, 'script': 2, 'object': 3, 'profile': 4}
+GROUP_ORDER = {'w3i': 0, 'wts': 1, 'script': 2, 'object': 3, 'profile': 4, 'fdf': 5}
 
 
 def group_label(key, source):
@@ -586,6 +665,8 @@ def group_label(key, source):
         return 'Trigger strings'
     if source == 'script':
         return 'Script'
+    if source == 'fdf':
+        return 'Frame definitions (FDF)'
     if source == 'object' and ext in OBJECT_LABEL:
         return OBJECT_LABEL[ext] + (' (skin)' if 'skin' in low else '')
     if os.path.basename(low.replace('\\', '/')) in ('war3mapskin.txt', 'war3mapmisc.txt'):
@@ -645,10 +726,25 @@ def public(e):
     return out
 
 
-def export(path, out_file, progress=None, only=None):
+def add_images(mt, path, progress=None):
+    from doctor.translation import image_translate
+    from doctor.translation import machine_translate
+    from doctor.viewers import map_files
+    lang = machine_translate.detect_language(e['text'] for e in mt.entries)
+    if lang not in image_translate.OCR_REC:
+        return 0, lang, 'the texts are not in a language the text reader knows'
+    names = map_names(mt.archive) or [f['name'] for f in map_files.list_files(path).get('files') or []]
+    try:
+        n = image_translate.add_entries(mt, lambda nm: _read(mt.archive, nm), names, lang, progress)
+    except Exception as e:
+        return 0, lang, 'cannot read the text in images (%s)' % _error(e)
+    return n, lang, None
+
+
+def export(path, out_file, progress=None, only=None, images=False):
     p = progress or _nothing
     rep = {'state': None, 'error': None, 'file': None, 'map_name': None, 'script': None, 'entries': 0,
-           'by_source': {}, 'skipped': {}, 'linked': 0, 'linked_added': 0}
+           'by_source': {}, 'skipped': {}, 'linked': 0, 'linked_added': 0, 'images': None}
     try:
         p('reading map')
         a = _open(path)
@@ -658,13 +754,16 @@ def export(path, out_file, progress=None, only=None):
         return rep
     if only is not None:
         mt.entries, rep['linked_added'] = _only(mt.entries, only)
+    if images:
+        n, _lang, err = add_images(mt, path, p)
+        rep['images'] = {'entries': n, 'error': err}
     rep.update(map_name=mt.map_name, script=mt.script, skipped=dict(sorted(mt.skipped.items())),
                entries=len(mt.entries), linked=sum(1 for e in mt.entries if e.get('_group')),
                by_source=dict(collections.Counter(e['source'] for e in mt.entries)))
     if not mt.entries:
         rep['state'] = 'no_text'
         return rep
-    order = {'w3i': 0, 'wts': 1, 'object': 2, 'profile': 3, 'script': 4}
+    order = {'w3i': 0, 'wts': 1, 'object': 2, 'profile': 3, 'fdf': 4, 'script': 5, 'image': 6}
     entries = [public(e) for e in sorted(mt.entries, key=lambda e: order[e['source']])]
     doc = collections.OrderedDict([('format', FORMAT), ('version', VERSION), ('map', os.path.basename(path)),
                                    ('map_name', mt.map_name), ('language', ''), ('help', list(HELP)),
@@ -866,7 +965,7 @@ def check_entry(e, translation, language=''):
         out.append('format codes (%s, %d) changed')
     if e['source'] == 'wts' and re.search(r'^\}', translation, re.M):
         out.append('a line starting with } (it ends a wts string)')
-    if e['source'] == 'profile' and ('\r' in translation or '\n' in translation):
+    if e['source'] in ('profile', 'fdf') and ('\r' in translation or '\n' in translation):
         out.append('a real line break in a profile value')
     if _bad_utf8(translation):
         out.append('not valid UTF-8')
@@ -876,7 +975,7 @@ def check_entry(e, translation, language=''):
 def _written(e, translation):
     if e['source'] == 'profile' and not e.get('_misc'):
         return tr_apply.fix_value(translation, dict(e['_tx'], text=e['text']))
-    if e['source'] == 'profile':
+    if e['source'] in ('profile', 'fdf'):
         return translation.replace('"', "'")
     return translation
 
@@ -896,8 +995,10 @@ def replace_wts(t, new):
 
 def _build(mt, wanted, linked):
     by_file = collections.defaultdict(list)
+    images = [(e, t) for e, t in wanted if e['source'] == 'image']
     for e, t in wanted:
-        by_file[e['file']].append((e, t))
+        if e['source'] != 'image':
+            by_file[e['file']].append((e, t))
     if linked and mt.script_file:
         by_file.setdefault(mt.script_file, [])
     out, script = {}, {'replaced': 0, 'categories': {}, 'per_literal': {}}
@@ -928,6 +1029,16 @@ def _build(mt, wanted, linked):
             script.update(replaced=n, categories=dict(cats), per_literal=dict(
                 (lit, d['screen'] + d['all_entries']) for lit, d in detail.items()))
             new = _encode(join_lines([line if x else v for line, v, x in zip(lines, view, layer)], seps))
+        elif items[0][0]['source'] == 'fdf':
+            text = _decode(orig)
+            lines = tr_extract.line_break(text)[0]
+            seps = separators(text, lines)
+            for e, tr in items:
+                m = RX_FDF_TEXT.match(lines[e['_where']])
+                if not m or m.group(2) != e['text']:
+                    raise RuntimeError('%s: line %d is not the frame text' % (name, e['_where'] + 1))
+                lines[e['_where']] = m.group(1) + _written(e, tr) + m.group(3)
+            new = _encode(join_lines(lines, seps))
         elif items[0][0]['source'] == 'object':
             change = dict((e['_where'], _encode(_written(e, tr))) for e, tr in items)
             new, n = objbin.rewrite(orig, items[0][0]['_levels'], lambda ti, oi, mi, _f, _v: change.get((ti, oi, mi)))
@@ -945,6 +1056,9 @@ def _build(mt, wanted, linked):
             new = _encode(join_lines(lines, seps))
         if new != orig:
             out[name] = new
+    if images:
+        from doctor.translation import image_translate
+        out.update(image_translate.build_files(images, lambda n: _read(mt.archive, n)))
     return out, script
 
 
@@ -974,12 +1088,14 @@ def _readback(a, mt, wanted, linked, script):
                 v = w3i.parse(b)
             elif e['source'] == 'object':
                 v = objbin.read_data(b, e['_levels'])[1]
+            elif e['source'] == 'fdf':
+                v = tr_extract.line_break(_decode(b))[0]
             else:
                 v = tr_extract.line_break(_decode(b))[0]
             parsed[e['file']] = v
         return parsed[e['file']]
     for e, tr in wanted:
-        if e['source'] == 'script':
+        if e['source'] in ('script', 'image'):
             continue
         v = view(e)
         if e['source'] == 'wts':
@@ -991,6 +1107,9 @@ def _readback(a, mt, wanted, linked, script):
         elif e['source'] == 'object':
             ti, oi, mi = e['_where']
             got = _decode(v[ti][oi][2][mi][4])
+        elif e['source'] == 'fdf':
+            m = RX_FDF_TEXT.match(v[e['_where']])
+            got = m.group(2) if m else None
         else:
             m = RX_KEY.match(v[e['_where']])
             got = m.group(2) if m else None
@@ -1043,6 +1162,16 @@ def _load(translation_file):
 def _plan(mt, doc):
     language = str(doc.get('language') or '')
     current = dict((e['id'], e) for e in mt.entries)
+    for t in doc['entries']:
+        ident = t.get('id') if isinstance(t, dict) else None
+        if isinstance(ident, str) and ident.startswith('img:') and ident not in current and t.get('translation') \
+                and mt.archive is not None:
+            from doctor.translation import image_translate
+            try:
+                current[ident] = image_translate.entry_from_id(ident, t.get('text'),
+                                                               lambda n: _read(mt.archive, n))
+            except ValueError as e:
+                current[ident] = {'id': ident, '_bad': str(e), 'text': t.get('text')}
     wanted, rejected, unknown, seen = [], [], [], set()
     empty = 0
     for t in doc['entries']:
@@ -1057,6 +1186,8 @@ def _plan(mt, doc):
             reason = 'repeated id in the file'
         elif e is None:
             unknown.append(ident)
+        elif e.get('_bad'):
+            reason = e['_bad']
         elif t.get('text') != e['text']:
             reason = 'the text in the map is not the one in the file'
         else:
@@ -1097,7 +1228,7 @@ def _plan(mt, doc):
 
 def check(path, translation_file, progress=None):
     p = progress or _nothing
-    rep = {'ok': 0, 'rejected': [], 'empty': 0, 'unknown': [], 'error': None}
+    rep = {'ok': 0, 'rejected': [], 'empty': 0, 'unknown': [], 'error': None, 'images': 0}
     try:
         doc = _load(translation_file)
     except Exception as e:
@@ -1111,8 +1242,51 @@ def check(path, translation_file, progress=None):
         return rep
     p('checking translations')
     wanted, _linked, rejected, empty, unknown = _plan(mt, doc)
-    rep.update(ok=len(wanted), rejected=rejected, empty=empty, unknown=unknown)
+    rep.update(ok=len(wanted), rejected=rejected, empty=empty, unknown=unknown,
+               images=sum(1 for t in doc['entries'] if isinstance(t, dict) and str(t.get('id', '')).startswith('img:')))
     return rep
+
+
+def images_review(path, translation_file, progress=None):
+    p = progress or _nothing
+    try:
+        doc = _load(translation_file)
+        p('reading map')
+        a = _open(path)
+        from doctor.translation import image_translate
+        p('Drawing the images')
+        return {'images': image_translate.review(lambda n: _read(a, n), doc), 'error': None}
+    except (Exception, SystemExit) as e:
+        return {'images': [], 'error': _error(e)}
+
+
+def image_preview(path, entries):
+    try:
+        a = _open(path)
+        from doctor.translation import image_translate
+        return {'preview': image_translate.preview(lambda n: _read(a, n), entries), 'error': None}
+    except (Exception, SystemExit) as e:
+        return {'preview': None, 'error': _error(e)}
+
+
+def update(translation_file, changes):
+    try:
+        with open(translation_file, encoding='utf-8-sig') as f:
+            doc = json.load(f)
+        if not isinstance(doc, dict) or doc.get('format') != FORMAT:
+            raise ValueError('not a Devo\'s Map Doctor translation file')
+        n = 0
+        for t in doc.get('entries') or []:
+            if isinstance(t, dict) and t.get('id') in changes and t.get('translation') != changes[t['id']]:
+                t['translation'] = changes[t['id']]
+                n += 1
+        part = translation_file + '.part'
+        with open(part, 'w', encoding='utf-8', newline='\n') as f:
+            json.dump(doc, f, ensure_ascii=False, indent=1)
+        os.replace(part, translation_file)
+        return {'changed': n, 'error': None}
+    except Exception as e:
+        return {'changed': 0, 'error': _error(e)}
 
 
 def _other_blocks(path_in, b, names):

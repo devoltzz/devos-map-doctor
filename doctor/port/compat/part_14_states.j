@@ -65,6 +65,9 @@ function DB_estado_max_vida takes unit u,real v returns nothing
     local real atual
     local real maxv
     local integer n
+    //{{KK_SE:KK_EST_VIDA_GRANDE}}
+    local real k
+    //{{KK_FIMSE:KK_EST_VIDA_GRANDE}}
     if u==null then
         return
     endif
@@ -77,6 +80,17 @@ function DB_estado_max_vida takes unit u,real v returns nothing
     if n<1 then
         set n=1
     endif
+    //{{KK_SE:KK_EST_VIDA_GRANDE}}
+    if maxv>1000000.0 and I2R(n)*10.0<maxv then
+        set k=maxv
+        loop
+            set k=k/10.0
+            exitwhen k<=I2R(n)
+            call BlzSetUnitMaxHP(u,R2I(k))
+            call SetUnitState(u,UNIT_STATE_LIFE,RMinBJ(GetUnitState(u,UNIT_STATE_LIFE),k))
+        endloop
+    endif
+    //{{KK_FIMSE:KK_EST_VIDA_GRANDE}}
     call BlzSetUnitMaxHP(u,n)
     if maxv>0.0 and atual>0.0 then
         if atual<v then

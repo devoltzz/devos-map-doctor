@@ -471,7 +471,7 @@ def _mdx_info(data, has_file):
     from doctor.models import mdx_tex
     from doctor.models import mdxcheck
     from doctor.models import mdxnodes
-    _chunks, problem = mdxcheck.walk(data)
+    _chunks, problem = mdxcheck.walk_path(data)
     info = {'format': 'MDX', 'version': None, 'name': '', 'textures': [], 'sequences': [], 'geosets': 0,
             'vertices': 0, 'materials': 0, 'nodes': {}, 'chunks': [], 'problem': problem}
     end = len(data)

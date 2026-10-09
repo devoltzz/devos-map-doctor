@@ -26,6 +26,59 @@ integer array KKJN_b64i
 constant string KKJN_BASE="{{KK_JN_BASE_CAMPOS}}"
 integer KKJN_nbase=0
 //{{KK_FIMSE:KK_JN_BASE}}
+//{{KK_SE:KK_JN_REGEX}}
+integer array KKRX_op
+integer array KKRX_a
+integer array KKRX_b
+integer array KKRX_d
+string array KKRX_s
+integer array KKRX_lo
+integer array KKRX_hi
+string array KKRX_ls
+integer array KKRX_pend
+integer array KKRX_spc
+integer array KKRX_ssp
+string array KKRX_mt
+string array KKRX_mp
+integer array KKRX_mi
+string array KKRX_mr
+integer array KKRX_me
+boolean array KKRX_mv
+string array KKRX_dt
+boolean array KKRX_dv
+hashtable KKRX_dic=null
+integer KKRX_top=0
+integer KKRX_nr=0
+integer KKRX_np=0
+integer KKRX_sp=0
+string KKRX_pat=""
+integer KKRX_pn=0
+integer KKRX_pp=0
+boolean KKRX_erro=false
+string KKRX_str=""
+integer KKRX_n=0
+integer KKRX_passos=0
+boolean KKRX_estouro=false
+integer KKRX_fim=0
+integer KKRX_prox=0
+integer KKRX_pmodo=0
+string KKRX_plit=""
+integer KKRX_rv=0
+integer KKRX_qm=0
+integer KKRX_qn=0
+string KKRX_et=""
+boolean KKRX_en=false
+integer KKRX_rc=0
+integer KKRX_nl=0
+integer KKRX_carimbo=0
+integer array KKRX_reg
+integer array KKRX_vis
+integer array KKRX_wl
+constant integer KKRX_TETO=6000
+constant integer KKRX_CODIGO=6000
+constant integer KKRX_GUARDA=12000
+constant integer KKRX_PILHA=4000
+//{{KK_FIMSE:KK_JN_REGEX}}
 //@ENDGLOBALS
 
 function KKJN_Esc takes string s returns string
@@ -455,6 +508,9 @@ function KKJN_init takes nothing returns nothing
     //{{KK_SE:KK_JN_BASE}}
     call KKJN_BaseLe()
     //{{KK_FIMSE:KK_JN_BASE}}
+    //{{KK_SE:KK_JN_REGEX}}
+    set KKRX_dic=InitHashtable()
+    //{{KK_FIMSE:KK_JN_REGEX}}
     set KKJN_pronto=true
 endfunction
 
@@ -1385,6 +1441,1167 @@ function JNStringSplit takes string str,string sub,integer index returns string
     return ""
 endfunction
 
+//{{KK_SE:KK_JN_REGEX}}
+function KKRX_Cod takes string ch returns integer
+    local integer v
+    if StringLength(ch)!=1 then
+        return 256
+    endif
+    set v=DB_ord(ch)
+    if v>=0 then
+        return v
+    elseif ch=="\t" then
+        return 9
+    elseif ch=="\n" then
+        return 10
+    elseif ch=="\r" then
+        return 13
+    endif
+    return 256
+endfunction
+
+function KKRX_Txt takes integer v returns string
+    if v==9 then
+        return "\t"
+    elseif v==10 then
+        return "\n"
+    elseif v==13 then
+        return "\r"
+    endif
+    return DB_chr(v)
+endfunction
+
+function KKRX_Hex takes string c returns integer
+    local integer i=0
+    loop
+        exitwhen i>=16
+        if SubString("0123456789abcdef", i, i+1)==c or SubString("0123456789ABCDEF", i, i+1)==c then
+            return i
+        endif
+        set i=i+1
+    endloop
+    return -1
+endfunction
+
+function KKRX_PCar takes nothing returns string
+    local integer j=KKRX_pp+1
+    loop
+        exitwhen j>=KKRX_pn
+        exitwhen not KKJN_IsCont(SubString(KKRX_pat, j, j+1))
+        set j=j+1
+    endloop
+    return SubString(KKRX_pat, KKRX_pp, j)
+endfunction
+
+function KKRX_Poe takes integer i,integer op,integer a,integer b,integer d,string s returns nothing
+    set KKRX_op[i]=op
+    set KKRX_a[i]=a
+    set KKRX_b[i]=b
+    set KKRX_d[i]=d
+    set KKRX_s[i]=s
+endfunction
+
+function KKRX_Emite takes integer op,integer a,integer b,integer d,string s returns integer
+    if KKRX_top>=KKRX_CODIGO then
+        set KKRX_erro=true
+        return KKRX_CODIGO-1
+    endif
+    call KKRX_Poe(KKRX_top, op, a, b, d, s)
+    set KKRX_top=KKRX_top+1
+    return KKRX_top-1
+endfunction
+
+function KKRX_Copia takes integer de,integer para returns nothing
+    set KKRX_op[para]=KKRX_op[de]
+    set KKRX_a[para]=KKRX_a[de]
+    set KKRX_b[para]=KKRX_b[de]
+    set KKRX_d[para]=KKRX_d[de]
+    set KKRX_s[para]=KKRX_s[de]
+endfunction
+
+function KKRX_Abre takes integer em,integer k returns nothing
+    local integer i=KKRX_top-1
+    if KKRX_top+k>KKRX_CODIGO then
+        set KKRX_erro=true
+        return
+    endif
+    loop
+        exitwhen i<em
+        call KKRX_Copia(i, i+k)
+        set i=i-1
+    endloop
+    set KKRX_top=KKRX_top+k
+endfunction
+
+function KKRX_Fecha takes integer i returns nothing
+    loop
+        exitwhen i>=KKRX_top-1
+        call KKRX_Copia(i+1, i)
+        set i=i+1
+    endloop
+    set KKRX_top=KKRX_top-1
+endfunction
+
+function KKRX_Gira takes integer seq,integer ini returns nothing
+    local integer L=KKRX_top-ini
+    local integer i=0
+    if ini<=seq or L<=0 then
+        return
+    endif
+    loop
+        exitwhen i>=L
+        call KKRX_Copia(ini+i, KKRX_top+i)
+        set i=i+1
+    endloop
+    set i=ini-1
+    loop
+        exitwhen i<seq
+        call KKRX_Copia(i, i+L)
+        set i=i-1
+    endloop
+    set i=0
+    loop
+        exitwhen i>=L
+        call KKRX_Copia(KKRX_top+i, seq+i)
+        set i=i+1
+    endloop
+endfunction
+
+function KKRX_Nulo takes integer ini,integer fim returns boolean
+    local integer n=0
+    local integer pc
+    local integer op
+    set KKRX_carimbo=KKRX_carimbo+1
+    set KKRX_wl[0]=ini
+    set n=1
+    loop
+        exitwhen n<=0
+        set n=n-1
+        set pc=KKRX_wl[n]
+        if pc==fim then
+            return true
+        endif
+        if pc>=ini and pc<fim and KKRX_vis[pc]!=KKRX_carimbo and n<KKRX_CODIGO-2 then
+            set KKRX_vis[pc]=KKRX_carimbo
+            set op=KKRX_op[pc]
+            if op==4 then
+                set KKRX_wl[n]=pc+KKRX_a[pc]
+                set KKRX_wl[n+1]=pc+KKRX_b[pc]
+                set n=n+2
+            elseif op==5 then
+                set KKRX_wl[n]=pc+KKRX_a[pc]
+                set n=n+1
+            elseif op==8 or op==12 then
+                set KKRX_wl[n]=pc+KKRX_b[pc]
+                set n=n+1
+                if op==12 then
+                    set KKRX_wl[n]=pc+1
+                    set n=n+1
+                endif
+            elseif op==6 or op==7 or op==10 or op==11 then
+                set KKRX_wl[n]=pc+1
+                set n=n+1
+            endif
+        endif
+    endloop
+    return false
+endfunction
+
+function KKRX_Quant takes integer ini,integer tipo,boolean guloso returns nothing
+    local integer L=KKRX_top-ini
+    local integer pc
+    local integer k
+    if tipo!=3 and KKRX_Nulo(ini, KKRX_top) then
+        if KKRX_nl>=500 then
+            set KKRX_erro=true
+            return
+        endif
+        set k=KKRX_nl
+        set KKRX_nl=KKRX_nl+1
+        if tipo==1 then
+            call KKRX_Abre(ini, 2)
+            if KKRX_erro then
+                return
+            endif
+            call KKRX_Poe(ini, 4, 1, L+4, 0, "")
+            call KKRX_Poe(ini+1, 11, k, 0, 0, "")
+            call KKRX_Emite(12, k, 2, 0, "")
+            call KKRX_Emite(5, 0-(L+3), 0, 0, "")
+            if not guloso then
+                set KKRX_a[ini]=L+4
+                set KKRX_b[ini]=1
+            endif
+        else
+            call KKRX_Abre(ini, 1)
+            if KKRX_erro then
+                return
+            endif
+            call KKRX_Poe(ini, 11, k, 0, 0, "")
+            call KKRX_Emite(12, k, 2, 0, "")
+            set pc=KKRX_Emite(4, 0-(L+2), 1, 0, "")
+            if not guloso then
+                set KKRX_a[pc]=1
+                set KKRX_b[pc]=0-(L+2)
+            endif
+        endif
+        return
+    endif
+    if tipo==2 then
+        set pc=KKRX_Emite(4, 0-L, 1, 0, "")
+        if not guloso then
+            set KKRX_a[pc]=1
+            set KKRX_b[pc]=0-L
+        endif
+        return
+    endif
+    call KKRX_Abre(ini, 1)
+    if KKRX_erro then
+        return
+    endif
+    if tipo==1 then
+        call KKRX_Poe(ini, 4, 1, L+2, 0, "")
+        call KKRX_Emite(5, 0-(L+1), 0, 0, "")
+    else
+        call KKRX_Poe(ini, 4, 1, L+1, 0, "")
+    endif
+    if not guloso then
+        set KKRX_a[ini]=KKRX_b[ini]
+        set KKRX_b[ini]=1
+    endif
+endfunction
+
+function KKRX_Cola takes integer L returns nothing
+    local integer i=0
+    if KKRX_top+L>KKRX_CODIGO then
+        set KKRX_erro=true
+        return
+    endif
+    loop
+        exitwhen i>=L
+        call KKRX_Copia(KKRX_GUARDA+i, KKRX_top+i)
+        set i=i+1
+    endloop
+    set KKRX_top=KKRX_top+L
+endfunction
+
+function KKRX_Repete takes integer ini,integer m,integer n,boolean guloso returns nothing
+    local integer L=KKRX_top-ini
+    local integer i=0
+    local integer s
+    if m>100 or n>100 or (n>=0 and n<m) then
+        set KKRX_erro=true
+        return
+    endif
+    loop
+        exitwhen i>=L
+        call KKRX_Copia(ini+i, KKRX_GUARDA+i)
+        set i=i+1
+    endloop
+    set KKRX_top=ini
+    set i=0
+    loop
+        exitwhen i>=m or KKRX_erro
+        call KKRX_Cola(L)
+        set i=i+1
+    endloop
+    if n<0 then
+        set s=KKRX_top
+        call KKRX_Cola(L)
+        call KKRX_Quant(s, 1, guloso)
+        return
+    endif
+    loop
+        exitwhen i>=n or KKRX_erro
+        set s=KKRX_top
+        call KKRX_Cola(L)
+        call KKRX_Quant(s, 3, guloso)
+        set i=i+1
+    endloop
+endfunction
+
+function KKRX_Item takes integer lo,integer hi,string ls returns nothing
+    if KKRX_nr>=2000 then
+        set KKRX_erro=true
+        return
+    endif
+    set KKRX_lo[KKRX_nr]=lo
+    set KKRX_hi[KKRX_nr]=hi
+    set KKRX_ls[KKRX_nr]=ls
+    set KKRX_nr=KKRX_nr+1
+endfunction
+
+function KKRX_Atalho takes string c returns nothing
+    if c=="d" then
+        call KKRX_Item(48, 57, "")
+    elseif c=="w" then
+        call KKRX_Item(48, 57, "")
+        call KKRX_Item(65, 90, "")
+        call KKRX_Item(97, 122, "")
+        call KKRX_Item(95, 95, "")
+        call KKRX_Item(256, 256, "")
+    else
+        call KKRX_Item(9, 13, "")
+        call KKRX_Item(32, 32, "")
+    endif
+endfunction
+
+function KKRX_Esc takes nothing returns integer
+    local string c=SubString(KKRX_pat, KKRX_pp, KKRX_pp+1)
+    local integer v
+    local integer w
+    set KKRX_et=""
+    set KKRX_en=false
+    if KKRX_pp>=KKRX_pn then
+        set KKRX_erro=true
+        return 0
+    endif
+    set KKRX_pp=KKRX_pp+1
+    if c=="d" or c=="w" or c=="s" then
+        call KKRX_Atalho(c)
+        return -2
+    elseif c=="D" or c=="W" or c=="S" then
+        call KKRX_Atalho(StringCase(c, false))
+        set KKRX_en=true
+        return -2
+    elseif c=="b" then
+        return -3
+    elseif c=="B" then
+        return -4
+    elseif c=="t" then
+        set KKRX_et="\t"
+        return 9
+    elseif c=="n" then
+        set KKRX_et="\n"
+        return 10
+    elseif c=="r" then
+        set KKRX_et="\r"
+        return 13
+    elseif c=="f" then
+        return 12
+    elseif c=="v" then
+        return 11
+    elseif c=="e" then
+        return 27
+    elseif c=="x" then
+        set v=KKRX_Hex(SubString(KKRX_pat, KKRX_pp, KKRX_pp+1))
+        set w=KKRX_Hex(SubString(KKRX_pat, KKRX_pp+1, KKRX_pp+2))
+        if v<0 or w<0 then
+            set KKRX_erro=true
+            return 0
+        endif
+        set KKRX_pp=KKRX_pp+2
+        set v=v*16+w
+        set KKRX_et=KKRX_Txt(v)
+        return v
+    endif
+    set v=KKRX_Hex(c)
+    if (v>=0 and v<=9) or c=="u" or c=="p" or c=="P" or c=="k" or c=="A" or c=="Z" or c=="z" or c=="G" or c=="c" then
+        set KKRX_erro=true
+        return 0
+    endif
+    set KKRX_pp=KKRX_pp-1
+    set KKRX_et=KKRX_PCar()
+    set KKRX_pp=KKRX_pp+StringLength(KKRX_et)
+    return KKRX_Cod(KKRX_et)
+endfunction
+
+function KKRX_Classe takes integer d returns nothing
+    local integer ini=KKRX_nr
+    local boolean neg=false
+    local boolean primeiro=true
+    local boolean atalho
+    local string c
+    local string t
+    local integer v
+    local integer w
+    set KKRX_pp=KKRX_pp+1
+    if SubString(KKRX_pat, KKRX_pp, KKRX_pp+1)=="^" then
+        set neg=true
+        set KKRX_pp=KKRX_pp+1
+    endif
+    loop
+        if KKRX_pp>=KKRX_pn or KKRX_erro then
+            set KKRX_erro=true
+            return
+        endif
+        set c=SubString(KKRX_pat, KKRX_pp, KKRX_pp+1)
+        exitwhen c=="]" and not primeiro
+        set primeiro=false
+        set atalho=false
+        if c=="\\" then
+            set KKRX_pp=KKRX_pp+1
+            set v=KKRX_Esc()
+            if v==-2 then
+                set atalho=true
+                if KKRX_en then
+                    set KKRX_erro=true
+                endif
+            elseif v==-3 then
+                set v=8
+            elseif v==-4 then
+                set KKRX_erro=true
+            endif
+            set t=KKRX_et
+        else
+            set t=KKRX_PCar()
+            set KKRX_pp=KKRX_pp+StringLength(t)
+            set v=KKRX_Cod(t)
+        endif
+        if not atalho then
+            if SubString(KKRX_pat, KKRX_pp, KKRX_pp+1)=="-" and KKRX_pp+1<KKRX_pn and SubString(KKRX_pat, KKRX_pp+1, KKRX_pp+2)!="]" then
+                set KKRX_pp=KKRX_pp+1
+                set c=SubString(KKRX_pat, KKRX_pp, KKRX_pp+1)
+                if c=="\\" then
+                    set KKRX_pp=KKRX_pp+1
+                    set w=KKRX_Esc()
+                elseif c=="[" then
+                    set w=-1
+                else
+                    set c=KKRX_PCar()
+                    set KKRX_pp=KKRX_pp+StringLength(c)
+                    set w=KKRX_Cod(c)
+                endif
+                if v<0 or w<0 or v>=256 or w>=256 or w<v then
+                    set KKRX_erro=true
+                else
+                    call KKRX_Item(v, w, "")
+                endif
+            elseif t!="" then
+                call KKRX_Item(-2, -2, t)
+            else
+                call KKRX_Item(v, v, "")
+            endif
+        endif
+    endloop
+    set KKRX_pp=KKRX_pp+1
+    if neg then
+        set t="n"
+    else
+        set t=""
+    endif
+    call KKRX_Emite(3, ini, KKRX_nr-ini, d, t)
+endfunction
+
+function KKRX_Chaves takes nothing returns integer
+    local integer i=KKRX_pp+1
+    local integer m=0
+    local integer n=0
+    local integer d
+    local boolean tem=false
+    loop
+        exitwhen i>=KKRX_pn or m>1000
+        set d=KKRX_Hex(SubString(KKRX_pat, i, i+1))
+        exitwhen d<0 or d>9
+        set m=m*10+d
+        set tem=true
+        set i=i+1
+    endloop
+    if not tem then
+        return -1
+    endif
+    if SubString(KKRX_pat, i, i+1)=="}" then
+        set KKRX_qm=m
+        set KKRX_qn=m
+        return i+1
+    endif
+    if SubString(KKRX_pat, i, i+1)!="," then
+        return -1
+    endif
+    set i=i+1
+    set tem=false
+    loop
+        exitwhen i>=KKRX_pn or n>1000
+        set d=KKRX_Hex(SubString(KKRX_pat, i, i+1))
+        exitwhen d<0 or d>9
+        set n=n*10+d
+        set tem=true
+        set i=i+1
+    endloop
+    if SubString(KKRX_pat, i, i+1)!="}" then
+        return -1
+    endif
+    if not tem then
+        set n=-1
+    endif
+    set KKRX_qm=m
+    set KKRX_qn=n
+    return i+1
+endfunction
+
+function KKRX_Alt takes boolean rev returns nothing
+    local integer seq=KKRX_top
+    local integer base=KKRX_np
+    local integer ini
+    local integer pc
+    local integer tipo
+    local integer m
+    local integer n
+    local integer v
+    local integer d=0
+    local boolean guloso
+    local boolean lit=false
+    local boolean eh_lit
+    local string c
+    local string t
+    if rev then
+        set d=1
+    endif
+    loop
+        exitwhen KKRX_pp>=KKRX_pn or KKRX_erro
+        set c=SubString(KKRX_pat, KKRX_pp, KKRX_pp+1)
+        exitwhen c==")"
+        if c=="|" then
+            set KKRX_pp=KKRX_pp+1
+            set pc=KKRX_Emite(5, 0, 0, 0, "")
+            call KKRX_Abre(seq, 1)
+            if KKRX_np>=200 then
+                set KKRX_erro=true
+            endif
+            exitwhen KKRX_erro
+            call KKRX_Poe(seq, 4, 1, KKRX_top-seq, 0, "")
+            set KKRX_pend[KKRX_np]=pc+1
+            set KKRX_np=KKRX_np+1
+            set seq=KKRX_top
+            set lit=false
+        else
+            set ini=KKRX_top
+            set eh_lit=false
+            set t=""
+            if c=="(" then
+                set KKRX_pp=KKRX_pp+1
+                set tipo=-1
+                if SubString(KKRX_pat, KKRX_pp, KKRX_pp+1)=="?" then
+                    set c=SubString(KKRX_pat, KKRX_pp+1, KKRX_pp+2)
+                    if c==":" then
+                        set KKRX_pp=KKRX_pp+2
+                    elseif c=="=" then
+                        set tipo=0
+                        set KKRX_pp=KKRX_pp+2
+                    elseif c=="!" then
+                        set tipo=1
+                        set KKRX_pp=KKRX_pp+2
+                    elseif c=="<" and SubString(KKRX_pat, KKRX_pp+2, KKRX_pp+3)=="=" then
+                        set tipo=2
+                        set KKRX_pp=KKRX_pp+3
+                    elseif c=="<" and SubString(KKRX_pat, KKRX_pp+2, KKRX_pp+3)=="!" then
+                        set tipo=3
+                        set KKRX_pp=KKRX_pp+3
+                    elseif c=="<" then
+                        set v=KKJN_PosB(KKRX_pat, ">", KKRX_pp)
+                        if v<0 then
+                            set KKRX_erro=true
+                        else
+                            set KKRX_pp=v+1
+                        endif
+                    else
+                        set KKRX_erro=true
+                    endif
+                endif
+                if tipo>=0 then
+                    set pc=KKRX_Emite(8, tipo, 0, 0, "")
+                    call KKRX_Alt(tipo>=2)
+                    call KKRX_Emite(9, 0, 0, 0, "")
+                    set KKRX_b[pc]=KKRX_top-pc
+                else
+                    call KKRX_Alt(rev)
+                endif
+                if SubString(KKRX_pat, KKRX_pp, KKRX_pp+1)==")" then
+                    set KKRX_pp=KKRX_pp+1
+                else
+                    set KKRX_erro=true
+                endif
+            elseif c=="[" then
+                call KKRX_Classe(d)
+            elseif c=="." then
+                set KKRX_pp=KKRX_pp+1
+                call KKRX_Emite(2, 0, 0, d, "")
+            elseif c=="^" then
+                set KKRX_pp=KKRX_pp+1
+                call KKRX_Emite(6, 0, 0, 0, "")
+            elseif c=="$" then
+                set KKRX_pp=KKRX_pp+1
+                call KKRX_Emite(7, 0, 0, 0, "")
+            elseif c=="\\" then
+                set KKRX_pp=KKRX_pp+1
+                set m=KKRX_nr
+                set v=KKRX_Esc()
+                if v==-2 then
+                    if KKRX_en then
+                        set t="n"
+                    endif
+                    call KKRX_Emite(3, m, KKRX_nr-m, d, t)
+                    set t=""
+                elseif v==-3 then
+                    call KKRX_Emite(10, 0, 0, 0, "")
+                elseif v==-4 then
+                    call KKRX_Emite(10, 1, 0, 0, "")
+                elseif KKRX_et=="" then
+                    set KKRX_erro=true
+                else
+                    set t=KKRX_et
+                    set eh_lit=true
+                endif
+            elseif c=="*" or c=="+" or c=="?" then
+                set KKRX_erro=true
+            else
+                set t=KKRX_PCar()
+                set KKRX_pp=KKRX_pp+StringLength(t)
+                set eh_lit=true
+            endif
+            if eh_lit then
+                call KKRX_Emite(1, StringLength(t), 0, d, t)
+            endif
+            set tipo=0
+            set c=SubString(KKRX_pat, KKRX_pp, KKRX_pp+1)
+            if c=="*" then
+                set tipo=1
+                set KKRX_pp=KKRX_pp+1
+            elseif c=="+" then
+                set tipo=2
+                set KKRX_pp=KKRX_pp+1
+            elseif c=="?" then
+                set tipo=3
+                set KKRX_pp=KKRX_pp+1
+            elseif c=="{" then
+                set v=KKRX_Chaves()
+                if v>=0 then
+                    set tipo=4
+                    set m=KKRX_qm
+                    set n=KKRX_qn
+                    set KKRX_pp=v
+                endif
+            endif
+            if tipo>0 and not KKRX_erro then
+                set guloso=true
+                if SubString(KKRX_pat, KKRX_pp, KKRX_pp+1)=="?" then
+                    set guloso=false
+                    set KKRX_pp=KKRX_pp+1
+                endif
+                if tipo==4 then
+                    call KKRX_Repete(ini, m, n, guloso)
+                else
+                    call KKRX_Quant(ini, tipo, guloso)
+                endif
+                set eh_lit=false
+            endif
+            exitwhen KKRX_erro
+            if rev and KKRX_top>ini then
+                call KKRX_Gira(seq, ini)
+                if eh_lit and lit then
+                    set KKRX_s[seq]=KKRX_s[seq+1]+KKRX_s[seq]
+                    set KKRX_a[seq]=KKRX_a[seq]+KKRX_a[seq+1]
+                    call KKRX_Fecha(seq+1)
+                endif
+            elseif eh_lit and lit then
+                set KKRX_s[ini-1]=KKRX_s[ini-1]+KKRX_s[ini]
+                set KKRX_a[ini-1]=KKRX_a[ini-1]+KKRX_a[ini]
+                set KKRX_top=KKRX_top-1
+            endif
+            set lit=eh_lit
+        endif
+    endloop
+    loop
+        exitwhen KKRX_np<=base
+        set KKRX_np=KKRX_np-1
+        set pc=KKRX_pend[KKRX_np]
+        set KKRX_a[pc]=KKRX_top-pc
+    endloop
+endfunction
+
+function KKRX_Compila takes string pat returns boolean
+    local integer pc=0
+    local string t=""
+    set KKRX_pat=pat
+    set KKRX_pn=StringLength(pat)
+    set KKRX_pp=0
+    set KKRX_top=0
+    set KKRX_nr=0
+    set KKRX_np=0
+    set KKRX_nl=0
+    set KKRX_erro=false
+    call KKRX_Alt(false)
+    if KKRX_pp<KKRX_pn then
+        set KKRX_erro=true
+    endif
+    call KKRX_Emite(9, 0, 0, 0, "")
+    if KKRX_erro then
+        return false
+    endif
+    set KKRX_pmodo=0
+    set KKRX_plit=""
+    loop
+        exitwhen KKRX_op[pc]!=8
+        if KKRX_a[pc]==2 and KKRX_op[pc+1]==1 and t=="" then
+            set t=KKRX_s[pc+1]
+        endif
+        set pc=pc+KKRX_b[pc]
+    endloop
+    if KKRX_op[pc]==1 then
+        set KKRX_pmodo=1
+        set KKRX_plit=KKRX_s[pc]
+    elseif KKRX_op[pc]==6 then
+        set KKRX_pmodo=3
+    elseif t!="" then
+        set KKRX_pmodo=2
+        set KKRX_plit=t
+    endif
+    return true
+endfunction
+
+function KKRX_Pal takes string ch returns boolean
+    local integer v=KKRX_Cod(ch)
+    return v==95 or v==256 or (v>=48 and v<=57) or (v>=65 and v<=90) or (v>=97 and v<=122)
+endfunction
+
+function KKRX_NaClasse takes integer pc,string ch returns boolean
+    local integer i=KKRX_a[pc]
+    local integer e=i+KKRX_b[pc]
+    local integer v=-1
+    loop
+        exitwhen i>=e
+        if KKRX_lo[i]==-2 then
+            if KKRX_ls[i]==ch then
+                return KKRX_s[pc]==""
+            endif
+        else
+            if v<0 then
+                set v=KKRX_Cod(ch)
+            endif
+            if v>=KKRX_lo[i] and v<=KKRX_hi[i] then
+                return KKRX_s[pc]==""
+            endif
+        endif
+        set i=i+1
+    endloop
+    return KKRX_s[pc]!=""
+endfunction
+
+function KKRX_Antes takes integer sp returns integer
+    local integer j=sp-1
+    loop
+        exitwhen j<=0
+        exitwhen not KKJN_IsCont(SubString(KKRX_str, j, j+1))
+        set j=j-1
+    endloop
+    return j
+endfunction
+
+function KKRX_Depois takes integer sp returns integer
+    local integer j=sp+1
+    loop
+        exitwhen j>=KKRX_n
+        exitwhen not KKJN_IsCont(SubString(KKRX_str, j, j+1))
+        set j=j+1
+    endloop
+    return j
+endfunction
+
+function KKRX_Roda takes integer pc,integer sp returns integer
+    local integer base=KKRX_sp
+    local integer op
+    local integer k
+    local integer j
+    local boolean ok
+    local boolean w1
+    local string ch
+    loop
+        set KKRX_passos=KKRX_passos+1
+        if KKRX_passos>KKRX_TETO then
+            set KKRX_estouro=true
+        endif
+        if KKRX_estouro then
+            set KKRX_sp=base
+            return -1
+        endif
+        set op=KKRX_op[pc]
+        set ok=true
+        if op==1 then
+            set k=KKRX_a[pc]
+            if KKRX_d[pc]==0 then
+                if sp+k<=KKRX_n and SubString(KKRX_str, sp, sp+k)==KKRX_s[pc] then
+                    set sp=sp+k
+                else
+                    set ok=false
+                endif
+            elseif sp-k>=0 and SubString(KKRX_str, sp-k, sp)==KKRX_s[pc] then
+                set sp=sp-k
+            else
+                set ok=false
+            endif
+            set pc=pc+1
+        elseif op==4 then
+            if KKRX_sp>=KKRX_PILHA then
+                set KKRX_estouro=true
+                set KKRX_sp=base
+                return -1
+            endif
+            set KKRX_spc[KKRX_sp]=pc+KKRX_b[pc]
+            set KKRX_ssp[KKRX_sp]=sp
+            set KKRX_sp=KKRX_sp+1
+            set pc=pc+KKRX_a[pc]
+        elseif op==2 or op==3 then
+            if KKRX_d[pc]==0 then
+                if sp>=KKRX_n then
+                    set ok=false
+                else
+                    set k=KKRX_Depois(sp)
+                    set ch=SubString(KKRX_str, sp, k)
+                endif
+            elseif sp<=0 then
+                set ok=false
+            else
+                set k=KKRX_Antes(sp)
+                set ch=SubString(KKRX_str, k, sp)
+            endif
+            if ok then
+                if op==2 then
+                    set ok=ch!="\n"
+                else
+                    set ok=KKRX_NaClasse(pc, ch)
+                endif
+                set sp=k
+                set pc=pc+1
+            endif
+        elseif op==5 then
+            set pc=pc+KKRX_a[pc]
+        elseif op==6 then
+            set ok=sp==0
+            set pc=pc+1
+        elseif op==7 then
+            set ok=sp==KKRX_n or (sp==KKRX_n-1 and SubString(KKRX_str, sp, KKRX_n)=="\n")
+            set pc=pc+1
+        elseif op==8 then
+            set k=KKRX_a[pc]
+            set j=KKRX_Roda(pc+1, sp)
+            if KKRX_estouro then
+                set KKRX_sp=base
+                return -1
+            endif
+            set ok=(j>=0)==(k==0 or k==2)
+            set pc=pc+KKRX_b[pc]
+        elseif op==9 then
+            set KKRX_sp=base
+            return sp
+        elseif op==10 then
+            set w1=false
+            if sp>0 then
+                set w1=KKRX_Pal(SubString(KKRX_str, KKRX_Antes(sp), sp))
+            endif
+            set ok=false
+            if sp<KKRX_n then
+                set ok=KKRX_Pal(SubString(KKRX_str, sp, KKRX_Depois(sp)))
+            endif
+            set ok=(w1!=ok)==(KKRX_a[pc]==0)
+            set pc=pc+1
+        elseif op==11 then
+            if KKRX_sp>=KKRX_PILHA then
+                set KKRX_estouro=true
+                set KKRX_sp=base
+                return -1
+            endif
+            set k=KKRX_a[pc]
+            set KKRX_spc[KKRX_sp]=0-(k+1)
+            set KKRX_ssp[KKRX_sp]=KKRX_reg[k]
+            set KKRX_sp=KKRX_sp+1
+            set KKRX_reg[k]=sp
+            set pc=pc+1
+        elseif op==12 then
+            if sp==KKRX_reg[KKRX_a[pc]] then
+                set pc=pc+KKRX_b[pc]
+            else
+                set pc=pc+1
+            endif
+        else
+            set ok=false
+        endif
+        if not ok then
+            loop
+                if KKRX_sp<=base then
+                    return -1
+                endif
+                set KKRX_sp=KKRX_sp-1
+                set pc=KKRX_spc[KKRX_sp]
+                exitwhen pc>=0
+                set KKRX_reg[0-pc-1]=KKRX_ssp[KKRX_sp]
+            endloop
+            set sp=KKRX_ssp[KKRX_sp]
+        endif
+    endloop
+    return -1
+endfunction
+
+function KKRX_Busca takes integer de returns integer
+    local integer p=de
+    local integer q
+    local integer e
+    local integer L=StringLength(KKRX_plit)
+    loop
+        exitwhen p>KKRX_n or KKRX_estouro
+        if KKRX_pmodo==1 then
+            set q=KKJN_PosB(KKRX_str, KKRX_plit, p)
+            if q<0 then
+                return -1
+            endif
+            set p=q
+        elseif KKRX_pmodo==2 then
+            set q=p-L
+            if q<0 then
+                set q=0
+            endif
+            set q=KKJN_PosB(KKRX_str, KKRX_plit, q)
+            if q<0 then
+                return -1
+            endif
+            set p=q+L
+        elseif KKRX_pmodo==3 and p>0 then
+            return -1
+        endif
+        set e=KKRX_Roda(0, p)
+        if e>=0 then
+            set KKRX_fim=e
+            return p
+        endif
+        if KKRX_pmodo==1 or KKRX_pmodo==2 then
+            set p=p+1
+        elseif p>=KKRX_n then
+            return -1
+        else
+            set p=KKRX_Depois(p)
+        endif
+    endloop
+    return -1
+endfunction
+
+function KKRX_Enesimo takes integer de,integer idx returns string
+    local integer p
+    local integer k=0
+    loop
+        set p=KKRX_Busca(de)
+        if p<0 then
+            set KKRX_prox=-1
+            return ""
+        endif
+        if KKRX_fim>p then
+            set de=KKRX_fim
+        elseif KKRX_fim>=KKRX_n then
+            set de=KKRX_n+1
+        else
+            set de=KKRX_Depois(KKRX_fim)
+        endif
+        exitwhen k>=idx
+        set k=k+1
+    endloop
+    set KKRX_prox=de
+    return SubString(KKRX_str, p, KKRX_fim)
+endfunction
+
+function KKRX_Vaga takes string str,string pat,integer idx returns integer
+    local integer h=StringHash(str)/2+StringHash(pat)/4+idx*131
+    set h=h-(h/1024)*1024
+    if h<0 then
+        set h=h+1024
+    endif
+    return h
+endfunction
+
+function KKRX_Meta takes string k,boolean kv returns boolean
+    local integer i=0
+    local integer n=StringLength(k)
+    local string c
+    loop
+        exitwhen i>=n
+        set c=SubString(k, i, i+1)
+        if c=="\\" or c=="[" or c=="]" or c=="(" or c==")" or c=="{" or c=="}" or c=="." or c=="*" or c=="+" or c=="?" or c=="^" or c=="$" or c=="|" then
+            return true
+        endif
+        if kv and (c=="," or c==":" or c=="\n") then
+            return true
+        endif
+        set i=i+1
+    endloop
+    return false
+endfunction
+
+function KKRX_Dic takes string str returns integer
+    local integer slot=StringHash(str)
+    local integer i=0
+    local integer n=StringLength(str)
+    local integer e
+    local integer c
+    local integer h
+    local string k
+    set slot=slot-(slot/512)*512
+    if slot<0 then
+        set slot=slot+512
+    endif
+    if KKRX_dv[slot] and KKRX_dt[slot]==str then
+        return slot
+    endif
+    call FlushChildHashtable(KKRX_dic, slot)
+    call FlushChildHashtable(KKRX_dic, slot+512)
+    loop
+        exitwhen i>n
+        set e=KKJN_PosB(str, ",", i)
+        if e<0 then
+            set e=n
+        endif
+        set c=KKJN_PosB(str, ":", i)
+        if c>=0 and c<e then
+            set k=SubString(str, i, c)
+            set h=StringHash(k)
+            if not HaveSavedString(KKRX_dic, slot, h) then
+                call SaveStr(KKRX_dic, slot, h, k)
+                call SaveStr(KKRX_dic, slot+512, h, SubString(str, c+1, e))
+            elseif LoadStr(KKRX_dic, slot, h)!=k then
+                call SaveBoolean(KKRX_dic, slot, h, true)
+            endif
+        endif
+        set i=e+1
+    endloop
+    set KKRX_dt[slot]=str
+    set KKRX_dv[slot]=true
+    return slot
+endfunction
+
+function KKRX_Chave takes string str,string pat returns string
+    local integer n=StringLength(pat)
+    local integer tipo=0
+    local integer slot
+    local integer h
+    local string c
+    local string k
+    local string v
+    set KKRX_rv=-1
+    if n<24 then
+        return ""
+    endif
+    set c=SubString(pat, 0, 9)
+    if c!="(?<=(,|^)" and c!="(?<=(^|,)" then
+        return ""
+    endif
+    set c=SubString(pat, n-14, n)
+    if c==":)(.*?)(?=,|$)" or c==":)(.*?)(?=$|,)" then
+        set tipo=1
+        set k=SubString(pat, 9, n-14)
+    else
+        set c=SubString(pat, n-17, n)
+        if c==":)([^:,]*)(?=$|,)" or c==":)([^:,]*)(?=,|$)" then
+            set tipo=2
+            set k=SubString(pat, 9, n-17)
+        else
+            return ""
+        endif
+    endif
+    if k=="" or KKRX_Meta(k, true) then
+        return ""
+    endif
+    if StringLength(str)>0 and SubString(str, StringLength(str)-1, StringLength(str))=="\n" then
+        return ""
+    endif
+    set slot=KKRX_Dic(str)
+    set h=StringHash(k)
+    if not HaveSavedString(KKRX_dic, slot, h) then
+        set KKRX_rv=1
+        return ""
+    endif
+    if LoadStr(KKRX_dic, slot, h)!=k or LoadBoolean(KKRX_dic, slot, h) then
+        return ""
+    endif
+    set v=LoadStr(KKRX_dic, slot+512, h)
+    if KKJN_PosB(v, "\n", 0)>=0 or (tipo==2 and KKJN_PosB(v, ":", 0)>=0) then
+        return ""
+    endif
+    set KKRX_rv=1
+    return v
+endfunction
+
+function KKRX_Regex takes string str,string pat,integer idx returns string
+    local integer v
+    local integer w
+    local integer de=0
+    local integer k=0
+    local string r
+    if str==null or pat==null or idx<0 then
+        return ""
+    endif
+    if idx==0 and KKRX_dic!=null then
+        set r=KKRX_Chave(str, pat)
+        if KKRX_rv>0 then
+            return r
+        endif
+    endif
+    set v=KKRX_Vaga(str, pat, idx)
+    if KKRX_mv[v] and KKRX_mi[v]==idx and KKRX_mt[v]==str and KKRX_mp[v]==pat then
+        return KKRX_mr[v]
+    endif
+    if idx>0 then
+        set w=KKRX_Vaga(str, pat, idx-1)
+        if KKRX_mv[w] and KKRX_mi[w]==idx-1 and KKRX_mt[w]==str and KKRX_mp[w]==pat then
+            if KKRX_me[w]<0 then
+                return ""
+            endif
+            set de=KKRX_me[w]
+            set k=idx
+        endif
+    endif
+    if not KKRX_Compila(pat) then
+        return ""
+    endif
+    set KKRX_str=str
+    set KKRX_n=StringLength(str)
+    set KKRX_passos=0
+    set KKRX_estouro=false
+    set KKRX_sp=0
+    set r=KKRX_Enesimo(de, idx-k)
+    if KKRX_estouro then
+        return ""
+    endif
+    set KKRX_mv[v]=true
+    set KKRX_mt[v]=str
+    set KKRX_mp[v]=pat
+    set KKRX_mi[v]=idx
+    set KKRX_mr[v]=r
+    set KKRX_me[v]=KKRX_prox
+    return r
+endfunction
+
+function KKRX_Conta takes string str,string pat returns boolean
+    local integer v=KKRX_Vaga(str, pat, -7)
+    local integer de=0
+    local integer c=0
+    if KKRX_mv[v] and KKRX_mi[v]==-7 and KKRX_mt[v]==str and KKRX_mp[v]==pat then
+        set KKRX_rc=S2I(KKRX_mr[v])
+        return true
+    endif
+    if not KKRX_Compila(pat) then
+        return false
+    endif
+    set KKRX_str=str
+    set KKRX_n=StringLength(str)
+    set KKRX_passos=0
+    set KKRX_estouro=false
+    set KKRX_sp=0
+    loop
+        exitwhen de>KKRX_n
+        call KKRX_Enesimo(de, 0)
+        exitwhen KKRX_prox<0
+        set c=c+1
+        set de=KKRX_prox
+    endloop
+    if KKRX_estouro then
+        return false
+    endif
+    set KKRX_mv[v]=true
+    set KKRX_mt[v]=str
+    set KKRX_mp[v]=pat
+    set KKRX_mi[v]=-7
+    set KKRX_mr[v]=I2S(c)
+    set KKRX_me[v]=0
+    set KKRX_rc=c
+    return true
+endfunction
+
+//{{KK_FIMSE:KK_JN_REGEX}}
 function JNStringContains takes string str,string sub returns boolean
     if str==null or sub==null then
         return false
@@ -1400,6 +2617,11 @@ function JNStringCount takes string str,string sub returns integer
     if str==null or sub==null then
         return 0
     endif
+    //{{KK_SE:KK_JN_REGEX}}
+    if KKRX_Meta(sub, false) and KKRX_Conta(str, sub) then
+        return KKRX_rc
+    endif
+    //{{KK_FIMSE:KK_JN_REGEX}}
     set m=StringLength(sub)
     if m<=0 then
         return 0
@@ -1508,6 +2730,9 @@ function JNStringReplace takes string str,string old,string newstr returns strin
 endfunction
 
 function JNStringRegex takes string str,string regex,integer index returns string
+    //{{KK_SE:KK_JN_REGEX}}
+    return KKRX_Regex(str, regex, index)
+    //{{KK_FIMSE:KK_JN_REGEX}}
     return ""
 endfunction
 

@@ -37,8 +37,21 @@ def args(ln, k):
     return None, None
 
 
-def classify_items(fname, st):
+RX_CONSTANT = re.compile(
+    r'(?m)^[ \t]*constant[ \t]+unitstate[ \t]+(\w+)[ \t]*=[ \t]*(ConvertUnitState\([^()\n]*\))[ \t]*$'
+)
+
+
+def w3p_constants(body_text):
+    if 'unitstate' not in body_text:
+        return {}
+    return dict((m.group(1), m.group(2)) for m in RX_CONSTANT.finditer(body_text) if RX_CONVERT.match(m.group(2)))
+
+
+def classify_items(fname, st, consts=None):
     st = st.strip()
+    if consts and st in consts:
+        st = consts[st]
     m = RX_CONVERT.match(st)
     if m:
         x = m.group(1)
@@ -61,7 +74,7 @@ def classify_items(fname, st):
     return None, None
 
 
-def rewrite_line(line, by, failures, node):
+def rewrite_line(line, by, failures, node, consts=None):
     ss = T.sitios(line, KNOWN_NAMES)
     for begin, end_pos, fname in sorted(ss, reverse=True):
         k = line.index('(', end_pos)
@@ -72,7 +85,7 @@ def rewrite_line(line, by, failures, node):
         if len(a) != (3 if fname == 'SetUnitState' else 2):
             failures.append('line %d: %s with %d arguments' % (node, fname, len(a)))
             continue
-        cat, new_st = classify_items(fname, line[a[1][0]:a[1][1]])
+        cat, new_st = classify_items(fname, line[a[1][0]:a[1][1]], consts)
         if cat is None:
             continue
         by[cat] = by.get(cat, 0) + 1
@@ -90,10 +103,11 @@ def rewrite_line(line, by, failures, node):
 def pluralize(body_text):
     by = {}
     failures = []
+    consts = w3p_constants(body_text)
     for node, line in enumerate(body_text.split('\n'), 1):
         if T.RX_NATIVE.match(line) or 'UnitState' not in line:
             continue
-        rewrite_line(line, by, failures, node)
+        rewrite_line(line, by, failures, node, consts)
     return by
 
 
@@ -101,10 +115,11 @@ def applies(body_text, expected_count=None, to_report=False):
     line_list = body_text.split('\n')
     by = {}
     failures = []
+    consts = w3p_constants(body_text)
     for idx, line in enumerate(line_list):
         if T.RX_NATIVE.match(line) or 'UnitState' not in line:
             continue
-        new_l = rewrite_line(line, by, failures, idx + 1)
+        new_l = rewrite_line(line, by, failures, idx + 1, consts)
         line_list[idx] = new_l
     swapped = sum(by.values())
     if swapped and expected_count is not None:

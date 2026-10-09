@@ -19,7 +19,8 @@ EXCLUDE = ('cv2', 'matplotlib', 'pytest', 'setuptools', 'pip', 'unittest', 'pydo
            'lupa.lua51', 'lupa.lua52', 'lupa.lua55', 'lupa.luajit20', 'lupa.luajit21')
 LUA = ('lupa.lua53', 'lupa.lua54')
 PACKAGES = ('numpy', 'pillow', 'pywebview', 'pythonnet', 'clr_loader', 'bottle', 'proxy_tools', 'cffi',
-            'pycparser', 'typing_extensions', 'PyGObject', 'pycairo', 'zopfli', 'lupa', 'ctranslate2', 'sentencepiece')
+            'pycparser', 'typing_extensions', 'PyGObject', 'pycairo', 'zopfli', 'lupa', 'ctranslate2', 'sentencepiece',
+            'onnxruntime')
 
 VERSION_FILE = """VSVersionInfo(
   ffi=FixedFileInfo(filevers=({v}), prodvers=({v}), mask=0x3f, flags=0x0, OS=0x40004, fileType=0x1,

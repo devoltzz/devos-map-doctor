@@ -582,7 +582,7 @@ def _translation_export(job, progress):
     only = job.get('only')
     if job['file'].lower().endswith(('.html', '.htm')):
         return translation_io.export_html(job['map'], job['file'], progress, only)
-    return translation_io.export(job['map'], job['file'], progress, only)
+    return translation_io.export(job['map'], job['file'], progress, only, images=bool(job.get('images')))
 
 
 def _translation_groups(job, progress):
@@ -599,9 +599,26 @@ def _translation_machine(job, progress):
     from doctor.translation import machine_translate
     from doctor.translation import translation_io
     r = machine_translate.translate_map(job['map'], job['file'], progress, job.get('only'),
-                                        job.get('quality') or 'best')
+                                        job.get('quality') or 'best', images=bool(job.get('images')))
     if r.get('state') == 'done':
         r['check'] = translation_io.check(job['map'], job['file'], progress)
+    return r
+
+
+def _translation_images(job, progress):
+    from doctor.translation import translation_io
+    return translation_io.images_review(job['map'], job['file'], progress)
+
+
+def _translation_image_preview(job, progress):
+    from doctor.translation import translation_io
+    return translation_io.image_preview(job['map'], job['entries'])
+
+
+def _translation_update(job, progress):
+    from doctor.translation import translation_io
+    r = translation_io.update(job['file'], job.get('changes') or {})
+    r['check'] = translation_io.check(job['map'], job['file'], progress)
     return r
 
 
@@ -615,7 +632,9 @@ TOOLS = {'card': _card, 'card_image': _card_image, 'gradient': _gradient, 'refor
          'triggers': _triggers, 'cheatpacks': _cheatpacks, 'cheatpack_inject': _cheatpack_inject,
          'rawcodes': _rawcodes, 'qol': _qol, 'qol_apply': _qol_apply,
          'translation_export': _translation_export, 'translation_groups': _translation_groups,
-         'translation_check': _translation_check, 'translation_machine': _translation_machine, 'compare': _compare}
+         'translation_check': _translation_check, 'translation_machine': _translation_machine,
+         'translation_images': _translation_images, 'translation_image_preview': _translation_image_preview,
+         'translation_update': _translation_update, 'compare': _compare}
 
 
 def worker_main(window=None):

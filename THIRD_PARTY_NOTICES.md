@@ -129,6 +129,17 @@ the OPUS-MT team), converted to the CTranslate2 format with their weights unchan
 license (CC-BY 4.0 or Apache-2.0) inside its zip file. Tiedemann, J. and Thottingal, S. (2020): OPUS-MT - Building open
 translation services for the World (EAMT 2020).
 
+## The text in images: onnxruntime and PaddleOCR
+
+https://github.com/microsoft/onnxruntime (MIT), https://github.com/PaddlePaddle/PaddleOCR (Apache-2.0),
+https://github.com/RapidAI/RapidOCR (Apache-2.0)
+
+The program bundles onnxruntime (its license is below, with the other Python packages), which runs the text reader of
+"Also read the text in the images" (`doctor/translation/image_ocr.py`, `image_translate.py`). The models are not in the
+program: they are downloaded the first time, from the release `translation-models` of this repository. They are the
+PaddleOCR models (PP-OCRv6 small, PP-OCRv5 mobile) in the ONNX format published by RapidOCR, unchanged, under the
+Apache License 2.0 (inside each zip). The text is drawn with the font Pillow carries, Aileron (SIL Open Font License).
+
 ## The site
 
 The site (`web/build_site.py`) ships, unchanged, Pyodide (https://github.com/pyodide/pyodide, MPL-2.0) with its CPython

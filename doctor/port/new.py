@@ -154,12 +154,58 @@ def return_literal(body_text, natives):
             if not matches and a:
                 matches = [x.group(1) for x in re.finditer(r'(?<![\w\]])' + re.escape(a.group(1)) + RX_LITERAL, t)]
                 matches.sort(key=lambda s: bool(re.match(r'^-?\d*$', s)))
+            if not matches:
+                matches = _literal_over_network(t, m.start(), a.group(1) if a else None)
+            matches = [x for x in matches if _jass_text(x) not in JN_FAILURE_REPLIES]
             if matches:
-                try:
-                    return matches[0].encode('latin-1').decode('utf-8')
-                except UnicodeError:
-                    return matches[0]
+                return _jass_text(matches[0])
     return None
+
+
+JN_FAILURE_REPLIES = ('서버와 연결이 끊겨있습니다', 'M16Tool서버에 접속할 수 없거나 저장이 실패하였습니다',
+                      '저장이 실패하였습니다.')
+
+
+def _jass_text(lit):
+    try:
+        return lit.encode('latin-1').decode('utf-8')
+    except UnicodeError:
+        return lit
+
+
+def _literal_over_network(t, pos, var):
+    rx_sync = r'\bDzSyncData(?:Immediately)?[ \t]*\([ \t]*("(?:[^"\\\n]|\\.)*"|\w+)[ \t]*,'
+    prefixes = []
+    if var:
+        end_pos = t.find('endfunction', pos)
+        body = t[pos:end_pos if end_pos >= 0 else len(t)]
+        for s in re.finditer(rx_sync + r'([^\n]*)', body):
+            if re.search(r'(?<![\w\]])%s\b' % re.escape(var), s.group(2)):
+                prefixes.append(s.group(1))
+    else:
+        begin = t.rfind('\n', 0, pos) + 1
+        s = re.search(rx_sync, t[begin:pos])
+        if s:
+            prefixes.append(s.group(1))
+    matches = []
+    for p in prefixes:
+        for r in re.finditer(r'\bDzTriggerRegisterSyncData[ \t]*\([ \t]*(\w+)[ \t]*,[ \t]*%s[ \t]*,' % re.escape(p), t):
+            action_match = re.compile(r'\bTriggerAddAction[ \t]*\([ \t]*%s[ \t]*,[ \t]*function[ \t]+(\w+)[ \t]*\)'
+                                      % re.escape(r.group(1))).search(t, r.end())
+            if not action_match:
+                continue
+            f = re.compile(
+                r'(?ms)^[ \t]*function[ \t]+%s\b.*?^[ \t]*endfunction' % re.escape(action_match.group(1))
+            ).search(t)
+            if not f:
+                continue
+            for c in re.finditer(RX_LITERAL, f.group(0)):
+                lit = c.group(1)
+                if len(_jass_text(lit)) > 1 and not re.match(r'^-?\d*$', lit):
+                    matches.append(lit)
+            if matches:
+                return matches
+    return matches
 
 
 RX_GAME_END = re.compile(r'\b(?:EndGame|CustomDefeatBJ|CustomDefeatDialogBJ|RemovePlayer|RemovePlayerSimple)\s*\(')
@@ -188,6 +234,10 @@ def jninit_gate(body_text):
             re.search(r'==\s*\(?\s*-\s*3\b', t) and 'JNObject' in t and 'Init' in t:
         return 'true'
     return 'false'
+
+
+def jnregex_gate(body_text):
+    return 'true' if re.search(r'\bJNStringRegex\s*\(', body_text) else 'false'
 
 
 RX_PLUGIN = re.compile(r'\bJNServerPluginVersion[ \t]*\([ \t]*\)[ \t]*(<=|<|>=|>|==)[ \t]*\(?[ \t]*(\d+)')
@@ -251,6 +301,57 @@ def buttons_in_chunks(listing, chunks=8, byte_size=1000):
 
 def empty_sync(body_text):
     return 'true' if re.search(r'\bDzSyncData(?:Immediately)?\s*\([^,()]+,\s*""\s*\)', body_text) else 'false'
+
+
+def _call(body_text, native, args=r'[^\n]*'):
+    for m in re.finditer(r'\b%s[ \t]*\(%s' % (re.escape(native), args), body_text):
+        begin = body_text.rfind('\n', 0, m.start()) + 1
+        if not re.match(r'[ \t]*(?:constant[ \t]+)?native\b', body_text[begin:m.start()]):
+            return True
+    return False
+
+
+def ui_mouse_pos(body_text):
+    if 'DzSetMousePos' not in body_text:
+        return 'false'
+    for body in re.findall(r'(?ms)^[ \t]*function\s+\w+.*?^[ \t]*endfunction', body_text):
+        if re.search(r'\bDzSetMousePos[ \t]*\(', body) and re.search(r'\bDzGetMouse[XY]Relative[ \t]*\(', body):
+            return 'true'
+    return 'false'
+
+
+def ui_borders(body_text):
+    return 'true' if _call(body_text, 'DzFrameEditBlackBorders', r'[^,\n]*,[ \t]*\(?[ \t]*0*\.?0*[ \t]*\)?[ \t]*\)') \
+        else 'false'
+
+
+def ui_portrait(body_text):
+    return (
+        'true'
+        if re.search(r'\bDzFrameClearAllPoints[ \t]*\([ \t]*\(?[ \t]*DzFrameGetPortrait[ \t]*\([ \t]*\)', body_text)
+        else 'false'
+    )
+
+
+BIG_LIFE = 10000000
+
+
+def big_life(extract):
+    import struct
+    p = os.path.join(extract or '', 'war3map.w3u')
+    if not os.path.isfile(p):
+        return 'false'
+    try:
+        from doctor.data import objbin
+        _ver, tables, _p = objbin.read_data(open(p, 'rb').read(), False)
+    except Exception:
+        return 'false'
+    for t in tables:
+        for _old, _new, mods in t:
+            for mid, vt, _l, _d, val in mods:
+                if mid == 'uhpm' and vt == 0 and len(val) == 4 and struct.unpack('<i', val)[0] >= BIG_LIFE:
+                    return 'true'
+    return 'false'
 
 
 def reads_state_14(body_text):

@@ -359,10 +359,10 @@ def compare(path_a, path_b, progress=None):
         a, b = archives
 
         def read_a(name):
-            return translation_io._read_uncached(a, name)
+            return translation_io._read(a, name)
 
         def read_b(name):
-            return translation_io._read_uncached(b, name)
+            return translation_io._read(b, name)
         p('file names')
         with unprotect.quiet():
             (na, nb), (oa, ob) = _names((a, b))
