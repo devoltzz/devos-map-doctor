@@ -48,27 +48,6 @@ never runs the game.
 
 - Port to Reforged: maps whose game runs on the YDWE Lua engine get their interface in the program too (the frame definitions they write while they run are collected), and a map no longer closes during the loading screen when its interface anchors frames in a loop the old game accepted (#15, #16).
 
-### New in 1.7.1
-
-- A new QoL tab: a quality of life version of an old RPG, made from its own script. Experience, gold and lumber multipliers, item drop and craft success chances (100% at most, tiers kept), a shorter hero revive and monster respawn, a -noshake command, the map revealed and VIP for everyone. The item tables of the World Editor and the revive at an altar follow the same multipliers. Lua maps take every edit too, the rolls and the revive waits of their code included. The tab shows what the map has for each one before anything is written.
-- The JASS parser reads vJass too, and a map with vJass that was never compiled gets a clearer report.
-- Port to Reforged: maps of the M16/JN and KK platforms that ended the game as soon as they loaded, could not log in to their own save, lost their menu button or dealt 0 damage now play (#10, #11, #12, #13, #14).
-
-### New in 1.7.0
-
-- Port to Reforged now handles maps whose game runs on the YDWE Lua engine: they become Reforged Lua maps, tested in
-  game up to their custom interface (clicks, frames, textures, on-screen translation).
-- "Balance huge numbers": life, damage, mana, armor and attributes above the game's integer limit are scaled down,
-  keeping the proportions.
-- j2b maps with the newer encryption (`2SAJ3raw`) are decrypted, and many older KK maps now port.
-- Translating a ported map no longer touches the port's own code, so saves keep working.
-- Object data in the format of the 3.0 editor (version 3) is read and written by every repair that needs it.
-- Ported maps get the exact model for `DzSetUnitModel`, and models with non UTF-8 names stay apart.
-- New option to remove the script indentation, and more single player locks are found and removed.
-- Faster: the script parsers and the SLK passes now run in native code (Rust), with the same results.
-
-The full notes are on the [release page](https://github.com/devoltzz/devos-map-doctor/releases).
-
 ## Get it
 
 ### In the browser
