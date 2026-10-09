@@ -1,6 +1,3 @@
-// ==============================================================================================
-// ==============================================================================================
-
 function IsReplayMode takes nothing returns boolean
     return false
 endfunction
@@ -49,4 +46,12 @@ function DzToggleFPS takes boolean show returns nothing
 endfunction
 
 function DzEnableHashtableSetNull takes boolean is_enable returns nothing
+endfunction
+
+function GetMouseVectorX takes nothing returns real
+    return BlzPixelToFrameX(BlzGetMouseScreenPosX())/0.8*1024.0
+endfunction
+
+function GetMouseVectorY takes nothing returns real
+    return BlzPixelToFrameY(BlzGetMouseScreenPosY())/0.6*768.0
 endfunction

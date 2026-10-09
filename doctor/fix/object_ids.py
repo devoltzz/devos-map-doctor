@@ -93,10 +93,7 @@ def choose_ids(files_, used_in_script, avoid=()):
                 continue
             pref = orig[0] if ext == 'w3u' else PREFIX[ext]
             if ext == 'w3u' and (0x41 <= nb[0] <= 0x5A) != pref.isupper():
-                raise ValueError(
-                    'unit %r (base %r): the 1st letter of the scrambled id and that of the base disagree on whether it is a hero'
-                    % (nb, orig)
-                )
+                pref = pref.upper() if 0x41 <= nb[0] <= 0x5A else pref.lower()
             while True:
                 n = tally[pref]
                 tally[pref] += 1
@@ -149,7 +146,7 @@ def rewrite_objects(files_, new_ones):
                     tally['end of record'] += 1
                     changed = True
                 mods2.append((field_id, kind, level_, pointer, val, end_pos))
-            new_objs.append((tab, ob.decode('latin-1'), nb.decode('latin-1'), mods2))
+            new_objs.append((tab, ob.decode('latin-1'), nb.decode('latin-1'), objects.with_item_sets(mods2, mods)))
         if changed:
             output[ext] = objects.write_objects_bytes(ver, new_objs, level) + d[pos:]
     return output, tally

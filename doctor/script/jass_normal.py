@@ -293,6 +293,16 @@ def head(e):
     return None
 
 
+def kept_head(e, ref):
+    e = bare(e)
+    if type(e) is not existing.Call:
+        return None
+    name = e.name
+    if name in ref.one_liners or name in _ORDERS_BY_ID or name == 'OrderId' or (not e.args and name in ref.mode):
+        return None
+    return 'call', name
+
+
 def unify(pattern, e, params):
     out = {}
 
@@ -614,8 +624,14 @@ def _mentions(node):
 
 
 class _Globals(object):
-    def __init__(self, script):
+    def __init__(self, script, text=None):
         self.types = dict((g.name, g.type) for g in script.globals if not g.is_array)
+        found = _native_globals(text) if text is not None else None
+        if found is not None:
+            frozen, temps = found
+            self.frozen = dict((g, existing.Literal('null', 'null')) for g in frozen)
+            self.uses = dict((g, [True]) for g in temps)
+            return
         assigned = {}
         self.uses = {}
         always = set(f.name for f in script.functions if not f.params and not f.locals and f.return_type == 'boolean'
@@ -661,6 +677,41 @@ class _Globals(object):
 
     def temp(self, name):
         return name in self.types and name not in self.frozen and all(self.uses.get(name, [False]))
+
+
+_STANDARD_NATIVE = [None]
+
+
+def _standard_native():
+    if _STANDARD_NATIVE[0] is None:
+        _STANDARD_NATIVE[0] = False
+        try:
+            from doctor.script import jass_native
+            _STANDARD_NATIVE[0] = jass_native.load_standard() or False
+        except Exception:
+            _STANDARD_NATIVE[0] = False
+    return _STANDARD_NATIVE[0]
+
+
+def _native_globals(text):
+    nat = _standard_native()
+    if not nat:
+        return None
+    if text[:1] == existing._BOM:
+        text = text[1:]
+    enc = existing._native_bytes(text)
+    if enc is None:
+        return None
+    data, latin = enc
+    try:
+        found = nat[0](data)
+    except Exception:
+        return None
+    if found is None:
+        return None
+    codec = 'latin-1' if latin else 'utf-8'
+    return tuple([x.decode(codec, 'surrogateescape') if not latin else x.decode(codec) for x in items]
+                 for items in found)
 
 
 def _replace_names(node, names):
@@ -1007,14 +1058,14 @@ class Copies(dict):
         self.versions, self.optimized = set(), False
 
 
-def copies(script, ref=None):
+def copies(script, ref=None, text=None):
     ref = ref if ref is not None else reference()
     out = Copies()
     if not ref.functions:
         return out
     versions = out.versions
     with existing._tree_work():
-        globals_ = _Globals(script)
+        globals_ = _Globals(script, text)
         by_signature, own_globals = _versions(ref)
         bound, used = {}, {}
         for _round in range(3):
@@ -1099,6 +1150,23 @@ def symbolic_players(text):
 
 
 def _game_calls(text, names):
+    nat = _standard_native()
+    enc = existing._native_bytes(text) if nat else None
+    if enc is not None:
+        data, latin = enc
+        codec = 'latin-1' if latin else 'utf-8'
+        try:
+            done = nat[1](data, dict((k.encode(codec), v.encode(codec)) for k, v in names.items()))
+        except Exception:
+            done = None
+        if done is not None:
+            new, calls, used = done
+            return (new.decode(codec) if latin else new.decode(codec, 'surrogateescape'), calls,
+                    set(x.decode(codec) if latin else x.decode(codec, 'surrogateescape') for x in used))
+    return _game_calls_python(text, names)
+
+
+def _game_calls_python(text, names):
     out, last, prev, calls = [], 0, None, 0
     used = set()
     tokens = list(existing._TOKEN_RE.finditer(text))
@@ -1130,7 +1198,7 @@ def standard(text, players=None):
         script = existing.parse(text)
     except existing.JassSyntaxError:
         return text, report
-    found = copies(script, reference(players=players))
+    found = copies(script, reference(players=players), text)
     if not found or not found.optimized:
         return text, report
     spans = dict((f.name, (f.line, f.end_line)) for f in script.functions if f.name in found)

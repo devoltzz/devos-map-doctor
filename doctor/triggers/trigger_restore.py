@@ -26,6 +26,8 @@ NOTE_TEXT = 'Restored from the map script as text (it could not be proven as GUI
 NOTE_CUSTOM = 'Restored from the map script as text: its actions are code the trigger editor has no action for.'
 ONLY_CUSTOM = 'every action is custom script'
 NOTE_DISABLED = 'Disabled in the original map: the script keeps only its name.'
+NOTE_RIT_NO_INIT = ('Restored from the map script: a custom text trigger set to run on map initialization whose text '
+                    'has no InitTrig_ function, so the editor never creates it; its code stays in the custom script.')
 NOTE_INIT = ('Restored from the map script: what the InitTrig_ of %s did besides registering the trigger, run first '
              'at map initialization.')
 EDITOR_GENERATED = re.compile(
@@ -100,6 +102,58 @@ def _line_span(starts, text, first, last):
     return a, b
 
 
+RX_VJASS_ABRE = re.compile(r'^[ \t]*(?:private[ \t]+|public[ \t]+)?(scope|library|library_once|struct|module|interface)'
+                           r'\b')
+RX_VJASS_FECHA = re.compile(r'^[ \t]*end(scope|library|struct|module|interface)\b')
+
+
+def mascara_vjass(text):
+    out = list(text)
+    n = len(text)
+    blocos = 0
+    i = 0
+    while i < n:
+        c = text[i]
+        if c == '"':
+            j = i + 1
+            while j < n and text[j] != '"' and text[j] != '\n':
+                j += 2 if text[j] == '\\' else 1
+            i = j + 1
+            continue
+        if c == '/' and text.startswith('//', i):
+            j = text.find('\n', i)
+            i = n if j < 0 else j
+            continue
+        if c == '/' and text.startswith('/*', i):
+            j = text.find('*/', i + 2)
+            fim = n if j < 0 else j + 2
+            for k in range(i, fim):
+                if out[k] not in '\r\n':
+                    out[k] = ' '
+            i = fim
+            continue
+        i += 1
+    mascarado = ''.join(out)
+    linhas = mascarado.split('\n')
+    pilha = []
+    ini = None
+    for k, l in enumerate(linhas):
+        m = RX_VJASS_ABRE.match(l)
+        if m:
+            if not pilha:
+                ini = k
+            pilha.append(m.group(1).replace('library_once', 'library'))
+            continue
+        m = RX_VJASS_FECHA.match(l)
+        if m and pilha and pilha[-1] == m.group(1):
+            pilha.pop()
+            if not pilha:
+                for x in range(ini, k + 1):
+                    linhas[x] = ''.join(' ' if ch != '\r' else ch for ch in linhas[x])
+                blocos += 1
+    return '\n'.join(linhas), blocos
+
+
 class _Source(object):
     def __init__(self, text, lang):
         self.text, self.lang = text, lang
@@ -112,7 +166,14 @@ class _Source(object):
             self.tree = lua_ast.parse(text)
             self._lua()
         else:
-            self.tree = jass_ast.parse(text)
+            self.vjass = 0
+            try:
+                self.tree = jass_ast.parse(text)
+            except jass_ast.JassSyntaxError:
+                mascarado, self.vjass = mascara_vjass(text)
+                if not self.vjass and mascarado == text:
+                    raise
+                self.tree = jass_ast.parse(mascarado)
             self._jass()
         self.texts = dict((n, f.text) for n, f in self.functions.items())
         self._names = frozenset(self.functions)
@@ -1287,6 +1348,16 @@ def _ownership(src, inits):
             owners[f].add(i)
     header = set(f for f in src.functions if f not in owners) - {ICT, RIT}
     header |= set(f for f, o in owners.items() if len(o) > 1)
+    chamadas = collections.Counter(g for f in src.functions for g in src.refs(f) if g != f)
+    for f in sorted(header):
+        if f in ('main', 'config') or chamadas[f]:
+            continue
+        alvos = set(g for g in src.refs(f) if g in roots)
+        if len(alvos) == 1:
+            g = alvos.pop()
+            reach[g] = set(reach[g]) | {f}
+            owners[f].add(g)
+            header.discard(f)
     problems = []
     changed = True
     while changed:
@@ -1999,11 +2070,16 @@ def _restore(res, text, td, init_per_trigger, say, matcher, editor_files=None, o
                     x not in idents and 'InitTrig_' + x not in src.functions and d.value in (None, 'null', 'nil') and
                     _identifier_ok(x, x)):
                 disabled.append(x)
+    sem_init = [x for x in rit_idents if x not in idents and x in disabled]
     order, disabled = _trigger_order(src, inits, disabled)
-    missing = [x for x in rit_idents if x not in idents]
+    missing = [x for x in rit_idents if x not in idents and x not in sem_init]
     if missing:
         res.reason = 'RunInitializationTriggers runs gg_trg_%s, which InitCustomTriggers does not create' % missing[0]
         return res
+    for x in sem_init:
+        if x not in order:
+            order.append(x)
+    rep['run_on_init_without_init'] = sem_init
     mod, why = _load_matcher(lang, matcher)
     nodes = {}
     if mod is not None:
@@ -2049,6 +2125,10 @@ def _restore(res, text, td, init_per_trigger, say, matcher, editor_files=None, o
     pos = dict((n, k) for k, n in enumerate(src.functions))
     for x in order:
         d = decisions.get(x)
+        if d is None and x in sem_init:
+            triggers.append(wtg.Trigger(x, NOTE_RIT_NO_INIT, 0, 1, 1, 0, 1, 0, []))
+            texts.append('')
+            continue
         if d is None:
             triggers.append(wtg.Trigger(x, NOTE_DISABLED, 0, 0, 0, 0, 0, 0, []))
             texts.append(None)
@@ -2114,7 +2194,7 @@ def _expected_jass(mt, td, header_text, texts):
     k = eg.rindex('endglobals')
     return ''.join([prefix, eg[:k], globais, eg[k:], natives, gui_render.render_init_globals(mt, td, JASS), funcoes,
                     '' if funcoes.endswith('\n') else '\n', _triggers_code(mt, td, texts, JASS),
-                    gui_render.render_init_custom_triggers(mt, JASS),
+                    gui_render.render_init_custom_triggers(mt, JASS, texts=texts),
                     gui_render.render_run_initialization_triggers(mt, JASS),
                     'function main takes nothing returns nothing\n', PE.mark_dovjassinit(main), 'endfunction\n',
                     'function config takes nothing returns nothing\n', config, 'endfunction\n'])
@@ -2122,7 +2202,7 @@ def _expected_jass(mt, td, header_text, texts):
 
 def _generated_lua(mt, td, texts):
     return ''.join([gui_render.render_init_globals(mt, td, LUA), _triggers_code(mt, td, texts, LUA),
-                    gui_render.render_init_custom_triggers(mt, LUA),
+                    gui_render.render_init_custom_triggers(mt, LUA, texts=texts),
                     gui_render.render_run_initialization_triggers(mt, LUA)])
 
 

@@ -230,10 +230,20 @@ def site_parts(arg):
     return m0.group(1), m2.group(1), expr
 
 
-def rewrite(arg):
+def rewrite(arg, nested_ones=None):
     tab, field_id, expr = site_parts(arg)
     if tab is None:
         return None, field_id, None
+    if nested_ones is not None and TARGET in expr:
+        inside = find_calls(expr) or []
+        for begin, end_pos, a in sorted(inside, reverse=True):
+            if 'jass.slk' not in a:
+                continue
+            n, t2, c2 = rewrite(a, nested_ones)
+            if n is None:
+                return None, t2, None
+            nested_ones.append((t2, c2))
+            expr = expr[:begin] + n + expr[end_pos:]
     field_id = field_id.upper()
     return 'DB_slk_get(%s,%s,DB_C_%s_%s)' % (TABS[tab], expr, tab.upper(), field_id), tab, field_id
 
@@ -251,12 +261,24 @@ def script_pairs(body_text):
         for _start, _stop, arg in sitios:
             if 'jass.slk' not in arg:
                 continue
-            tab, field_id, _expr = site_parts(arg)
-            if tab is None:
-                failures.append('line %d: %s' % (i + 1, field_id))
-                continue
-            pairs[(tab, field_id)] = pairs.get((tab, field_id), 0) + 1
+            for tab, field_id in _site_pairs(arg):
+                if tab is None:
+                    failures.append('line %d: %s' % (i + 1, field_id))
+                    continue
+                pairs[(tab, field_id)] = pairs.get((tab, field_id), 0) + 1
     return pairs, failures
+
+
+def _site_pairs(arg):
+    tab, field_id, expr = site_parts(arg)
+    if tab is None:
+        return [(None, field_id)]
+    out = [(tab, field_id)]
+    if TARGET in expr:
+        for _i, _f, a in find_calls(expr) or []:
+            if 'jass.slk' in a:
+                out += _site_pairs(a)
+    return out
 
 
 def read_codes(table):
@@ -291,6 +313,7 @@ def applies(body_text, to_report=False, codes=None, expected_count=None, table=N
     by_field = {}
     by_class = {}
     in_use = set()
+    n_nested = 0
 
     for i, line in enumerate(masked_lines(body_text)):
         if TARGET not in line:
@@ -307,7 +330,8 @@ def applies(body_text, to_report=False, codes=None, expected_count=None, table=N
                 by_class[k] = by_class.get(k, 0) + 1
                 continue
             n_slk += 1
-            new, tab, field_id = rewrite(arg)
+            inside = []
+            new, tab, field_id = rewrite(arg, inside)
             if new is None and tolerant_mode:
                 by_class['class 1 in game'] = by_class.get('class 1 in game', 0) + 1
                 n_slk -= 1
@@ -315,14 +339,16 @@ def applies(body_text, to_report=False, codes=None, expected_count=None, table=N
             if new is None:
                 failures.append('line %d: %s :: %s' % (i + 1, tab, line.strip()[:200]))
                 continue
-            in_use.add(TABS[tab])
-            in_use.add('DB_C_%s_%s' % (tab.upper(), field_id))
-            hash_key = '%s.%s' % (tab, field_id)
-            by_field[hash_key] = by_field.get(hash_key, 0) + 1
+            for t2, c2 in [(tab, field_id)] + inside:
+                in_use.add(TABS[t2])
+                in_use.add('DB_C_%s_%s' % (t2.upper(), c2))
+                hash_key = '%s.%s' % (t2, c2)
+                by_field[hash_key] = by_field.get(hash_key, 0) + 1
+            n_nested += len(inside)
             replacements.append((begin, end_pos, new))
         if replacements:
             plain_name.append((i, replacements))
-    swapped = sum(len(tr) for _, tr in plain_name)
+    swapped = sum(len(tr) for _, tr in plain_name) + n_nested
     if codes is None:
         failures.append('table %s not found: the DB_C_*/DB_TAB_* codes cannot be checked' % table)
     else:

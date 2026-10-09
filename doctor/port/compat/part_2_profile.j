@@ -13,9 +13,6 @@ function DB_tabelas_init takes nothing returns nothing
     call DB_code_init()
 endfunction
 
-// ==============================================================================================
-// ==============================================================================================
-
 hashtable DB_ht=null
 integer array DB_pk_h
 string array DB_pk
@@ -653,9 +650,6 @@ endfunction
 
 //{{KK_INCLUI:loja}}
 
-// ==============================================================================================
-// ==============================================================================================
-
 hashtable DB_frame_ht=null
 
 function DB_fid takes framehandle f returns integer
@@ -703,8 +697,6 @@ function DB_p takes integer i returns framepointtype
     return DB_ponto[i]
 endfunction
 
-// ==============================================================================================
-// ==============================================================================================
 integer array DB_zr0
 integer array DB_zr1
 //{{KK_SE:KK_Z_4}}
@@ -1341,8 +1333,6 @@ function DB_efeito_anota_z takes effect e,real z returns nothing
     set DB_ef_z[i]=z
 endfunction
 
-// ==============================================================================================
-// ==============================================================================================
 boolean DB_perfil_carregou=false
 
 function DB_perfil_garante takes nothing returns nothing
@@ -1389,8 +1379,6 @@ function DB_perfil_aplica takes string blob,string pasta,boolean principal retur
     call DB_decode(GetLocalPlayer(), blob)
 endfunction
 
-// ==============================================================================================
-// ==============================================================================================
 integer DB_s2_n_principal=0
 integer DB_s2_gen_principal=-1
 string DB_s2_resgate="nao tentado"

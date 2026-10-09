@@ -112,6 +112,7 @@ EXTRAS = (
     'single_player',
     'card',
     'translation',
+    'strip_indent',
     'shrink',
 )
 
@@ -166,6 +167,12 @@ def apply_extras(entry, output, extras, progress=None):
                     elif extra == 'translation':
                         from doctor.translation import translation_io
                         details = translation_io.import_(src, param, t)
+                    elif extra == 'strip_indent':
+                        from doctor.fix import script_indent
+                        details = script_indent.fix(src, t, compact=not (extras or {}).get('shrink'))
+                        if details.get('state') == 'nothing_to_do':
+                            out['reports'][extra] = details
+                            continue
                     else:
                         from doctor.fix import shrink
                         details = shrink.shrink(src, t, param if isinstance(param, dict) else None)
@@ -374,6 +381,15 @@ def _diagnose_ntfs_copy(file_path, d, progress, depth, extra_ids):
     return r
 
 
+def _is_campaign(file_path):
+    try:
+        with quiet():
+            a = mpqread.Archive(file_path)
+            return bool(a.find('war3campaign.w3f')) and not a.find('war3map.w3i')
+    except Exception:
+        return False
+
+
 def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
     p = progress or _nothing
     r = {'file_name': os.path.abspath(file_path), 'byte_size': os.path.getsize(file_path), 'mpq': None, 'fname': None,
@@ -406,7 +422,7 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
     fake_list = [o for o, why in decoys if o < hdr and why.startswith('FAKE header')]
     if fake_list:
         prot('fake_header', n=len(fake_list))
-    if d[:4] != b'HM3W':
+    if d[:4] != b'HM3W' and not _is_campaign(file_path):
         prot('missing_hm3w', first_pos='mpq_at_zero' if hdr == 0 else ('user_data' if d[:4] == b'MPQ\x1b' else 'other'))
     h = M._v1_fields(M.Header(), d, hdr, len(d))
     reasons = []
@@ -727,7 +743,7 @@ def script_j2b(a, j):
         v, begin_pos = a.validate_light(r[1], J2B_FILE)
     except Exception:
         return False
-    return v == 'ok' and begin_pos[:4] == b'2SAJ'
+    return v == 'ok' and begin_pos[:4] in (b'2SAJ', b'SSAJ')
 
 
 def scrambled_ids(a, j):
@@ -1078,6 +1094,8 @@ def unprotect(file_path, output, progress=None, diag=None, options=None):
             res['steps']['ids'] = prot_ids['n']
             modified = list(OBJECT_IDS_FILES)
             src = t
+        if remove_mpq:
+            data_only = [x for x in slk_patch.PROBLEMS if step_on(options, 'dados:' + x)]
         if data_only:
             p('data_bytes')
             t = os.path.join(tmp, '4_data.w3x')
@@ -1140,6 +1158,12 @@ def _unprotect_ntfs_copy(file_path, output, p, diag, res, options=None):
             _remove_quietly(res['output'])
             res['output'] = None
         return res
+    if r2.get('status') == 'partial' and any(x['code'] == 'unreadable_tables'
+                                             for x in (r2.get('after_diag') or {}).get('protections') or []):
+        r3 = _unprotect_by_carving(t, output, p, None, {'steps': {}})
+        if r3.get('status') in ('done', 'partial'):
+            r2 = dict(r2, **dict((k, r3.get(k)) for k in ('status', 'output', 'after_diag', 'content', 'err')))
+            r2['steps'] = dict(r2.get('steps') or {}, carver=r3['steps'].get('carver'))
     for k in ('status', 'output', 'after_diag', 'content', 'err'):
         res[k] = r2.get(k)
     if 'left_out' in r2:

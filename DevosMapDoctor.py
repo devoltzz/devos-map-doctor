@@ -5,7 +5,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 from doctor.fix import unprotect as D
 
-VERSION = '1.6.10'
+VERSION = '1.7.0'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -36,6 +36,7 @@ STAGES = {
     'extra_single_player': 'Allowing single player...',
     'extra_card': 'Writing the map card...',
     'extra_translation': 'Applying the translation...',
+    'extra_strip_indent': 'Removing the script indentation...',
     'extra_shrink': 'Making the map smaller...',
 }
 

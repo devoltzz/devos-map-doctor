@@ -62,8 +62,16 @@ def _text(e):
     return jass_ast.unparse(e)
 
 
+_CANON = {}
+
+
 def _canon(text):
-    return jass_ast.canonical(text)
+    out = _CANON.get(text)
+    if out is None:
+        if len(_CANON) > 200000:
+            _CANON.clear()
+        out = _CANON[text] = jass_ast.canonical(text)
+    return out
 
 
 def _is_name(e, name=None):
@@ -127,6 +135,7 @@ class _Knowledge(object):
                                                       if p.type == f.arg_types[1])
         self.boolean = next((f for f in self.compares if f.arg_types[0] == 'boolean'), None)
         self.extends, self.returns, self.global_types = self.ref.extends, self.ref.returns, self.ref.global_types
+        self._heads = {}
 
     def base(self, t):
         return self.td.base_type(t) if t else t
@@ -147,6 +156,13 @@ class _Knowledge(object):
 
     def calls(self, kind, script_name):
         return self.td.by_script_all.get((kind, script_name), ())
+
+    def wrapped_heads(self, kind):
+        out = self._heads.get(kind)
+        if out is None:
+            out = self._heads[kind] = frozenset(h for h, ones in self.ref.wrappers().items()
+                                                if any(self.calls(kind, one.name) for one, _b in ones))
+        return out
 
 
 _KNOWLEDGE = {}
@@ -172,15 +188,57 @@ def _cached(kind, obj, make):
     return hit[1]
 
 
+class _Lazy(object):
+    __slots__ = ('done', 'gen')
+
+    def __init__(self, gen):
+        self.done, self.gen = [], gen
+
+    def __iter__(self):
+        k = 0
+        while True:
+            if k < len(self.done):
+                yield self.done[k]
+                k += 1
+                continue
+            if self.gen is None:
+                return
+            try:
+                x = next(self.gen)
+            except StopIteration:
+                self.gen = None
+                return
+            self.done.append(x)
+
+
+def _referenced(node):
+    out = []
+    add = out.append
+    stack = [node]
+    pop, extend, stacked = stack.pop, stack.extend, jass_ast._STACKED.__getitem__
+    call, ref, name, literal = jass_ast.Call, jass_ast.FuncRef, jass_ast.Name, jass_ast.Literal
+    while stack:
+        n = pop()
+        t = type(n)
+        if t is call:
+            add(n.name)
+            if n.args:
+                extend(n.args[::-1])
+        elif t is ref:
+            add(n.name)
+        elif t is not name and t is not literal:
+            f = stacked(t)
+            if f is not None:
+                extend(f(n))
+    return out
+
+
 def _count_references(functions):
     counts = collections.Counter()
     for f in functions.values():
         if getattr(f, 'is_native', False):
             continue
-        for node in jass_ast.walk(f):
-            t = type(node)
-            if t is jass_ast.Call or t is jass_ast.FuncRef:
-                counts[node.name] += 1
+        counts.update(_referenced(f))
     return counts
 
 
@@ -196,10 +254,9 @@ def _source_lines(source):
 
 def _references_in(node, functions):
     out = []
-    for n in jass_ast.walk(node):
-        t = type(n)
-        if (t is jass_ast.Call or t is jass_ast.FuncRef) and n.name in functions and n.name not in out:
-            out.append(n.name)
+    for name in _referenced(node):
+        if name in functions and name not in out:
+            out.append(name)
     return out
 
 
@@ -225,6 +282,22 @@ class _Matcher(object):
         self.custom = 0
         self.loose = []
         self.depth = 0
+        self._texts = {}
+        self._normal = {}
+        self._uninlined = {}
+        self._rewrapped = {}
+
+    def normal_of(self, e):
+        hit = self._normal.get(id(e))
+        if hit is None or hit[0] is not e:
+            hit = self._normal[id(e)] = (e, _bare(jass_normal.normal_expr(e, self.k.ref)))
+        return hit[1]
+
+    def canon_of(self, e):
+        hit = self._texts.get(id(e))
+        if hit is None or hit[0] is not e:
+            hit = self._texts[id(e)] = (e, _canon(_text(e)))
+        return hit[1]
 
     def mark(self):
         return len(self.used), self.custom, len(self.loose)
@@ -349,23 +422,21 @@ class _Matcher(object):
             return None
         if self.depth >= 12:
             return None
-        n = _bare(jass_normal.normal_expr(e, ref))
+        hit = self._uninlined.get(id(e))
+        if hit is None or hit[0] is not e:
+            n = self.normal_of(e)
+            hit = self._uninlined[id(e)] = (e, n, self.canon_of(n) != self.canon_of(e),
+                                            _Lazy(self._wrapper_calls(n)))
+        _e, n, differs, calls = hit
         self.depth += 1
         try:
-            if _canon(_text(n)) != _canon(_text(e)):
+            if differs:
                 m = self.mark()
                 p = self.param(n, t, False)
                 if p is not None:
                     return p
                 self.reset(m)
-            for one, body in ref.wrappers().get(jass_normal.head(n), ()):
-                if one.statement or not any(len(c.arg_types) == len(one.params)
-                                            for c in self.k.calls('call', one.name)):
-                    continue
-                bound = jass_normal.unify(body, n, set(one.params))
-                call = None if bound is None else jass_ast.Call(one.name, [bound[x] for x in one.params])
-                if call is None or not jass_normal.same(jass_normal.normal_expr(call, ref), n):
-                    continue
+            for call in calls:
                 m = self.mark()
                 f = self.call_function(call, t)
                 if f is not None:
@@ -375,9 +446,31 @@ class _Matcher(object):
             self.depth -= 1
         return None
 
-    def rewrapped(self, call, kind):
+    def _wrapper_calls(self, n):
         ref = self.k.ref
-        n = _bare(jass_normal.normal_expr(call, ref))
+        for one, body in ref.wrappers().get(jass_normal.head(n), ()):
+            if one.statement or not any(len(c.arg_types) == len(one.params)
+                                        for c in self.k.calls('call', one.name)):
+                continue
+            bound = jass_normal.unify(body, n, set(one.params))
+            call = None if bound is None else jass_ast.Call(one.name, [bound[x] for x in one.params])
+            if call is None or not jass_normal.same(jass_normal.normal_expr(call, ref), n):
+                continue
+            yield call
+
+    def rewrapped(self, call, kind):
+        key = (id(call), kind)
+        hit = self._rewrapped.get(key)
+        if hit is None or hit[0] is not call:
+            hit = self._rewrapped[key] = (call, self._rewrapped_calls(call, kind))
+        return list(hit[1])
+
+    def _rewrapped_calls(self, call, kind):
+        ref = self.k.ref
+        h = jass_normal.kept_head(call, ref)
+        if h is not None and h not in self.k.wrapped_heads(kind):
+            return []
+        n = self.normal_of(call)
         out = []
         for one, body in ref.wrappers().get(jass_normal.head(n), ()):
             if not self.k.calls(kind, one.name):
@@ -391,7 +484,7 @@ class _Matcher(object):
     def preset_param(self, e, t):
         if t in LITERAL_TYPES:
             return None
-        code = _canon(_text(e))
+        code = self.canon_of(e)
         name = self.k.preset(code, t)
         if name is None and self.relaxed and t is not None:
             value = jass_normal.number(e)

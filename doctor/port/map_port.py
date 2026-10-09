@@ -104,21 +104,125 @@ def game_reference(root, log):
     return ref
 
 
-def lua_engine_check(map_path):
+def lua_route(a, raw_data, body_text, scripts_dir, log):
     from doctor.script import ydwe_lua
-    a = mpqread.Archive(map_path)
+    from doctor.port import ydwe_modules
+    from doctor.port import ydwe_port
+    finding = ydwe_lua.detect(body_text)
+    if not finding:
+        return None, raw_data, body_text
+    col = ydwe_modules.collect(a, finding['entries'], log=log)
+    if not col['lua_modules']:
+        finding['modules'] = []
+        msg = ('the map calls the YDWE Lua engine (%s) but its Lua modules are not in the archive, so there is nothing '
+               'to port' % ', '.join(finding['entries'][:6]))
+        if finding['all_lua']:
+            raise Aborts(msg)
+        WARNINGS.append(msg + '; the rest of the map (its JASS) runs')
+        return None, raw_data, body_text
+    largest_dll = max([len(d) for _b, d in col['dll']] or [0])
+    if finding['all_lua'] and len(col['lua_modules']) <= 3 and largest_dll >= (1 << 20):
+        raise Aborts('the game of this map is native code in a DLL the map ships (%.1f MB), loaded by its Lua (%s): '
+                     'Reforged cannot load a DLL, so the ported map would start and nothing would happen'
+                     % (largest_dll / 1048576.0, ', '.join(sorted(col['lua_modules'])[:3])))
+    body_text, added = ydwe_port.declare_natives(body_text, col['lua_modules'], log)
+    col['originals'] = ydwe_modules.originals(a, body_text, col)
+    if col['originals']:
+        log('   %d file(s) of the original the script hashes by name (its tamper check): %s'
+            % (len(col['originals']), ', '.join(sorted(col['originals'])[:6])))
+    new_raw = os.path.join(scripts_dir, 'war3map.j')
+    if added or os.path.normcase(os.path.abspath(raw_data)) != os.path.normcase(os.path.abspath(new_raw)):
+        _writes(new_raw, body_text.encode('latin-1'))
+        raw_data = new_raw
+    log('2b. the YDWE Lua engine: entries %s; %d Lua module(s) found, %d without a name; the map is ported as a Lua '
+        'map' % (', '.join(finding['entries'][:6]), len(col['lua_modules']), len(col['unnamed'])))
+    if col['unnamed']:
+        WARNINGS.append('%d Lua block(s) of the map could not be named (no debug name, no name the Lua cites): if a '
+                        'module loads one of them by a name built at run time, that part does not run'
+                        % len(col['unnamed']))
+    return {'finding': finding, 'collect': col, 'natives': added}, raw_data, body_text
 
-    def read_data(n):
-        try:
-            return a.read(n) if a.find(n) is not None else None
-        except Exception:
-            return None
-    script = read_data('war3map.j') or read_data('scripts\\war3map.j') or b''
-    finding = ydwe_lua.detect(script.decode('latin-1'), read_data)
-    if finding and finding['all_lua']:
-        raise Aborts(ydwe_lua.message(finding))
-    if finding:
-        WARNINGS.append(ydwe_lua.message(finding))
+
+def build_lua_route(r, lua, original, extract, log, details):
+    from doctor.port import ydwe_port
+    from doctor.port import slk_tables
+    final = open(os.path.join(r.OUT, 'war3map.j'), 'rb').read().decode('utf-8', 'surrogateescape')
+    slk_lua = ''
+    try:
+        _mode_of, u, ab, it = slk_tables.build_auto_tables(extract)
+        file_path = os.path.join(r.OUT, 'slk_data.lua')
+        _muted(slk_tables.write_lua, file_path, u, ab, it)
+        slk_lua = open(file_path, 'rb').read().decode('utf-8', 'surrogateescape')
+    except Exception as e:
+        WARNINGS.append('the object data tables of jass.slk could not be built (%s: %s): the Lua reads empty tables'
+                        % (type(e).__name__, e))
+    lado = os.path.join(r.OUT, 'layer_stubs.json')
+    stubs = json.load(open(lado, encoding='utf-8')) if os.path.isfile(lado) else []
+    body_text, info = ydwe_port.build_lua(
+        final,
+        lua['collect'],
+        slk_lua,
+        log=log,
+        extract=extract,
+        scale_factors=lua.get('scale_factors'),
+        translation=lua.get('translation'),
+        stubs=stubs,
+    )
+    if info['translation_errors']:
+        WARNINGS.append('%d Lua module(s) could not be translated from bytecode: %s'
+                        % (len(info['translation_errors']), '; '.join(info['translation_errors'][:4])))
+    if not ydwe_port.has_lua():
+        WARNINGS.append(
+            'the Lua script of the port was not checked (no Lua 5.3 here: pip install lupa), and Lua modules '
+            'with Chinese identifiers stay as they are, which Reforged does not load'
+        )
+    err = ydwe_port.verify(body_text)
+    if err:
+        _writes(os.path.join(r.OUT, '_war3map_falha.lua'), body_text.encode('utf-8', 'surrogateescape'))
+        raise Aborts('the Lua script of the port %s' % err)
+    lua_p = os.path.join(r.OUT, 'war3map.lua')
+    _writes(lua_p, body_text.encode('utf-8', 'surrogateescape'))
+    w3i = mpqread.Archive(original).read('war3map.w3i')
+    if not w3i:
+        raise Aborts('the map has no war3map.w3i to switch the script language to Lua')
+    w3i_p = os.path.join(r.OUT, 'war3map.w3i')
+    _writes(w3i_p, ydwe_port.w3i_lua(w3i))
+    details['lua'] = {'lua_modules': info['lua_modules'], 'functions': info['functions'], 'bytes': info['bytes'],
+                      'unnamed': len(lua['collect']['unnamed']), 'declared_natives': len(lua['natives']),
+                      'hash_entries': lua['finding']['entries']}
+    log('5b. war3map.lua: %d JASS function(s), %d Lua module(s), %.1f MB; checked (compiles, the main chunk loads)'
+        % (info['functions'], info['lua_modules'], info['bytes'] / 1048576.0))
+    output = [('war3map.lua', lua_p), ('war3map.w3i', w3i_p)]
+    textures = []
+    try:
+        generated = ydwe_port.generated_files(lua_p, log=log, extract=extract, textures=textures)
+    except Exception as e:
+        generated = {}
+        WARNINGS.append('the frame definitions the map writes at run time could not be collected (%s: %s): its custom '
+                        'interface may not show' % (type(e).__name__, e))
+    missing_ones = (
+        ydwe_port.missing_textures(textures, extract, generated, log=log, map_path=mpqread.Archive(original))
+        if textures
+        else []
+    )
+    if missing_ones:
+        generated[ydwe_port.TRANSPARENT] = ydwe_port.transparent_tga()
+        body_text += ydwe_port.missing_table(missing_ones)
+        _writes(lua_p, body_text.encode('utf-8', 'surrogateescape'))
+        log('   %d texture path(s) the map puts on its frames exist neither in the map nor in the game: drawn '
+            'transparent (%s)' % (len(missing_ones), ', '.join(missing_ones[:8])))
+        details['lua']['missing_textures'] = missing_ones
+    if generated:
+        folder = os.path.join(r.OUT, 'generated')
+        os.makedirs(folder, exist_ok=True)
+        for fname, data_bytes in sorted(generated.items()):
+            p = os.path.join(folder, fname.replace('\\', '__').replace('/', '__'))
+            _writes(p, data_bytes)
+            output.append((fname, p))
+        log('   %d file(s) the map writes at run time (frame definitions) put in the map: %s'
+            % (len(generated), ', '.join(sorted(generated))))
+        details['lua']['generated'] = sorted(generated)
+    return output
 
 
 def names_and_extraction(map_path, extract, log):
@@ -169,7 +273,11 @@ def map_script(a, extract, scripts_dir, log):
         data_bytes = a.read('war3map.bin')
         if not data_bytes:
             raise Aborts('the war3map.j loads war3map.bin, which is missing')
-        bc = _j2b.bytecode(data_bytes)
+        try:
+            from doctor.script import j2b_calls as _j2b_calls
+            bc = _j2b.bytecode(data_bytes, reference=_j2b_calls.reference_texts(common, blizzard, raw_bytes))
+        except _j2b.J2bError as e:
+            raise Aborts('war3map.bin: %s' % e)
         map_own = raw_bytes.decode('utf-8', 'surrogateescape')
         forma = 'j2b'
     else:
@@ -308,6 +416,7 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
         'KK_SAVE_CH_GEN': pre + '.gen.v1',
         'KK_CAR_LIGADO': 'false',
         'KK_UI_ANCORA': 'true',
+        'KK_UI_MSG': 'true',
         'KK_Z_4': 'true',
     }
     if diag['jn']:
@@ -460,10 +569,10 @@ def scripts_folder_files(original, name_list=()):
     return sorted(out, key=str.lower)
 
 
-def build_w3x(original, output, r, to_remove, no_dot_list, log, name_list=()):
+def build_w3x(original, output, r, to_remove, no_dot_list, log, name_list=(), script=None):
     from doctor.port import map_path
     from doctor.port import name_without_dot
-    item_entries = [('war3map.j', os.path.join(r.OUT, 'war3map.j'))]
+    item_entries = list(script) if script else [('war3map.j', os.path.join(r.OUT, 'war3map.j'))]
     by_name = {}
     for folder in (os.path.join(r.OUT, 'arte'), r.DATA):
         if os.path.isdir(folder):
@@ -471,7 +580,7 @@ def build_w3x(original, output, r, to_remove, no_dot_list, log, name_list=()):
                 for f in sorted(fs):
                     p = os.path.join(base, f)
                     n = os.path.relpath(p, folder).replace(os.sep, '\\')
-                    if n.lower() not in ('war3map.j', 'war3map.w3i', 'war3map_src.j'):
+                    if n.lower() not in ('war3map.j', 'war3map.w3i', 'war3map_src.j', 'war3map.lua'):
                         by_name[n.lower()] = (n, p)
     item_entries.extend(by_name[k] for k in sorted(by_name))
     copies, gaps = name_without_dot.copies(mpqread.Archive(original), no_dot_list)
@@ -600,6 +709,9 @@ def report_text(details):
         L += ['', 'Removed (dead platform code)', '-' * 28,
               '- the type(s) %s, used only by code nothing calls: %d function(s), %d global(s), %d native(s)'
               % (', '.join(tm['types']), len(tm['functions']), len(tm['globals_block']), len(tm['natives']))]
+    if details.get('numbers'):
+        from doctor.port import int32_balance
+        L += [''] + int32_balance.report_lines(details['numbers'])
     if details.get('warnings'):
         L += ['', 'Warnings', '-' * 8] + ['- ' + a for a in details['warnings']]
     if details.get('checks'):
@@ -699,7 +811,7 @@ def stable_title(fname):
 
 
 def map_port(map_path, work, output=None, stats=None, heading=None, log=print, packages=(), shrink_large=True,
-             memory_hacks='neutralize'):
+             memory_hacks='neutralize', balance_numbers=False, lua_translation=None):
     t0 = time.time()
     map_path = os.path.abspath(map_path)
     base = os.path.splitext(map_path)[0]
@@ -734,11 +846,11 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
             log('0. SProtect undone')
         else:
             original = unprotected_result(map_path, root, log)
-        lua_engine_check(original)
         a, name_list = names_and_extraction(original, extract, log)
         raw_data, forma = map_script(a, extract, os.path.join(root, 'scripts'), log)
         details['forma'] = forma
         body_text = re.sub(r'\r(?!\n)', '\n', open(raw_data, 'rb').read().decode('latin-1'))
+        lua, raw_data, body_text = lua_route(a, raw_data, body_text, os.path.join(root, 'scripts'), log)
         diag = diagnostico(body_text, extract)
         details['diagnostico'] = diag
         log('3. diagnosis: %d platform natives (%d with a body in the layer), %s, %s data'
@@ -791,6 +903,12 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
             raise Aborts('the compiler gates did not pass (G1 %s, G2 %s): %s'
                          % ('PASS' if g1 else 'FAIL', 'PASS' if g2 else 'FAIL', '; '.join(error_list[:3]) or
                             os.path.join(root, 'port', 'out', 'cadeia.log')))
+        if balance_numbers:
+            from doctor.port import int32_balance
+            details['numbers'] = int32_balance.port_step(r, extract, log)
+            WARNINGS.extend(details['numbers'].get('warnings') or [])
+            if lua and details['numbers'].get('state') == 'scaled':
+                lua['scale_factors'] = dict(details['numbers'].get('factors') or {})
         if packages:
             from doctor.port import art_packs
             script = open(os.path.join(r.OUT, 'war3map_pre_injecao.j'), 'rb').read().decode('utf-8', 'surrogateescape')
@@ -814,7 +932,14 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
         if scripts_folder:
             to_remove += scripts_folder
             log('6. the Scripts folder of the original removed: %s' % ', '.join(scripts_folder))
-        sz, slack, entrou = build_w3x(original, output, r, to_remove, listing, log, name_list=name_list)
+        script = None
+        if lua:
+            lua['translation'] = lua_translation
+            script = build_lua_route(r, lua, original, extract, log, details)
+            to_remove += [
+                n for n in ('war3map.j', 'scripts\\war3map.j') if a.find(n) is not None and n not in to_remove
+            ]
+        sz, slack, entrou = build_w3x(original, output, r, to_remove, listing, log, name_list=name_list, script=script)
         if slack < 0 and shrink_large:
             sz, slack = shrinks(output, sz, log)
         port_checks(original, output, details)

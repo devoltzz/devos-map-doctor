@@ -1,29 +1,4 @@
 # Builds the site (the Doctor in the browser) from a release folder.
-"""build_site.py - the Devo's Map Doctor site (the Doctor in the browser), built from a release of the program.
-
-  python web/build_site.py --engine=<release folder> --out=<folder> [--ui=<page folder>] [--pjass=<pjass.wasm>]
-         [--data=<game data pack>] [--index=<names.npz>] [--pyodide=<node_modules/pyodide>] [--wheels=<cache folder>]
-         [--repository=owner/name] [--zip=<site zip>] [--mpqcrypt=<mpqcrypt.wasm>]
-
-What goes in <out>:
-  index.html, app.css, app.js...   the program's page (`ui/`), with config.js (the version, the repository) and the
-                                   bridge (ponte.js) before app.js, the web app manifest and the icons
-  ponte.js, worker.js, worker.py   the bridge from the page to the Web Workers and their Python side
-  fila.js                          the queue of several maps
-  wasi_mini.js, fs_windows.js      the WASI that runs pjass.wasm, and the Windows path rules
-  about.html, about.js             About and privacy
-  engine.zip                       the engine: DevosMapDoctor.py and doctor/ (no pjass.exe)
-  pjass.wasm                       pjass as WebAssembly (build_pjass.py)
-  mpqcrypt.js, mpqcrypt.wasm       the MPQ's hot loops in native code: the decryption, the key search, the sound
-                                   sectors (--mpqcrypt, or built from the engine's doctor/mpq/mpqcrypt.c with zig)
-  pyodide/                         Pyodide from npm and the numpy and Pillow wheels (downloaded once into --wheels and
-                                   checked against the sha256 of pyodide-lock.json): the site loads nothing from a CDN
-  sw.js                            the service worker (offline): the version and the file list written in
-  data/game_data.zip               the game data pack (casc_wc3's `pacote`), only with --data: the host serves it
-                                   from a folder of its own (deploy/), it is never in the zip
-  names.npz                        the file name index, only with --index
---zip writes the site (without data/) as one zip and its .sha256, for the release.
-"""
 import hashlib
 import json
 import os
@@ -237,10 +212,15 @@ def build(engine, out, ui=None, pjass=None, data=None, index=None, pyodide_dir=N
     return {'version': version, 'cache': tag, 'engine_files': n_engine, 'pyodide': py_version}
 
 
+USAGE = ('usage: python web/build_site.py --engine=<release folder> --out=<folder> [--ui=<page folder>] '
+         '[--pjass=<pjass.wasm>] [--data=<game data pack>] [--index=<names.npz>] [--pyodide=<node_modules/pyodide>] '
+         '[--wheels=<cache folder>] [--repository=owner/name] [--zip=<site zip>] [--mpqcrypt=<mpqcrypt.wasm>]')
+
+
 def main(argv):
     op = dict((a[2:].split('=', 1) + [''])[:2] for a in argv if a.startswith('--'))
     if not op.get('engine') or not op.get('out'):
-        print(__doc__)
+        print(USAGE)
         return 2
     r = build(op['engine'], os.path.abspath(op['out']), op.get('ui'), op.get('pjass'), op.get('data'), op.get('index'),
               op.get('pyodide'), op.get('wheels'), op.get('repository'), op.get('zip'), op.get('mpqcrypt'))

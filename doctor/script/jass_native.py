@@ -34,9 +34,142 @@ def _dll():
                     dll.jass_free.restype = None
                 except (OSError, AttributeError):
                     continue
+                try:
+                    dll.mpq_name_search.argtypes = [ctypes.c_char_p, ctypes.c_size_t, ctypes.POINTER(ctypes.c_uint64),
+                                                    ctypes.c_size_t, ctypes.POINTER(ctypes.c_void_p),
+                                                    ctypes.POINTER(ctypes.c_size_t)]
+                    dll.mpq_name_search.restype = ctypes.c_int
+                except AttributeError:
+                    pass
                 _LOADED_DLL[0] = dll
                 break
     return _LOADED_DLL[0]
+
+
+def load_names():
+    if os.environ.get('JASS_NATIVE') == '0' or sys.platform == 'emscripten':
+        return None
+    dll = _dll()
+    if not dll or not hasattr(dll, 'mpq_name_search') or dll.mpq_name_search.restype is not ctypes.c_int:
+        return None
+    import struct
+
+    def listing(item_entries, out):
+        out.append(struct.pack('<I', len(item_entries)))
+        for it in item_entries:
+            if isinstance(it, (bytes, bytearray)):
+                out.append(b'\x80' + struct.pack('<I', len(it)) + bytes(it))
+            else:
+                flags = 0
+                for r in it:
+                    flags |= 1 << r
+                out.append(bytes([flags]))
+                for r in sorted(it):
+                    out.append(struct.pack('<I', len(it[r])) + bytes(it[r]))
+
+    def lookup(folders, name_list, exts, pairs, _f=dll.mpq_name_search, _free=dll.jass_free):
+        pieces = []
+        for item_entries in (folders, name_list, exts):
+            listing(item_entries, pieces)
+        buf = b''.join(pieces)
+        keys = sorted(set((h1 << 32) | h2 for h1, h2 in pairs))
+        arr = (ctypes.c_uint64 * len(keys))(*keys)
+        p, n = ctypes.c_void_p(), ctypes.c_size_t()
+        if _f(buf, len(buf), arr, len(keys), ctypes.byref(p), ctypes.byref(n)) != 0:
+            return None
+        try:
+            raw = ctypes.string_at(p.value, n.value * 16) if n.value else b''
+        finally:
+            _free(p, n.value * 16)
+        vals = struct.unpack('<%dI' % (4 * n.value), raw)
+        return [tuple(vals[i:i + 4]) for i in range(0, len(vals), 4)]
+    return lookup
+
+
+def load_canonical():
+    if os.environ.get('JASS_NATIVE') == '0' or sys.platform == 'emscripten':
+        return None
+    dll = _dll()
+    if not dll or not hasattr(dll, 'gui_canonical') or not hasattr(dll, 'canon_jass_reference'):
+        return None
+    vp, sz = ctypes.c_void_p, ctypes.c_size_t
+    if dll.gui_canonical.restype is not ctypes.c_int:
+        dll.gui_canonical.argtypes = [ctypes.c_char_p, sz, ctypes.c_int, ctypes.c_int, ctypes.c_char_p, sz,
+                                      ctypes.POINTER(vp), ctypes.POINTER(sz)]
+        dll.gui_canonical.restype = ctypes.c_int
+        dll.canon_jass_reference.argtypes = [ctypes.c_char_p, sz, ctypes.c_char_p, sz]
+        dll.canon_jass_reference.restype = ctypes.c_int
+    is_ready = [False]
+
+    def canon(body_text, lang, inline, self_name, _f=dll.gui_canonical, _free=dll.jass_free):
+        if lang != 'lua' and not is_ready[0]:
+            from doctor.triggers import triggerdata
+            c, b = (triggerdata.game_script(n).encode('utf-8', 'surrogateescape') for n in ('common.j', 'blizzard.j'))
+            if dll.canon_jass_reference(c, len(c), b, len(b)) != 0:
+                return None
+            is_ready[0] = True
+        t = body_text.encode('utf-8', 'surrogateescape')
+        s = None if self_name is None else self_name.encode('utf-8', 'surrogateescape')
+        p, n = vp(), sz()
+        if _f(t, len(t), 1 if lang == 'lua' else 0, 1 if inline else 0, s, len(s or b''), ctypes.byref(p),
+              ctypes.byref(n)) != 0:
+            return None
+        try:
+            return ctypes.string_at(p.value, n.value).decode('utf-8', 'surrogateescape')
+        finally:
+            _free(p, n.value)
+    return canon
+
+
+def load_standard():
+    if os.environ.get('JASS_NATIVE') == '0' or sys.platform == 'emscripten':
+        return None
+    dll = _dll()
+    if not dll or not hasattr(dll, 'jass_standard_globals') or not hasattr(dll, 'jass_game_calls'):
+        return None
+    vp, sz = ctypes.c_void_p, ctypes.c_size_t
+    if dll.jass_game_calls.restype is not ctypes.c_int:
+        dll.jass_standard_globals.argtypes = [ctypes.c_char_p, sz, ctypes.POINTER(vp), ctypes.POINTER(sz)]
+        dll.jass_standard_globals.restype = ctypes.c_int
+        dll.jass_game_calls.argtypes = [ctypes.c_char_p, sz, ctypes.c_char_p, sz, ctypes.POINTER(vp),
+                                        ctypes.POINTER(sz)]
+        dll.jass_game_calls.restype = ctypes.c_int
+    import struct
+
+    def lists_out(buf, k, how_many):
+        out = []
+        for _q in range(how_many):
+            n = struct.unpack_from('<I', buf, k)[0]
+            k += 4
+            item_entries = []
+            for _i in range(n):
+                m = struct.unpack_from('<I', buf, k)[0]
+                item_entries.append(bytes(buf[k + 4:k + 4 + m]))
+                k += 4 + m
+            out.append(item_entries)
+        return out, k
+
+    def receive(f, *args):
+        p, n = vp(), sz()
+        if f(*(args + (ctypes.byref(p), ctypes.byref(n)))) != 0:
+            return None
+        try:
+            return ctypes.string_at(p.value, n.value)
+        finally:
+            dll.jass_free(p, n.value)
+
+    def globals_block(data_bytes):
+        buf = receive(dll.jass_standard_globals, data_bytes, len(data_bytes))
+        return None if buf is None else tuple(lists_out(buf, 0, 2)[0])
+
+    def calls(data_bytes, name_list):
+        table = b''.join(a + b'\t' + b + b'\n' for a, b in name_list.items())
+        buf = receive(dll.jass_game_calls, data_bytes, len(data_bytes), table, len(table))
+        if buf is None:
+            return None
+        (in_use,), k = lists_out(buf, 4, 1)
+        return buf[k:], struct.unpack_from('<I', buf, 0)[0], set(in_use)
+    return globals_block, calls
 
 
 def load_data():
@@ -100,3 +233,4 @@ def verify(paths):
         'Python %.2f s, Rust %.2f s (%.0fx); differences %d' % (python_time, tn, python_time / max(tn, 1e-9), bad_ones)
     )
     return bad_ones
+

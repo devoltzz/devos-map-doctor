@@ -495,6 +495,7 @@ def restore_triggers(body_text, is_lua, log=print, file_set=None, n_players=None
 
 COMPILED_SCRIPT = {'kkwe': 'kkmap.jc', 'j2b': 'war3map.bin'}
 RX_PJASS_WHERE = re.compile(r'^.*?war3map\.j:\d+:\s*')
+PJASS_RUNTIME_ONLY = ('is uninitialized', 'String literals over 1023 chars')
 
 
 class ScriptNotRestored(ValueError):
@@ -552,6 +553,7 @@ def _pjass_check(body_text, clashes):
     error_list = [RX_PJASS_WHERE.sub('', line) for line in r['line_list'] if RX_PJASS_WHERE.match(line)]
     rx = re.compile(r'\b(%s)\b.*al+ready defined' % '|'.join(re.escape(c) for c in clashes)) if clashes else None
     others = [e for e in error_list if not (rx and rx.search(e))]
+    others = [e for e in others if not any(s in e for s in PJASS_RUNTIME_ONLY)]
     return not others, 'rc=%s, %d error(s)%s' % (
         r['rc'],
         len(error_list),
@@ -585,7 +587,8 @@ def script_restore(entry, output, kind, log=print):
         )
     try:
         if kind == 'j2b':
-            bc = j2b.bytecode(data_bytes)
+            from doctor.script import j2b_calls
+            bc = j2b.bytecode(data_bytes, reference=j2b_calls.reference_texts(common, blizzard, shell))
             map_own = shell.decode('utf-8', 'surrogateescape')
         else:
             bc = kkwe.Bytecode(kkwe.read_container(data_bytes))
@@ -601,7 +604,10 @@ def script_restore(entry, output, kind, log=print):
     if rename_items:
         body_text = rename_skeleton(body_text, rename_items)
         details['renamed'] = list(rename_items)
-    body_text, details['real_returns'] = real_literal_return(body_text)
+    from doctor.port import return_fixes
+    body_text, info = return_fixes.applies(body_text)
+    details['real_returns'] = info['real_blocks']
+    details['return_fixes'] = info
     ok, details['pjass'] = _pjass_check(body_text, [c for c in details['clashes'] if c not in rename_items])
     log('script back (%s): %d instructions, %d functions; %d global(s) renamed; pjass %s'
         % (kind, details['instructions'], details['functions'], len(rename_items), details['pjass']))

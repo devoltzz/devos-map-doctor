@@ -101,6 +101,14 @@ def applies(extract, data_bytes, raw_data, segment, tr_dir=None, expected_count=
         n_slk += 1
         n_b += len(i['b_before']) - 1
     info['slk'], info['fake_b'] = n_slk, n_b
+    from doctor.port import model_carriers
+    try:
+        mc = model_carriers.add(units, open(raw_data, 'rb').read().decode('utf-8', 'surrogateescape'), extract=extract)
+        info['model_carriers'] = len(mc['carriers'])
+        info['model_carriers_template'] = mc['template']
+    except (ValueError, OSError) as e:
+        failures.append('model_carriers: %s' % e)
+        info['model_carriers'] = 0
     from doctor.data import slk2skin
     rc, out = run_action(slk2skin, [units])
     if rc:
@@ -179,6 +187,9 @@ def report_data(info):
           'targets (%d rows in AbilityData.slk, %d sections in campaignabilitystrings.txt) -> port/kk/compat/'
           'kk_morph_chaos.j' % (info['slk'], info['fake_b'], info['models'], info['chaos'], info['chaos_lines'],
                                 info['chaos_sections']))
+    if info.get('model_carriers'):
+        print('   DzSetUnitModel: %d model(s) got a carrier unit type of their own (copies of %s)'
+              % (info['model_carriers'], info.get('model_carriers_template')))
     for k in ('slk_levels', 'buttonpos'):
         print('   %s: %s' % (k, ' | '.join(info[k])))
     print('   slk_fix: %s' % '; '.join('%s: %s' % x for x in info['slk_fix'] if x[1]))

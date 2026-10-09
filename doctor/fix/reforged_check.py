@@ -343,7 +343,7 @@ def _script_items(src, diag, progress):
         lua = ydwe_lua.detect(text, lambda name: unprotect._read(a, name))
         if lua:
             items.append(_item('ydwe_lua_engine', 'blocker' if lua['all_lua'] else 'warning', ydwe_lua.message(lua),
-                               'none', entries=lua['entries'], modules=[m['name'] for m in lua['modules']]))
+                               'port', entries=lua['entries'], modules=[m['name'] for m in lua['modules']]))
     if tree is not None and lang == 'jass':
         p('Checking the natives')
         own = unprotect._read(a, 'scripts\\blizzard.j')

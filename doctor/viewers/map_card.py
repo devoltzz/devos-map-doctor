@@ -27,7 +27,7 @@ from doctor.translation import tr_gradient
 from doctor.data import w3i
 
 
-KNOWN_W3I = (18, 25, 28, 31, 33, 34, 35, 36, 37, 38, 39)
+KNOWN_W3I = (18, 25, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39)
 RX_WTS = re.compile(rb'^(?:\xef\xbb\xbf)?STRING[ \t]+(\d+)[^\n]*\n(?:[ \t]*(?://[^\n]*)?\r?\n)*[ \t]*\{[^\n]*\n'
                     rb'(.*?)\r?\n?^\}', re.S | re.M)
 RX_TRIGSTR = re.compile(r'TRIGSTR_(\d+)\s*$')
@@ -45,7 +45,14 @@ FORCE_FLAGS = ((0x01, 'allied'), (0x02, 'allied_victory'), (0x04, 'shared_vision
 MAP_FLAGS = ((0x0001, 'hide_minimap_in_preview'), (0x0002, 'custom_ally_priorities'), (0x0004, 'melee'),
              (0x0010, 'masked_area_partially_visible'), (0x0020, 'fixed_player_settings'), (0x0040, 'custom_forces'),
              (0x0080, 'custom_techtree'), (0x0100, 'custom_abilities'), (0x0200, 'custom_upgrades'),
-             (0x0800, 'waves_on_cliff_shores'), (0x1000, 'waves_on_rolling_shores'))
+             (0x0800, 'waves_on_cliff_shores'), (0x1000, 'waves_on_rolling_shores'),
+             (0x2000, 'terrain_fog'), (0x4000, 'expansion_required'), (0x8000, 'item_classification'),
+             (0x10000, 'water_tint'), (0x20000, 'accurate_probability'), (0x40000, 'custom_ability_skin'),
+             (0x80000, 'disable_deny_icon'), (0x100000, 'force_default_camera_zoom'),
+             (0x200000, 'force_max_camera_zoom'), (0x400000, 'force_min_camera_zoom'), (0x800000, 'hd_water_color'),
+             (0x1000000, 'alpha_tile_minimap_color'), (0x2000000, 'dynamic_minimap'))
+GAME_DATA_SETS = {0: 'default', 1: 'custom', 2: 'melee'}
+GAME_DATA_VERSIONS = {0: 'reign_of_chaos', 1: 'the_frozen_throne', 2: 'forsaken_kingdom'}
 
 MINIMAP = ('war3mapMap.blp', 'war3mapMap.tga')
 PREVIEW = ('war3mapPreview.tga',)
@@ -244,6 +251,9 @@ def _w3i_part(card, m, how, dev, strings):
         info['flags'] = m['flags']
         info['flag_names'] = _flag_names(m['flags'], MAP_FLAGS)
         info['game_data_set'] = m.get('game_data_set')
+        info['game_data_set_name'] = GAME_DATA_SETS.get(m.get('game_data_set'))
+        info['game_data_version'] = m.get('game_data_version')
+        info['game_data_version_name'] = GAME_DATA_VERSIONS.get(m.get('game_data_version'))
         info['tail_bytes'] = len(m.get('_tail') or b'')
     if how == 'tolerant':
         info['why_not'] = 'The map info file does not read back exactly (%s): only texts kept in the strings ' \

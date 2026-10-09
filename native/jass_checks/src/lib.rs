@@ -2,6 +2,11 @@
 use std::collections::{HashMap, HashSet};
 use std::panic;
 
+mod canon;
+mod canon_jass;
+mod canon_lua;
+mod slk;
+
 #[derive(Clone, Copy, PartialEq)]
 enum K {
     Word,
@@ -1477,6 +1482,157 @@ pub extern "C" fn jass_checks(text: *const u8, len: usize, out: *mut *mut u8, ou
             0
         }
         Err(code) => code,
+    }
+}
+
+fn crypt_table() -> Vec<u32> {
+    let mut t = vec![0u32; 0x500];
+    let mut seed: u32 = 0x0010_0001;
+    for i in 0..0x100usize {
+        let mut idx = i;
+        while idx < 0x500 {
+            seed = (seed * 125 + 3) % 0x2AAAAB;
+            let hi = (seed & 0xFFFF) << 16;
+            seed = (seed * 125 + 3) % 0x2AAAAB;
+            t[idx] = hi | (seed & 0xFFFF);
+            idx += 0x100;
+        }
+    }
+    t
+}
+
+#[inline]
+fn upper_mpq(c: u8) -> u8 {
+    if (0x61..=0x7A).contains(&c) {
+        c - 32
+    } else if c == 0x2F {
+        0x5C
+    } else {
+        c
+    }
+}
+
+#[inline]
+fn hash_more(crypt: &[u32], st: [u32; 4], bytes: &[u8]) -> [u32; 4] {
+    let (mut a1, mut b1, mut a2, mut b2) = (st[0], st[1], st[2], st[3]);
+    for &c0 in bytes {
+        let c = upper_mpq(c0) as u32;
+        a1 = crypt[(0x100 + c) as usize] ^ a1.wrapping_add(b1);
+        b1 = c.wrapping_add(a1).wrapping_add(b1).wrapping_add(b1 << 5).wrapping_add(3);
+        a2 = crypt[(0x200 + c) as usize] ^ a2.wrapping_add(b2);
+        b2 = c.wrapping_add(a2).wrapping_add(b2).wrapping_add(b2 << 5).wrapping_add(3);
+    }
+    [a1, b1, a2, b2]
+}
+
+struct Part {
+    ascii: bool,
+    var: [Option<Vec<u8>>; 3],
+}
+
+fn read_parts(buf: &[u8], pos: &mut usize) -> Option<Vec<Part>> {
+    let rd_u32 = |b: &[u8], p: &mut usize| -> Option<u32> {
+        let v = u32::from_le_bytes(b.get(*p..*p + 4)?.try_into().ok()?);
+        *p += 4;
+        Some(v)
+    };
+    let n = rd_u32(buf, pos)? as usize;
+    let mut out = Vec::with_capacity(n);
+    for _ in 0..n {
+        let flags = *buf.get(*pos)?;
+        *pos += 1;
+        let mut var: [Option<Vec<u8>>; 3] = [None, None, None];
+        let ascii = flags & 0x80 != 0;
+        let labels: Vec<usize> = if ascii { vec![0] } else { (0..3).filter(|l| flags & (1 << l) != 0).collect() };
+        for l in labels {
+            let len = rd_u32(buf, pos)? as usize;
+            var[l] = Some(buf.get(*pos..*pos + len)?.to_vec());
+            *pos += len;
+        }
+        out.push(Part { ascii, var });
+    }
+    Some(out)
+}
+
+#[inline]
+fn spelling(p: &Part, label: usize) -> Option<&Vec<u8>> {
+    if p.ascii {
+        p.var[0].as_ref()
+    } else {
+        p.var[label].as_ref()
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn mpq_name_search(
+    buf: *const u8,
+    len: usize,
+    pairs: *const u64,
+    npairs: usize,
+    out: *mut *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    if buf.is_null() || out.is_null() || out_len.is_null() || (pairs.is_null() && npairs > 0) {
+        return 1;
+    }
+    let r = panic::catch_unwind(|| {
+        let b = unsafe { std::slice::from_raw_parts(buf, len) };
+        let set: std::collections::HashSet<u64> =
+            unsafe { std::slice::from_raw_parts(pairs, npairs) }.iter().copied().collect();
+        let mut pos = 0usize;
+        let folders = read_parts(b, &mut pos)?;
+        let names = read_parts(b, &mut pos)?;
+        let exts = read_parts(b, &mut pos)?;
+        let crypt = crypt_table();
+        let start = [0x7FED7FEDu32, 0xEEEEEEEEu32, 0x7FED7FEDu32, 0xEEEEEEEEu32];
+        let mut hits: Vec<u32> = Vec::new();
+        for (i, f) in folders.iter().enumerate() {
+            for label in 0..3usize {
+                let fs = match spelling(f, label) {
+                    Some(s) => s,
+                    None => continue,
+                };
+                let st_f = hash_more(&crypt, start, fs);
+                for (j, n) in names.iter().enumerate() {
+                    if f.ascii && n.ascii && label > 0 {
+                        continue;
+                    }
+                    let ns = match spelling(n, label) {
+                        Some(s) => s,
+                        None => continue,
+                    };
+                    let st_n = hash_more(&crypt, st_f, ns);
+                    for (k, e) in exts.iter().enumerate() {
+                        let es = match spelling(e, label) {
+                            Some(s) => s,
+                            None => continue,
+                        };
+                        let st = hash_more(&crypt, st_n, es);
+                        if set.contains(&(((st[0] as u64) << 32) | st[2] as u64)) {
+                            hits.extend_from_slice(&[i as u32, j as u32, k as u32, label as u32]);
+                        }
+                    }
+                }
+            }
+        }
+        Some(hits)
+    });
+    match r {
+        Ok(Some(hits)) => {
+            let count = hits.len() / 4;
+            let mut bytes: Vec<u8> = Vec::with_capacity(hits.len() * 4);
+            for h in hits {
+                bytes.extend_from_slice(&h.to_le_bytes());
+            }
+            let mut boxed = bytes.into_boxed_slice();
+            unsafe {
+                *out_len = count;
+                *out = boxed.as_mut_ptr();
+            }
+            std::mem::forget(boxed);
+            0
+        }
+        _ => 1,
     }
 }
 

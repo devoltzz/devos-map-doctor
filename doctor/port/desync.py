@@ -331,6 +331,11 @@ def applies(body_text, cfg, to_report=False):
             pass
     m = RX_END_GLOBALS_BLOCK.search(body_text)
     if not m:
+        f0 = RX_FUNCTION.search(body_text)
+        if f0:
+            body_text = body_text[:f0.start()] + 'globals\nendglobals\n' + body_text[f0.start():]
+            m = RX_END_GLOBALS_BLOCK.search(body_text)
+    if not m:
         failures.append('could not find endglobals')
         return body_text, info
     f = RX_FUNCTION.search(body_text, m.end())

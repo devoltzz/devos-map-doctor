@@ -443,6 +443,7 @@ class Compiler(object):
         self.local_vars = None
         self.ret = None
         self.init_name = '<init>'
+        self.after_init = None
         self.isolate = {}
 
     def emit(self, op, b0=0, b1=0, b2=0, arg=0):
@@ -538,7 +539,12 @@ class Compiler(object):
             self.emit(12, b1=8, b2=rr, arg=0 if op == 'and' else 1)
             self.emit(40, arg=lf)
             return rr, 'boolean'
-        rl, tl = self.expr(left)
+        right_type = self.type_of(right) if left[0] == 'null' and op in ('==', '!=') else None
+        if right_type and right_type != 'null':
+            rl, tl = self.new_reg(), right_type
+            self.emit(12, b1=self.code_part(right_type), b2=rl, arg=0)
+        else:
+            rl, tl = self.expr(left)
         type_l = tl
         tr_prev = self.type_of(right)
         if tl == 'integer' and tr_prev == 'real':
@@ -724,6 +730,10 @@ class Compiler(object):
                         self.emit(17, b2=r, arg=Symbol(n))
                 self.emit(39)
                 self.emit(4)
+                if self.after_init:
+                    self.reg = self.after_init[0]
+                    if self.after_init[1] is not None:
+                        self.rot = self.after_init[1]
             elif k == 'function':
                 _, fname, params, ret, body = it
                 saved = (self.reg, self.rot) if fname in self.isolate else None

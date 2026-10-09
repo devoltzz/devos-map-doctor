@@ -1,5 +1,7 @@
 * text=auto eol=lf
 *.ico binary
+*.png binary
+*.gif binary
 doctor/cheatpacks/* -text
 doctor/cheatpacks/** -text
 doctor/ref/3.0/*.j -text

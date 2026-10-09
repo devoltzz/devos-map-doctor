@@ -1,4 +1,5 @@
 # Fixes return statements the old compiler accepted and the 3.0 compiler refuses.
+import os
 import re
 
 
@@ -134,6 +135,65 @@ def local_param_clash(body_text):
     return ('\n'.join(line_list), n) if n else (body_text, 0)
 
 
+RX_RETURN_EXPR = re.compile(r'^(\s*return\s+)(\S.*?)(\s*)$')
+RX_PJASS_INT_REAL = re.compile(r'^.*?:(\d+):\s*Cannot convert returned value from integer to real')
+
+
+def _pjass_lines(body_text, rx):
+    try:
+        from doctor.script import pjass
+    except ImportError:
+        return []
+    if not os.path.isfile(pjass.exe()):
+        return []
+    import shutil
+    import tempfile
+    tmp = tempfile.mkdtemp('', 'kk_return_fixes_pjass_')
+    try:
+        origin = os.path.join(tmp, 'war3map.j')
+        with open(origin, 'wb') as f:
+            f.write(body_text.encode('utf-8', 'surrogateescape'))
+        ref = pjass.default_ref()
+        r = pjass.run_action(
+            [
+                (os.path.join(ref, 'common.j'), 'common.j'),
+                (os.path.join(ref, 'blizzard.j'), 'Blizzard.j'),
+                (origin, 'war3map.j'),
+            ],
+            tmp=os.path.join(tmp, 'pjass'),
+        )
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    if r.get('missing'):
+        return []
+    return sorted(set(int(m.group(1)) for m in (rx.match(line) for line in r['line_list']) if m))
+
+
+def integer_in_real(body_text):
+    if not re.search(r'(?m)\breturns[ \t]+real\b', body_text):
+        return body_text, 0
+    targets = _pjass_lines(body_text, RX_PJASS_INT_REAL)
+    if not targets:
+        return body_text, 0
+    line_list = body_text.split('\n')
+    n = 0
+    done_names = set()
+    for k in targets:
+        for i in (k - 1, k - 2):
+            if not 0 <= i < len(line_list) or i in done_names:
+                continue
+            ln = line_list[i]
+            cr = '\r' if ln.endswith('\r') else ''
+            m = RX_RETURN_EXPR.match(ln.rstrip('\r'))
+            if m:
+                if '//' not in m.group(2):
+                    line_list[i] = '%sI2R(%s)%s%s' % (m.group(1), m.group(2), m.group(3), cr)
+                    done_names.add(i)
+                    n += 1
+                break
+    return ('\n'.join(line_list), n) if n else (body_text, 0)
+
+
 def applies(body_text):
     from doctor.fix import editor_prep
     body_text, real_blocks = editor_prep.real_literal_return(body_text)
@@ -141,8 +201,9 @@ def applies(body_text):
     body_text, codes = null_code(body_text)
     body_text, shadows = shadow_local(body_text)
     body_text, param = local_param_clash(body_text)
+    body_text, i2r = integer_in_real(body_text)
     return body_text, {
-        'real_blocks': real_blocks,
+        'real_blocks': real_blocks + i2r,
         'codes': codes,
         'shadows': shadows + param,
         'empty_files': empty_files,

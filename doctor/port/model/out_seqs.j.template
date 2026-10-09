@@ -1,6 +1,4 @@
-// ==============================================================================================
 // {{N_SEQ}} chamada(s) de `DzSetEffectAnimation`/`EXSetEffectAnimation`. Com chamada, medir no teste em jogo.
-// ==============================================================================================
 //@SLOTGLOBALS
 hashtable DB_seq_ht=null
 //@ENDSLOTGLOBALS

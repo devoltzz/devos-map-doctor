@@ -21,6 +21,21 @@ RX_DEF = re.compile(r'(?m)^[ \t]*function[ \t]+(\w+)[ \t]+takes[ \t]+([^\r\n]*?)
 RX_END = re.compile(r'(?m)^[ \t]*endfunction\b')
 
 
+def apply_replacements(body_text, replacements):
+    replacements = sorted(replacements)
+    if any(replacements[i][1] > replacements[i + 1][0] for i in range(len(replacements) - 1)):
+        for begin, end_pos, new in reversed(replacements):
+            body_text = body_text[:begin] + new + body_text[end_pos:]
+        return body_text
+    pieces, pos = [], 0
+    for begin, end_pos, new in replacements:
+        pieces.append(body_text[pos:begin])
+        pieces.append(new)
+        pos = end_pos
+    pieces.append(body_text[pos:])
+    return ''.join(pieces)
+
+
 def on_close(body_text, i):
     level = 0
     n = len(body_text)
@@ -213,8 +228,7 @@ def applies(
         keys.setdefault(fname, len(keys) + 1)
         replacements.append((m.start(), m.end(), 'DB_quadro_registra(function %s, %d)' % (fname, keys[fname])))
         info['quadro'] += 1
-    for begin, end_pos, new in sorted(replacements, reverse=True):
-        body_text = body_text[:begin] + new + body_text[end_pos:]
+    body_text = apply_replacements(body_text, replacements)
     for fname in name_list:
         rx = re.compile(r'(?m)^[ \t]*function %s takes nothing returns nothing[ \t]*\r?\n' % re.escape(fname))
         matches = list(rx.finditer(body_text))

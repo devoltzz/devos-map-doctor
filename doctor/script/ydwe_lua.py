@@ -2,7 +2,7 @@
 import re
 
 
-RX_EXEC = re.compile(r'AbilityId\s*\(\s*"exec-lua:([^"\\]+)"\s*\)')
+RX_EXEC = re.compile(r'\b(?:AbilityId|Cheat)\s*\(\s*"exec-lua:\s*([^"\\]+?)\s*"\s*\)')
 RX_LOADER = re.compile(r'StartCampaignAI\s*\([^\n]*"callback"\s*\)')
 RX_TRIGGER = re.compile(r'\b(?:CreateTrigger|TimerStart)\s*\(')
 FOLDERS = ('scripts\\', 'w3x2lni\\plugin\\import\\scripts\\', '')
@@ -38,7 +38,7 @@ def message(found):
     if found['all_lua']:
         return ('The game of this map is Lua run by the YDWE Lua engine (%s): a DLL the map ships, which only the old '
                 'game loaded, through a memory trick. Reforged cannot load it, so the map starts and nothing happens. '
-                'Porting it means rewriting that engine; the Doctor does not do that.' % lua)
+                'The port turns it into a Lua map that runs those modules.' % lua)
     return ('Part of this map is Lua run by the YDWE Lua engine (%s): a DLL the map ships, which only the old game '
             'loaded. Reforged cannot load it, so what the Lua did does not happen; the rest of the map (its JASS) '
-            'runs.' % lua)
+            'runs. The port turns it into a Lua map that runs those modules.' % lua)

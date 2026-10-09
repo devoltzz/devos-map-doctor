@@ -206,7 +206,9 @@ def page_changes(r, kind, extras=None):
             files.append({'file': name, 'how': 'changed', 'why': 'for the editor'})
         for name in rep.get('new_ones') or []:
             files.append({'file': name, 'how': 'added', 'why': 'editor-only'})
-    for extra in ((extras or {}).get('reports') or {}):
+    for extra, rep in ((extras or {}).get('reports') or {}).items():
+        if (rep or {}).get('state') == 'nothing_to_do':
+            continue
         files.append({'file': EXTRA_NAME.get(extra, extra), 'how': 'applied', 'why': 'an extra'})
     return {'files': files, 'notes': notes}
 
@@ -223,6 +225,7 @@ EXTRA_DONE = {
     'single_player': 'The map no longer ends the game in single player.',
     'card': 'Wrote the map card changes.',
     'translation': 'Applied the translation.',
+    'strip_indent': 'Removed the indentation of the script.',
     'shrink': 'Made the map smaller.',
 }
 EXTRA_NAME = {
@@ -237,6 +240,7 @@ EXTRA_NAME = {
     'single_player': 'single player',
     'card': 'the map card changes',
     'translation': 'the translation',
+    'strip_indent': 'the script indentation',
     'shrink': 'the shrink',
 }
 BEFORE_EDITOR = ('models', 'single_player', 'card', 'translation')
@@ -245,12 +249,36 @@ BEFORE_EDITOR = ('models', 'single_player', 'card', 'translation')
 def extra_lines(x):
     out = []
     for extra, rep in (x or {}).get('reports', {}).items():
+        if (rep or {}).get('state') == 'nothing_to_do':
+            out.append(
+                ('info', '  - ' + ' '.join(str(s) for s in (rep.get('lines') or [EXTRA_DONE.get(extra, extra)])))
+            )
+            continue
         out.append(('ok', '  - ' + EXTRA_DONE.get(extra, extra)))
         for line in (rep or {}).get('lines') or (rep or {}).get('summary_lines') or []:
             out.append(('info', '      ' + str(line)))
     for extra, why in (x or {}).get('failures', {}).items():
         out.append(('warning', '  - Not applied, %s: %s' % (EXTRA_NAME.get(extra, extra), why)))
     return out
+
+
+def strip_indent_step(out, progress):
+    from doctor.fix import script_indent
+    tmp = os.path.splitext(out)[0] + '.strip_indent' + os.path.splitext(out)[1]
+    try:
+        try:
+            rel = script_indent.fix(out, tmp, progress)
+        except Exception as e:
+            rel = {'state': 'failed', 'error': '%s: %s' % (type(e).__name__, e)}
+        if rel.get('state') == 'done':
+            os.replace(tmp, out)
+            return [['subtitle', 'The script without its indentation:']] + [['good', x] for x in rel.get('lines') or []]
+        if rel.get('state') == 'nothing_to_do':
+            return [['info', x] for x in rel.get('lines') or []]
+        return [['warn', 'The script indentation was not removed: %s' % (rel.get('error') or 'nothing was written')]]
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
 
 
 def run_action(D, G, job, path, task, progress, emit):
@@ -294,6 +322,9 @@ def run_action(D, G, job, path, task, progress, emit):
         else:
             r = D.prepare_for_editor(path, out, progress, diag=d, options=options)
         lines = G.editor_text(r)
+        if extras.get('strip_indent') and r.get('status') in ('done', 'partial') and r.get('output') and \
+                os.path.isfile(r['output']):
+            lines = list(lines) + [('', '')] + [tuple(x) for x in strip_indent_step(r['output'], progress)]
     if x:
         lines = lines + [('', ''), ('heading2', 'Extras:')] + extra_lines(x)
     return {'lines': page_lines(lines), 'file': r.get('output'), 'outcome': OUTCOME.get(r.get('status'), 'failed'),
@@ -316,7 +347,8 @@ def page_stub(s):
             'triggers': list(s.get('trigger_list') or [])}
 
 
-def run_port(D, G, path, progress, emit, packages=(), memory=True, icons=False, textures=False):
+def run_port(D, G, path, progress, emit, packages=(), memory=True, icons=False, textures=False, balance=False,
+             strip_indent=False):
     from doctor.port import map_port
     out = D.free_output(path, '_reforged')
     emit({'type': 'output', 'path': out})
@@ -325,7 +357,7 @@ def run_port(D, G, path, progress, emit, packages=(), memory=True, icons=False, 
     try:
         try:
             r = map_port.map_port(path, os.path.join(work, 'port'), out, report, log=progress, packages=list(packages),
-                                  memory_hacks='neutralize' if memory else 'equivalents')
+                                  memory_hacks='neutralize' if memory else 'equivalents', balance_numbers=bool(balance))
         except BaseException as e:
             import traceback
             write_port_failure(report, '%s: %s' % (type(e).__name__, e), traceback.format_exc()[-3000:])
@@ -344,6 +376,8 @@ def run_port(D, G, path, progress, emit, packages=(), memory=True, icons=False, 
         lines += port_step(r['output'], progress, 'kk_textures', None)
     if ported and icons:
         lines += port_step(r['output'], progress, 'disabled_icons', 'Every imported icon already has its disabled art.')
+    if ported and strip_indent:
+        lines += strip_indent_step(r['output'], progress)
     return {'lines': lines, 'file': r.get('output') if ported else None, 'report': report,
             'outcome': 'ok' if ported else 'failed',
             'port': {'g1': r.get('g1'), 'g2': r.get('g2'), 'stubs': [page_stub(s) for s in r.get('stubs') or []],
@@ -395,7 +429,8 @@ def run_job(job, emit, G):
         return run_action(D, G, job, path, task, progress, emit)
     if task == 'port':
         return run_port(D, G, path, progress, emit, job.get('packages') or [], job.get('memory', True),
-                        job.get('icons', False), job.get('textures', False))
+                        job.get('icons', False), job.get('textures', False), job.get('balance', False),
+                        job.get('strip_indent', False))
     if task == 'cheatpack_inject':
         return _cheatpack_inject(job, progress, emit)
     tool = TOOLS.get(task)
@@ -513,6 +548,8 @@ def _cheatpack_inject(job, progress, emit=lambda event: None):
     out = D.free_output(job['map'], '_' + str(job.get('pack') or 'cheat'))
     emit({'type': 'output', 'path': out})
     r = cheatpacks.inject(job['map'], out, job.get('pack'), job.get('options') or {}, progress)
+    if job.get('strip_indent') and r.get('file') and os.path.isfile(r['file']):
+        r['lines'] = list(r.get('lines') or []) + strip_indent_step(r['file'], progress)
     return {'lines': page_lines(r.get('lines') or []), 'file': r.get('file'), 'pack': r.get('pack'),
             'outcome': 'ok' if r.get('file') else 'failed', 'syntax': r.get('syntax'),
             'script': r.get('script'), 'options': r.get('options')}

@@ -399,9 +399,18 @@ const ACTIONS = {
 };
 const EXTRA_STEPS = {
   fix: ['models', 'modelNames', 'portraits', 'dataPointers', 'kkTextures', 'disabledIcons', 'uabi', 'preload',
-    'singlePlayer', 'card', 'translation', 'shrink'],
-  editor: ['singlePlayer', 'card', 'translation'],
+    'singlePlayer', 'card', 'translation', 'stripIndent', 'shrink'],
+  editor: ['singlePlayer', 'card', 'translation', 'stripIndent'],
 };
+
+const STRIP_INDENT = { title: 'Remove the script indentation',
+  detail: 'The spaces and tabs at the start of each script line go: a smaller script, the same code.' };
+function stripIndentOn() { return state.settings.stripIndent === true; }
+function setStripIndent(on) { state.settings.stripIndent = !!on; saveSettings(); }
+function stripIndentItem() {
+  return optionItem({ checked: stripIndentOn(), title: STRIP_INDENT.title, detail: STRIP_INDENT.detail,
+    onchange: e => setStripIndent(e.target.checked) });
+}
 
 function choices(action) {
   const saved = state.settings.remember !== false ? ((state.settings.last || {})[action] || {}) : {};
@@ -457,6 +466,8 @@ function extraSteps(action) {
     if (k === 'translation' && x.translation && !x.translation.check.error) out.push({ key: 'x:translation',
       label: 'Apply the translation',
       detail: base(x.translation.file) + ', from the Translation tab.', on: true, applies: true, group: 'extra' });
+    if (k === 'stripIndent') out.push({ key: 'x:stripIndent', label: STRIP_INDENT.title, detail: STRIP_INDENT.detail,
+      on: stripIndentOn(), applies: true, group: 'extra' });
     if (k === 'shrink') out.push({ key: 'x:shrink', label: 'Make the map smaller, losing nothing',
       detail: 'Recompresses every file and stores duplicates once. Slow on big maps.',
       on: false, applies: true, group: 'extra' });
@@ -476,7 +487,7 @@ const FLAGS = { mpq: 'unprotect', falsos: 'fake-files', fake_list: 'fake-files',
   gatilhos_gui: 'gui-triggers', objetos_do_script: 'script-objects', unidades_seguras: 'safe-units', 'x:models': 'models', 'x:modelNames': 'model-names', 'x:portraits': 'portraits',
   'x:dataPointers': 'data-pointers', 'x:kkTextures': 'kk-textures', 'x:disabledIcons': 'green-icons',
   'x:uabi': 'uabi', 'x:preload': 'preload', 'x:singlePlayer': 'single-player', 'x:card': 'card',
-  'x:translation': 'translation', 'x:shrink': 'shrink' };
+  'x:translation': 'translation', 'x:stripIndent': 'strip-indent', 'x:shrink': 'shrink' };
 
 function shellLine(action) {
   const card = $('.action[data-action="' + action + '"]');
@@ -528,7 +539,9 @@ function renderAction(action) {
 function stepItem(action, s, checked) {
   const locked = s.locked && s.applies;
   const box = el('input', { type: 'checkbox', checked: !!checked, disabled: locked || !s.applies,
-    'data-key': s.key, onchange: () => { rememberChoice(action); shellLine(action); } });
+    'data-key': s.key, onchange: () => {
+      if (s.key === 'x:stripIndent') setStripIndent(box.checked);
+      rememberChoice(action); shellLine(action); } });
   return el('li', { class: 'step' + (locked ? ' locked' : '') + (s.applies ? '' : ' na') },
     box, el('div', {}, el('div', { class: 't', text: s.label }),
       s.detail ? el('div', { class: 'd', text: s.detail }) : null,
@@ -610,6 +623,7 @@ async function runAction(action) {
   if (extras.preload) params.extras.preload = true;
   if (extras.card && state.extras.card) params.extras.card = state.extras.card;
   if (extras.translation && state.extras.translation) params.extras.translation = state.extras.translation.file;
+  if (extras.stripIndent) params.extras.strip_indent = true;
   if (extras.shrink) params.extras.shrink = { recompress: true, blp: true, dedup: true };
   status(a.label);
   try {
@@ -1336,6 +1350,7 @@ function cheatpackCard(p) {
     p.file ? el('div', { class: 'faint mono', text: p.file }) : null,
     p.needs ? el('div', { class: 'muted', style: 'margin-top:4px', text: 'Works on: ' + p.needs }) : null,
     chosen ? el('div', { class: 'form', style: 'margin-top:12px' }, (p.options || []).map(cheatpackField).flat(),
+      el('ul', { class: 'steps', style: 'grid-column:1 / -1' }, stripIndentItem()),
       el('div', { style: 'grid-column:1 / -1' }, el('button', { class: 'btn primary needs-idle',
         text: 'Inject the cheat pack', disabled: !!state.running, onclick: runCheatpack }))) : null);
 }
@@ -1369,7 +1384,7 @@ async function runCheatpack() {
   if (!pack) { toast('Pick a cheat pack first.'); return; }
   status('Injecting the cheat pack...');
   try {
-    const r = await run('cheatpack_inject', { pack, options: cheatpackOptions() },
+    const r = await run('cheatpack_inject', { pack, options: cheatpackOptions(), strip_indent: stripIndentOn() },
       { label: 'Injecting the cheat pack...' });
     state.cheatPack.result = r;
     state.results.cheatpacks = r;
@@ -1603,7 +1618,11 @@ function renderPort() {
           onchange: e => { state.portTextures = e.target.checked; } }),
         optionItem({ checked: state.portIcons !== false, title: 'Fix the green icons',
           detail: 'Makes the disabled art of the imported icons (a dead hero, another unit\'s items).',
-          onchange: e => { state.portIcons = e.target.checked; } })),
+          onchange: e => { state.portIcons = e.target.checked; } }),
+        optionItem({ checked: state.portBalance === true, title: 'Balance huge numbers',
+          detail: 'Scales life, damage, mana and armor down so the biggest fit the game\'s limit, keeping the proportions.',
+          onchange: e => { state.portBalance = e.target.checked; } }),
+        stripIndentItem()),
       el('div', { class: 'foot' }, el('button', { class: 'btn primary needs-idle', text: 'Port to Reforged',
         disabled: !!state.running, onclick: runPort }))),
     r ? portResult(r) : null);
@@ -1634,7 +1653,8 @@ async function runPort() {
   status('Porting the map...');
   try {
     const r = await run('port', { packages: state.portPackages || [], memory: state.portMemory !== false,
-      icons: state.portIcons !== false, textures: state.portTextures !== false },
+      icons: state.portIcons !== false, textures: state.portTextures !== false, balance: state.portBalance === true,
+      strip_indent: stripIndentOn() },
       { label: 'Porting the map to Reforged...' });
     state.portResult = r;
     state.results.port = r;

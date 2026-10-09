@@ -1,5 +1,3 @@
-// ==============================================================================================
-// ==============================================================================================
 function DzAPI_Map_SaveServerValue takes player whichPlayer,string key,string value returns boolean
     return RequestExtraBooleanData(4,whichPlayer,key,value,false,0,0,0)
 endfunction

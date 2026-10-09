@@ -1,6 +1,3 @@
-// ==============================================================================================
-// ==============================================================================================
-
 function JNStringBase64Encoding takes string str returns string
     return JNStringToBase64(str)
 endfunction
@@ -13,7 +10,6 @@ function JNStringDecrypt takes string cipherText,string key returns string
     return cipherText
 endfunction
 
-// = o nome da conta do jogador local (`DB_nome_conta`, o que o `GetPlayerName` dava antes do titulo do painel) e todo
 function JNGetSettingLogin takes nothing returns boolean
     return true
 endfunction

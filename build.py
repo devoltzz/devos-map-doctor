@@ -15,9 +15,11 @@ GUI_LIBS = re.compile(r'^lib(glib-2|gobject-2|gio-2|gmodule-2|gthread-2|gireposi
 GI_MODULES = ('Gtk', 'Gdk', 'GLib', 'GObject', 'Gio', 'WebKit2', 'WebKit', 'Soup', 'JavaScriptCore', 'GdkPixbuf',
               'Pango', 'cairo', 'Atk', 'HarfBuzz', 'freetype2', 'GModule', 'xlib', 'GioUnix', 'GLibUnix',
               'Gst', 'GstBase', 'GstVideo', 'GstAudio', 'GstController', 'GstPbutils', 'GstApp')
-EXCLUDE = ('cv2', 'lupa', 'matplotlib', 'pytest', 'setuptools', 'pip', 'unittest', 'pydoc_data', 'tkinter')
+EXCLUDE = ('cv2', 'matplotlib', 'pytest', 'setuptools', 'pip', 'unittest', 'pydoc_data', 'tkinter',
+           'lupa.lua51', 'lupa.lua52', 'lupa.lua55', 'lupa.luajit20', 'lupa.luajit21')
+LUA = ('lupa.lua53', 'lupa.lua54')
 PACKAGES = ('numpy', 'pillow', 'pywebview', 'pythonnet', 'clr_loader', 'bottle', 'proxy_tools', 'cffi',
-            'pycparser', 'typing_extensions', 'PyGObject', 'pycairo', 'zopfli')
+            'pycparser', 'typing_extensions', 'PyGObject', 'pycairo', 'zopfli', 'lupa')
 
 VERSION_FILE = """VSVersionInfo(
   ffi=FixedFileInfo(filevers=({v}), prodvers=({v}), mask=0x3f, flags=0x0, OS=0x40004, fileType=0x1,
@@ -104,8 +106,8 @@ def native_decryption():
 def native_checks():
     lib = os.path.join(ENGINE, 'script', 'jass_checks.so' if LINUX else 'jass_checks.dll')
     crate = os.path.join(ROOT, 'native', 'jass_checks')
-    source = os.path.join(crate, 'src', 'lib.rs')
-    if os.path.isfile(lib) and os.path.getmtime(lib) >= os.path.getmtime(source):
+    newest = max(os.path.getmtime(os.path.join(crate, 'src', f)) for f in os.listdir(os.path.join(crate, 'src')))
+    if os.path.isfile(lib) and os.path.getmtime(lib) >= newest:
         return
     cargo = shutil.which('cargo') or os.path.join(os.path.expanduser('~'), '.cargo', 'bin', 'cargo')
     import subprocess
@@ -229,6 +231,8 @@ def main():
         print('%s not found (doctor/script/%s or PJASS): the program cannot port maps' % (pjass_name, pjass_name))
     for module in EXCLUDE:
         args += ['--exclude-module', module]
+    for module in LUA:
+        args += ['--hidden-import', module]
     if LINUX:
         for module in GI_MODULES:
             args += ['--exclude-module', 'gi.repository.' + module]

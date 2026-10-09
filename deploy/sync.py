@@ -103,7 +103,7 @@ def main(argv):
     while True:
         try:
             once()
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             log('check failed: %s: %s' % (type(e).__name__, e))
         if '--once' in argv:
             return 0

@@ -1,5 +1,3 @@
-// ==============================================================================================
-// ==============================================================================================
 function DzCreateFrame takes string frame,integer parent,integer id returns integer
     local framehandle p=DB_fh(parent)
     local framehandle f
@@ -63,14 +61,23 @@ function DzFrameGetUpperButtonBarButton takes integer buttonId returns integer
 endfunction
 
 function DzFrameGetChatMessage takes nothing returns integer
+    //{{KK_SE:KK_UI_MSG}}
+    return DB_msg_marca(DB_origin(ORIGIN_FRAME_CHAT_MSG, 0))
+    //{{KK_FIMSE:KK_UI_MSG}}
     return DB_origin(ORIGIN_FRAME_CHAT_MSG, 0)
 endfunction
 
 function DzFrameGetUnitMessage takes nothing returns integer
+    //{{KK_SE:KK_UI_MSG}}
+    return DB_msg_marca(DB_origin(ORIGIN_FRAME_UNIT_MSG, 0))
+    //{{KK_FIMSE:KK_UI_MSG}}
     return DB_origin(ORIGIN_FRAME_UNIT_MSG, 0)
 endfunction
 
 function DzFrameGetTopMessage takes nothing returns integer
+    //{{KK_SE:KK_UI_MSG}}
+    return DB_msg_marca(DB_origin(ORIGIN_FRAME_TOP_MSG, 0))
+    //{{KK_FIMSE:KK_UI_MSG}}
     return DB_origin(ORIGIN_FRAME_TOP_MSG, 0)
 endfunction
 

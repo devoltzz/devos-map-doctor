@@ -2,6 +2,7 @@
 import io
 import os
 import re
+import struct
 import sys
 
 from doctor.data import slk_cols as C
@@ -58,6 +59,25 @@ def add_levels(line_list):
             next_item += 1
             new_ones.append((next_item, '%s%d' % (c, n)))
         plain_name.append((x4, new_ones))
+
+    arg = [next_item, len(plain_name)]
+    for x4, new_ones in plain_name:
+        arg += [x4, len(new_ones)]
+        for xn, fname in new_ones:
+            arg.append(xn)
+            arg.append(fname)
+    arg = b''.join(C._ints(v) if not isinstance(v, str) else struct.pack('<I', len(v)) + v.encode('ascii')
+                   for v in arg)
+    r = C._step(6, line_list, arg)
+    if r is not None:
+        copied = r.int()
+        return {
+            'line_list': r.line_list(),
+            'plain_name': plain_name,
+            'copied': copied,
+            'next_item': next_item,
+            'warnings': warnings,
+        }
 
     resolved = resolve(line_list)
     level4 = {}

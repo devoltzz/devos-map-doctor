@@ -31,9 +31,7 @@ def dead_swap(body_text):
         if len(args) != 2 or core_part[args[1][0]:args[1][1]].strip() != 'UNIT_TYPE_DEAD':
             continue
         replacements.append((m.start(), end_pos + 1, 'KK_unid_morta(%s)' % core_part[args[0][0]:args[0][1]].strip()))
-    for begin, end_pos, new in sorted(replacements, reverse=True):
-        body_text = body_text[:begin] + new + body_text[end_pos:]
-    return body_text, len(replacements)
+    return ui_local.apply_replacements(body_text, replacements), len(replacements)
 
 
 def applies(body_text, expected_count=None, to_report=False):

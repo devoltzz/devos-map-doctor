@@ -1,5 +1,3 @@
-// ==============================================================================================
-// ==============================================================================================
 function DzAPI_Map_HasMallItem takes player whichPlayer,string key returns boolean
     return true
 endfunction

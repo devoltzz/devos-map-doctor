@@ -1,6 +1,3 @@
-// ==============================================================================================
-// ==============================================================================================
-
 function DzGetLocale takes nothing returns string
     return BlzGetLocale()
 endfunction
@@ -60,6 +57,16 @@ function DzSetEffectScale takes effect e,real scale returns nothing
         return
     endif
     call BlzSetSpecialEffectScale(e,scale)
+endfunction
+
+function DzRemoveEffect takes effect whichEffect returns boolean
+    call BlzRemoveEffect(whichEffect)
+    return true
+endfunction
+
+function DzRemoveEffectTimed takes effect whichEffect,real time returns boolean
+    call RemoveEffectAfterTimeBJ(whichEffect,time)
+    return true
 endfunction
 
 hashtable KKN_fx_alfa = InitHashtable()

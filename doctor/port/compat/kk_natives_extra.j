@@ -1,6 +1,3 @@
-// ==============================================================================================
-// ==============================================================================================
-
 function EXDisplayChat takes player p,integer chat_recipient,string message returns nothing
     if p==null then
         return

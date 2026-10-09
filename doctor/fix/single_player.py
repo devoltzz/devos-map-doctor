@@ -22,7 +22,24 @@ LUA_FILE = 'war3map.lua'
 ENDS = {'EndGame': 'ends the game', 'EndGameBJ': 'ends the game', 'CustomVictoryBJ': 'ends the game',
         'CustomDefeatBJ': 'defeats the players', 'CustomDefeatDialogBJ': 'defeats the players',
         'MeleeDoDefeat': 'defeats the players', 'RemovePlayer': 'removes the players',
-        'RemovePlayerPreserveUnitsBJ': 'removes the players'}
+        'RemovePlayerPreserveUnitsBJ': 'removes the players', 'RestartGame': 'restarts the game',
+        'CustomRestartBJ': 'restarts the game'}
+CRASH, FREEZE = 'crashes the game', 'freezes the game'
+NO_SAVE, SAVE_FLAG = 'disables saving', 'breaks the save code'
+SP_MESSAGE = 'shows a single player message'
+PUNISH = frozenset(ENDS.values()) | frozenset((CRASH, FREEZE, NO_SAVE, SAVE_FLAG))
+TRIGGER_OFF = frozenset(('DisableTrigger', 'DestroyTrigger'))
+RX_SAVE_NAME = re.compile(r'sav(?:e|ing)|(?<!un)load', re.I)
+RX_SAVE_TEXT = re.compile(r'\bsav(?:e|ing)\b|\bload\b|存档|儲存|세이브|저장', re.I)
+D_RELOAD, D_FLAG = 'ReloadGameCachesFromDisk()', 'bj_isSinglePlayer'
+D_COUNT, D_CHEAT = 'the count of human players', 'a cheat code probe (Cheat)'
+FLAG = 'bj_isSinglePlayer'
+CMP_OPS = {'==': lambda a, b: a == b, '!=': lambda a, b: a != b, '<': lambda a, b: a < b,
+           '<=': lambda a, b: a <= b, '>': lambda a, b: a > b, '>=': lambda a, b: a >= b}
+COUNT_FORCE = frozenset(('CountPlayersInForceBJ',))
+PLAYING = 'PLAYER_SLOT_STATE_PLAYING'
+RX_ANY = re.compile(r'ReloadGameCachesFromDisk|bj_isSinglePlayer|PLAYER_SLOT_STATE_PLAYING|ConvertPlayerSlotState'
+                    r'|(?<![\w.])Cheat\s*\(')
 MESSAGES = frozenset(('DisplayTextToPlayer', 'DisplayTimedTextToPlayer', 'DisplayTextToForce',
                       'DisplayTimedTextToForce', 'DisplayTimedTextFromPlayer', 'BJDebugMsg', 'QuestMessageBJ'))
 RENAME = 'SetPlayerName'
@@ -75,14 +92,17 @@ def _jx(e):
     if t is jass_ast.Paren:
         return _jx(e.inner)
     if t is jass_ast.Unary:
-        return E('not' if e.op == 'not' else 'other', [_jx(e.operand)], node=e)
+        return E('not' if e.op == 'not' else 'other', [_jx(e.operand)], name=e.op, node=e)
     if t is jass_ast.Binary:
-        return E(e.op if e.op in ('and', 'or', '==', '!=') else 'other', [_jx(e.left), _jx(e.right)], node=e)
+        return E(e.op if e.op in ('and', 'or') or e.op in CMP_OPS else 'other', [_jx(e.left), _jx(e.right)],
+                 name=e.op, node=e)
     if t is jass_ast.Literal:
         if e.kind == 'boolean':
             return E('bool', value=e.text == 'true', node=e)
         if e.kind == 'string':
             return E('str', value=e.value, node=e)
+        if e.kind == 'integer':
+            return E('int', value=e.value, node=e)
         return E('other', node=e)
     if t is jass_ast.FuncRef:
         return E('ref', name=e.name, node=e)
@@ -141,15 +161,18 @@ def _lx(e):
     if t is lua_ast.Paren:
         return _lx(e.inner)
     if t is lua_ast.Unary:
-        return E('not' if e.op == 'not' else 'other', [_lx(e.operand)], node=e)
+        return E('not' if e.op == 'not' else 'other', [_lx(e.operand)], name=e.op, node=e)
     if t is lua_ast.Binary:
         op = '!=' if e.op == '~=' else e.op
-        return E(op if op in ('and', 'or', '==', '!=') else 'other', [_lx(e.left), _lx(e.right)], node=e)
+        return E(op if op in ('and', 'or') or op in CMP_OPS else 'other', [_lx(e.left), _lx(e.right)], name=op,
+                 node=e)
     if t is lua_ast.Literal:
         if e.kind == 'boolean':
             return E('bool', value=bool(e.value), node=e)
         if e.kind == 'string':
             return E('str', value=e.value, node=e)
+        if e.kind == 'number' and type(e.value) is int:
+            return E('int', value=e.value, node=e)
         return E('other', node=e)
     if t is lua_ast.FunctionExpr:
         return E('func', node=e, body=[_ls(x) for x in e.body])
@@ -306,13 +329,41 @@ def _exprs(e):
         stack.extend(reversed(x.kids))
 
 
+def _int(e):
+    if e.op == 'int':
+        return e.value
+    if e.op == 'other' and e.name == '-' and len(e.kids) == 1 and e.kids[0].op == 'int':
+        return -e.kids[0].value
+    return None
+
+
+def _reads_state(stmts):
+    return any(x.op == 'call' and x.name == 'GetPlayerState' for s in stmts for e in _stmt_exprs(s) for x in _exprs(e))
+
+
+WAITS = frozenset(('TriggerSleepAction', 'PolledWait', 'TriggerWaitForSound'))
+
+
+def _leaves(body, inner=False):
+    for s in body:
+        if s.op == 'return' or (s.op == 'exitwhen' and not inner):
+            return True
+        if s.op == 'call' and s.exprs and s.exprs[0].op == 'call' and s.exprs[0].name in WAITS:
+            return True
+        if s.op == 'if' and any(_leaves(b, inner) for _c, b in s.branches):
+            return True
+        if s.op == 'loop' and _leaves(s.body, True):
+            return True
+    return False
+
+
 def _exits(body):
     rest = [s for s in body if s.op != 'comment']
     return bool(rest) and rest[-1].op == 'return'
 
 
-LABEL_ORDER = ('ends the game', 'defeats the players', 'removes the players', 'renames the players',
-               'shows a single player message')
+LABEL_ORDER = ('ends the game', 'restarts the game', CRASH, FREEZE, 'defeats the players', 'removes the players',
+               NO_SAVE, SAVE_FLAG, 'renames the players', SP_MESSAGE)
 
 
 class _Analysis(object):
@@ -332,7 +383,86 @@ class _Analysis(object):
                     key = (f.name, s.name) if s.name in f.locals else s.name
                     if isinstance(key, tuple) or key in self.globals:
                         self.sets.setdefault(key, []).append((s.exprs[0] if s.exprs else None, f))
+        self._counts()
         self._aliases()
+
+    def _playing(self, e, f):
+        for x in _exprs(e):
+            if x.op == 'name' and x.name == PLAYING:
+                return True
+            if x.op == 'call':
+                if x.name == 'ConvertPlayerSlotState' and len(x.kids) == 1 and x.kids[0].op == 'int' and \
+                        x.kids[0].value == 1:
+                    return True
+                if x.name in self.slot_funcs and (f is None or x.name not in f.locals):
+                    return True
+            if x.op == 'ref' and x.name in self.slot_funcs:
+                return True
+        return False
+
+    def _count_call(self, e, f):
+        return e.op == 'call' and e.name in COUNT_FORCE and len(e.kids) == 1 and self._playing(e.kids[0], f)
+
+    def _counts(self):
+        self.slot_funcs = set()
+        for f in self.funcs.values():
+            if any(x.op == 'name' and x.name == PLAYING for s in _deep(f.body) for e in _stmt_exprs(s)
+                   for x in _exprs(e)):
+                self.slot_funcs.add(f.name)
+        kinds = {}
+
+        def walk(f, body, conds):
+            for s in body:
+                if s.op == 'if':
+                    for c, b in s.branches:
+                        walk(f, b, conds + ([c] if c is not None else []))
+                elif s.op == 'loop':
+                    walk(f, s.body, conds)
+                elif s.op in ('set', 'local') and s.exprs:
+                    key = (f.name, s.name) if s.name in f.locals else s.name
+                    v = s.exprs[0]
+                    if v.op == 'int' and v.value == 0:
+                        kind = 'zero'
+                    elif self._count_call(v, f):
+                        kind = 'count'
+                    elif v.op == 'other' and v.name == '+' and len(v.kids) == 2 and \
+                            sorted((k.op, k.name if k.op == 'name' else k.value) for k in v.kids) == \
+                            sorted((('name', s.name), ('int', 1))):
+                        kind = 'inc' if any(self._playing(c, f) for c in conds) else 'other'
+                    else:
+                        kind = 'other'
+                    kinds.setdefault(key, set()).add(kind)
+                if self.inline:
+                    for e in _stmt_exprs(s):
+                        for x in _exprs(e):
+                            if x.op == 'func':
+                                walk(f, x.body, [])
+
+        for f in self.units:
+            walk(f, f.body, [])
+        self.count_vars = set(k for k, v in kinds.items() if 'other' not in v and ('inc' in v or 'count' in v))
+
+    def _is_count(self, e, f):
+        if e.op == 'name':
+            key = (f.name, e.name) if f is not None and e.name in f.locals else e.name
+            return key in self.count_vars
+        return self._count_call(e, f)
+
+    def _count_term(self, e, f):
+        if e.op not in CMP_OPS or len(e.kids) != 2:
+            return None
+        a, b = e.kids
+        cmp = CMP_OPS[e.op]
+        if b.op == 'int' and self._is_count(a, f):
+            n = b.value
+            fn = lambda c: cmp(c, n)
+        elif a.op == 'int' and self._is_count(b, f):
+            n = a.value
+            fn = lambda c: cmp(n, c)
+        else:
+            return None
+        mp = set(fn(c) for c in range(2, 25))
+        return mp.pop() if len(mp) == 1 and fn(1) not in mp else None
 
     def term(self, e, f):
         if e.op == 'call' and not e.kids:
@@ -342,11 +472,47 @@ class _Analysis(object):
             if v is not None and (f is None or e.name not in f.locals):
                 return 'call', v
         elif e.op == 'name':
+            if e.name == FLAG and (f is None or e.name not in f.locals):
+                return 'flag', False
             key = (f.name, e.name) if f is not None and e.name in f.locals else e.name
             v = self.alias_vars.get(key)
             if v is not None:
                 return 'var', v
+        elif e.op in CMP_OPS and self.count_vars | self.slot_funcs:
+            v = self._count_term(e, f)
+            if v is not None:
+                return 'count', v
         return None
+
+    def detection(self, terms, f):
+        return ', '.join(self._detections(terms, f))
+
+    def _detections(self, terms, f, seen=None):
+        out = []
+        seen = set() if seen is None else seen
+        for x, _mp in terms:
+            kind = (self.term(x, f) or ('call',))[0]
+            if kind == 'flag':
+                ds = [D_FLAG]
+            elif kind == 'count':
+                ds = [D_COUNT]
+            elif x.op == 'call' and x.name == R_NATIVE:
+                ds = [D_RELOAD]
+            else:
+                key = x.name if kind == 'call' or x.name not in f.locals else (f.name, x.name)
+                ds = []
+                if key not in seen:
+                    seen.add(key)
+                    if kind == 'call' and x.name in self.funcs:
+                        g = self.funcs[x.name]
+                        src = [(e, g) for s in _deep(g.body) if s.op == 'return' for e in s.exprs]
+                    else:
+                        src = [(e, g) for e, g in self.sets.get(key, ()) if e is not None]
+                    for e, g in src:
+                        ds += [d for d in self._detections(self.terms_in(e, g), g, seen) if d not in ds]
+                ds = ds or [D_RELOAD]
+            out += [d for d in ds if d not in out]
+        return out
 
     def terms_in(self, e, f):
         out = []
@@ -365,7 +531,7 @@ class _Analysis(object):
         if t is not None:
             if not sp:
                 return t[1]
-            return (not t[1]) if t[0] == 'call' else None
+            return None if t[0] == 'var' else (not t[1])
         op = e.op
         if op == 'bool':
             return e.value
@@ -465,7 +631,29 @@ class _Analysis(object):
         for f in self.units:
             if f.name not in self.alias_funcs:
                 self._scan_body(f, f.body, [], sites, others)
+        self._probes(sites)
         return sites, others
+
+    def _probes(self, sites):
+        for f in self.units:
+            flat = list(_deep(f.body, inline=self.inline))
+            for i, s in enumerate(flat):
+                c = s.exprs[0] if s.op == 'call' and s.exprs else None
+                if c is None or c.op != 'call' or c.name != 'Cheat' or len(c.kids) != 1 or c.name in f.locals:
+                    continue
+                arg = c.kids[0]
+                if arg.op == 'call' and arg.name == 'SubString' and len(arg.kids) == 3 and \
+                        _int(arg.kids[1]) == 0 and _int(arg.kids[2]) == 0:
+                    continue
+                t = self._text(arg)
+                if t is not None and t.strip().lower().startswith('exec-lua'):
+                    continue
+                if not (_reads_state(flat[:i]) and _reads_state(flat[i + 1:])):
+                    continue
+                labels = self._locks([flat[i + 1:]], f)
+                if labels & PUNISH:
+                    sites.append({'function': f.name, 'line': s.line, 'detection': D_CHEAT,
+                                  'what': ', '.join(lb for lb in LABEL_ORDER if lb in labels), '_cheat': s})
 
     def _scan_body(self, f, body, path, sites, others):
         for k, s in enumerate(body):
@@ -481,7 +669,9 @@ class _Analysis(object):
                           x.name in self.alias_funcs and x.name not in f.locals]
                 if found and not self._alias_use(f, s):
                     bare = s.op == 'call' and s.exprs[0].op == 'call' and s.exprs[0].name == R_NATIVE
-                    others.append({'function': f.name, 'line': s.line, 'kind': 'reload' if bare else 'unfollowed'})
+                    others.append({'function': f.name, 'line': s.line, 'kind': 'reload' if bare else 'unfollowed',
+                                   'detection': ', '.join(self._detections(
+                                       [t for t in found if isinstance(t, tuple)], f)) or D_RELOAD})
             for b in _stmt_bodies(s):
                 self._scan_body(f, b, here, sites, others)
             if self.inline:
@@ -492,6 +682,8 @@ class _Analysis(object):
 
     def _alias_use(self, f, s):
         if s.op in ('set', 'local'):
+            if s.name == FLAG and s.name not in f.locals:
+                return True
             return ((f.name, s.name) if s.name in f.locals else s.name) in self.alias_vars
         return s.op == 'return' and f.name in self.alias_funcs
 
@@ -523,17 +715,24 @@ class _Analysis(object):
         if mp_live and all(_exits(b) for b in mp_live) and any(not _exits(b) for b in sp_live):
             body, k = path[-1]
             regions.append(body[k + 1:])
-        use = {'function': f.name, 'line': s.line}
+        found = self._detections([t for _i, ts in terms for t in ts], f)
+        use = {'function': f.name, 'line': s.line, 'detection': ', '.join(found)}
         if not regions:
             use['kind'] = 'branch' if tsp == tmp else 'unfollowed'
             others.append(use)
             return
         labels = self._locks(regions, f)
-        if any(lb in ENDS.values() for lb in labels) or (self._only_message(regions, f) and self._lock_message):
-            use.update({'what': ', '.join(lb for lb in LABEL_ORDER if lb in labels), '_stmt': s, '_terms': terms})
+        what = ', '.join(lb for lb in LABEL_ORDER if lb in labels)
+        lock = bool(labels & PUNISH) or (self._only_message(regions, f) and self._lock_message)
+        if lock and found == [D_COUNT] and not labels & set((SP_MESSAGE, CRASH, FREEZE)):
+            lock = False
+        if lock:
+            use.update({'what': what, '_stmt': s, '_terms': terms})
             sites.append(use)
         else:
             use['kind'] = 'branch'
+            if what:
+                use['what'] = what
             others.append(use)
 
     def _text(self, e):
@@ -546,6 +745,7 @@ class _Analysis(object):
         labels = set()
         self._lock_message = False
         seen = set()
+        off, save_text = [], []
 
         def follow(name, depth):
             if depth < FOLLOW_DEPTH and name in self.funcs and name not in seen:
@@ -554,18 +754,28 @@ class _Analysis(object):
 
         def visit(body, depth, fn):
             for st in _deep(body):
+                if st.op == 'set' and st.name not in fn.locals and RX_SAVE_NAME.search(st.name):
+                    labels.add(SAVE_FLAG)
+                elif st.op == 'loop' and self.lang == 'jass' and not _leaves(st.body):
+                    labels.add(FREEZE)
                 for e in _stmt_exprs(st):
                     for x in _exprs(e):
                         if x.op == 'call':
                             if x.name in ENDS:
                                 labels.add(ENDS[x.name])
+                            elif x.name == 'Player' and len(x.kids) == 1 and (_int(x.kids[0]) or 0) < 0:
+                                labels.add(CRASH)
+                            elif x.name in TRIGGER_OFF and len(x.kids) == 1 and x.kids[0].op == 'name':
+                                off.append(x.kids[0].name)
                             elif x.name == RENAME:
                                 labels.add('renames the players')
                             elif x.name in MESSAGES:
                                 for a in x.kids:
                                     t = self._text(a)
+                                    if t and RX_SAVE_TEXT.search(t):
+                                        save_text.append(t)
                                     if t and RX_SINGLE.search(t):
-                                        labels.add('shows a single player message')
+                                        labels.add(SP_MESSAGE)
                                         self._lock_message = self._lock_message or bool(RX_LOCK_MESSAGE.search(t))
                             elif x.name in EXECUTORS and x.kids and x.kids[0].op == 'name':
                                 for target in self.triggers.get(x.kids[0].name, ()):
@@ -581,9 +791,15 @@ class _Analysis(object):
                             follow(x.name, depth)
                         elif x.op == 'func':
                             visit(x.body, depth, fn)
+                        elif x.op == 'other' and x.name == '/' and len(x.kids) == 2 and _int(x.kids[1]) == 0:
+                            labels.add(CRASH)
 
         for b in regions:
             visit(b, 0, f)
+        for name in off:
+            actions = [a for a in self.triggers.get(name, ()) if isinstance(a, str)]
+            if save_text or RX_SAVE_NAME.search(name) or any(RX_SAVE_NAME.search(a) for a in actions):
+                labels.add(NO_SAVE)
         return labels
 
     def _only_message(self, regions, f):
@@ -610,7 +826,7 @@ def _result(language=None, file=None):
 
 def _analyze(text, language, strings=None, tree=None):
     res = _result(language)
-    if R_NATIVE not in text:
+    if not RX_ANY.search(text):
         return res, [], tree
     try:
         if tree is None:
@@ -621,10 +837,11 @@ def _analyze(text, language, strings=None, tree=None):
         return res, [], None
     an = _Analysis(ir, language, strings)
     sites, others = an.scan()
+    sites.sort(key=lambda x: x['line'])
     res['sites'] = [dict((k, v) for k, v in x.items() if not k.startswith('_')) for x in sites]
     res['other_uses'] = others
     res['found'] = bool(sites)
-    if sites and re.search(r'(?<![\w.])Cheat\s*\(', text):
+    if sites and not any('_cheat' in x for x in sites) and re.search(r'(?<![\w.])Cheat\s*\(', text):
         res['notes'].append('The script also calls Cheat(), another test that works only in single player; it is '
                             'left as it is.')
     return res, sites, tree
@@ -695,31 +912,133 @@ def _wrapped(term_text, mp):
     return '(' + term_text + (' or true)' if mp else ' and false)')
 
 
-def _jass_spans(line, terms):
-    spans, pos = [], 0
+def _emptied(code_text):
+    return 'SubString(' + code_text + ',0,0)'
+
+
+def _jass_toks(e):
+    t = type(e)
+    if t is jass_ast.Name:
+        return [e.name]
+    if t is jass_ast.Literal:
+        return [e.text]
+    if t is jass_ast.FuncRef:
+        return ['function', e.name]
+    if t is jass_ast.Paren:
+        x = _jass_toks(e.inner)
+        return None if x is None else ['('] + x + [')']
+    if t is jass_ast.Unary:
+        x = _jass_toks(e.operand)
+        return None if x is None else [e.op] + x
+    if t is jass_ast.Binary:
+        a, b = _jass_toks(e.left), _jass_toks(e.right)
+        return None if a is None or b is None else a + [e.op] + b
+    if t is jass_ast.Call:
+        out = [e.name, '(']
+        for k, a in enumerate(e.args):
+            x = _jass_toks(a)
+            if x is None:
+                return None
+            out += ([','] if k else []) + x
+        return out + [')']
+    if t is jass_ast.Index:
+        x = _jass_toks(e.index)
+        base = e.base.name if type(e.base) is jass_ast.Name else e.base
+        return None if x is None or not isinstance(base, str) else [base, '['] + x + [']']
+    return None
+
+
+def _lua_toks(e):
+    t = type(e)
+    if t is lua_ast.Name:
+        return [e.name]
+    if t is lua_ast.Literal:
+        return None if e.text is None else [e.text]
+    if t is lua_ast.Paren:
+        x = _lua_toks(e.inner)
+        return None if x is None else ['('] + x + [')']
+    if t is lua_ast.Unary:
+        x = _lua_toks(e.operand)
+        return None if x is None else [e.op] + x
+    if t is lua_ast.Binary:
+        a, b = _lua_toks(e.left), _lua_toks(e.right)
+        return None if a is None or b is None else a + [e.op] + b
+    if t is lua_ast.Call:
+        out = None if e.method is not None else _lua_toks(e.func)
+        if out is None:
+            return None
+        out = out + ['(']
+        for k, a in enumerate(e.args):
+            x = _lua_toks(a)
+            if x is None:
+                return None
+            out += ([','] if k else []) + x
+        return out + [')']
+    if t is lua_ast.Index:
+        b = _lua_toks(e.base)
+        if b is None:
+            return None
+        if e.dot:
+            return b + ['.', e.key.value] if isinstance(e.key.value, str) else None
+        k = _lua_toks(e.key)
+        return None if k is None else b + ['['] + k + [']']
+    return None
+
+
+def _find_seq(toks, seq, start, stop):
+    n = len(seq)
+    for j in range(start, stop - n + 1):
+        if all(toks[j + k][0] == seq[k] for k in range(n)):
+            if n == 1 and j + 1 < len(toks) and (toks[j + 1][0] in ('(', '[', '.', ':') or
+                                                 toks[j + 1][0][:1] in ('"', "'", '{')):
+                continue
+            if j > 0 and toks[j - 1][0] in ('.', ':'):
+                continue
+            return j
+    return -1
+
+
+def _call_args(toks, start, stop, name='Cheat'):
+    for j in range(start, stop - 1):
+        if toks[j][0] == name and toks[j + 1][0] == '(' and (j == 0 or toks[j - 1][0] not in ('function', '.', ':')):
+            depth = 0
+            for k in range(j + 1, stop):
+                if toks[k][0] == '(':
+                    depth += 1
+                elif toks[k][0] == ')':
+                    depth -= 1
+                    if depth == 0:
+                        return (j + 2, k - 1) if k > j + 2 else None
+            return None
+    return None
+
+
+def _jass_tokens(line):
+    out, pos = [], 0
     for tok in jass_ast.tokenize(line):
-        while pos < len(line) and line[pos] in ' \t\ufeff':
+        while pos < len(line) and line[pos] in ' \t﻿':
             pos += 1
         if not line.startswith(tok, pos):
             return None
-        spans.append((tok, pos))
+        out.append((tok, pos, pos + len(tok)))
         pos += len(tok)
-    words = [t for t, _p in spans]
+    return out
+
+
+def _jass_spans(line, terms):
+    toks = _jass_tokens(line)
+    words = [t for t, _s, _e in toks or ()]
     if not words or words[0] not in ('if', 'elseif') or 'then' not in words:
         return None
-    cond = spans[1:words.index('then')]
-    names = set(x.name for x, _mp in terms)
-    found = []
-    for i, (tok, p) in enumerate(cond):
-        if tok in names:
-            nxt = [t for t, _p in cond[i + 1:i + 3]]
-            if nxt == ['(', ')']:
-                found.append((tok, 'call', p, cond[i + 2][1] + 1))
-            elif not nxt or nxt[0] not in ('(', '['):
-                found.append((tok, 'name', p, p + len(tok)))
-    if [(n, o) for n, o, _s, _e in found] != [(x.name, x.op) for x, _mp in terms]:
-        return None
-    return [(s, e, mp) for (_n, _o, s, e), (_x, mp) in zip(found, terms)]
+    stop, cur, spans = words.index('then'), 1, []
+    for x, mp in terms:
+        seq = _jass_toks(x.node)
+        j = -1 if seq is None else _find_seq(toks, seq, cur, stop)
+        if j < 0:
+            return None
+        spans.append((toks[j][1], toks[j + len(seq) - 1][2], mp))
+        cur = j + len(seq)
+    return spans
 
 
 def _patch_jass(text, sites):
@@ -727,6 +1046,14 @@ def _patch_jass(text, sites):
     lines = parts[0::2]
     edits = {}
     for site in sites:
+        if '_cheat' in site:
+            ln = site['_cheat'].line
+            toks = _jass_tokens(lines[ln - 1]) if 0 < ln <= len(lines) else None
+            args = _call_args(toks, 0, len(toks)) if toks else None
+            if args is None:
+                raise _Refused('The Cheat call at line %d could not be matched to its text.' % ln)
+            edits.setdefault(ln - 1, (site['function'], []))[1].append((toks[args[0]][1], toks[args[1]][2], None))
+            continue
         node = site['_stmt'].node
         for k, terms in site['_terms']:
             ln = node.branch_lines[k]
@@ -739,7 +1066,8 @@ def _patch_jass(text, sites):
         fn, spans = edits[i]
         before = line = lines[i]
         for start, end, mp in sorted(spans, reverse=True):
-            line = line[:start] + _wrapped(line[start:end], mp) + line[end:]
+            line = line[:start] + (_emptied(line[start:end]) if mp is None else _wrapped(line[start:end], mp)) + \
+                line[end:]
         lines[i] = line
         changes.append({'function': fn, 'line': i + 1, 'before': before.strip(), 'after': line.strip()})
     parts[0::2] = lines
@@ -775,33 +1103,46 @@ def _lua_conditions(kinds, texts, offs, start, end):
 
 def _patch_lua(text, sites):
     kinds, texts, lines, offs = lua_ast._lex(text)[:4]
+    toks = [(t, o, o + len(t)) for t, o in zip(texts, offs)]
     edits, changes = [], []
     for site in sites:
+        if '_cheat' in site:
+            node = site['_cheat'].node
+            a = bisect.bisect_left(offs, node.span[0]) if node.span else 0
+            b = bisect.bisect_left(offs, node.span[1]) if node.span else 0
+            args = _call_args(toks, a, b)
+            if args is None or any(text[s:e] != t for t, s, e in toks[args[0]:args[1] + 1]):
+                raise _Refused('The Cheat call at line %d could not be matched to its text.' % node.line)
+            edits.append((toks[args[0]][1], toks[args[1]][2], None, site['function'], lines[args[0]]))
+            continue
         node = site['_stmt'].node
         ranges = _lua_conditions(kinds, texts, offs, node.span[0], node.span[1]) if node.span else None
         if ranges is None or len(ranges) != len(node.branches):
             raise _Refused('The condition at line %d could not be matched to its text.' % node.line)
         for k, terms in site['_terms']:
             a, b = ranges[k]
-            names = set(x.name for x, _mp in terms)
-            found = []
-            for j in range(a, b):
-                if kinds[j] != 'NAME' or texts[j] not in names or (j > 0 and texts[j - 1] in ('.', ':')):
-                    continue
-                if texts[j + 1] == '(' and texts[j + 2] == ')':
-                    found.append((texts[j], 'call', offs[j], offs[j + 2] + 1))
-                elif texts[j + 1] not in ('(', '.', ':', '[', '{') and kinds[j + 1] != 'STRING':
-                    found.append((texts[j], 'name', offs[j], offs[j] + len(texts[j])))
-            if [(n, o) for n, o, _s, _e in found] != [(x.name, x.op) for x, _mp in terms]:
-                raise _Refused('The condition at line %d could not be matched to its text.' % lines[a])
-            for (_n, _o, s, e), (_x, mp) in zip(found, terms):
-                edits.append((s, e, mp, site['function'], lines[a]))
+            cur = a
+            for x, mp in terms:
+                seq = _lua_toks(x.node)
+                j = -1 if seq is None else _find_seq(toks, seq, cur, b)
+                if j < 0 or any(text[s:e] != t for t, s, e in toks[j:j + len(seq)]):
+                    raise _Refused('The condition at line %d could not be matched to its text.' % lines[a])
+                edits.append((toks[j][1], toks[j + len(seq) - 1][2], mp, site['function'], lines[a]))
+                cur = j + len(seq)
     out = text
     for s, e, mp, _fn, _ln in sorted(edits, reverse=True):
-        out = out[:s] + _wrapped(out[s:e], mp) + out[e:]
+        out = out[:s] + (_emptied(out[s:e]) if mp is None else _wrapped(out[s:e], mp)) + out[e:]
     for s, e, mp, fn, ln in sorted(edits):
-        changes.append({'function': fn, 'line': ln, 'before': text[s:e], 'after': _wrapped(text[s:e], mp)})
+        changes.append({'function': fn, 'line': ln, 'before': text[s:e],
+                        'after': _emptied(text[s:e]) if mp is None else _wrapped(text[s:e], mp)})
     return out, changes
+
+
+def _emptied_node(e, lang):
+    if lang == 'jass':
+        return jass_ast.Call('SubString', [e, jass_ast.Literal('integer', '0'), jass_ast.Literal('integer', '0')])
+    return lua_ast.Call(lua_ast.Name('SubString'), [e, lua_ast.Literal('number', '0', 0),
+                                                    lua_ast.Literal('number', '0', 0)])
 
 
 def _wrap_nodes(e, targets, lang):
@@ -866,6 +1207,10 @@ def _change(text, language, sites, tree, strings):
     except (jass_ast.JassSyntaxError, lua_ast.LuaSyntaxError) as e:
         raise _Refused('The changed script does not parse (%s).' % e)
     for site in sites:
+        if '_cheat' in site:
+            call = site['_cheat'].node.call
+            call.args[0] = _emptied_node(call.args[0], language)
+            continue
         node = site['_stmt'].node
         targets = dict((id(x.node), mp) for _k, terms in site['_terms'] for x, mp in terms)
         node.branches[:] = [(c if c is None else _wrap_nodes(c, targets, language), b) for c, b in node.branches]
@@ -875,8 +1220,9 @@ def _change(text, language, sites, tree, strings):
     again = _analyze(new, language, strings, new_tree)[0]
     if again['found'] or again['reason']:
         raise _Refused('The changed script still ends the game in single player.')
-    proof = {'parses': True, 'same_tree': True, 'sites_left': 0, 'terms': sum(len(t) for s in sites
-                                                                             for _k, t in s['_terms'])}
+    proof = {'parses': True, 'same_tree': True, 'sites_left': 0,
+             'terms': sum(len(t) for s in sites for _k, t in s.get('_terms', ())),
+             'cheat_codes': sum(1 for s in sites if '_cheat' in s)}
     if language == 'jass':
         old_lines, new_lines = re.split(r'\r\n|\r|\n', text), re.split(r'\r\n|\r|\n', new)
         moved = [i + 1 for i, (x, y) in enumerate(zip(old_lines, new_lines)) if x != y]

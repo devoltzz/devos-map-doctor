@@ -1,10 +1,4 @@
 # Serves a built site on this computer with the headers of the real host, for testing.
-"""serve_dev.py - the site served on this computer the way devo-site serves it: the same headers (deploy/headers.conf,
-the Content-Security-Policy included), /data/ from the game data folder, the types of .wasm, .mjs and .webmanifest.
-For testing a build before a release; it listens on 127.0.0.1 only.
-
-  python web/serve_dev.py --site=<built site> [--data=<folder with game_data.zip>] [--port=8616]
-"""
 import functools
 import http.server
 import os
@@ -41,10 +35,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         pass
 
 
+USAGE = 'usage: python web/serve_dev.py --site=<built site> [--data=<folder with game_data.zip>] [--port=8616]'
+
+
 def main(argv):
     op = dict((a[2:].split('=', 1) + [''])[:2] for a in argv if a.startswith('--'))
     if not op.get('site'):
-        print(__doc__)
+        print(USAGE)
         return 2
     Handler.data = os.path.abspath(op['data']) if op.get('data') else None
     port = int(op.get('port') or 8616)

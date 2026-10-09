@@ -64,6 +64,8 @@ def escape_char(ch, controle=False):
             return {b'\n': '\\n', b'\r': '\\r', b'\t': '\\t'}[b]
         return None
     if b[0] < 32 or b[0] == 127:
+        if controle and b[0] != 0:
+            return b.decode('latin-1')
         return None
     return b.decode('latin-1')
 

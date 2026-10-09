@@ -1,5 +1,6 @@
 # Writes the script the World Editor generates from the map files, and fits the custom script to it.
 import collections
+import decimal
 import math
 import os
 import re
@@ -242,8 +243,17 @@ class Style(object):
         self.camera_depth = e >= 6117
 
 
+EMPATE_PAR = [False]
+EDITOR_EMPATE_PAR = 6116
+
+
 def real(v, digits=1):
-    return '%.*f' % (digits, v)
+    if EMPATE_PAR[0]:
+        return '%.*f' % (digits, v)
+    try:
+        return str(decimal.Decimal(v).quantize(decimal.Decimal(1).scaleb(-digits), rounding=decimal.ROUND_HALF_UP))
+    except (decimal.InvalidOperation, ValueError, TypeError):
+        return '%.*f' % (digits, v)
 
 
 def rawcode(b):
@@ -390,9 +400,10 @@ class GameData(object):
                                          ('aoru', 'unorder')):
                             if isinstance(fields.get(mid), bytes):
                                 base[key] = fields[mid].decode('latin-1')
+                                base['__mapa__'] = tuple(set(base.get('__mapa__', ())) | {key})
                         self.orders[ident] = base
                     else:
-                        building = self.units.get(ident, self.units.get(old, units.get(old)))
+                        building = self.units.get(ident, units.get(old))
                         if 'ubdg' in number:
                             building = number['ubdg'] != 0
                         color = list(self.colors.get(ident) or colors.get(old, (-1, 0)))
@@ -567,7 +578,7 @@ def render_regions(regions, st, terrain=None):
             cx, cy = (l + r) / 2.0, (b + t) / 2.0
             z = terrain.height(cx, cy) if terrain is not None else 0.0
             name = sound.decode('latin-1')
-            body.append(_call('SetSoundPosition', name, real(cx), real(cy), real(z)))
+            body.append(_call('SetSoundPosition', name, real(cx), real(cy), '%.1f' % z))
             body.append(_call('RegisterStackedSound', name, 'true', real(r - l), real(t - b)))
     return _function('CreateRegions', body, ('weathereffect we',))
 
@@ -817,21 +828,31 @@ def _ability_lines(var, abilities, game, hero=False):
             out.append(_call('SelectHeroSkill', var, rawcode(hid)))
         if hero and not level:
             continue
-        orders = (game.ability_orders(game.base(hid)) if game is not None else None) or {}
-        order = (orders.get('orderon') or orders.get('order')) if autocast else orders.get('orderoff')
-        if order:
+        orders = ((game.ability_orders(hid) or game.ability_orders(game.base(hid))) if game is not None else None) or {}
+        key = ('orderon' if orders.get('orderon') or 'orderon' in orders.get('__mapa__', ()) else 'order') \
+            if autocast else 'orderoff'
+        order = orders.get(key)
+        if order is None and not autocast and game is not None and hid in game.orders and game.base(hid) != hid:
+            order = ''
+            orders = dict(orders, __mapa__=tuple(orders.get('__mapa__', ())) + (key,))
+        if order or (order == '' and key in orders.get('__mapa__', ())):
             out.append(_call('IssueImmediateOrder', var, '"%s"' % order))
     return out
 
 
-def unit_color(u, game):
-    tc = game.team_color(game.base(u['ident'])) if game is not None else None
+def unit_color(u, game, so_mapa=False):
+    if so_mapa:
+        tc = game.colors.get(u['ident']) if game is not None else None
+        if tc is None:
+            return u['color']
+        return u['color'] if tc[1] and u['color'] != -1 else tc[0]
+    tc = (game.team_color(u['ident']) or game.team_color(game.base(u['ident']))) if game is not None else None
     if tc is None:
         return u['color']
-    return u['color'] if tc[1] else tc[0]
+    return u['color'] if tc[1] and u['color'] != -1 else tc[0]
 
 
-def unit_statements(u, index, referenced, regions, st, game=None):
+def unit_statements(u, index, referenced, regions, st, game=None, neutral_base=None):
     var = unit_var(u, referenced)
     out = []
     x, y, face = real(u['xyz'][0]), real(u['xyz'][1]), degrees(u['angle'])
@@ -887,8 +908,9 @@ def unit_statements(u, index, referenced, regions, st, game=None):
             out.append(_call('WaygateSetDestination', var, 'GetRectCenterX(%s)' % target,
                              'GetRectCenterY(%s)' % target))
             out.append(_call('WaygateActivate', var, 'true'))
-    color = unit_color(u, game if st.skins else None)
-    if color != -1 and color != u['owner']:
+    color = unit_color(u, game, so_mapa=not st.skins)
+    dono = u['owner'] + 12 if neutral_base == 12 and u['owner'] >= 12 else u['owner']
+    if color != -1 and color != dono:
         out.append(_call('SetUnitColor', var, 'ConvertPlayerColor(%d)' % color))
     if u['itp'] != -1:
         out += _drop_trigger(var, 'ItemTable%06d_DropItems' % u['itp'], 'TriggerRegisterUnitEvent')
@@ -906,11 +928,11 @@ def _signed24(v):
 UNIT_LOCALS = ('unit u', 'integer unitID', 'trigger t', 'real life')
 
 
-def _player_function(name, player, units, referenced, regions, st, game=None):
+def _player_function(name, player, units, referenced, regions, st, game=None, neutral_base=None):
     body = ['']
     owner = 'Player(%s)' % player
     for index, u in sorted(units, key=lambda iu: iu[1]['creation']):
-        body += unit_statements(u, index, referenced, regions, st, game)
+        body += unit_statements(u, index, referenced, regions, st, game, neutral_base)
     return _function(name, body, ('player p = %s' % owner,) + UNIT_LOCALS)
 
 
@@ -949,13 +971,15 @@ def render_units(records, referenced, regions, st, game, neutral_base, hints=Non
         for building in (True, False):
             if (p, building) in groups:
                 name = ('CreateBuildingsForPlayer%d' if building else 'CreateUnitsForPlayer%d') % p
-                out.append((name, _player_function(name, p, groups[(p, building)], referenced, regions, st, game)))
+                out.append((name, _player_function(name, p, groups[(p, building)], referenced, regions, st, game,
+                                                   neutral_base)))
     for key, name, player in ((('hostile', True), 'CreateNeutralHostileBuildings', NEUTRAL_HOSTILE),
                               (('hostile', False), 'CreateNeutralHostile', NEUTRAL_HOSTILE),
                               (('passive', True), 'CreateNeutralPassiveBuildings', NEUTRAL_PASSIVE),
                               (('passive', False), 'CreateNeutralPassive', NEUTRAL_PASSIVE)):
         if key in groups:
-            out.append((name, _player_function(name, player, groups[key], referenced, regions, st, game)))
+            out.append((name, _player_function(name, player, groups[key], referenced, regions, st, game,
+                                               neutral_base)))
     names = dict(out)
     pb = [_call('CreateBuildingsForPlayer%d' % p) for p in seen if 'CreateBuildingsForPlayer%d' % p in names]
     pu = [_call('CreateUnitsForPlayer%d' % p) for p in seen if 'CreateUnitsForPlayer%d' % p in names]
@@ -1036,7 +1060,8 @@ def render_player_slots(w3i_, st):
         body.append(_call('SetPlayerRacePreference', n, RACES.get(p['race'], 'RACE_PREF_RANDOM')))
         if st.race_skin:
             body.append(_call('SetPlayerRaceSkin', n, 'RACE_PREF_USER_SELECTABLE'))
-        body.append(_call('SetPlayerRaceSelectable', n, _bool(p['race'] == 0 or p['fixed_start'] & 2)))
+        body.append(_call('SetPlayerRaceSelectable', n, _bool(p['race'] == 0 or p['fixed_start'] & 2 or
+                                                              not (w3i_.get('flags', 0) & 0x40))))
         body.append(_call('SetPlayerController', n, CONTROLLERS.get(p['type'], 'MAP_CONTROL_USER')))
         if p['type'] == 4:
             for q in w3i_['players']:
@@ -1081,10 +1106,10 @@ def render_teams(w3i_, st):
 def ally_priority_lines(w3i_):
     players = w3i_['players']
     body = []
-    for count_fn, prio_fn, low, high in (('SetStartLocPrioCount', 'SetStartLocPrio', 'ally_low', 'ally_high'),
-                                         ('SetEnemyStartLocPrioCount', 'SetEnemyStartLocPrio', 'enemy_low',
-                                          'enemy_high')):
-        for k, p in enumerate(players):
+    for k, p in enumerate(players):
+        for count_fn, prio_fn, low, high in (('SetStartLocPrioCount', 'SetStartLocPrio', 'ally_low', 'ally_high'),
+                                             ('SetEnemyStartLocPrioCount', 'SetEnemyStartLocPrio', 'enemy_low',
+                                              'enemy_high')):
             named = [(j, q) for j, q in enumerate(players) if (p[low] | p[high]) & (1 << q['number'])]
             if not named:
                 continue
@@ -1266,18 +1291,33 @@ def _triggers(files, td, mt, texts, header):
         return mt, texts, header
     from doctor.triggers import wtg
     try:
-        mt = wtg.read_wtg(files['war3map.wtg'], td)
+        mt = wtg.read_wtg(files['war3map.wtg'], td, script_fallback=True)
         ct = wtg.read_wct(files['war3map.wct']) if files.get('war3map.wct') else None
         texts = wtg.trigger_texts(mt, ct) if ct is not None else [None] * len(mt.triggers)
         if header is None and ct is not None:
             header = ct.header
         if mt.sub_version is not None:
             names = _trigger_globals(mt, td)
-            mt = wtg.to_classic(mt)
+            mt, texts = _classico(mt, texts)
             mt.trigger_globals = names
     except Exception:
         return None, None, header
     return mt, texts, header
+
+
+def _classico(mt, texts):
+    from doctor.triggers import wtg
+    por_obj = dict((id(t), tx) for t, tx in zip(mt.triggers, texts or ()))
+    ordem = [(c, item) for c, item, _p in wtg.tree(mt) if c in (wtg.GUI, wtg.COMMENT, wtg.SCRIPT)]
+    novo = wtg.to_classic(mt)
+    novo.tree_order = True
+    alinhados = [por_obj.get(id(item)) for _c, item in ordem]
+    if len(alinhados) != len(novo.triggers):
+        return novo, [None] * len(novo.triggers)
+    for (c, _item), t in zip(ordem, novo.triggers):
+        if c == wtg.SCRIPT:
+            t.script_item = True
+    return novo, alinhados
 
 
 def _trigger_globals(mt, td):
@@ -1291,7 +1331,7 @@ def _items_and_units(records, game):
         if is_item is None:
             is_item = u['gold'] == 0 and u['acq'] == 0.0 and u['level'] == 0 and u['ident'] != b'sloc'
         marked.append(dict(u, item=bool(is_item)))
-    return marked, [u for u in marked if u['item']], [u for u in marked if not u['item']]
+    return marked, [u for u in marked if u['item']], [u for u in marked if not u['item'] and u['ident'] != b'sloc']
 
 
 def render(files, td=None, editor=None, game=None, mt=None, texts=None, durations=None, hints=None, header=None):
@@ -1301,6 +1341,7 @@ def render(files, td=None, editor=None, game=None, mt=None, texts=None, duration
     except (KeyError, Unreadable):
         pass
     st = Style(editor or (w3i_ or {}).get('editor_version'))
+    EMPATE_PAR[0] = (editor or (w3i_ or {}).get('editor_version') or 0) >= EDITOR_EMPATE_PAR
     out = Rendering(st)
     if w3i_ is None:
         out.unknown['w3i'] = 'war3map.w3i unreadable'
@@ -1399,7 +1440,7 @@ def render(files, td=None, editor=None, game=None, mt=None, texts=None, duration
     if cameras:
         out.add('CreateCameras', render_cameras(cameras, st))
     if mt is not None:
-        out.add('InitCustomTriggers', gui_render.render_init_custom_triggers(mt, 'jass', True))
+        out.add('InitCustomTriggers', gui_render.render_init_custom_triggers(mt, 'jass', True, texts=texts))
         rit = gui_render.render_run_initialization_triggers(mt, 'jass', True)
         if rit:
             out.add('RunInitializationTriggers', rit)
@@ -1451,12 +1492,29 @@ def same_function(rendered, original, rendered_all=None, original_all=None, name
     b = canonical_function(original, original_all)
     if a == b:
         return True
+    if name == 'main':
+        sem = RX_MAIN_JASSHELPER.sub('', original)
+        if sem != original and canonical_function(sem, original_all) == a:
+            return True
+    if 'l__' in original:
+        sem = re.sub(r'\bl__(\w+)', r'\1', original)
+        if canonical_function(sem, original_all) == a:
+            return True
+    if name == 'InitCustomTriggers' and '// INLINED!!' in original and original_all:
+        if canonical_function(rendered, original_all) == b:
+            return True
     if name in ('CreateAllDestructables', 'CreateAllItems'):
         rx = RX_DEST_BLOCK if name == 'CreateAllDestructables' else RX_ITEM_BLOCK
         ha, ga, oa = _destructable_blocks(a, rx)
         hb, gb, ob = _destructable_blocks(b, rx)
         return ha == hb and ga == gb and _runs(oa) == _runs(ob)
     return False
+
+
+RX_MAIN_JASSHELPER = re.compile(
+    r'(?m)^(?:[ \t]*call[ \t]+(?:ExecuteFunc[ \t]*\([ \t]*"\w+"[ \t]*\)|\w+__\w+[ \t]*\([ \t]*\))'
+    r'[ \t]*|call[ \t][^\n]*)\n'
+)
 
 
 def _runs(ids):
@@ -1471,6 +1529,16 @@ def family(name):
     return re.sub(r'\d+', 'N', name)
 
 
+EDITOR_CONFIG = frozenset(('DefineStartLocation', 'InitAllyPriorities', 'InitCustomPlayerSlots', 'InitCustomTeams',
+                           'InitGenericPlayerSlots', 'SetGamePlacement', 'SetMapDescription', 'SetMapName',
+                           'SetPlayerSlotAvailable', 'SetPlayers', 'SetTeams'))
+
+
+def _config_editado(texto):
+    chamadas = set(re.findall(r'(?m)^\s*call\s+(\w+)\s*\(', re.sub(r'//[^\n]*', '', texto or '')))
+    return bool(chamadas - EDITOR_CONFIG)
+
+
 def compare(rendering, script):
     if isinstance(script, bytes):
         script = script.decode('utf-8', 'surrogateescape')
@@ -1483,6 +1551,8 @@ def compare(rendering, script):
             out[name] = 'missing'
         else:
             out[name] = 'equal' if same_function(text, theirs[name], mine, theirs, name) else 'differs'
+            if out[name] == 'differs' and name == 'config' and _config_editado(theirs[name]):
+                out[name] = 'edited'
     return out
 
 

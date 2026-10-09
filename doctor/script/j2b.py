@@ -1,4 +1,7 @@
 # Decrypts war3map.bin, the map script as encrypted bytecode (the j2b protection).
+import bz2
+import hashlib
+import re
 import struct
 
 from doctor.script import kkwe
@@ -6,6 +9,9 @@ from doctor.script import kkwe
 
 MAGIC = b'2SAJ'
 HEADER = 12
+HEADER_3RAW = 16
+DELTA = 0x9E3779B9
+_HIDDEN_CALL = b'\x00\x00\x00\x24'
 TABLE = bytes.fromhex(
     '8e142799fdaac708d5e63e1ff6bb55da75a04a6ae8bd97ffde9bbc9f818aa146'
     '6e0be363767a6c5d88d369cac347b92583aba23fa6417cbae5ac95017ecf09c1'
@@ -25,8 +31,11 @@ class J2bError(ValueError):
     pass
 
 
+MAGIC_PLAIN = b'SSAJ'
+
+
 def is_j2b(data):
-    return data[:4] == MAGIC and len(data) >= HEADER
+    return data[:4] in (MAGIC, MAGIC_PLAIN) and len(data) >= HEADER
 
 
 def _rol(value, bits):
@@ -90,9 +99,85 @@ def _xor(body, seed1, seed2):
                                                                                         'little')[:len(body)]
 
 
+def is_3raw(data):
+    return (data[:4] == MAGIC and len(data) >= HEADER_3RAW + 8 and (len(data) - HEADER_3RAW) % 4 == 0
+            and struct.unpack_from('<I', data, 12)[0] == len(data) - HEADER_3RAW)
+
+
+def _key_3raw(value):
+    return struct.unpack('<4I', hashlib.md5(str(value).encode()).hexdigest()[:16].encode())
+
+
+def _xxtea(v, k, decrypt):
+    n = len(v)
+    rounds = 6 + 52 // n
+    keys = [[k[p ^ e] for p in range(4)] for e in range(4)]
+    if decrypt:
+        s = (rounds * DELTA) & MASK
+        y = v[0]
+        for _ in range(rounds):
+            kp = keys[(s >> 2) & 3]
+            for p in range(n - 1, 0, -1):
+                z = v[p - 1]
+                y = v[p] = (
+                    v[p] - ((((z >> 5) ^ (y << 2)) + ((y >> 3) ^ (z << 4))) ^ ((s ^ y) + (kp[p & 3] ^ z)))
+                ) & MASK
+            z = v[n - 1]
+            y = v[0] = (v[0] - ((((z >> 5) ^ (y << 2)) + ((y >> 3) ^ (z << 4))) ^ ((s ^ y) + (kp[0] ^ z)))) & MASK
+            s = (s - DELTA) & MASK
+    else:
+        s = 0
+        z = v[n - 1]
+        for _ in range(rounds):
+            s = (s + DELTA) & MASK
+            kp = keys[(s >> 2) & 3]
+            for p in range(n - 1):
+                y = v[p + 1]
+                z = v[p] = (
+                    v[p] + ((((z >> 5) ^ (y << 2)) + ((y >> 3) ^ (z << 4))) ^ ((s ^ y) + (kp[p & 3] ^ z)))
+                ) & MASK
+            y = v[0]
+            z = v[n - 1] = (v[n - 1] + ((((z >> 5) ^ (y << 2)) + ((y >> 3) ^ (z << 4)))
+                                        ^ ((s ^ y) + (kp[(n - 1) & 3] ^ z)))) & MASK
+    return v
+
+
+def _decrypt_3raw(data):
+    value = struct.unpack_from('<Q', data, 4)[0]
+    body = data[HEADER_3RAW:]
+    words = _xxtea(list(struct.unpack('<%dI' % (len(body) // 4), body)), _key_3raw(value), True)
+    size = words[-1]
+    room = 4 * (len(words) - 1)
+    if not room - 3 <= size <= room:
+        raise J2bError('"2SAJ3raw": the XXTEA data does not end in its own length (another key?)')
+    plain = struct.pack('<%dI' % (len(words) - 1), *words[:-1])[:size]
+    if plain[:3] == b'BZh':
+        try:
+            plain = bz2.decompress(plain)
+        except (OSError, ValueError) as e:
+            raise J2bError('"2SAJ3raw": the bzip2 stream does not decompress (%s)' % e)
+    return plain
+
+
+RX_PRIMEIRO_NOME = re.compile(rb'[A-Za-z_][A-Za-z0-9_]{0,80}\x00')
+
+
+def is_plain(data):
+    if not is_j2b(data) or len(data) < 16:
+        return False
+    if data[:4] == MAGIC_PLAIN:
+        return True
+    count = struct.unpack_from('<I', data, 4)[0]
+    return 0 < count < len(data) // 2 and RX_PRIMEIRO_NOME.match(data, 8) is not None
+
+
 def decrypt(data):
     if not is_j2b(data):
         raise J2bError('not a j2b file (no "2SAJ" at the start)')
+    if is_3raw(data):
+        return _decrypt_3raw(data)
+    if is_plain(data):
+        return data[4:]
     seed1, seed2 = struct.unpack_from('<II', data, 4)
     return _xor(data[HEADER:], seed1, seed2)
 
@@ -119,7 +204,31 @@ def join(names, count, code):
     return struct.pack('<I', count) + names + code
 
 
-def bytecode(data):
-    names, count, code = split(decrypt(data) if is_j2b(data) else data)
+def hidden_calls(code):
+    return sum(1 for m in re.finditer(b'(?=' + re.escape(_HIDDEN_CALL) + b')', code) if m.start() % 8 == 0)
+
+
+def _make(code, count, names):
     body = struct.pack('<I', len(code) // 4) + code + struct.pack('<I', count) + names
     return kkwe.Bytecode(struct.pack('<I', len(body)) + body, kkwe.REVERSE_ORDER)
+
+
+def bytecode(data, allow_hidden=False, reference=None, scripts=(), log=None):
+    names, count, code = split(decrypt(data) if is_j2b(data) else data)
+    hidden = 0 if allow_hidden else hidden_calls(code)
+    if hidden and reference:
+        from doctor.script import j2b_calls
+        study = _make(code, count, names)
+        mapping, report = j2b_calls.resolve(study, list(reference), log=log, scripts=scripts)
+        if report['open']:
+            raise J2bError('war3map.bin decrypts, but %d of its %d calls are hidden behind tokens; %d of the %d tokens '
+                           'were resolved from the evidence, %d (%d calls) stay open (kk-plataforma.md 15.2.1)'
+                           % (report['calls'], report['calls'], report['resolved'], report['tokens'], report['open'],
+                              report['open_calls']))
+        code = j2b_calls.restore(code, study.name_list, mapping, set(f[1] for f in study.functions()))
+        hidden = hidden_calls(code)
+    if hidden:
+        raise J2bError('war3map.bin decrypts, but %d of its calls are hidden: opcode 36 with no register and a 32-bit '
+                       'token in place of the function, which this tool cannot resolve yet (kk-plataforma.md 15.2)'
+                       % hidden)
+    return _make(code, count, names)

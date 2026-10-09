@@ -21,6 +21,15 @@ def read_data(file_path):
         return f.read().decode('latin-1')
 
 
+def declare_natives(txt):
+    out = {}
+    for m in re.finditer(r'^[ \t]*(?:constant\s+)?native\s+([A-Za-z_]\w*)\s+takes\s+(.*?)\s+returns\s+(.*?)\s*$',
+                         txt, re.M):
+        out[m.group(1)] = (m.group(2).strip(), m.group(3).strip(),
+                           txt.count('\n', 0, m.start(1)) + 1)
+    return out
+
+
 def declara_functions(txt):
     out = {}
     for m in re.finditer(r'^[ \t]*(?:constant\s+)?function\s+([A-Za-z_]\w*)\s+takes\s+(.*?)\s+returns\s+(.*?)\s*$',

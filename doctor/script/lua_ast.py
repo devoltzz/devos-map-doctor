@@ -1,4 +1,5 @@
 # Parses Lua 5.3 into a syntax tree that keeps every literal and comment.
+import os
 import re
 import sys
 
@@ -1189,6 +1190,274 @@ class _Parser:
 
 
 def parse(text):
+    if len(text) >= _NATIVE_MIN:
+        chunk = _parse_native(text)
+        if chunk is not None:
+            return chunk
+    return _parse_python(text)
+
+
+_NATIVE = [None]
+_NATIVE_MIN = 512
+_NATIVE_KINDS = (None, None, None, None, 'and', 'break', 'do', 'else', 'elseif', 'end', 'false', 'for', 'function',
+                 'goto', 'if', 'in', 'local', 'nil', 'not', 'or', 'repeat', 'return', 'then', 'true', 'until', 'while',
+                 '+', '-', '*', '/', '//', '%', '^', '#', '&', '~', '|', '<<', '>>', '==', '~=', '<=', '>=', '<', '>',
+                 '=', '(', ')', '{', '}', '[', ']', '::', ';', ':', ',', '.', '..', '...')
+
+
+def _native():
+    if _NATIVE[0] is None:
+        _NATIVE[0] = False
+        if os.environ.get('JASS_NATIVE') != '0' and sys.platform != 'emscripten':
+            try:
+                import ctypes
+                from doctor.script import jass_native
+                dll = jass_native._dll()
+                if dll and hasattr(dll, 'lua_parse_tree'):
+                    for f in (dll.lua_parse_tree, dll.canon_lua_reparen):
+                        f.argtypes = [ctypes.c_char_p, ctypes.c_size_t, ctypes.POINTER(ctypes.c_void_p),
+                                      ctypes.POINTER(ctypes.c_size_t)]
+                        f.restype = ctypes.c_int
+                    _NATIVE[0] = dll
+            except (ImportError, OSError, AttributeError):
+                pass
+    return _NATIVE[0]
+
+
+def _call_native(name, data):
+    import ctypes
+    dll = _native()
+    if not dll:
+        return 3, None
+    out, n = ctypes.c_void_p(), ctypes.c_size_t()
+    r = getattr(dll, name)(data, len(data), ctypes.byref(out), ctypes.byref(n))
+    if r != 0:
+        return r, None
+    try:
+        return 0, ctypes.string_at(out.value, n.value)
+    finally:
+        dll.jass_free(out, n)
+
+
+def _parse_native(text):
+    if not _native():
+        return None
+    try:
+        data = text.encode('utf-8', 'surrogatepass')
+    except UnicodeEncodeError:
+        return None
+    r, buf = _call_native('lua_parse_tree', data)
+    if r != 0:
+        return None
+    import gc
+    on = gc.isenabled()
+    gc.disable()
+    try:
+        return _decode(buf)
+    finally:
+        if on:
+            gc.enable()
+
+
+def _decode(buf):
+    import struct
+    nstr, sep, blen, nints = struct.unpack_from('<4I', buf)
+    S = buf[16:16 + blen].decode('utf-8', 'surrogatepass').split(chr(sep))
+    if len(S) != nstr:
+        return None
+    off = 16 + blen + (-blen) % 4
+    it = iter(memoryview(buf)[off:off + 4 * nints].cast('i').tolist())
+    nx = it.__next__
+    K = _NATIVE_KINDS
+    comments = []
+    for _k in range(nx()):
+        comments.append(Comment(S[nx()], nx()))
+    numbers = {}
+    st = []
+    push, pop = st.append, st.pop
+    for op in it:
+        if op == 0:
+            push(Name(S[nx()], nx()))
+        elif op == 21:
+            nt = nx()
+            L = len(st) - nx()
+            values = st[L:]
+            targets = st[L - nt:L]
+            del st[L - nt:]
+            s = AssignStmt(targets, values, nx())
+            s.span = (nx(), nx())
+            push(s)
+        elif op == 7:
+            v = S[nx()]
+            st[-1] = Index(st[-1], Literal('string', S[nx()], v, nx()), True, nx())
+        elif op == 1:
+            t = nx()
+            push(Literal('string', S[t] if t >= 0 else None, S[nx()], nx()))
+        elif op == 14:
+            st[-1] = Paren(st[-1], nx())
+        elif op == 2:
+            t = nx()
+            v = numbers.get(t)
+            if v is None:
+                v = numbers[t] = _number_value(S[t])
+            push(Literal('number', S[t], v, nx()))
+        elif op == 41:
+            L = len(st) - nx()
+            b = Block(st[L:])
+            del st[L:]
+            push(b)
+        elif op == 9:
+            L = len(st) - nx()
+            args = st[L:]
+            del st[L:]
+            st[-1] = Call(st[-1], args, None, nx())
+        elif op == 13:
+            r = pop()
+            st[-1] = Binary(K[nx()], st[-1], r, nx())
+        elif op == 24:
+            nb = nx()
+            has_else = nx()
+            L = len(st) - 2 * nb - has_else
+            items = st[L:]
+            del st[L:]
+            branches = [(items[k], items[k + 1]) for k in range(0, 2 * nb, 2)]
+            if has_else:
+                branches.append((None, items[-1]))
+            s = IfStmt(branches, nx())
+            s.span = (nx(), nx())
+            push(s)
+        elif op == 3:
+            push(Literal('nil', 'nil', None, nx()))
+        elif op == 40:
+            s = st[-1]
+            a = nx()
+            m = nx()
+            if m:
+                s.leading_comments = comments[a:a + m]
+            ni = nx()
+            if ni:
+                s.inner_comments = [comments[nx()] for _k in range(ni)]
+            c = nx()
+            if c >= 0:
+                s.comment = comments[c]
+        elif op == 12:
+            st[-1] = Unary(K[nx()], st[-1], nx())
+        elif op == 8:
+            key = pop()
+            st[-1] = Index(st[-1], key, nx() == 1, nx())
+        elif op == 20:
+            names, attribs = [], []
+            for _k in range(nx()):
+                names.append(S[nx()])
+                a = nx()
+                attribs.append(S[a] if a >= 0 else None)
+            L = len(st) - nx()
+            values = st[L:]
+            del st[L:]
+            s = LocalStmt(names, attribs, values, nx())
+            s.span = (nx(), nx())
+            push(s)
+        elif op == 4:
+            push(Literal('boolean', 'true', True, nx()))
+        elif op == 5:
+            push(Literal('boolean', 'false', False, nx()))
+        elif op == 22:
+            s = CallStmt(pop(), nx())
+            s.span = (nx(), nx())
+            push(s)
+        elif op == 23:
+            name = S[nx()]
+            is_local = nx() == 1
+            params = [S[nx()] for _k in range(nx())]
+            s = FunctionStmt(name, is_local, params, nx() == 1, pop(), nx())
+            s.span = (nx(), nx())
+            push(s)
+        elif op == 30:
+            L = len(st) - nx()
+            values = st[L:]
+            del st[L:]
+            s = ReturnStmt(values, nx())
+            s.span = (nx(), nx())
+            push(s)
+        elif op == 18:
+            L = len(st) - nx()
+            fields = st[L:]
+            del st[L:]
+            push(Table(fields, nx()))
+        elif op == 15:
+            st[-1] = (None, st[-1])
+        elif op == 16:
+            st[-1] = (S[nx()], st[-1])
+        elif op == 17:
+            v = pop()
+            st[-1] = (st[-1], v)
+        elif op == 10:
+            L = len(st) - nx()
+            args = st[L:]
+            del st[L:]
+            st[-1] = Call(st[-1], args, S[nx()], nx())
+        elif op == 42:
+            a = nx()
+            st[-1].end_comments = comments[a:a + nx()]
+        elif op == 11:
+            params = [S[nx()] for _k in range(nx())]
+            st[-1] = FunctionExpr(params, nx() == 1, st[-1], nx())
+        elif op == 25:
+            body = pop()
+            s = WhileStmt(pop(), body, nx())
+            s.span = (nx(), nx())
+            push(s)
+        elif op == 26:
+            var = S[nx()]
+            body = pop()
+            step = pop() if nx() else None
+            stop = pop()
+            s = NumericForStmt(var, pop(), stop, step, body, nx())
+            s.span = (nx(), nx())
+            push(s)
+        elif op == 27:
+            names = [S[nx()] for _k in range(nx())]
+            body = pop()
+            L = len(st) - nx()
+            exprs = st[L:]
+            del st[L:]
+            s = GenericForStmt(names, exprs, body, nx())
+            s.span = (nx(), nx())
+            push(s)
+        elif op == 28:
+            cond = pop()
+            s = RepeatStmt(pop(), cond, nx())
+            s.span = (nx(), nx())
+            push(s)
+        elif op == 29:
+            s = DoStmt(pop(), nx())
+            s.span = (nx(), nx())
+            push(s)
+        elif op == 31:
+            s = BreakStmt(nx())
+            s.span = (nx(), nx())
+            push(s)
+        elif op == 32:
+            s = GotoStmt(S[nx()], nx())
+            s.span = (nx(), nx())
+            push(s)
+        elif op == 33:
+            s = LabelStmt(S[nx()], nx())
+            s.span = (nx(), nx())
+            push(s)
+        elif op == 6:
+            push(Literal('vararg', '...', None, nx()))
+        else:
+            raise ValueError('lua_parse_tree: unknown op %d' % op)
+    body = st.pop()
+    functions = {}
+    for s in body:
+        if type(s) is FunctionStmt:
+            functions[s.name] = s
+    return Chunk(body, functions, comments)
+
+
+def _parse_python(text):
     old = sys.getrecursionlimit()
     if old < _RECURSION:
         sys.setrecursionlimit(_RECURSION)

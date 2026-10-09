@@ -182,7 +182,32 @@ FIXES = (('file_column', fix_file_column), ('quoted_numbers', fix_quoted_numbers
          ('buttonpos', fix_buttonpos), ('fdf_comment', fix_fdf_comment), ('levels', fix_levels))
 
 
+_CACHE = []
+CACHE_SIZE = 2
+
+
+def _key(files, only):
+    import hashlib
+    h = hashlib.blake2b(digest_size=20)
+    for n in sorted(files):
+        b = files[n]
+        h.update(n.encode('utf-8', 'surrogateescape') + b'\0' + (b'-' if b is None else b'%d\0' % len(b) + b))
+    return (h.digest(), None if only is None else tuple(sorted(only)))
+
+
 def patch(files, only=None):
+    import copy
+    key = _key(files, only)
+    for k, res in _CACHE:
+        if k == key:
+            return copy.deepcopy(res)
+    res = _patch(files, only)
+    _CACHE.insert(0, (key, copy.deepcopy(res)))
+    del _CACHE[CACHE_SIZE:]
+    return res
+
+
+def _patch(files, only=None):
     cur = dict(files)
     report = {}
     for key, fix in FIXES:

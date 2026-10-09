@@ -21,12 +21,13 @@ def slk_cells(line_list):
         if not line.startswith('C;'):
             continue
         x = y = k = None
-        for c in slk_cols.slk_fields(line):
-            if c.startswith('X') and c[1:2].isdigit():
-                x = int(re.match(r'X(\d+)', c).group(1))
-            elif c.startswith('Y') and c[1:2].isdigit():
-                y = int(re.match(r'Y(\d+)', c).group(1))
-            elif c.startswith('K'):
+        for c in (slk_cols.slk_fields(line) if '"' in line else line.split(';')[1:]):
+            c0 = c[:1]
+            if c0 == 'X' and c[1:2].isdigit():
+                x = int(slk_cols.RX_X.match(c).group(1))
+            elif c0 == 'Y' and c[1:2].isdigit():
+                y = int(slk_cols.RX_Y.match(c).group(1))
+            elif c0 == 'K':
                 k = c[1:]
         if x is not None:
             cur_x = x
@@ -36,7 +37,24 @@ def slk_cells(line_list):
             yield i, cur_x, cur_y, k
 
 
+def _apply(line_list, r):
+    for _ in range(r.int()):
+        i = r.int()
+        line_list[i] = r.body_text()
+    return [(r.int(), r.int(), r.body_text(), r.body_text()) for _ in range(r.int())]
+
+
 def strip_id_lists(line_list):
+    b = slk_cols._text(line_list)
+    r = slk_cols._call(2, b)
+    if r is not None:
+        name_list = dict((r.int(), r.body_text()) for _ in range(r.int()))
+        tgt = [x for x, fname in name_list.items() if RE_ID_LIST_COLUMN.match(fname)]
+        if not tgt:
+            return []
+        r = slk_cols._call(3, b, slk_cols._ints(len(tgt), *tgt))
+        if r is not None:
+            return _apply(line_list, r)
     name_list = {}
     for _, x, y, v in slk_cells(line_list):
         if y == 1:
@@ -73,6 +91,10 @@ def fixable(origin, dest=None):
 
 
 def fix_numbers(line_list):
+    r = slk_cols._step(1, line_list)
+    if r is not None:
+        numeric_columns = set(r.int() for _ in range(r.int()))
+        return _apply(line_list, r), numeric_columns
     pluralize = defaultdict(lambda: [0, 0])
     for _, x, y, v in slk_cells(line_list):
         if y == 1:

@@ -12,11 +12,11 @@ usage: doctor <command> <map> [options]
   diag <map>                      what protects the map and what the World Editor needs
   fix <map> [steps] [extras]      Fix map: saves <map>_fixed.w3x
   editor <map> [steps] [extras]   Open in World Editor: saves <map>_editor.w3x
-  port <map> [--package=<name>] [--icons] [--textures] [--keep-memory]
+  port <map> [--package=<name>] [--icons] [--textures] [--keep-memory] [--balance-numbers] [--strip-indent]
                                   Port to Reforged (KK and M16 maps): saves <map>_reforged.w3x and the report
   check <map>                     Runs on Reforged? (what crashes or misses on 3.0)
   cheatpacks <map>                the cheat packs the map takes, with their options
-  cheat <map> --pack=<id> [--set <key>=<value> ...]
+  cheat <map> --pack=<id> [--set <key>=<value> ...] [--strip-indent]
                                   adds a cheat pack: saves <map>_<pack>.w3x
   translation groups <map>        the files the texts come from
   translation export <map> <file.txt|file.html> [--only=<group>,...]
@@ -33,7 +33,9 @@ Steps of fix / editor (none given: the defaults the window ticks for this map; -
   --gui-triggers --script-objects --safe-units
 Extras of fix / editor:
   --models --model-names --portraits --data-pointers --kk-textures --green-icons --uabi --preload
-  --single-player --shrink --translation=<file>
+  --single-player --shrink --translation=<file> --strip-indent
+
+--strip-indent (fix, editor, port, cheat): the script without the spaces and tabs that start its lines
 
 Everywhere: --json (what the job returned), --quiet (no progress), --help, --version
 '''
@@ -47,8 +49,8 @@ STEP_FLAGS = {'mpq': 'unprotect', 'fake_list': 'fake-files', 'fake_list': 'fake-
               'safe_units': 'safe-units'}
 EXTRA_FLAGS = {'models': 'models', 'model-names': 'model_names', 'portraits': 'portraits',
                'data-pointers': 'data_pointers', 'kk-textures': 'kk_textures', 'green-icons': 'disabled_icons',
-               'uabi': 'uabi', 'preload': 'preload', 'single-player': 'single_player'}
-EDITOR_EXTRAS = ('single-player', 'translation')
+               'uabi': 'uabi', 'preload': 'preload', 'single-player': 'single_player', 'strip-indent': 'strip_indent'}
+EDITOR_EXTRAS = ('single-player', 'translation', 'strip-indent')
 OUTCOME_CODE = {'ok': 0, 'nothing': 0, 'partial': 3, 'failed': 1}
 
 
@@ -287,7 +289,8 @@ def build_job(command, pos, opts, run):
         packages = [p for p in str(opts.get('package') or '').split(',') if p] if opts.get('package') else []
         return 'port', {'task': 'port', 'map': pos[1], 'packages': packages,
                         'memory': not opts.get('keep-memory'), 'icons': bool(opts.get('icons')),
-                        'textures': bool(opts.get('textures'))}
+                        'textures': bool(opts.get('textures')), 'balance': bool(opts.get('balance-numbers')),
+                        'strip_indent': opts.get('strip-indent') is True}
     if command == 'check':
         need(pos, 2, '<map>')
         return 'check', {'task': 'reforged', 'map': pos[1]}
@@ -304,7 +307,8 @@ def build_job(command, pos, opts, run):
             if not eq:
                 raise UsageError('--set takes <key>=<value>, not %r' % kv)
             options[k] = {'true': True, 'false': False}.get(v.lower(), v)
-        return 'cheat', {'task': 'cheatpack_inject', 'map': pos[1], 'pack': opts['pack'], 'options': options}
+        return 'cheat', {'task': 'cheatpack_inject', 'map': pos[1], 'pack': opts['pack'], 'options': options,
+                         'strip_indent': opts.get('strip-indent') is True}
     if command == 'translation':
         sub = pos[1] if len(pos) > 1 else None
         rest = pos[1:]

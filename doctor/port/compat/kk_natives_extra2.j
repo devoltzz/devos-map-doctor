@@ -1,6 +1,3 @@
-// ==============================================================================================
-// ==============================================================================================
-
 function DzSetUnitID takes unit whichUnit,integer id returns nothing
     call DB_morph(whichUnit, id)
 endfunction

@@ -1,6 +1,3 @@
-// ==============================================================================================
-// ==============================================================================================
-
 string array DB_ALFA
 integer array DB_LV
 boolean DB_c2_on=false
@@ -594,8 +591,6 @@ function DB_byte_at takes string s,integer i returns integer
     return 0
 endfunction
 
-// ==============================================================================================
-// ==============================================================================================
 integer array DB_U
 integer DB_z
 
@@ -811,8 +806,6 @@ function DB_decifra takes string t,integer k1,integer k2,integer iv,integer h1,i
     set DB_j_b=h2
     return out
 endfunction
-// ==============================================================================================
-// ==============================================================================================
 function DB_max takes integer a,integer b returns integer
     if a>b then
         return a
@@ -820,8 +813,6 @@ function DB_max takes integer a,integer b returns integer
     return b
 endfunction
 
-// ==============================================================================================
-// ==============================================================================================
 group DB_foto_g=null
 
 function DB_foto takes nothing returns string
@@ -1083,8 +1074,6 @@ function DB_save2_embrulha takes string claro,string pasta returns string
     return DB_C2_CH_BLOB+"="+cifrado+"|"+env
 endfunction
 
-// ==============================================================================================
-// ==============================================================================================
 string array DB_CHR
 boolean DB_chr_on=false
 

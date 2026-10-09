@@ -497,11 +497,27 @@ _CANONICAL = {}
 CANONICAL_CACHE = 20000
 
 
+_NATIVE = [None]
+
+
+def _native():
+    if _NATIVE[0] is None:
+        try:
+            from doctor.script import jass_native
+            _NATIVE[0] = jass_native.load_canonical() or False
+        except Exception:
+            _NATIVE[0] = False
+    return _NATIVE[0]
+
+
 def canonical(text, lang=JASS, inline=True, self_name=None):
     k = (text, lang, inline, self_name)
     out = _CANONICAL.get(k)
     if out is None:
-        out = _canonical(text, lang, inline, self_name)
+        nat = _native()
+        out = nat(text, lang, inline, self_name) if nat else None
+        if out is None:
+            out = _canonical(text, lang, inline, self_name)
         if len(_CANONICAL) >= CANONICAL_CACHE:
             _CANONICAL.clear()
         _CANONICAL[k] = out
@@ -925,7 +941,7 @@ def _declared(td, v, lua):
 
 def _enabled_triggers(mt, editor=False):
     out = [(k, t) for k, t in enumerate(mt.triggers) if t.enabled and not t.is_comment]
-    if editor:
+    if editor and not getattr(mt, 'tree_order', False):
         place = dict((c.id, k) for k, c in enumerate(mt.categories))
         out.sort(key=lambda kt: (place.get(kt[1].category_id, len(place)), kt[0]))
     return [t for _k, t in out]
@@ -981,19 +997,33 @@ def render_init_globals(mt, td, lang=JASS):
     return '\n'.join(head + body + ['endfunction']) + '\n'
 
 
-def render_init_custom_triggers(mt, lang=JASS, editor=False):
-    idents = [trigger_identifier(t.name) for t in _enabled_triggers(mt, editor)]
+def render_init_custom_triggers(mt, lang=JASS, editor=False, texts=None):
+    sem_init = set()
+    if texts is not None and len(texts) == len(mt.triggers):
+        for t, tx in zip(mt.triggers, texts):
+            if t.is_text and tx is not None:
+                i = trigger_identifier(t.name)
+                padrao = (
+                    r'\bfunction\s+InitTrig_%s\b' if lang != LUA else r'\bInitTrig_%s\s*=|\bfunction\s+InitTrig_%s\b'
+                )
+                if not re.search(padrao.replace('%s', re.escape(i)), tx):
+                    sem_init.add(id(t))
     if lang == LUA:
+        idents = [trigger_identifier(t.name) for t in _enabled_triggers(mt, editor)
+                  if id(t) not in sem_init and not getattr(t, 'script_item', False)]
         return '\n'.join(['function InitCustomTriggers()'] + ['InitTrig_%s()' % i for i in idents] + ['end']) + '\n'
-    return '\n'.join([BANNER, 'function InitCustomTriggers takes nothing returns nothing'] +
-                     ['    call InitTrig_%s()' % i for i in idents] + ['endfunction']) + '\n'
+    linhas = [('    //Function not found: call InitTrig_%s()' if id(t) in sem_init else '    call InitTrig_%s()')
+              % trigger_identifier(t.name) for t in _enabled_triggers(mt, editor)
+              if not getattr(t, 'script_item', False)]
+    return '\n'.join([BANNER, 'function InitCustomTriggers takes nothing returns nothing'] + linhas +
+                     ['endfunction']) + '\n'
 
 
 def initialization_triggers(mt, editor=False):
     out = []
     for t in _enabled_triggers(mt, editor):
         event = any(f.kind == EVENT and f.name == 'MapInitializationEvent' and f.enabled for f in t.functions)
-        if (event or t.run_on_init) and not t.initially_off:
+        if (event or (t.run_on_init and t.is_text)) and not t.initially_off:
             out.append(t)
     return out
 

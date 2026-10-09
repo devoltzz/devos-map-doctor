@@ -823,7 +823,285 @@ def parse(text):
     if text[:1] == _BOM:
         text = text[1:]
     with _tree_work():
+        if len(text) >= NATIVE_MIN:
+            tree = _parse_native(text)
+            if tree is not None:
+                return tree
         return _Parser(text).script()
+
+
+NATIVE_MIN = 16384
+_NATIVE = [None]
+_KINDS = ('integer', 'real', 'string', 'rawcode', 'boolean', 'null')
+_OPS = ('and', 'or', '==', '!=', '<', '<=', '>', '>=', '+', '-', '*', '/', 'not')
+_ESCAPED_BOM = b'\xef\xbb\xbf'
+
+
+def _native():
+    if _NATIVE[0] is None:
+        _NATIVE[0] = False
+        if os.environ.get('JASS_NATIVE') != '0' and sys.platform != 'emscripten':
+            try:
+                import ctypes
+                from doctor.script import jass_native
+                dll = jass_native._dll()
+                if dll and hasattr(dll, 'jass_parse_tree'):
+                    f = dll.jass_parse_tree
+                    f.argtypes = [ctypes.c_char_p, ctypes.c_size_t, ctypes.POINTER(ctypes.c_void_p),
+                                  ctypes.POINTER(ctypes.c_size_t)]
+                    f.restype = ctypes.c_int
+                    _NATIVE[0] = (f, dll.jass_free, ctypes)
+            except Exception:
+                _NATIVE[0] = False
+    return _NATIVE[0]
+
+
+NOT_DONE = object()
+
+
+def _native_bytes(text):
+    try:
+        b = text.encode('latin-1')
+        if _ESCAPED_BOM not in b:
+            return b, True
+    except UnicodeEncodeError:
+        pass
+    try:
+        b = text.encode('utf-8', 'surrogateescape')
+    except UnicodeEncodeError:
+        return None
+    if b.decode('utf-8', 'surrogateescape') != text:
+        return None
+    return b, False
+
+
+def _parse_native(text):
+    nat = _native()
+    if not nat:
+        return None
+    enc = _native_bytes(text)
+    if enc is None:
+        return None
+    f, free, ctypes = nat
+    data, latin = enc
+    p, n = ctypes.c_void_p(), ctypes.c_size_t()
+    if f(data, len(data), ctypes.byref(p), ctypes.byref(n)) != 0:
+        return None
+    try:
+        buf = ctypes.string_at(p.value, n.value)
+    finally:
+        free(p, n.value)
+    return _decode_tree(buf, latin)
+
+
+def _decode_tree(buf, latin):
+    import array
+    import collections
+    import itertools
+    count = int.from_bytes(buf[:4], 'little')
+    offs = array.array('I')
+    offs.frombytes(buf[4:8 + 4 * count])
+    if sys.byteorder != 'little':
+        offs.byteswap()
+    start = 8 + 4 * count
+    end = start + offs[-1]
+    if latin:
+        blob = buf[start:end].decode('latin-1')
+        strs = [None] + [blob[offs[k]:offs[k + 1]] for k in range(count)]
+    else:
+        blob = buf[start:end]
+        strs = [None] + [blob[offs[k]:offs[k + 1]].decode('utf-8', 'surrogateescape') for k in range(count)]
+    del blob
+    v = array.array('i')
+    v.frombytes(buf[(end + 3) & ~3:])
+    if sys.byteorder != 'little':
+        v.byteswap()
+    v = v.tolist()
+    sget = strs.__getitem__
+    objs = [None]
+    get = objs.__getitem__
+    kinds, ops = _KINDS, _OPS
+    drain = collections.deque(maxlen=0).extend
+    repeat = itertools.repeat
+    accumulate = itertools.accumulate
+
+    def comments(group, cols):
+        if any(cols):
+            drain(map(setattr, group, repeat('comment'), map(sget, cols)))
+
+    def lists(kd, counts):
+        flat = list(map(get, kd))
+        ends = list(accumulate(counts))
+        return map(flat.__getitem__, map(slice, [0] + ends[:-1], ends))
+
+    ngroups = v[0]
+    i = 1
+    for _g in range(ngroups):
+        ty, n, ns, nk = v[i:i + 4]
+        i += 4
+        sc = v[i:i + ns]
+        i += ns
+        kd = v[i:i + nk]
+        i += nk
+        if ty == 1:
+            objs += map(Name, map(sget, sc[0::2]), sc[1::2])
+        elif ty == 3:
+            objs += map(Literal, map(kinds.__getitem__, sc[0::3]), map(sget, sc[1::3]), sc[2::3])
+        elif ty == 2:
+            objs += map(Call, map(sget, sc[0::3]), lists(kd, sc[2::3]), sc[1::3])
+        elif ty == 4:
+            objs += map(Binary, map(ops.__getitem__, sc[0::2]), map(get, kd[0::2]), map(get, kd[1::2]), sc[1::2])
+        elif ty == 11 or ty == 12 or ty == 13:
+            group = list(map(CallStmt if ty == 11 else ExitWhenStmt if ty == 12 else ReturnStmt, map(get, kd),
+                             sc[0::2]))
+            comments(group, sc[1::2])
+            objs += group
+        elif ty == 10:
+            group = list(map(SetStmt, map(get, kd[0::2]), map(get, kd[1::2]), sc[0::2]))
+            comments(group, sc[1::2])
+            objs += group
+        elif ty == 6:
+            objs += map(Paren, map(get, kd), sc)
+        elif ty == 5:
+            objs += map(Unary, map(ops.__getitem__, sc[0::2]), map(get, kd), sc[1::2])
+        elif ty == 7:
+            objs += map(Index, map(get, kd[0::2]), map(get, kd[1::2]), sc)
+        elif ty == 8:
+            objs += map(FuncRef, map(sget, sc[0::2]), sc[1::2])
+        elif ty == 14:
+            objs += map(CommentStmt, map(sget, sc[0::2]), sc[1::2])
+        elif ty == 15:
+            objs += map(DebugStmt, map(get, kd), sc)
+        elif ty == 20 or ty == 21:
+            p = 0
+            for k in range(n):
+                if ty == 20:
+                    name, type_, is_array, line, comment = sc[p:p + 5]
+                    p += 5
+                    d = LocalDecl(strs[name], strs[type_], bool(is_array), objs[kd[k]], line)
+                else:
+                    name, type_, is_array, is_constant, line, comment = sc[p:p + 6]
+                    p += 6
+                    d = GlobalDecl(strs[name], strs[type_], bool(is_array), bool(is_constant), objs[kd[k]], line)
+                d.comment = strs[comment]
+                m = sc[p]
+                if m:
+                    d.leading_comments = list(map(sget, sc[p + 1:p + 1 + m]))
+                p += 1 + m
+                objs.append(d)
+        elif ty == 16:
+            group = list(map(LoopStmt, lists(kd, sc[4::5]), sc[0::5]))
+            comments(group, sc[1::5])
+            drain(map(setattr, group, repeat('end_line'), sc[2::5]))
+            if any(sc[3::5]):
+                drain(map(setattr, group, repeat('end_comment'), map(sget, sc[3::5])))
+            objs += group
+        elif ty == 17:
+            p = q = 0
+            for _k in range(n):
+                line, comment, end_line, end_comment, nb = sc[p:p + 5]
+                p += 5
+                s = IfStmt([], line)
+                s.comment = strs[comment]
+                s.end_line = end_line
+                s.end_comment = strs[end_comment]
+                branches = s.branches
+                for _b in range(nb):
+                    has, nbody, bline, bcomment = sc[p:p + 4]
+                    p += 4
+                    cond = None
+                    if has:
+                        cond = objs[kd[q]]
+                        q += 1
+                    branches.append((cond, list(map(get, kd[q:q + nbody]))))
+                    q += nbody
+                    s.branch_lines.append(bline)
+                    s.branch_comments.append(strs[bcomment])
+                objs.append(s)
+        elif ty == 22:
+            p = q = 0
+            for _k in range(n):
+                name, line, end_line, is_native, is_constant, comment, end_comment, ret, nparams = sc[p:p + 9]
+                p += 9
+                f = Function(strs[name], line, bool(is_native), bool(is_constant))
+                f.end_line = end_line
+                f.comment = strs[comment]
+                f.end_comment = strs[end_comment]
+                f.return_type = strs[ret]
+                if nparams:
+                    pv = sc[p:p + 2 * nparams]
+                    f.params = list(zip(map(sget, pv[0::2]), map(sget, pv[1::2])))
+                    p += 2 * nparams
+                m = sc[p]
+                if m:
+                    f.leading_comments = list(map(sget, sc[p + 1:p + 1 + m]))
+                p += 1 + m
+                nlocals, nbody = sc[p], sc[p + 1]
+                p += 2
+                if nlocals:
+                    f.locals = list(map(get, kd[q:q + nlocals]))
+                    q += nlocals
+                if nbody:
+                    f.body = list(map(get, kd[q:q + nbody]))
+                    q += nbody
+                objs.append(f)
+        elif ty == 23:
+            p = q = 0
+            for _k in range(n):
+                g = Globals(sc[p])
+                g.end_line = sc[p + 1]
+                g.comment = strs[sc[p + 2]]
+                g.end_comment = strs[sc[p + 3]]
+                p += 4
+                m = sc[p]
+                if m:
+                    g.end_comments = list(map(sget, sc[p + 1:p + 1 + m]))
+                p += 1 + m
+                m = sc[p]
+                if m:
+                    g.leading_comments = list(map(sget, sc[p + 1:p + 1 + m]))
+                p += 1 + m
+                m = sc[p]
+                p += 1
+                if m:
+                    g.decls = list(map(get, kd[q:q + m]))
+                    q += m
+                objs.append(g)
+        elif ty == 24:
+            p = 0
+            for _k in range(n):
+                d = TypeDecl(strs[sc[p]], strs[sc[p + 1]], sc[p + 2])
+                d.comment = strs[sc[p + 3]]
+                m = sc[p + 4]
+                if m:
+                    d.leading_comments = list(map(sget, sc[p + 5:p + 5 + m]))
+                p += 5 + m
+                objs.append(d)
+        else:
+            raise ValueError('jass_ast: a native tree stream with node type %r' % (ty,))
+    s = Script()
+    k = v[i]
+    i += 1
+    s.comments = list(map(CommentStmt, map(sget, v[i:i + 2 * k:2]), v[i + 1:i + 2 * k:2]))
+    i += 2 * k
+    k = v[i]
+    s.end_comments = list(map(sget, v[i + 1:i + 1 + k]))
+    i += 1 + k
+    k = v[i]
+    s.items = list(map(get, v[i + 1:i + 1 + k]))
+    for item in s.items:
+        t = type(item)
+        if t is Function:
+            (s.natives if item.is_native else s.functions).append(item)
+        elif t is Globals:
+            s.globals.extend(item.decls)
+        else:
+            s.types.append(item)
+    for f in s.natives + s.functions:
+        s.function_index.setdefault(f.name, f)
+    for g in s.globals:
+        s.global_index.setdefault(g.name, g)
+    return s
 
 
 def _branch_children(n):
@@ -865,12 +1143,41 @@ def children(node):
     return list(_CHILDREN[type(node)](node))
 
 
+_STACKED = {
+    Script: lambda n: n.items[::-1],
+    Globals: lambda n: n.decls[::-1],
+    Function: lambda n: (n.locals + n.body)[::-1],
+    TypeDecl: None,
+    GlobalDecl: lambda n: () if n.initializer is None else (n.initializer,),
+    LocalDecl: lambda n: () if n.initializer is None else (n.initializer,),
+    SetStmt: lambda n: (n.value, n.target),
+    CallStmt: lambda n: (n.call,),
+    IfStmt: lambda n: _branch_children(n)[::-1],
+    LoopStmt: lambda n: n.body[::-1],
+    ExitWhenStmt: lambda n: (n.cond,),
+    ReturnStmt: lambda n: () if n.value is None else (n.value,),
+    CommentStmt: None,
+    DebugStmt: lambda n: (n.stmt,),
+    Name: None,
+    Index: lambda n: (n.index, n.base),
+    Call: lambda n: n.args[::-1],
+    FuncRef: None,
+    Literal: None,
+    Unary: lambda n: (n.operand,),
+    Binary: lambda n: (n.right, n.left),
+    Paren: lambda n: (n.inner,),
+}
+
+
 def walk(node):
     stack = [node]
+    pop, extend, stacked = stack.pop, stack.extend, _STACKED.__getitem__
     while stack:
-        n = stack.pop()
+        n = pop()
         yield n
-        stack.extend(reversed(_CHILDREN[type(n)](n)))
+        f = stacked(type(n))
+        if f is not None:
+            extend(f(n))
 
 
 _ASSOCIATIVE = frozenset(('+', '*', 'and', 'or'))

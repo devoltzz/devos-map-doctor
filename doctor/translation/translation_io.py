@@ -173,6 +173,7 @@ class MapText(object):
         self.refs = collections.defaultdict(list)
         self.compared_trigstr = set()
         self.name_trigstr = set()
+        self.layer_texts = collections.Counter()
 
     def add(self, **kw):
         self.entries.append(kw)
@@ -339,6 +340,54 @@ def _script_candidate(lit):
     return is_text(lit) and not path_like(lit, script=True)
 
 
+RX_LAYER_MARK = re.compile(r'(?:^|(?<=[\r\n]))//@@CAMADA_INLINE_([A-Z]+)_(INI|FIM)(?=[ \t]*(?:[\r\n]|$))')
+
+
+def layer_spans(text):
+    spans, inside = [], None
+    for m in RX_LAYER_MARK.finditer(text):
+        if m.group(2) == 'INI' and inside is None:
+            inside = (m.group(1), m.start())
+        elif m.group(2) == 'FIM' and inside and inside[0] == m.group(1):
+            spans.append((inside[1], m.end()))
+            inside = None
+    if inside:
+        spans.append((inside[1], len(text)))
+    return spans
+
+
+def layer_lines(lines, seps, spans):
+    out, pos = [], 0
+    for line, sep in zip(lines, list(seps) + ['']):
+        start, end = pos, pos + len(line)
+        out.append(any(start < e and s < end or s <= start < e for s, e in spans))
+        pos = end + len(sep)
+    return out
+
+
+def script_view(text):
+    lines = tr_extract.line_break(text, jass=True)[0]
+    spans = layer_spans(text)
+    if not spans:
+        return lines, None, [False] * len(lines), list(lines), text
+    seps = separators(text, lines)
+    layer = layer_lines(lines, seps, spans)
+    view = ['' if x else line for line, x in zip(lines, layer)]
+    view_text = join_lines(view, seps)
+    if len(tr_extract.line_break(view_text, jass=True)[0]) != len(lines):
+        raise RuntimeError('the script without its port layer does not split into the same lines')
+    return lines, seps, layer, view, view_text
+
+
+def _layer_literals(lines, layer):
+    out = collections.Counter()
+    for line, x in zip(lines, layer):
+        if x:
+            for _pos, lit in tr_extract.ki.literals(line):
+                out[lit] += 1
+    return out
+
+
 def _functions_by_line(lines):
     out, current = [], None
     for line in lines:
@@ -375,10 +424,14 @@ def _collect_script(mt, a, read):
         return None, []
     mt.script_file = name
     mt.files[name] = b
-    src = _decode(b)
+    full, _seps, layer, lines, src = script_view(_decode(b))
+    if any(layer):
+        mt.layer_texts = _layer_literals(full, layer)
+        n = sum(1 for lit in mt.layer_texts if _script_candidate(lit))
+        if n:
+            mt.skipped['script: the port layer of Port to Reforged (the Doctor\'s own code)'] += n
     found = []
     tr_extract.extract_script_text(src, found, collections.Counter(), (), tem_text=_script_candidate)
-    lines = tr_extract.line_break(src, jass=True)[0]
     functions = _functions_by_line(lines)
     screen = dict((e['text'], e) for e in found if e['kind'] == 'script')
     cats = collections.defaultdict(collections.Counter)
@@ -455,6 +508,9 @@ def _comparison_rules(mt, src, script_entries, wts_texts):
             continue
         if e['source'] != 'script' and e['text'] in keyed:
             mt.skipped['%s: compared and used as a key by the script' % e['source']] += 1
+            continue
+        if e['source'] != 'script' and e['text'] in linked and e['text'] in mt.layer_texts:
+            mt.skipped['%s: compared by the script and kept by the port layer' % e['source']] += 1
             continue
         if e['source'] != 'script' and e['text'] in linked:
             e['_group'] = linked[e['text']]
@@ -858,14 +914,15 @@ def _build(mt, wanted, linked):
             new = w3i.write(m)
         elif name == mt.script_file:
             src = _decode(orig)
-            lines = tr_extract.line_break(src, jass=True)[0]
-            seps = separators(src, lines)
+            lines, seps, layer, view, _view_text = script_view(src)
+            if seps is None:
+                seps = separators(src, lines)
             by_text = dict((e['text'], tr) for e, tr in items)
             by_text.update(linked)
-            cats, detail, n = tr_apply.apply_by_occurrence_lines(lines, by_text, False, linked, protected=())
+            cats, detail, n = tr_apply.apply_by_occurrence_lines(view, by_text, False, linked, protected=())
             script.update(replaced=n, categories=dict(cats), per_literal=dict(
                 (lit, d['screen'] + d['all_entries']) for lit, d in detail.items()))
-            new = _encode(join_lines(lines, seps))
+            new = _encode(join_lines([line if x else v for line, v, x in zip(lines, view, layer)], seps))
         elif items[0][0]['source'] == 'object':
             change = dict((e['_where'], _encode(_written(e, tr))) for e, tr in items)
             new, n = objbin.rewrite(orig, items[0][0]['_levels'], lambda ti, oi, mi, _f, _v: change.get((ti, oi, mi)))
@@ -887,7 +944,7 @@ def _build(mt, wanted, linked):
 
 
 def _script_counts(text, watch):
-    lines = tr_extract.line_break(text, jass=True)[0]
+    lines = script_view(text)[3]
     return collections.Counter(lit for _ln, lit, _c in tr_screen_cjk.occurrences(lines, lambda x: x in watch,
                                                                                   protected=()))
 
@@ -936,6 +993,16 @@ def _readback(a, mt, wanted, linked, script):
             missing.append((e['id'], got))
     texts = dict((e['text'], tr) for e, tr in wanted if e['source'] == 'script')
     texts.update(linked)
+    if mt.script_file and layer_spans(_decode(mt.files[mt.script_file])):
+        def layer_of(text):
+            lines, _s, layer = script_view(text)[:3]
+            return [line for line, x in zip(lines, layer) if x]
+        before_layer = layer_of(_decode(mt.files[mt.script_file]))
+        after_layer = layer_of(_decode(data(mt.script_file)))
+        if after_layer != before_layer:
+            changed = sum(1 for x, y in zip(before_layer, after_layer) if x != y) + \
+                abs(len(before_layer) - len(after_layer))
+            missing.append(('the port layer', '%d line(s) changed' % changed))
     if texts:
         watch = set(texts) | set(texts.values())
         before = _script_counts(_decode(mt.files[mt.script_file]), watch)

@@ -858,9 +858,14 @@ def fixable(fname, b, script=None, context=None):
 
 
 MODEL_IN_OBJECT_FILES = (('war3map.w3u', 'umdl', False), ('war3mapSkin.w3u', 'umdl', False),
+                         ('war3map.w3u', 'upor', False), ('war3mapSkin.w3u', 'upor', False),
+                         ('war3map.w3u', 'umd1', False), ('war3mapSkin.w3u', 'umd1', False),
+                         ('war3map.w3u', 'umd2', False), ('war3mapSkin.w3u', 'umd2', False),
                          ('war3map.w3t', 'ifil', False), ('war3mapSkin.w3t', 'ifil', False),
                          ('war3map.w3b', 'bfil', False), ('war3mapSkin.w3b', 'bfil', False),
                          ('war3map.w3d', 'dfil', True), ('war3mapSkin.w3d', 'dfil', True))
+MODEL_ONLY_LATER = ('upor', 'umd1', 'umd2')
+MODEL_KEYS_TXT = ('file', 'portrait')
 MODEL_IN_SLK = ('Units\\UnitUI.slk', 'Units\\ItemData.slk', 'Units\\DestructableData.slk', 'Doodads\\Doodads.slk')
 MODEL_IN_TXT = ('war3mapSkin.txt', 'Units\\UnitSkin.txt', 'Units\\ItemSkin.txt', 'Units\\DestructableSkin.txt',
                 'Doodads\\DoodadSkins.txt', 'Units\\CampaignUnitFunc.txt', 'Units\\HumanUnitFunc.txt',
@@ -886,15 +891,18 @@ def _map_models(a, first_open_only=False, file_set=None):
         except Exception:
             return None
 
+    read_count = {}
     for file_name, field_id, with_levels in MODEL_IN_OBJECT_FILES:
-        if first_open_only and file_name not in MODEL_ON_FIRST_OPEN:
+        if first_open_only and (file_name not in MODEL_ON_FIRST_OPEN or field_id in MODEL_ONLY_LATER):
             continue
-        b = read_data(file_name)
-        if not b:
-            continue
-        try:
-            _v, tables, _p = objbin.read_data(b, with_levels)
-        except Exception:
+        if file_name not in read_count:
+            b = read_data(file_name)
+            try:
+                read_count[file_name] = objbin.read_data(b, with_levels)[1] if b else None
+            except Exception:
+                read_count[file_name] = None
+        tables = read_count[file_name]
+        if not tables:
             continue
         for objs in tables:
             for former_id, new, mods in objs:
@@ -917,7 +925,7 @@ def _map_models(a, first_open_only=False, file_set=None):
             try:
                 for ident, fields in slk.parse_ini_bytes(b).items():
                     for hash_key, val in fields.items():
-                        if hash_key == 'file' or hash_key.startswith('file:'):
+                        if hash_key.split(':', 1)[0] in MODEL_KEYS_TXT:
                             place(ident, val)
             except Exception:
                 pass
@@ -1636,9 +1644,23 @@ def _bodies_of(body_text):
         yield fname, body_text[begin:following[0] if following else len(body_text)]
 
 
+RX_PLAYER_ASSIGN = re.compile(r'=\s*Player\(\s*(\w+|\d+)\s*\)')
+RX_TRAILING_VAR = re.compile(r'[A-Za-z_]\w*\s*$')
+
+
+def player_assignments(body_text):
+    out = []
+    for m in RX_PLAYER_ASSIGN.finditer(body_text):
+        p = m.start()
+        v = RX_TRAILING_VAR.search(body_text, max(0, p - 512), p)
+        if v:
+            out.append((v.group(0).rstrip(), m.group(1)))
+    return out
+
+
 def _script_owner(body_text, neutral_players):
     map_path = {}
-    for var, val in RX_PLAYER_VAR.findall(body_text):
+    for var, val in player_assignments(body_text):
         v = neutral_players.get(val.strip(), None)
         if v is None:
             try:

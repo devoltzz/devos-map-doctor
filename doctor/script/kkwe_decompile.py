@@ -495,6 +495,12 @@ def _reversed_functions(bc, ref):
     order = of_globals + [t for t in reversed(map_path) if t not in of_globals]
     before = next((a[-1] for a in (_allocated(bc, t) for t in bounds[cut:]) if a), None)
     after_diag = next((a[0] for a in (_allocated(bc, t) for t in order) if a), None)
+    if before is not None and after_diag is not None and before % 255 + 1 != after_diag and of_globals:
+        bliz_ini = next((a[0] for a in (_allocated(bc, t) for t in reversed(bounds[cut:])) if a), None)
+        glob_end = next((a[-1] for a in (_allocated(bc, t) for t in reversed(of_globals)) if a), None)
+        rest = next((a[0] for a in (_allocated(bc, t) for t in order if t not in of_globals) if a), None)
+        if glob_end is not None and bliz_ini == glob_end % 255 + 1 and (rest is None or before % 255 + 1 == rest):
+            after_diag = before % 255 + 1
     if before is not None and after_diag is not None and before % 255 + 1 != after_diag:
         raise DecompileError('the boundary between Blizzard.j and the map does not match: Blizzard.j ends at register '
                              '%d and the map (%s) starts at %d' % (before, bc.fname(bc.arg[order[0][0]]), after_diag))
@@ -1216,6 +1222,17 @@ def prove_map(bc, ref, common, blizzard, map_text, maximum=5):
     c.rot = rot - 1 if rot else 0
     if segments and segments[0][0] + 1 < segments[0][1] and bc.op[segments[0][0] + 1] in (GLOBAL, CONSTANT):
         c.init_name = bc.fname(bc.arg[segments[0][0]])
+        rest = [k for begin, end_pos in segments[1:] for k in range(begin, end_pos) if not stray_i2r(bc, k)]
+        reg2 = next((bc.b2[k] for k in rest if bc.op[k] in ALLOCATING and bc.b2[k]), None)
+        label2 = next((bc.arg[k] for k in rest if bc.op[k] in WITH_LABEL), None)
+        init_end = [k for k in range(segments[0][0], segments[0][1])]
+        reg1 = [bc.b2[k] for k in init_end if bc.op[k] in ALLOCATING and bc.b2[k]]
+        label1 = [bc.arg[k] for k in init_end if bc.op[k] in WITH_LABEL]
+        if reg2 is not None and reg1 and reg1[-1] % 255 + 1 != reg2:
+            c.after_init = (
+                reg2 - 1,
+                (label2 - 1) if label2 is not None and label1 and label1[-1] + 1 != label2 else None,
+            )
     c.file_name([it for it in KC.analyze(map_text) if it[0] != 'type'])
     ins, only_problems = c.ins, where
     structure = []

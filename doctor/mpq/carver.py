@@ -357,6 +357,10 @@ def identify(b, w3e_dims=None):
         return None, '.dll', 'pe'
     if b.endswith(b'TRUEVISION-XFILE.\x00'):
         return None, '.tga', 'tga'
+    if len(b) > 18 and b[1] == 0 and b[2] in (2, 10) and b[3:7] == b'\0' * 4 and b[16] in (24, 32):
+        w, hh = struct.unpack_from('<HH', b, 12)
+        if 0 < w <= 4096 and 0 < hh <= 4096:
+            return None, '.tga', 'tga'
     if len(b) >= 8:
         v = struct.unpack_from('<i', b, 0)[0]
         if v in (18, 25, 28, 31, 32, 33) and len(b) < 400000:
@@ -383,7 +387,7 @@ def identify(b, w3e_dims=None):
             return 'war3mapExtra.txt', '.txt', 'extra'
         if s.startswith('[CustomSkin]') or s.startswith('[FrameDef]'):
             return 'war3mapSkin.txt', '.txt', 'skin'
-        line_list = [line.strip() for line in s.splitlines() if line.strip()]
+        line_list = [line.strip() for line in s.splitlines() if line.strip() and line.strip() not in MPQ_NAMES]
         if (
             line_list
             and sum(1 for line in line_list if re.search(r'\.[A-Za-z0-9]{1,4}$', line)) >= 0.9 * len(line_list)
@@ -478,6 +482,7 @@ def assign_names(members, index_=None, log=None):
             known |= set(
                 line.strip() for line in m.data_bytes.decode('utf-8', 'surrogateescape').splitlines() if line.strip()
             )
+    old_list = set(n.upper() for n in known)
     known |= _mined(members)
     by_h3 = collections.defaultdict(set)
     if known:
@@ -527,7 +532,15 @@ def assign_names(members, index_=None, log=None):
                         in_use.add(tgt[0].upper())
             ms = [m for m in ms if not m.fname]
             cands = [n for n in cands if n.upper() not in in_use]
-        if len(ms) == 1 and len(cands) == 1:
+        same_ones = [n for n in free_slots.get(ext, []) if n.upper() not in in_use]
+        from_list = sorted(set(n for n in same_ones if n.upper() in old_list), key=lambda n: n.upper())
+        if len(ms) == 1 and len(set(n.upper() for n in from_list)) == 1:
+            ms[0].fname, ms[0].how = from_list[0], 'listing'
+            in_use.add(from_list[0].upper())
+        elif len(ms) == 1 and len(same_ones) == 1:
+            ms[0].fname, ms[0].how = same_ones[0], 'listing'
+            in_use.add(same_ones[0].upper())
+        elif len(ms) == 1 and len(cands) == 1:
             ms[0].fname, ms[0].how = cands[0], 'listing'
             in_use.add(cands[0].upper())
     imp = next((x for x in members if x.fname == 'war3map.imp' and x.data_bytes), None)

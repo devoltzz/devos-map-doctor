@@ -1,15 +1,4 @@
 # Builds pjass, the JASS checker, as WebAssembly (WASI) for the site.
-"""build_pjass.py - pjass (github.com/lep/pjass, BSD-2), the JASS checker, built as WebAssembly (WASI) for the site.
-
-  python web/build_pjass.py --src=<pjass source> --out=<folder> [--flex=flex] [--bison=bison] [--native]
-
-The source is copied to <out>/_build (the source folder is not touched); the parser and the lexer come from
-`bison -d grammar.y` and `flex token.l`; the build is pjass's own amalgamated one (its GNUmakefile's `pjass.exe`
-target: every .c included in one unit, -DPJASS_AMALGATION), with zig from pip (`python -m ziglang cc -target
-wasm32-wasi`). Writes <out>/pjass.wasm and <out>/pjass.json (the source commit, the tools, the sha256).
-`--native` (1.6.6) also writes <out>/pjass, the same unit for Linux (x86_64, static with musl: it runs on any
-distribution), for the Linux build of the program.
-"""
 import hashlib
 import json
 import os
@@ -77,10 +66,14 @@ def build(src, out, flex='flex', bison='bison', native=False):
     return info
 
 
+USAGE = ('usage: python web/build_pjass.py --src=<pjass source> --out=<folder> [--flex=flex] [--bison=bison] '
+         '[--native]')
+
+
 def main(argv):
     op = dict((a[2:].split('=', 1) + [''])[:2] for a in argv if a.startswith('--'))
     if not op.get('src') or not op.get('out'):
-        print(__doc__)
+        print(USAGE)
         return 2
     info = build(os.path.abspath(op['src']), os.path.abspath(op['out']), op.get('flex') or 'flex',
                  op.get('bison') or 'bison', 'native' in op)

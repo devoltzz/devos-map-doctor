@@ -343,6 +343,12 @@ def referenced_closure(a, seeds=None, log=None):
                 continue
             if d:
                 candidates |= mine_bytes(d[:16 * 1048576])
+                if n.lower().endswith('war3map.lua') and d[:5] == b'--W3P':
+                    try:
+                        from doctor.mpq import w3protect
+                        candidates |= set(w3protect.paths(d))
+                    except Exception:
+                        pass
         expanded = set()
         for c in candidates:
             expanded |= variants(c)
@@ -474,6 +480,32 @@ def mdx_inner_name(data_bytes):
     return ''
 
 
+RX_LITERAL = re.compile(rb'"((?:[^"\\\n]|\\.){1,160})"')
+RX_PREFIX_MATCH = re.compile(r'^[A-Za-z0-9_\-.()\[\]]+(?:[\\/][A-Za-z0-9_\-. ()\[\]]*)+$')
+RX_HAS_EXT = re.compile(r'\.[A-Za-z0-9]{2,4}$')
+NUMBERED_CAP = 1000
+
+
+def path_prefixes(data_bytes):
+    from doctor.mpq import w3protect
+    lits = [w3protect.lua_literal(m.group(1)) for m in RX_LITERAL.finditer(data_bytes)]
+    if w3protect.is_w3p(data_bytes):
+        lits.extend(w3protect.texts(data_bytes))
+    out = set()
+    for b in lits:
+        if len(b) > 120:
+            continue
+        s = b.decode('latin-1')
+        if RX_PREFIX_MATCH.match(s) and not RX_HAS_EXT.search(s) and any(c.isalpha() for c in s):
+            out.add(s.replace('/', '\\'))
+    return out
+
+
+def numbered(prefixes, extensions):
+    nums = [str(i) for i in range(NUMBERED_CAP)] + ['%02d' % i for i in range(10)] + ['%03d' % i for i in range(100)]
+    return [p + n + e for p in sorted(prefixes) for n in nums for e in extensions]
+
+
 def unnamed_blocks(a, with_name):
     return [bi for bi in a.pointed_blocks() if bi not in with_name]
 
@@ -546,6 +578,16 @@ def derived_names(a, name_list, log=None):
         root, ext = os.path.splitext(n.rsplit('\\', 1)[-1])
         if ext.lower() in IMAGE_EXT and not root.upper().startswith('DIS'):
             cand.extend(DISABLED_FOLDER + 'DIS' + root + e for e in IMAGE_EXT)
+        if ext.lower() in ('.fdf', '.toc'):
+            cand.append(n[:-4] + ('.toc' if ext.lower() == '.fdf' else '.fdf'))
+    prefixes = set()
+    for n in known:
+        if n.lower().rsplit('\\', 1)[-1] in ('war3map.lua', 'war3map.j'):
+            try:
+                prefixes |= path_prefixes(a.read(n, bi=known[n]) or b'')
+            except Exception:
+                pass
+    cand.extend(numbered(prefixes, MODEL_EXT + IMAGE_EXT))
     cand.extend(from_texts)
     new_ones = try_names(cand)
     model_folders = set(IMPORTED_FOLDERS) | set(folder(n) for n in known if n.lower().endswith(MODEL_EXT))
@@ -557,7 +599,8 @@ def derived_names(a, name_list, log=None):
             if bi not in nameless:
                 continue
             folders = model_folders | set(folder(t) for t in textures)
-            for base in sorted({inner, inner.replace(' ', ''), inner.replace(' ', '_')} - {''}):
+            by_textures = {os.path.splitext(t.rsplit('\\', 1)[-1])[0] for t in textures}
+            for base in sorted(({inner, inner.replace(' ', ''), inner.replace(' ', '_')} | by_textures) - {''}):
                 for p in sorted(folders):
                     cand.append(p + base + '.mdx')
                     if not base.upper().endswith('_PORTRAIT'):

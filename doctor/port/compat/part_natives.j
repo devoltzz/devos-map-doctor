@@ -1,9 +1,3 @@
-// ==============================================================================================
-// ==============================================================================================
-
-// ==============================================================================================
-// ==============================================================================================
-
 function EXSetEffectSize takes effect e,real size returns nothing
     local integer i=DB_ef(e)
     if i>=0 then
@@ -521,9 +515,6 @@ function DzPlayEffectAnimation takes effect whichEffect,string anim,string link 
     call BlzSetSpecialEffectAnimation(whichEffect, anim)
 endfunction
 
-// ==============================================================================================
-// ==============================================================================================
-
 //{{KK_SE:KK_UI_ANCORA}}
 constant integer DB_ANCORA_BASE=0x7E000000
 originframetype array DB_ancora_tipo
@@ -645,6 +636,45 @@ function DB_origin takes originframetype tipo,integer index returns integer
     return i
 endfunction
 
+//{{KK_SE:KK_UI_MSG}}
+integer array DB_msg_id
+integer DB_msg_n=0
+
+function DB_msg_marca takes integer id returns integer
+    local integer i=0
+    if id==0 then
+        return 0
+    endif
+    loop
+        exitwhen i>=DB_msg_n
+        if DB_msg_id[i]==id then
+            return id
+        endif
+        set i=i+1
+    endloop
+    if DB_msg_n<8 then
+        set DB_msg_id[DB_msg_n]=id
+        set DB_msg_n=DB_msg_n+1
+    endif
+    return id
+endfunction
+
+function DB_eh_msg takes integer id returns boolean
+    local integer i=0
+    if id==0 then
+        return false
+    endif
+    loop
+        exitwhen i>=DB_msg_n
+        if DB_msg_id[i]==id then
+            return true
+        endif
+        set i=i+1
+    endloop
+    return false
+endfunction
+
+//{{KK_FIMSE:KK_UI_MSG}}
 function DzGetGameUI takes nothing returns integer
     return DB_origin(ORIGIN_FRAME_GAME_UI, 0)
 endfunction
@@ -722,6 +752,11 @@ endfunction
 
 function DzFrameSetSize takes integer frame,real w,real h returns nothing
     local framehandle f=DB_fh(frame)
+    //{{KK_SE:KK_UI_MSG}}
+    if DB_eh_msg(frame) then
+        return
+    endif
+    //{{KK_FIMSE:KK_UI_MSG}}
     if f!=null then
         call BlzFrameSetSize(f, w, h)
     endif
@@ -748,6 +783,11 @@ endfunction
 
 function DzFrameSetFont takes integer frame,string fileName,real height,integer flag returns nothing
     local framehandle f=DB_fh(frame)
+    //{{KK_SE:KK_UI_MSG}}
+    if DB_eh_msg(frame) then
+        return
+    endif
+    //{{KK_FIMSE:KK_UI_MSG}}
     if f!=null then
         if fileName==null then
             call BlzFrameSetFont(f, "", height, flag)
@@ -821,6 +861,11 @@ function DzFrameSetPoint takes integer frame,integer point,integer relativeFrame
     if f==null then
         return
     endif
+    //{{KK_SE:KK_UI_MSG}}
+    if DB_eh_msg(frame) then
+        return
+    endif
+    //{{KK_FIMSE:KK_UI_MSG}}
     //{{KK_SE:KK_UI_ANCORA}}
     if r==null and relativeFrame>=DB_ANCORA_BASE and relativeFrame<DB_ANCORA_BASE+DB_ancora_n and DB_ancora_tentativas<80 and DB_ancora_fila_n<256 then
         set DB_ancora_fila_f[DB_ancora_fila_n]=frame
@@ -852,6 +897,11 @@ endfunction
 
 function DzFrameSetAbsolutePoint takes integer frame,integer point,real x,real y returns nothing
     local framehandle f=DB_fh(frame)
+    //{{KK_SE:KK_UI_MSG}}
+    if DB_eh_msg(frame) then
+        return
+    endif
+    //{{KK_FIMSE:KK_UI_MSG}}
     if f!=null then
         call BlzFrameSetAbsPoint(f, DB_p(point), x, y)
     endif
@@ -859,6 +909,11 @@ endfunction
 
 function DzFrameClearAllPoints takes integer frame returns nothing
     local framehandle f=DB_fh(frame)
+    //{{KK_SE:KK_UI_MSG}}
+    if DB_eh_msg(frame) then
+        return
+    endif
+    //{{KK_FIMSE:KK_UI_MSG}}
     if f!=null then
         call BlzFrameClearAllPoints(f)
     endif
@@ -870,6 +925,11 @@ function DzFrameSetAllPoints takes integer frame,integer relativeFrame returns b
     if f==null or r==null then
         return false
     endif
+    //{{KK_SE:KK_UI_MSG}}
+    if DB_eh_msg(frame) then
+        return false
+    endif
+    //{{KK_FIMSE:KK_UI_MSG}}
     call BlzFrameSetAllPoints(f, r)
     return true
 endfunction
@@ -981,8 +1041,6 @@ function DzLoadToc takes string fileName returns nothing
     set DB_toc_ok=BlzLoadTOCFile(fileName)
 endfunction
 
-// ==============================================================================================
-// ==============================================================================================
 location DB_mundo_loc=null
 constant integer DB_MUNDO_TT=300
 constant integer DB_MUNDO_PAI=301
@@ -1092,8 +1150,6 @@ function DB_mundo_solta takes integer frame returns nothing
     set tt=null
 endfunction
 
-// ==============================================================================================
-// ==============================================================================================
 function DB_ui_ht_ok takes nothing returns nothing
     if DB_ui_ht==null then
         set DB_ui_ht=InitHashtable()
@@ -1330,8 +1386,6 @@ function DB_ui_boot takes nothing returns nothing
     call TimerStart(CreateTimer(), 0.00, false, function DB_ui_pos_init)
 endfunction
 
-// ==============================================================================================
-// ==============================================================================================
 function DB_i32 takes integer n returns integer
     return n
 endfunction
@@ -1427,11 +1481,6 @@ function DzBitGet takes integer i,integer byteIndex returns integer
     return DB_bit(i, byteIndex)
 endfunction
 
-// ==============================================================================================
-// ==============================================================================================
-
-// ==============================================================================================
-// ==============================================================================================
 function DzGetWindowWidth takes nothing returns integer
     return BlzGetLocalClientWidth()
 endfunction
@@ -1640,8 +1689,6 @@ function DzGetTriggerUIEventFrame takes nothing returns integer
     return DB_fid(BlzGetTriggerFrame())
 endfunction
 
-// ==============================================================================================
-// ==============================================================================================
 //{{KK_SE:KK_SYNC_FATIA}}
 constant string DB_SF_PREFIXO="kkSF"
 hashtable DB_sf_ht=null
@@ -1846,8 +1893,6 @@ function DzGetTriggerSyncPlayer takes nothing returns player
     return GetTriggerPlayer()
 endfunction
 
-// ==============================================================================================
-// ==============================================================================================
 function EXSetEventDamage takes real amount returns boolean
     call BlzSetEventDamage(amount)
     return true
@@ -1938,8 +1983,6 @@ function EXSetUnitMoveType takes unit u,integer t returns nothing
     endif
 endfunction
 
-// ==============================================================================================
-// ==============================================================================================
 hashtable DB_exab_ht=null
 hashtable DB_exit_ht=null
 
@@ -2393,8 +2436,6 @@ function EXSetAbilityState takes ability abil,integer state_type,real value retu
     return ok
 endfunction
 
-// ==============================================================================================
-// ==============================================================================================
 function DB_morph_chaos takes integer alvo returns integer
     //{{KK_INCLUI:morph_chaos}}
     return 0
@@ -2508,8 +2549,6 @@ function EXSetAbilityAEmeDataA takes ability abil,integer unitid returns boolean
     return true
 endfunction
 
-// ==============================================================================================
-// ==============================================================================================
 function DzSetUnitName takes unit whichUnit,string name returns nothing
     if whichUnit==null then
         return
@@ -2571,8 +2610,6 @@ function DzGetSelectedLeaderUnit takes nothing returns unit
     return DB_sel_u
 endfunction
 
-// ==============================================================================================
-// ==============================================================================================
 hashtable DB_mod_ht=null
 boolean DB_mod_ok=false
 unit array DB_mod_u
@@ -2607,7 +2644,7 @@ function DB_mod_indexa takes nothing returns nothing
         set f=DB_mod_sem_ext(SLK_U_FILE_v[i])
         if f!=null and f!="" then
             set k=StringHash(f)
-            if not HaveSavedInteger(DB_mod_ht,0,k) then
+            if not HaveSavedInteger(DB_mod_ht,0,k) or (SLK_U_FILE_k[i]>=0x7A000000 and SLK_U_FILE_k[i]<0x7A610000) then
                 call SaveInteger(DB_mod_ht,0,k,SLK_U_FILE_k[i])
             endif
         endif
@@ -2717,6 +2754,9 @@ function DzSetUnitModel takes unit whichUnit,string path returns nothing
         return
     endif
     set t=DB_mod_tipo(path)
+    if t!=0 and t!=GetUnitTypeId(whichUnit) and StringHash(DB_mod_sem_ext(SLK_U_FILE(GetUnitTypeId(whichUnit))))==StringHash(DB_mod_sem_ext(path)) then
+        set t=GetUnitTypeId(whichUnit)
+    endif
     if t!=0 then
         call BlzSetUnitSkin(whichUnit,t)
         //{{KK_SE:KK_FX_LOCAL}}

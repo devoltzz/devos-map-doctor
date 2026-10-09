@@ -126,11 +126,12 @@ def _header(r):
         m['water_tint'] = r.raw(4)
     if v >= 28:
         m['script_language'] = r.i32()
-    if v >= 31:
+    if v >= 29:
         m['supported_modes'] = r.i32()
+    if v >= 30:
         m['game_data_version'] = r.i32()
-    if v >= 33:
-        m['v33_extra'] = [r.i32(), r.i32(), r.i32()]
+    if v >= 32:
+        m['v33_extra'] = [r.i32() for _ in range(2 if v == 32 else 3)]
     if v >= 34:
         m['hd_water'] = [r.i32() for _ in range(7)] + [r.raw(4)]
     if v >= 35:
@@ -494,11 +495,14 @@ def write(m, version=None):
         w.raw(m.get('water_tint', b'\xff\xff\xff\xff'))
     if v >= 28:
         w.i32(m.get('script_language', 0))
-    if v >= 31:
+    if v >= 29:
         w.i32(m.get('supported_modes', 3))
+    if v >= 30:
         w.i32(m.get('game_data_version', 1))
-    if v >= 33:
-        for x in m.get('v33_extra', [0, 0, 0]):
+    if v >= 32:
+        zoom = list(m.get('v33_extra') or [])
+        n = 2 if v == 32 else 3
+        for x in (zoom + [0] * n)[:n]:
             w.i32(x)
     if v >= 34:
         hd = m.get('hd_water') or [0] * 7 + [b'\xff\xff\xff\xff']

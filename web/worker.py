@@ -71,8 +71,8 @@ sys.path.insert(0, ENGINE)
 os.chdir(ENGINE)
 sys.argv = [os.path.join(ENGINE, 'DevosMapDoctor.py')]
 
-import DevosMapDoctor as G  # noqa: E402
-from doctor.app import doctor_app as A  # noqa: E402
+import DevosMapDoctor as G
+from doctor.app import doctor_app as A
 
 
 def files_now():
@@ -102,7 +102,7 @@ def run(job_json, emit_js):
     try:
         result = A.run_job(job, emit, G)
         final = {'type': 'result', 'data': result, 'seconds': round(time.time() - t0, 1)}
-    except BaseException as e:  # noqa: BLE001
+    except BaseException as e:
         final = {'type': 'error', 'message': '%s: %s' % (type(e).__name__, e) if str(e) else type(e).__name__,
                  'trace': traceback.format_exc(limit=8)}
     after = files_now()

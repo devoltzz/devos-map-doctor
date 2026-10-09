@@ -1,6 +1,3 @@
-// ==============================================================================================
-// ==============================================================================================
-
 function KKN_frame_exec takes nothing returns nothing
     local string n=LoadStr(DB_ui_ht,GetHandleId(GetTriggeringTrigger()),1)
     if n!=null and n!="" then

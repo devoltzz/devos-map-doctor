@@ -30,11 +30,44 @@ slk = common_module('slk')
 
 WITH_LEVELS = ('.w3a', '.w3d', '.w3q')
 WITHOUT_LEVELS = ('.w3u', '.w3t', '.w3b', '.w3h')
-VERSIONS = (1, 2)
+VERSIONS = (1, 2, 3)
 
 
 class ObjectError(Exception):
     pass
+
+
+class Mods(list):
+    item_sets = None
+
+
+def item_sets(mods):
+    return getattr(mods, 'item_sets', None)
+
+
+def with_item_sets(new_ones, old_streams):
+    c = item_sets(old_streams)
+    if c is None:
+        return new_ones
+    m = Mods(new_ones)
+    m.item_sets = list(c)
+    return m
+
+
+def _split_in_sets(mods, ver, who):
+    c = item_sets(mods)
+    n = len(mods)
+    if not c:
+        return [(0, n)] if (c is None or n) else []
+    total = sum(k for _f, k in c)
+    if total == n:
+        return list(c)
+    if n > total:
+        return list(c[:-1]) + [(c[-1][0], c[-1][1] + n - total)]
+    if len(c) == 1:
+        return [(c[0][0], n)]
+    raise ObjectError('write: object %r (version %d) had %d sets with %d modifications and came with %d: cannot '
+                      'tell which set they were taken from' % (who, ver, len(c), total, n))
 
 
 def uses_levels(file_path):
@@ -51,8 +84,7 @@ def read_objects_bytes(d, with_levels, fname='(bytes)', with_end=False):
         raise ObjectError('%s: short file (%d bytes)' % (fname, len(d)))
     ver = struct.unpack_from('<I', d, 0)[0]
     if ver not in VERSIONS:
-        raise ObjectError('%s: version %d not supported (measured in the collection: %s; the Reforged version 3 '
-                          'has a different layout per object)' % (fname, ver, VERSIONS))
+        raise ObjectError('%s: version %d not supported (measured in the collection: %s)' % (fname, ver, VERSIONS))
     pos = 4
     objects = []
     try:
@@ -62,40 +94,56 @@ def read_objects_bytes(d, with_levels, fname='(bytes)', with_end=False):
             for _ in range(n):
                 orig = d[pos:pos + 4].decode('latin-1')
                 new = d[pos + 4:pos + 8].decode('latin-1')
-                cnt = struct.unpack_from('<I', d, pos + 8)[0]
-                pos += 12
-                mods = []
-                for _ in range(cnt):
-                    field_id = d[pos:pos + 4].decode('latin-1')
-                    kind = struct.unpack_from('<I', d, pos + 4)[0]
-                    pos += 8
-                    level = pointer = 0
-                    if with_levels:
-                        level, pointer = struct.unpack_from('<II', d, pos)
-                        pos += 8
-                    if kind == 0:
-                        val = struct.unpack_from('<i', d, pos)[0]
-                        pos += 4
-                    elif kind in (1, 2):
-                        val = struct.unpack_from('<f', d, pos)[0]
-                        pos += 4
-                    elif kind == 3:
-                        e = d.index(b'\0', pos)
-                        val = d[pos:e]
-                        pos = e + 1
-                    else:
-                        raise ObjectError('%s: value type %d in field %r of object %r (byte %d): the '
-                                          'file is not of this format or the level decision is '
-                                          'wrong (with_levels=%s)' % (fname, kind, field_id, new or orig,
-                                                                      pos - 8, with_levels))
-                    end_pos = d[pos:pos + 4]
+                pos += 8
+                if ver >= 3:
+                    mods = Mods()
+                    mods.item_sets = []
+                    nsets = struct.unpack_from('<I', d, pos)[0]
                     pos += 4
-                    if with_end:
-                        if len(end_pos) != 4:
-                            raise ValueError('truncated end of record')
-                        mods.append((field_id, kind, level, pointer, val, end_pos))
+                    if nsets > (len(d) - pos) // 8:
+                        raise ValueError('%d sets in object %r do not fit in the file' % (nsets, new or orig))
+                else:
+                    mods = []
+                    nsets = 1
+                for _cset in range(nsets):
+                    if ver >= 3:
+                        flag, cnt = struct.unpack_from('<II', d, pos)
+                        pos += 8
+                        mods.item_sets.append((flag, cnt))
                     else:
-                        mods.append((field_id, kind, level, pointer, val))
+                        cnt = struct.unpack_from('<I', d, pos)[0]
+                        pos += 4
+                    for _ in range(cnt):
+                        field_id = d[pos:pos + 4].decode('latin-1')
+                        kind = struct.unpack_from('<I', d, pos + 4)[0]
+                        pos += 8
+                        level = pointer = 0
+                        if with_levels:
+                            level, pointer = struct.unpack_from('<II', d, pos)
+                            pos += 8
+                        if kind == 0:
+                            val = struct.unpack_from('<i', d, pos)[0]
+                            pos += 4
+                        elif kind in (1, 2):
+                            val = struct.unpack_from('<f', d, pos)[0]
+                            pos += 4
+                        elif kind == 3:
+                            e = d.index(b'\0', pos)
+                            val = d[pos:e]
+                            pos = e + 1
+                        else:
+                            raise ObjectError('%s: value type %d in field %r of object %r (byte %d): the '
+                                              'file is not of this format or the level decision is '
+                                              'wrong (with_levels=%s)' % (fname, kind, field_id, new or orig,
+                                                                          pos - 8, with_levels))
+                        end_pos = d[pos:pos + 4]
+                        pos += 4
+                        if with_end:
+                            if len(end_pos) != 4:
+                                raise ValueError('truncated end of record')
+                            mods.append((field_id, kind, level, pointer, val, end_pos))
+                        else:
+                            mods.append((field_id, kind, level, pointer, val))
                 objects.append((table, orig, new, mods))
     except (struct.error, ValueError) as e:
         raise ObjectError('%s: the file ended in the middle of an object (byte %d of %d; with_levels=%s): %s'
@@ -126,8 +174,20 @@ def write_objects_bytes(ver, objects, with_levels):
             ids = (orig + new).encode('latin-1')
             if len(ids) != 8:
                 raise ObjectError('write: ids %r/%r do not have 4 characters each' % (orig, new))
-            out.append(ids + struct.pack('<I', len(mods)))
-            for m in mods:
+            if ver >= 3:
+                sets_split = _split_in_sets(mods, ver, new.strip('\0') or orig)
+                out.append(ids + struct.pack('<I', len(sets_split)))
+                first_pos = {}
+                k = 0
+                for flag, n in sets_split:
+                    first_pos.setdefault(k, []).append(struct.pack('<II', flag, n))
+                    k += n
+            else:
+                out.append(ids + struct.pack('<I', len(mods)))
+                first_pos = {}
+            for i, m in enumerate(mods):
+                if i in first_pos:
+                    out.extend(first_pos.pop(i))
                 field_id, kind, level, pointer, val = m[:5]
                 end_pos = m[5] if len(m) > 5 else b'\0\0\0\0'
                 field_bytes = field_id.encode('latin-1')
@@ -152,6 +212,8 @@ def write_objects_bytes(ver, objects, with_levels):
                 else:
                     raise ObjectError('write: value type %r in field %r of object %r' % (kind, field_id, new or orig))
                 out.append(end_pos)
+            for headers in first_pos.values():
+                out.extend(headers)
     return b''.join(out)
 
 
@@ -251,7 +313,7 @@ def w3i_balance(w3i_path):
         kind = 'custom'
     reason = ('w3i version %d, flags 0x%X (%s), game_data_set %d, data %s'
               % (m.get('version', 0), m.get('flags', 0), 'melee' if melee else 'custom', data_set,
-                 'v%d' % version_num + ('' if 'game_data_version' in m else ' (w3i < 31: TFT)')))
+                 'v%d' % version_num + ('' if 'game_data_version' in m else ' (w3i < 30: TFT)')))
     if kind == 'melee' and version_num == 1:
         return None, reason + ' -> the base (TFT melee)'
     return '%s_v%d' % (kind, version_num), reason + ' -> %s_v%d' % (kind, version_num)
@@ -675,6 +737,6 @@ def add_modifications(objects, listing, meta=None):
         hash_key = new if new.strip('\0') else orig
         extra = [(code_part, kind, 0, _int((meta or {}).get(code_part, {}).get('data'), 0), field_value, b'\0\0\0\0')
                  for code_part, kind, field_value in by_id.get(hash_key, [])]
-        output.append((table, orig, new, list(mods) + extra))
+        output.append((table, orig, new, with_item_sets(list(mods) + extra, mods)))
     return output
 
