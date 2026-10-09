@@ -595,6 +595,16 @@ def _translation_check(job, progress):
     return translation_io.check(job['map'], job['file'], progress)
 
 
+def _translation_machine(job, progress):
+    from doctor.translation import machine_translate
+    from doctor.translation import translation_io
+    r = machine_translate.translate_map(job['map'], job['file'], progress, job.get('only'),
+                                        job.get('quality') or 'best')
+    if r.get('state') == 'done':
+        r['check'] = translation_io.check(job['map'], job['file'], progress)
+    return r
+
+
 def _compare(job, progress):
     from doctor.viewers import map_compare
     return map_compare.compare(job['map'], job['other'], progress)
@@ -605,7 +615,7 @@ TOOLS = {'card': _card, 'card_image': _card_image, 'gradient': _gradient, 'refor
          'triggers': _triggers, 'cheatpacks': _cheatpacks, 'cheatpack_inject': _cheatpack_inject,
          'rawcodes': _rawcodes, 'qol': _qol, 'qol_apply': _qol_apply,
          'translation_export': _translation_export, 'translation_groups': _translation_groups,
-         'translation_check': _translation_check, 'compare': _compare}
+         'translation_check': _translation_check, 'translation_machine': _translation_machine, 'compare': _compare}
 
 
 def worker_main(window=None):

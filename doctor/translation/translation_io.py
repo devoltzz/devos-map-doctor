@@ -627,6 +627,11 @@ def groups(path, progress=None):
         return rep
     rep.update(groups=_groups_of(mt.entries), entries=len(mt.entries),
                state='done' if mt.entries else 'no_text')
+    try:
+        from doctor.translation import machine_translate
+        rep['machine'] = machine_translate.info(machine_translate.detect_language(e['text'] for e in mt.entries))
+    except Exception:
+        rep['machine'] = None
     return rep
 
 

@@ -72,3 +72,13 @@ the item rolls: the share of the draw that makes the item times m (100% at most)
 ({0}) * QoL.creep
 ({0}) * QoL_creep
 real QoL_creep = {0}
+Category:
+Content-Length
+User-Agent
+about us
+contact us
+external links
+main page
+see also
+not translated
+and but or the a an it its this that these those then when if with for to of in on at by each every deal deals increase increases increased reduce reduces reduced slow slows slowed lasts last can will also while after before which who and makes make causes cause gives give gains gain restores restore recovers recover heals heal is are was were has have

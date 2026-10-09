@@ -116,6 +116,19 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER I
 OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
+## The local machine translation: CTranslate2, SentencePiece and OPUS-MT
+
+https://github.com/OpenNMT/CTranslate2 (MIT), https://github.com/google/sentencepiece (Apache-2.0),
+https://github.com/Helsinki-NLP/Opus-MT
+
+The program bundles CTranslate2 and SentencePiece (their license texts are below, with the other Python packages), which
+run the translation models of "Local machine translation" (the Translation tab, `doctor/translation/machine_translate.py`).
+The models are not in the program: the one a map needs is downloaded the first time, from the release
+`translation-models` of this repository. They are the OPUS-MT models of the University of Helsinki (Joerg Tiedemann and
+the OPUS-MT team), converted to the CTranslate2 format with their weights unchanged; each comes with its model card and
+license (CC-BY 4.0 or Apache-2.0) inside its zip file. Tiedemann, J. and Thottingal, S. (2020): OPUS-MT - Building open
+translation services for the World (EAMT 2020).
+
 ## The site
 
 The site (`web/build_site.py`) ships, unchanged, Pyodide (https://github.com/pyodide/pyodide, MPL-2.0) with its CPython

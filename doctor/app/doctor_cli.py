@@ -26,6 +26,9 @@ usage: doctor <command> <map> [options]
   translation groups <map>        the files the texts come from
   translation export <map> <file.txt|file.html> [--only=<group>,...]
   translation check <map> <file>  checks a translated file against the map (apply it: fix --translation=<file>)
+  translation machine <map> <file.json> [--quality=best|fast] [--only=<group>,...]
+                                  translates the texts into English on this computer (an open translation model,
+                                  downloaded the first time) and checks the file against the map
   files <map>                     the files inside the map
   extract <map> <name>... [--to=<folder>]
   script <map> [--to=<file>]      the map script (printed, or saved)
@@ -229,6 +232,18 @@ def show(command, r):
         else:
             print('Exported %d texts to %s' % (r.get('entries') or 0, r.get('file')))
         return
+    if command == 'translation machine':
+        if r.get('error'):
+            print(r['error'])
+            return
+        print('Translated %d of %d texts into English (%s, from %s) in %s s: %s' % (
+            r.get('translated') or 0, r.get('entries') or 0, r.get('model'), r.get('language'), r.get('seconds'),
+            r.get('file')))
+        for why, n in sorted((r.get('rejected') or {}).items()):
+            print('  %d left in the original: %s' % (n, why))
+        c = r.get('check') or {}
+        print('%d pass the checks' % (c.get('ok') or 0))
+        return
     if command == 'translation check':
         if r.get('error'):
             print(r['error'])
@@ -353,7 +368,15 @@ def build_job(command, pos, opts, run):
         if sub == 'check':
             need(rest, 3, '<map> <file>')
             return 'translation check', {'task': 'translation_check', 'map': rest[1], 'file': os.path.abspath(rest[2])}
-        raise UsageError('translation groups | export | check')
+        if sub == 'machine':
+            need(rest, 3, '<map> <file.json>')
+            only = [x for x in str(opts['only']).split(',') if x] if isinstance(opts.get('only'), str) else None
+            quality = opts.get('quality') if isinstance(opts.get('quality'), str) else 'best'
+            if quality not in ('best', 'fast'):
+                raise UsageError('--quality=best or --quality=fast')
+            return 'translation machine', {'task': 'translation_machine', 'map': rest[1],
+                                           'file': os.path.abspath(rest[2]), 'only': only, 'quality': quality}
+        raise UsageError('translation groups | export | check | machine')
     if command == 'files':
         need(pos, 2, '<map>')
         return 'files', {'task': 'files', 'map': pos[1]}

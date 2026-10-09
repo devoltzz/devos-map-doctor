@@ -80,7 +80,7 @@ const state = {
   hello: null, settings: {}, map: null, open: null, jobs: {}, running: null, results: {},
   gen: 0, tabState: {}, quietJobs: new Set(), images: {}, imageData: {},
   mode: null, pane: {},
-  trGroups: null, trSkip: new Set(),
+  trGroups: null, trSkip: new Set(), mtQuality: 'best',
   extras: { card: null, translation: null, models: null, modelNames: null, singlePlayer: null, portraits: null,
     dataPointers: null, kkTextures: null, disabledIcons: null, uabi: null, preload: null },
   cheatpacks: null, cheatPack: { id: null, options: {}, result: null },
@@ -1672,6 +1672,7 @@ function renderTranslation() {
         onclick: () => exportTexts('json') }),
       el('button', { class: 'btn needs-idle', text: 'Export for Google Translate / DeepL...',
         disabled: !!state.running || none, onclick: () => exportTexts('html') }))),
+  machineCard(none),
   el('div', { class: 'card' }, el('h2', { text: 'Import' }),
     el('p', { class: 'lead', text: 'Load the translated file. It is checked first; then tick "Apply the translation" ' +
       'in Fix or Editor.' }),
@@ -1699,6 +1700,64 @@ function renderTranslation() {
           text: x.id || x.text }), el('td', { class: 'muted', text: x.reason || x.why || '' })))))) : null,
     el('button', { class: 'btn small', style: 'margin-top:10px', text: 'Forget this translation', onclick: () => {
       state.extras.translation = null; renderTranslation(); renderActions(); } })) : null));
+}
+
+const MT_LANGUAGES = { zh: 'Chinese', ko: 'Korean', ja: 'Japanese', ru: 'Russian', vi: 'Vietnamese', th: 'Thai' };
+const MT_QUALITY = { best: 'Best', fast: 'Fast' };
+
+function machineCard(none) {
+  const head = [el('h2', { text: 'Local machine translation' }),
+    el('p', { class: 'lead', text: 'Translates the picked texts into English on this computer, with an open ' +
+      'translation model. Nothing is sent anywhere: the model is downloaded once, from the program\'s GitHub page.' })];
+  if (web()) return el('div', { class: 'card' }, ...head,
+    el('p', { class: 'muted', text: 'Only in the program for Windows and Linux.' }));
+  const g = state.trGroups;
+  if (!g || g.state === 'failed' || !(g.groups || []).length) return el('div', { class: 'card' }, ...head);
+  const m = g.machine;
+  if (!m || !(m.models || []).length) return el('div', { class: 'card' }, ...head,
+    el('p', { class: 'muted', text: 'The texts of this map are not in a language it knows. It translates Chinese, ' +
+      'Korean, Japanese, Russian, Vietnamese and Thai into English.' }));
+  if (!m.models.some(x => x.quality === state.mtQuality)) state.mtQuality = m.models[0].quality;
+  const mb = n => Math.max(1, Math.round(n / 1048576)) + ' MB';
+  const size = x => x.installed ? 'already downloaded' : mb(x.size) + ' to download';
+  const choice = m.models.length > 1 ? el('div', { class: 'row', style: 'margin:8px 0' },
+    m.models.map(x => el('label', { style: 'display:inline-flex;gap:6px;align-items:center;margin-right:18px;' +
+      'cursor:pointer' }, el('input', { type: 'radio', name: 'mtq', checked: x.quality === state.mtQuality,
+      onchange: () => { state.mtQuality = x.quality; renderTranslation(); } }),
+    el('span', { text: MT_QUALITY[x.quality] }), el('span', { class: 'faint', text: size(x) })))) : null;
+  const picked = m.models.find(x => x.quality === state.mtQuality);
+  return el('div', { class: 'card' }, ...head,
+    el('p', {}, el('span', { text: 'From ' + (MT_LANGUAGES[m.language] || m.language) + ' to English.' }),
+      m.models.length === 1 ? ' ' : null, m.models.length === 1 ? el('span', { class: 'faint', text: size(picked) }) :
+        null),
+    choice,
+    m.models.length > 1 ? el('p', { class: 'faint', text: 'Best reads game texts better; Fast is a smaller download ' +
+      'and takes about half the time.' }) : null,
+    el('button', { class: 'btn needs-idle', text: 'Translate on this computer...', disabled: !!state.running || none,
+      onclick: () => machineTranslate(picked) }),
+    el('p', { class: 'faint', style: 'margin-top:10px', text: 'A machine translation is a first pass: names and ' +
+      'some game words come out literal. The file can be reviewed and loaded again before you share the map.' }));
+}
+
+async function machineTranslate(model) {
+  if (state.running) return;
+  const p = await api().pick_save(base(state.map).replace(/\.\w+$/, '') + '.en.translation.json', 'translation');
+  if (!p) return;
+  try {
+    const r = await run('translation_machine', { file: p, only: pickedGroups(), quality: model.quality },
+      { label: 'Translating on this computer...' });
+    if (r.state !== 'done') {
+      failed({ message: r.error || (r.state === 'no_text' ? 'The map has no text to export.' :
+        'The translation did not finish.') }, 'Translating on this computer');
+      return;
+    }
+    model.installed = true;
+    state.extras.translation = { file: p, check: r.check };
+    renderTranslation(); renderActions();
+    toast('Translated ' + (r.translated || 0) + ' of ' + (r.entries || 0) + ' texts into English. Tick "Apply the ' +
+      'translation" in Fix or Editor to write them into a copy of the map.',
+      { actions: [[showLabel('Show'), () => api().open_folder(p)]] });
+  } catch (e) { failed(e, 'Translating on this computer'); }
 }
 
 async function exportTexts(kind) {

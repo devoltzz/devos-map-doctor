@@ -31,7 +31,7 @@ never runs the game.
 | **Open in World Editor** | Writes a copy the editor opens, with the GUI triggers rebuilt from the script when the round trip proves them. |
 | **Port to Reforged** | KK, KKWE, DzAPI, YDWE and j2b maps get their natives implemented and their scripts back in JASS. Maps whose game runs on the YDWE Lua engine become Reforged Lua maps (their Lua 5.3 bytecode translated to source). |
 | **QoL** | A quality of life version of the map: more experience, gold, lumber, item drops and craft success, a faster hero revive and monster respawn, a -noshake command, the map revealed, VIP for everyone. |
-| **Tabs** | Map card, "Runs on Reforged?", files (previews, raw codes), script and its checks, triggers, translation export and import, compare two versions, cheat packs. |
+| **Tabs** | Map card, "Runs on Reforged?", files (previews, raw codes), script and its checks, triggers, translation export and import, local machine translation into English, compare two versions, cheat packs. |
 
 <table>
 <tr>
@@ -44,9 +44,9 @@ never runs the game.
 </tr>
 </table>
 
-### New in 1.7.2
+### New in 1.7.3
 
-- Port to Reforged: maps whose game runs on the YDWE Lua engine get their interface in the program too (the frame definitions they write while they run are collected), and a map no longer closes during the loading screen when its interface anchors frames in a loop the old game accepted (#15, #16).
+- Local machine translation, in the Translation tab: the texts of a Chinese, Korean, Japanese, Russian, Vietnamese or Thai map translated into English on your computer, with an open translation model (OPUS-MT). Nothing is sent anywhere: the model the map needs is downloaded once (60 to 220 MB). The result is the same translation file as an export, checked and ready to apply, and it can be reviewed first.
 
 ## Get it
 
@@ -95,6 +95,7 @@ doctor cheatpacks map.w3x
 doctor cheat map.w3x --pack=nzcp --set activator=-cheat
 doctor qol map.w3x --xp=2 --gold=2 --drop=2 --respawn=0.5
 doctor translation export map.w3x texts.txt
+doctor translation machine map.w3x english.json
 doctor fix map.w3x --translation=texts.txt
 doctor files map.w3x
 doctor extract map.w3x war3map.j --to=out
