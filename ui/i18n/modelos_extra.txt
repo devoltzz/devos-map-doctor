@@ -24,3 +24,4 @@ added
 changed
 removed
 applied
+{0} item drop roll(s) found. {1} item(s) in the item tables of the World Editor.

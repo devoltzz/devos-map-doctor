@@ -1473,7 +1473,11 @@ function qolHint(key, f) {
       (f.xp_set ? ' ' + f.xp_set + ' set a hero\'s experience or level directly: those stay as they are.' : '');
   }
   if (key === 'gold' && f.save_load) return 'The map has a save/load code: what a load gives back counts as a gain.';
-  if (key === 'drop') return f.drop_chances + ' item drop roll(s) found.';
+  if (key === 'drop') {
+    if (!f.drop_tables) return f.drop_chances + ' item drop roll(s) found.';
+    return f.drop_chances + ' item drop roll(s) found. ' + f.drop_tables +
+      ' item(s) in the item tables of the World Editor.';
+  }
   if (key === 'craft') return f.craft_chances + ' craft roll(s) found.';
   if (key === 'respawn') {
     return f.revive_waits + ' wait(s) or timer(s) of a hero revive found, in ' + f.revive_functions +
@@ -1491,8 +1495,9 @@ function renderQol() {
     el('p', { class: 'lead', text: 'Makes the map easier to play: more experience, gold and drops, a faster hero ' +
       'revive, no camera shakes. Saves an edited copy.' }),
     el('div', { class: 'badges' },
-      el('span', { class: 'badge ' + (d.supported ? 'info' : 'warn'), text: d.supported ?
-        'The map script is JASS' : 'The map cannot take the QoL edits' }),
+      el('span', { class: 'badge ' + (d.supported ? 'info' : 'warn'), text: !d.supported ?
+        'The map cannot take the QoL edits' : d.language === 'lua' ? 'The map script is Lua' :
+        'The map script is JASS' }),
       d.script ? el('span', { class: 'badge', text: d.script }) : null),
     d.supported ? null : el('p', { class: 'muted', text: d.reason || 'The map script is not one the Doctor can edit.' }),
     f.kk_mall || (d.reason || '').indexOf('KK') >= 0 ? el('p', { class: 'faint', text: 'Port to Reforged already ' +

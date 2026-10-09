@@ -31,6 +31,9 @@ FOG_CALLS = {'FogEnable': PREFIX + '_FogEnable', 'FogMaskEnable': PREFIX + '_Fog
              'FogEnableOn': PREFIX + '_FogEnableOn', 'FogEnableOff': PREFIX + '_FogEnableOff',
              'FogMaskEnableOn': PREFIX + '_FogMaskEnableOn', 'FogMaskEnableOff': PREFIX + '_FogMaskEnableOff'}
 REVIVE = {'ReviveHero': 'ReviveHero', 'ReviveHeroLoc': 'ReviveHeroLoc'}
+DIST_CALLS = {'RandomDistReset': PREFIX + '_DistReset', 'RandomDistAddItem': PREFIX + '_DistAdd'}
+ALTAR = (('ReviveTimeFactor', 0.65), ('ReviveMaxTimeFactor', 2.0), ('HeroMaxReviveTime', 150.0))
+MISC_FILE = 'war3mapMisc.txt'
 WAITS = {'TriggerSleepAction': 0, 'PolledWait': 0, 'StartTimerBJ': 2, 'TimerStart': 1}
 LINKS = {'TriggerAddAction': 'TriggerAddAction', 'TriggerRegisterTimerExpireEvent': 'TriggerRegisterTimerExpireEvent',
          'TriggerRegisterTimerExpireEventBJ': 'TriggerRegisterTimerExpireEventBJ'}
@@ -95,6 +98,7 @@ def _norm(expr):
     return re.sub(r'\s+', '', expr)
 
 
+RX_DELAY_IF = re.compile(r'^\s*(?:if|elseif)\s*\(?\s*(\w+)\s*(?:<=|<|==)\s*(?:0|0\.0*|\.0+)\s*\)?\s*then\s*$')
 RX_SET = re.compile(r'^\s*set\s+(\w+)\s*=\s*(.+?)\s*(?://.*)?$')
 RX_REVIVE_NAME = re.compile(r'reviv|respawn|resurr|rez', re.I)
 RX_ALIAS = re.compile(r'^(?:\w+|\w+\[[^\[\]]*\]|function\w+)$')
@@ -201,6 +205,30 @@ def respawn_sites(text, tree):
         return None
 
     sites, seen, covered = [], set(), set()
+    rnames = dict((n, n) for n in revive)
+    for f in funcs:
+        reals = [n for t, n in f.params if t == 'real']
+        if not reals:
+            continue
+        for k in range(f.line + 1, f.end_line):
+            m = RX_DELAY_IF.match(_code_part(lines[k - 1]))
+            if not m or m.group(1) not in reals:
+                continue
+            branch, _final = _blocks(lines, k, f.end_line)
+            hit = set()
+            for j in branch:
+                if swap_calls.sitios(lines[j - 1], REVIVE):
+                    hit.add(f.name)
+                elif any(n in lines[j - 1] for n in rnames):
+                    hit |= set(n for _i, _j, n in swap_calls.sitios(lines[j - 1], rnames))
+            if hit:
+                at = max([f.line] + [d.line for d in f.locals])
+                end = len(lines[at - 1].rstrip('\r\n'))
+                if (at, end) not in seen:
+                    seen.add((at, end))
+                    covered |= hit
+                    sites.append((at - 1, end, end, f.name, 'delay parameter %s of %s' % (m.group(1), f.name)))
+                break
     for k, l in enumerate(lines, 1):
         if not any(w in l for w in WAITS):
             continue
@@ -370,7 +398,134 @@ def _blocks(lines, k, end):
     return branch, final
 
 
-def chance_sites(text, tree):
+RX_INT_LITERAL = re.compile(r"'(?:[^'\\]|\\.){4}'|\$[0-9A-Fa-f]{1,8}\b|0[xX][0-9A-Fa-f]{1,8}\b|\b[1-9]\d{8,9}\b")
+
+
+def _literal_value(tok):
+    if tok[0] == "'":
+        b = jass_ast._unescape(tok[1:-1]).encode('latin-1', 'replace')
+        return int.from_bytes(b, 'big') if len(b) == 4 else None
+    if tok[0] == '$':
+        return int(tok[1:], 16)
+    if tok[:2] in ('0x', '0X'):
+        return int(tok[2:], 16)
+    return int(tok)
+
+
+def item_values(archive):
+    from doctor.data import objbin
+    out = set()
+    for name in ('war3map.w3t', 'war3mapSkin.w3t'):
+        try:
+            data = unprotect._read(archive, name)
+            if not data:
+                continue
+            _ver, tables, _end = objbin.read_data(data, False)
+        except Exception:
+            continue
+        for table in tables:
+            for old, new, _mods in table:
+                for s in (new, old):
+                    b = s.encode('latin-1', 'replace')
+                    if len(b) == 4 and b != b'\0\0\0\0':
+                        out.add(int.from_bytes(b, 'big'))
+    try:
+        from doctor.data import slk
+        data = unprotect._read(archive, 'Units\\ItemData.slk')
+        if data:
+            _header, rows = slk.parse_slk_bytes(data)
+            for ident in rows:
+                b = ident.encode('latin-1', 'replace') if isinstance(ident, str) else bytes(ident)
+                if len(b) == 4:
+                    out.add(int.from_bytes(b, 'big'))
+    except Exception:
+        pass
+    return out
+
+
+ITEM_ID_ARG = {'CreateItem': 0, 'CreateItemLoc': 0, 'UnitAddItemById': 1, 'UnitAddItemByIdSwapped': 0,
+               'UnitAddItemToSlotById': 1, 'AddItemToStock': 1, 'AddItemToAllStock': 0, 'RemoveItemFromStock': 1}
+
+
+def item_typing(lines, funcs, item_vals):
+    vals = set(item_vals or ())
+    names = dict((f.name, f.name) for f in funcs)
+    by = dict((f.name, f) for f in funcs)
+    codes = [_code_part(l) for l in lines]
+    for c in codes:
+        if not any(n in c for n in ITEM_ID_ARG):
+            continue
+        for ini, fim, name in swap_calls.sitios(c, ITEM_ID_ARG):
+            a = _args(c, c.index('(', fim))
+            if a and len(a[0]) > ITEM_ID_ARG[name]:
+                s, e = a[0][ITEM_ID_ARG[name]]
+                m = RX_INT_LITERAL.fullmatch(c[s:e].strip())
+                if m:
+                    vals.add(_literal_value(m.group(0)))
+
+    def literal(code):
+        return any(_literal_value(m.group(0)) in vals for m in RX_INT_LITERAL.finditer(code))
+
+    glob, local = set(), dict((f.name, set()) for f in funcs)
+    own = {}
+    for f in funcs:
+        own[f.name] = set(n for _t, n in f.params) | set(d.name for d in f.locals)
+
+    def typed(expr, fname):
+        e = expr.strip()
+        m = RX_INT_LITERAL.fullmatch(e)
+        if m:
+            return _literal_value(m.group(0)) in vals
+        m = re.match(r'^(\w+)(?:\s*\[.*\])?$', e)
+        if not m:
+            return False
+        n = m.group(1)
+        return n in local[fname] if n in own[fname] else n in glob
+
+    if not vals:
+        return literal, local, dict((f.name, set()) for f in funcs)
+    for _round in range(4):
+        before = len(glob) + sum(len(x) for x in local.values())
+        for f in funcs:
+            for k in range(f.line, f.end_line):
+                c = codes[k - 1]
+                if '=' in c:
+                    m = re.match(r'\s*(?:set|local\s+\w+)\s+(\w+)\s*(?:\[.*?\])?\s*=\s*(.+?)\s*$', c)
+                    if m and typed(m.group(2), f.name):
+                        (local[f.name] if m.group(1) in own[f.name] else glob).add(m.group(1))
+                if '(' in c:
+                    for ini, fim, name in swap_calls.sitios(c, names):
+                        g = by[name]
+                        if not g.params:
+                            continue
+                        a = _args(c, c.index('(', fim))
+                        if not a:
+                            continue
+                        for i, (s, e) in enumerate(a[0][:len(g.params)]):
+                            if typed(c[s:e], f.name):
+                                local[name].add(g.params[i][1])
+        if len(glob) + sum(len(x) for x in local.values()) == before:
+            break
+    out = dict((f.name, local[f.name] | glob) for f in funcs)
+    tables = dict((f.name, set()) for f in funcs)
+    for f in funcs:
+        mine = set(d.name for d in f.locals)
+        for k in range(f.line, f.end_line):
+            c = codes[k - 1]
+            m = re.match(r'\s*(?:set|local\s+\w+)\s+(\w+)\s*=\s*(\w+)\s*\[', c)
+            if m and m.group(1) in mine and m.group(2) in glob:
+                tables[f.name].add(m.group(1))
+    return literal, out, tables
+
+
+def _handles_item(code, names):
+    c = code.strip()
+    if not (c.startswith('call ') or c.startswith('set ')):
+        return False
+    return bool(names & set(re.findall(r'[A-Za-z_]\w*', c)))
+
+
+def chance_sites(text, tree, item_vals=None):
     lines = _lines(text)
     funcs = _functions(tree)
     by_name = dict((f.name, f) for f in funcs)
@@ -384,11 +539,19 @@ def chance_sites(text, tree):
         makes |= set(f.name for f in funcs if f.name not in makes and
                      any(any(n in l for n in names) and swap_calls.sitios(l, names) for l in body(f)))
     mk = dict((n, n) for n in makes)
+    _literal, _typed, tables = item_typing(lines, funcs, item_vals)
+    keeps = set(f.name for f in funcs if f.name not in makes and tables.get(f.name) and
+                'GetRandom' in ''.join(body(f)) and
+                any(_handles_item(_code_part(l), tables[f.name]) for l in body(f)))
 
-    def creates(line_numbers):
-        return any(swap_calls.sitios(lines[j - 1], ITEM_MAKE) or
-                   (any(n in lines[j - 1] for n in mk) and swap_calls.sitios(lines[j - 1], mk))
-                   for j in line_numbers)
+    def creates(line_numbers, f=None):
+        for j in line_numbers:
+            l = lines[j - 1]
+            if swap_calls.sitios(l, ITEM_MAKE) or (any(n in l for n in mk) and swap_calls.sitios(l, mk)):
+                return True
+            if f is not None and f.name in keeps and _handles_item(_code_part(l), tables[f.name]):
+                return True
+        return False
 
     def kind_of(f):
         src = ''.join(body(f))
@@ -403,7 +566,7 @@ def chance_sites(text, tree):
         if not re.match(r'(?:if|elseif)\b', s):
             return None
         branch, final = _blocks(lines, k, f.end_line)
-        yes, other = creates(branch), creates(final)
+        yes, other = creates(branch, f), creates(final, f)
         if yes and not other:
             return False
         if other and not yes and not re.match(r'elseif\b', s):
@@ -456,7 +619,7 @@ def chance_sites(text, tree):
     out, groups = [], {}
     for f in funcs:
         owners = []
-        if f.name in makes:
+        if f.name in makes or f.name in keeps:
             owners.append((f, None, None))
         if f.name in conds:
             ds = set(d for _c, _k, d in conds[f.name])
@@ -490,7 +653,7 @@ def chance_sites(text, tree):
                         found.append((cs, ce, op, x, var, lo, hi, is_int, (c.name, j)))
                     break
             for cs, ce, op, x, v, lo, hi, is_int, group in found:
-                if f.name in makes:
+                if f.name in makes or f.name in keeps:
                     d, kf = direction(f, k), f
                 else:
                     d, kf = owners[-1][2], owners[-1][0]
@@ -621,6 +784,53 @@ function QoL_RollR takes real v, real lo, real hi, real x, integer op, boolean i
 endfunction'''
 
 
+def dist_items(text):
+    n = 0
+    for l in _lines(text):
+        if 'RandomDistAddItem' not in l:
+            continue
+        code = _code_part(l)
+        for _i, fim, _n in swap_calls.sitios(code, {'RandomDistAddItem': 1}):
+            a = _args(code, code.index('(', fim))
+            if a and a[0] and code[a[0][0][0]:a[0][0][1]].strip().replace(' ', '') not in ('-1', '(-1)'):
+                n += 1
+    return n
+
+
+def altar_misc(data, factor):
+    text = data.decode('utf-8', 'surrogateescape') if data else ''
+    nl = '\r\n' if '\r\n' in text or not text else '\n'
+    lines = text.split(nl) if text else []
+    sec = next((i for i, l in enumerate(lines) if l.strip().lower() == '[misc]'), None)
+    if sec is None:
+        lines = (lines + [''] if lines and lines[-1].strip() else lines) + ['[Misc]']
+        sec = len(lines) - 1
+    end = next((i for i in range(sec + 1, len(lines)) if lines[i].strip().startswith('[')), len(lines))
+    while end > sec + 1 and not lines[end - 1].strip():
+        end -= 1
+    changes = {}
+    for key, default in ALTAR:
+        at = next((i for i in range(sec + 1, end) if lines[i].split('=', 1)[0].strip().lower() == key.lower()), None)
+        old = default
+        if at is not None:
+            try:
+                old = float(lines[at].split('=', 1)[1].split('//')[0].strip())
+            except ValueError:
+                old = default
+        new = old * factor
+        txt = '%s=%s' % (key, ('%.4f' % new).rstrip('0').rstrip('.') or '0')
+        if at is None:
+            lines.insert(end, txt)
+            end += 1
+        else:
+            lines[at] = txt
+        changes[key] = (old, new)
+    out = nl.join(lines)
+    if not out.endswith(nl):
+        out += nl
+    return out.encode('utf-8', 'surrogateescape'), changes
+
+
 def _count(text, calls):
     return sum(swap_calls.pluralize(text, calls).values())
 
@@ -641,6 +851,20 @@ def scan(path):
         out['reason'] = 'The map cannot be read (%s).' % unprotect._error(e)
         return out
     out['language'], out['script'] = sc['language'], sc['file']
+    if sc['language'] == 'lua' and sc['bytes'] is not None:
+        text = sc['bytes'].decode('utf-8', 'surrogateescape')
+        if MARK in text:
+            out['reason'] = 'The map already has the QoL edits of the Doctor: edit the original map instead.'
+            out['done'] = True
+        elif '__ydwe' in text:
+            out['reason'] = (
+                'The map is a KK map ported by the Doctor\'s Lua route: its natives run inside the port\'s '
+                'runtime, which the QoL edits do not reach yet. Edit the original map before the port.'
+            )
+        else:
+            out['supported'] = True
+            out['found'] = lua_found(text)
+        return out
     if sc['language'] != 'jass' or sc['compiled'] or sc['bytes'] is None:
         out['reason'] = ('The script is compiled by the KK platform: port the map first.' if sc['compiled'] else
                          'This version edits JASS scripts; the map script is %s.' % (sc['language'] or 'unreadable'))
@@ -663,7 +887,7 @@ def scan(path):
                              'the game cannot run it (%s).' % detail)
         return out
     sites, revive, untouched = respawn_sites(text, tree)
-    chances = chance_sites(text, tree)
+    chances = chance_sites(text, tree, item_values(_a))
     out['supported'] = True
     out['found'] = {
         'xp_calls': _count(text, XP_CALLS),
@@ -676,12 +900,685 @@ def scan(path):
         'revive_waits': len(sites),
         'revive_untouched': untouched[:20],
         'drop_chances': sum(1 for c in chances if c[4] == 'drop'),
+        'drop_tables': dist_items(text),
         'craft_chances': sum(1 for c in chances if c[4] == 'craft'),
         'vip_names': sorted(set(v[4] for v in vip_sites(text)))[:30],
         'vip_checks': len(vip_sites(text)),
         'kk_mall': bool(re.search(r'DzAPI_Map_(?:HasMallItem|GetMapLevel|GetPlatformVIP|IsPlatformVIP)', text)),
     }
     return out
+
+
+LUA_HEAD = """-- Devo's Map Doctor: the quality of life edits (the QoL tab).
+QoL = {xp = %(xp)s, gold = %(gold)s, lumber = %(lumber)s, drop = %(drop)s, craft = %(craft)s, respawn = %(respawn)s,
+  reveal = %(reveal)s, noshake = %(noshake)s, still = {}, last = {}, dsum = 0}
+do
+  local Q = QoL
+  -- the item rolls: the share of the draw that makes the item times m (100%% at most), as QoL_RollI/R of the JASS maps
+  local function trunc(r) if r >= 0 then return math.floor(r) else return math.ceil(r) end end
+  function Q.rollI(v, lo, hi, x, op, inv, m)
+    lo, hi = trunc(lo), trunc(hi)
+    local n = hi - lo + 1
+    if n <= 0 then return false end
+    local s
+    if op == 1 then s = trunc(x - 0.0001) - lo + 1
+    elseif op == 2 then s = trunc(x) - lo + 1
+    elseif op == 3 then s = hi - trunc(x)
+    elseif op == 4 then s = hi - trunc(x - 0.0001)
+    elseif op == 5 then s = (x >= lo and x <= hi) and 1 or 0
+    else s = (x >= lo and x <= hi) and n - 1 or n end
+    s = math.max(0, math.min(n, s))
+    local t
+    if inv then t = n - trunc(math.min(n, (n - s) * m + 0.5)) else t = trunc(math.min(n, s * m + 0.5)) end
+    return v - lo < t
+  end
+  function Q.rollR(v, lo, hi, x, op, inv, m)
+    local n = hi - lo
+    if n <= 0 then return false end
+    local s
+    if op <= 2 then s = x - lo else s = hi - x end
+    s = math.max(0, math.min(n, s))
+    if inv then s = n - math.min(n, (n - s) * m) else s = math.min(n, s * m) end
+    return v - lo < s
+  end
+  if Q.xp ~= 1 then
+    local handicap, add = SetPlayerHandicapXP, AddHeroXP
+    SetPlayerHandicapXP = function(p, v) handicap(p, v * Q.xp) end
+    AddHeroXP = function(u, n, show)
+      if n > 0 then n = math.floor(math.min(n * Q.xp, 2000000000.0)) end
+      add(u, n, show)
+    end
+  end
+  if Q.drop ~= 1 then
+    local reset, additem = RandomDistReset, RandomDistAddItem
+    RandomDistReset = function() Q.dsum = 0 reset() end
+    RandomDistAddItem = function(id, w)
+      if id == -1 then
+        w = math.max(0, w - math.floor(Q.dsum * (Q.drop - 1)))
+      else
+        Q.dsum = Q.dsum + w
+        w = math.floor(math.min(w * Q.drop, 1000000) + 0.5)
+      end
+      additem(id, w)
+    end
+  end
+  if Q.noshake then
+    for _, name in ipairs({'CameraSetSourceNoise', 'CameraSetTargetNoise', 'CameraSetSourceNoiseEx',
+                           'CameraSetTargetNoiseEx', 'CameraSetEQNoiseForPlayer'}) do
+      local f = _G[name]
+      _G[name] = function(...) if not Q.still[GetPlayerId(GetLocalPlayer())] then f(...) end end
+    end
+  end
+  if Q.reveal then
+    local fog, mask = FogEnable, FogMaskEnable
+    FogEnable = function() fog(false) end
+    FogMaskEnable = function() mask(false) end
+  end
+end
+"""
+LUA_TAIL = """
+-- Devo's Map Doctor: the quality of life edits, started after the map's own main.
+function QoL_Init()
+  local Q = QoL
+  for i = 0, bj_MAX_PLAYERS - 1 do
+    if Q.xp ~= 1 then SetPlayerHandicapXP(Player(i), GetPlayerHandicapXP(Player(i))) end
+  end
+  if Q.gold ~= 1 or Q.lumber ~= 1 then
+    local t = CreateTrigger()
+    for i = 0, bj_MAX_PLAYERS - 1 do
+      local p = Player(i)
+      Q.last[i * 2] = GetPlayerState(p, PLAYER_STATE_RESOURCE_GOLD)
+      Q.last[i * 2 + 1] = GetPlayerState(p, PLAYER_STATE_RESOURCE_LUMBER)
+      TriggerRegisterPlayerStateEvent(t, p, PLAYER_STATE_RESOURCE_GOLD, GREATER_THAN_OR_EQUAL, 0)
+      TriggerRegisterPlayerStateEvent(t, p, PLAYER_STATE_RESOURCE_LUMBER, GREATER_THAN_OR_EQUAL, 0)
+    end
+    TriggerAddAction(t, function()
+      local p, s = GetTriggerPlayer(), GetEventPlayerState()
+      local k, m = GetPlayerId(p) * 2, Q.gold
+      if s == PLAYER_STATE_RESOURCE_LUMBER then k, m = k + 1, Q.lumber end
+      local v = GetPlayerState(p, s)
+      local last = Q.last[k] or v
+      if v > last and m ~= 1 then
+        v = math.floor(math.max(math.min(last + (v - last) * m, 1000000000), 0))
+        Q.last[k] = v
+        DisableTrigger(GetTriggeringTrigger())
+        SetPlayerState(p, s, v)
+        EnableTrigger(GetTriggeringTrigger())
+      end
+      Q.last[k] = GetPlayerState(p, s)
+    end)
+  end
+  if Q.noshake then
+    local t = CreateTrigger()
+    for i = 0, bj_MAX_PLAYERS - 1 do
+      Q.still[i] = %(noshake_default)s
+      TriggerRegisterPlayerChatEvent(t, Player(i), "-noshake", true)
+    end
+    TriggerAddAction(t, function()
+      local p = GetTriggerPlayer()
+      local k = GetPlayerId(p)
+      Q.still[k] = not Q.still[k]
+      if Q.still[k] then
+        if GetLocalPlayer() == p then
+          CameraSetSourceNoise(0, 0)
+          CameraSetTargetNoise(0, 0)
+        end
+        DisplayTimedTextToPlayer(p, 0, 0, 5, "Camera shakes off (-noshake turns them back on).")
+      else
+        DisplayTimedTextToPlayer(p, 0, 0, 5, "Camera shakes on.")
+      end
+    end)
+  end
+  if Q.reveal then
+    FogEnable(false)
+    FogMaskEnable(false)
+  end
+end
+do
+  local map_main = main
+  function main()
+    if map_main then map_main() end
+    QoL_Init()
+  end
+end
+"""
+RX_LUA_NAME = re.compile(r'GetPlayerName\s*\(([^()]*(?:\([^()]*\)[^()]*)*)\)\s*(==|~=)\s*(["\'])((?:\\.|(?!\3).)*)\3')
+
+
+def _lua_code_lines(text):
+    out = []
+    for l in _lines(text):
+        q, i = None, 0
+        while i < len(l):
+            c = l[i]
+            if q:
+                if c == '\\':
+                    i += 2
+                    continue
+                if c == q:
+                    q = None
+            elif c in '"\'':
+                q = c
+            elif l.startswith('--', i):
+                l = l[:i]
+                break
+            i += 1
+        out.append(l)
+    return out
+
+
+def lua_count(text, names):
+    rx = re.compile(r'(?<![\w.:])(?:%s)\s*\(' % '|'.join(map(re.escape, names)))
+    return sum(len(rx.findall(l)) for l in _lua_code_lines(text))
+
+
+def lua_vip_sites(text):
+    out = []
+    for k, l in enumerate(_lua_code_lines(text)):
+        for m in RX_LUA_NAME.finditer(l):
+            if 'WorldEdit' in m.group(4):
+                continue
+            out.append((k, m.start(), m.end(), 'true' if m.group(2) == '==' else 'false', m.group(4)))
+    return out
+
+
+class _LuaCode:
+    def __init__(self, text):
+        from doctor.script import lua_ast
+        self.text = text
+        self.chunk = lua_ast.parse(text)
+        kinds, self.toks, _lines, self.offs = lua_ast._lex(text)[:4]
+        self.kinds = kinds
+        self.funcs = []
+        self.named = {}
+        self.nodes = {}
+        self._walk(self.chunk.body, '(main chunk)', None, [])
+
+    def _walk(self, block, name, span, own):
+        if not own and name is not None:
+            self.funcs.append((name, own, span))
+        for st in block:
+            own.append(st)
+            sp = st.span or span
+            if type(st).__name__ == 'FunctionStmt':
+                mine = []
+                self.funcs.append((st.name, mine, st.span))
+                self.named.setdefault(st.name, mine)
+                self.nodes.setdefault(st.name, st)
+                self._walk(st.body, None, st.span, mine)
+                continue
+            for e in self._exprs(st):
+                self._funcs_in(e, sp)
+            for b in self._blocks(st):
+                self._walk(b, None, sp, own)
+
+    @staticmethod
+    def _blocks(st):
+        t = type(st).__name__
+        if t == 'IfStmt':
+            return [b for _c, b in st.branches]
+        if t in ('WhileStmt', 'NumericForStmt', 'GenericForStmt', 'RepeatStmt', 'DoStmt'):
+            return [st.body]
+        return []
+
+    @staticmethod
+    def _exprs(st):
+        t = type(st).__name__
+        if t == 'LocalStmt':
+            return list(st.values or [])
+        if t == 'AssignStmt':
+            return list(st.targets) + list(st.values)
+        if t == 'CallStmt':
+            return [st.call]
+        if t == 'IfStmt':
+            return [c for c, _b in st.branches if c is not None]
+        if t in ('WhileStmt', 'RepeatStmt'):
+            return [st.cond]
+        if t == 'NumericForStmt':
+            return [x for x in (st.start, st.stop, st.step) if x is not None]
+        if t == 'GenericForStmt':
+            return list(st.exprs)
+        if t == 'ReturnStmt':
+            return list(st.values or [])
+        return []
+
+    def _funcs_in(self, e, span):
+        stack = [e]
+        while stack:
+            x = stack.pop()
+            if x is None or isinstance(x, (str, int, float, bool)):
+                continue
+            if isinstance(x, (list, tuple)):
+                stack.extend(x)
+                continue
+            t = type(x).__name__
+            if t == 'FunctionExpr':
+                mine = []
+                self.funcs.append(('function at line %d' % x.line, mine, span))
+                self._walk(x.body, None, span, mine)
+                continue
+            for f in getattr(type(x), '__slots__', ()):
+                if f != 'line':
+                    stack.append(getattr(x, f, None))
+
+    @staticmethod
+    def calls_in(e):
+        out, stack = [], [e]
+        while stack:
+            x = stack.pop()
+            if x is None or isinstance(x, (str, int, float, bool)):
+                continue
+            if isinstance(x, (list, tuple)):
+                stack.extend(x)
+                continue
+            t = type(x).__name__
+            if t == 'FunctionExpr':
+                continue
+            if t == 'Call' and type(x.func).__name__ == 'Name':
+                out.append(x.func.name)
+            for f in getattr(type(x), '__slots__', ()):
+                if f != 'line' and not (t == 'FunctionStmt' and f == 'body'):
+                    stack.append(getattr(x, f, None))
+        return out
+
+    def names_in(self, e):
+        out, stack = [], [e]
+        while stack:
+            x = stack.pop()
+            if x is None or isinstance(x, (str, int, float, bool)):
+                continue
+            if isinstance(x, (list, tuple)):
+                stack.extend(x)
+                continue
+            if type(x).__name__ == 'Name':
+                out.append(x.name)
+            for f in getattr(type(x), '__slots__', ()):
+                if f != 'line':
+                    stack.append(getattr(x, f, None))
+        return out
+
+    def tok_at(self, off):
+        import bisect
+        return bisect.bisect_left(self.offs, off)
+
+    def tok_end(self, i):
+        return self.offs[i] + len(self.toks[i])
+
+    def match(self, i):
+        pair = {'(': ')', '[': ']', '{': '}'}
+        o, c, d = self.toks[i], pair[self.toks[i]], 0
+        for j in range(i, len(self.toks)):
+            if self.kinds[j] in ('STRING', 'NUMBER', 'NAME'):
+                continue
+            if self.toks[j] == o:
+                d += 1
+            elif self.toks[j] == c:
+                d -= 1
+                if d == 0:
+                    return j
+        return None
+
+    def conditions(self, st):
+        i = self.tok_at(st.span[0])
+        out, depth, start = [], 0, None
+        if self.toks[i] != 'if':
+            return None
+        start = i + 1
+        for j in range(i + 1, len(self.toks)):
+            t, k = self.toks[j], self.kinds[j]
+            if k in ('STRING', 'NUMBER', 'NAME'):
+                continue
+            if start is not None:
+                if t == 'then' and depth == 0:
+                    out.append((start, j))
+                    start = None
+                elif t == 'function':
+                    depth += 1
+                elif t == 'end':
+                    depth -= 1
+                continue
+            if t in ('function', 'do', 'if', 'repeat'):
+                depth += 1
+            elif t in ('end', 'until'):
+                if depth == 0:
+                    break
+                depth -= 1
+            elif t == 'elseif' and depth == 0:
+                start = j + 1
+        return out
+
+    def args(self, i):
+        e = self.match(i)
+        if e is None:
+            return None
+        out, d, a = [], 0, i + 1
+        for j in range(i + 1, e):
+            t = self.toks[j]
+            if self.kinds[j] in ('STRING', 'NUMBER', 'NAME'):
+                continue
+            if t in ('(', '[', '{'):
+                d += 1
+            elif t in (')', ']', '}'):
+                d -= 1
+            elif t == ',' and d == 0:
+                out.append((a, j))
+                a = j + 1
+        if a < e:
+            out.append((a, e))
+        return out
+
+    def src(self, a, b):
+        return self.text[self.offs[a]:self.tok_end(b - 1)] if b > a else ''
+
+    def random_call(self, a, b):
+        if b - a >= 3 and self.toks[a] in ('GetRandomInt', 'GetRandomReal') and self.toks[a + 1] == '(':
+            p = a + 1
+            kind = 'I' if self.toks[a] == 'GetRandomInt' else 'R'
+        elif b - a >= 5 and self.toks[a:a + 3] == ['math', '.', 'random'] and self.toks[a + 3] == '(':
+            p, kind = a + 3, 'I'
+        else:
+            return None
+        if self.match(p) != b - 1:
+            return None
+        ar = self.args(p)
+        if any(self.toks[j] == '(' for x, y in ar for j in range(x, y)):
+            return None
+        if self.toks[a] == 'math':
+            if not ar:
+                return 'R', '0', '1'
+            if len(ar) == 1:
+                return 'I', '1', self.src(*ar[0])
+        if len(ar) != 2:
+            return None
+        return kind, self.src(*ar[0]), self.src(*ar[1])
+
+
+LUA_CMP = {'<': '<', '<=': '<=', '>': '>', '>=': '>=', '==': '==', '~=': '!='}
+LUA_ITEM_MAKE = frozenset(ITEM_MAKE) | frozenset(('BlzCreateItemWithSkin', 'AddItemToStockBJ', 'AddItemToAllStockBJ',
+                                                  'CreateItemLocBJ'))
+LUA_WAITS = ('TriggerSleepAction', 'PolledWait')
+
+
+def _lua_strip(lc, a, b):
+    neg = 0
+    while b - a >= 2:
+        if lc.toks[a] == 'not' and lc.toks[a + 1] == '(' and lc.match(a + 1) == b - 1:
+            neg, a, b = neg + 1, a + 2, b - 1
+        elif lc.toks[a] == '(' and lc.match(a) == b - 1:
+            a, b = a + 1, b - 1
+        else:
+            break
+    return a, b, neg
+
+
+def _lua_compare(lc, a, b):
+    d, ops = 0, []
+    for j in range(a, b):
+        t = lc.toks[j]
+        if lc.kinds[j] in ('STRING', 'NUMBER', 'NAME'):
+            continue
+        if t in ('(', '[', '{'):
+            d += 1
+        elif t in (')', ']', '}'):
+            d -= 1
+        elif d == 0 and t in ('and', 'or'):
+            return None
+        elif d == 0 and t in LUA_CMP:
+            ops.append(j)
+    if len(ops) != 1:
+        return None
+    o = ops[0]
+    return (a, o), lc.toks[o], (o + 1, b)
+
+
+def lua_chance_sites(lc):
+    makers = set(LUA_ITEM_MAKE)
+    for name, own, _sp in lc.funcs:
+        if name in lc.named and any(set(lc.calls_in(st)) & LUA_ITEM_MAKE for st in own):
+            makers.add(name)
+    conds = {}
+    for name, node in lc.nodes.items():
+        if len(node.body) != 2:
+            continue
+        a, r = node.body
+        if type(a).__name__ != 'IfStmt' or type(r).__name__ != 'ReturnStmt' or len(a.branches) != 1:
+            continue
+        body = a.branches[0][1]
+        if len(body) != 1 or type(body[0]).__name__ != 'ReturnStmt':
+            continue
+        if [lc.src(*_r) for _r in [(lc.tok_at(body[0].span[0]) + 1, lc.tok_at(body[0].span[1]))]] != ['false'] or \
+                lc.text[r.span[0]:r.span[1]].split() != ['return', 'true']:
+            continue
+        cs = lc.conditions(a)
+        if cs:
+            conds[name] = cs[0]
+
+    def creates(block):
+        return any(set(lc.calls_in(st)) & makers for st in _flat(block))
+
+    out, seen = [], {}
+    for name, own, span in lc.funcs:
+        ctx = lc.text[span[0]:span[1]] if span else ''
+        kind = 'drop' if RX_DEATH.search(ctx) else 'craft' if any(
+            set(lc.calls_in(st)) & set(ITEM_TAKE) for st in own) else 'drop'
+        draws = {}
+        for st in _flat(own):
+            t = type(st).__name__
+            if t in ('LocalStmt', 'AssignStmt') and st.span:
+                tg = st.names if t == 'LocalStmt' else st.targets
+                if len(tg) == 1 and len(st.values or []) == 1:
+                    n = tg[0] if isinstance(tg[0], str) else getattr(tg[0], 'name', None)
+                    i = lc.tok_at(st.span[0])
+                    eq = next((j for j in range(i, lc.tok_at(st.span[1])) if lc.toks[j] == '='), None)
+                    rc = lc.random_call(eq + 1, lc.tok_at(st.span[1])) if eq is not None else None
+                    if n and rc:
+                        draws.setdefault(n, []).append((st.span[0], rc))
+                    elif n in draws:
+                        draws[n].append((st.span[0], None))
+            if t != 'IfStmt' or not st.span:
+                continue
+            branches = st.branches
+            final = [b for c, b in branches if c is None]
+            if final and creates(final[0]):
+                continue
+            cs = lc.conditions(st)
+            if not cs or len(cs) != len([c for c, _b in branches if c is not None]):
+                continue
+            eqs = 0
+            todo = []
+            for (c, b), (a0, b0) in zip([x for x in branches if x[0] is not None], cs):
+                a1, b1, neg = _lua_strip(lc, a0, b0)
+                target = None
+                if creates(b):
+                    if b1 - a1 >= 3 and lc.kinds[a1] == 'NAME' and lc.toks[a1] in conds and lc.toks[a1 + 1] == '(' \
+                            and lc.match(a1 + 1) == b1 - 1:
+                        ca, cb = conds[lc.toks[a1]]
+                        ca, cb, cneg = _lua_strip(lc, ca, cb)
+                        want = (cneg % 2 == 1) == (neg % 2 == 0)
+                        target = (ca, cb, not want, lc.toks[a1])
+                    else:
+                        target = (a1, b1, neg % 2 == 1, name)
+                if target is None:
+                    continue
+                ta, tb, inv, fn = target
+                cmp = _lua_compare(lc, ta, tb)
+                if cmp is None:
+                    continue
+                (la, lb), op, (ra, rb) = cmp
+                where = lc.offs[ta]
+                side = None
+                for (xa, xb), flip in (((la, lb), False), ((ra, rb), True)):
+                    rc = lc.random_call(xa, xb)
+                    if rc is None and xb - xa == 1 and lc.toks[xa] in draws:
+                        last = [d for d in draws[lc.toks[xa]] if d[0] < where]
+                        rc = last[-1][1] if last and fn == name else None
+                    if rc:
+                        side = (xa, xb, flip, rc)
+                        break
+                if side is None:
+                    continue
+                xa, xb, flip, (rk, lo, hi) = side
+                other = (ra, rb) if not flip else (la, lb)
+                o = LUA_CMP[op]
+                if flip:
+                    o = FLIP[o]
+                if o in ('==', '!='):
+                    eqs += 1
+                todo.append((lc.offs[ta], lc.tok_end(tb - 1), 'QoL.roll%s(%s, %s, %s, (%s), %d, %s, QoL.%s)' % (
+                    rk, lc.src(xa, xb), lo, hi, lc.src(*other), OPS[o], 'true' if inv else 'false', kind), kind, fn))
+            if eqs >= 2:
+                continue
+            for x in todo:
+                k = (x[0], x[1])
+                if k in seen:
+                    if seen[k] != x[2]:
+                        out = [y for y in out if (y[0], y[1]) != k]
+                    continue
+                seen[k] = x[2]
+                out.append(x)
+    return out
+
+
+def _flat(block):
+    out, stack = [], list(reversed(block))
+    while stack:
+        st = stack.pop()
+        out.append(st)
+        for b in reversed(_LuaCode._blocks(st)):
+            stack.extend(reversed(b))
+    return out
+
+
+def lua_respawn_sites(lc):
+    revive = set()
+    for name, own, _sp in lc.funcs:
+        if any(set(lc.calls_in(st)) & set(REVIVE) for st in own):
+            revive.add(name)
+    sites, done, untouched, covered = [], set(), [], set()
+
+    def waits_before(own, at, fn):
+        n = 0
+        for st in own:
+            if type(st).__name__ != 'CallStmt' or not st.span or st.span[0] >= at:
+                continue
+            c = st.call
+            if type(c.func).__name__ == 'Name' and c.func.name in LUA_WAITS and len(c.args) == 1:
+                i = lc.tok_at(st.span[0])
+                ar = lc.args(i + 1) if lc.toks[i + 1] == '(' else None
+                if ar and len(ar) == 1 and st.span not in done:
+                    done.add(st.span)
+                    a, b = ar[0]
+                    sites.append((lc.offs[a], lc.tok_end(b - 1), '(%s) * QoL.respawn' % lc.src(a, b), fn,
+                                  'wait in %s' % fn))
+                    n += 1
+        return n
+
+    for name, own, _sp in lc.funcs:
+        flat = _flat(own)
+        n = 0
+        for st in flat:
+            if not st.span:
+                continue
+            called = set(lc.calls_in(st))
+            passed = set(lc.names_in(st)) & revive
+            if called & set(REVIVE) or (passed and name not in revive):
+                k = waits_before(flat, st.span[0], name)
+                if k and passed:
+                    covered.update(passed)
+                n += k
+            if type(st).__name__ == 'CallStmt' and type(st.call.func).__name__ == 'Name' and \
+                    st.call.func.name == 'TimerStart' and len(st.call.args) == 4:
+                cb = st.call.args[3]
+                hit = (type(cb).__name__ == 'Name' and cb.name in revive) or (
+                    type(cb).__name__ == 'FunctionExpr' and any(set(lc.calls_in(x)) & set(REVIVE)
+                                                                 for x in _flat(cb.body)))
+                i = lc.tok_at(st.span[0])
+                ar = lc.args(i + 1) if lc.toks[i + 1] == '(' else None
+                if hit and ar and len(ar) == 4 and lc.src(*ar[2]).strip() == 'false' and st.span not in done:
+                    done.add(st.span)
+                    a, b = ar[1]
+                    cbn = cb.name if type(cb).__name__ == 'Name' else 'function at line %d' % cb.line
+                    sites.append((lc.offs[a], lc.tok_end(b - 1), '(%s) * QoL.respawn' % lc.src(a, b), name,
+                                  'timer that runs %s' % cbn))
+                    covered.add(cbn)
+                    n += 1
+        if name in revive and not n:
+            untouched.append(name)
+    return sites, sorted(revive), [u for u in untouched if u not in covered]
+
+
+def lua_found(text):
+    vips = lua_vip_sites(text)
+    out = {'lua': True, 'xp_calls': lua_count(text, ('AddHeroXP', 'SetPlayerHandicapXP', 'SetPlayerHandicapXPBJ',
+                                                     'AddHeroXPSwapped')),
+            'xp_set': lua_count(text, ('SetHeroXP', 'SetHeroLevel', 'SetHeroLevelBJ')),
+            'gold_script': len(re.findall(r'PLAYER_STATE_RESOURCE_(?:GOLD|LUMBER)', text)),
+            'save_load': bool(RX_SAVE.search(text)),
+            'shake_calls': lua_count(text, tuple(SHAKE_CALLS)), 'fog_calls': lua_count(text, tuple(FOG_CALLS)),
+            'drop_tables': lua_count(text, ('RandomDistAddItem',)),
+            'vip_names': sorted(set(v[4] for v in vips))[:30], 'vip_checks': len(vips), 'kk_mall': False,
+            'revive_functions': 0, 'revive_waits': 0, 'revive_untouched': [], 'drop_chances': 0, 'craft_chances': 0}
+    try:
+        lc = _LuaCode(text)
+    except Exception:
+        return out
+    sites, revive, untouched = lua_respawn_sites(lc)
+    chances = lua_chance_sites(lc)
+    out.update(revive_functions=len(revive), revive_waits=len(sites), revive_untouched=untouched[:12],
+               drop_chances=sum(1 for c in chances if c[3] == 'drop'),
+               craft_chances=sum(1 for c in chances if c[3] == 'craft'))
+    return out
+
+
+def _lua_bool(b):
+    return 'true' if b else 'false'
+
+
+def lua_edit(text, o, rep):
+    done = {}
+    if o['respawn'] != 1 or o['drop'] != 1 or o['craft'] != 1:
+        lc = _LuaCode(text)
+        edits = []
+        if o['respawn'] != 1:
+            sites, revive, untouched = lua_respawn_sites(lc)
+            edits += [(a, b, r) for a, b, r, _f, _w in sites]
+            rep['respawn'] = {'sites': [(f, w) for _a, _b, _r, f, w in sites], 'revive': revive,
+                              'untouched': untouched}
+        if o['drop'] != 1 or o['craft'] != 1:
+            ch = [c for c in lua_chance_sites(lc) if o[c[3]] != 1]
+            edits += [(a, b, r) for a, b, r, _k, _f in ch]
+            rep['chances'] = [(k, f) for _a, _b, _r, k, f in ch]
+        for a, b, r in sorted(edits, reverse=True):
+            text = text[:a] + r + text[b:]
+    if o['vip']:
+        vips = lua_vip_sites(text)
+        text = _apply_edits(text, [(k, s, e, r) for k, s, e, r, _n in vips])
+        rep['vip'] = sorted(set(n for _k, _s, _e, _r, n in vips))
+        done['vip'] = len(vips)
+    if o['xp'] != 1:
+        done['xp'] = lua_count(text, ('AddHeroXP', 'SetPlayerHandicapXP', 'SetPlayerHandicapXPBJ', 'AddHeroXPSwapped'))
+    if o['drop'] != 1:
+        done['dist'] = lua_count(text, ('RandomDistAddItem',))
+    if o['noshake'] or o['noshake_default']:
+        done['shake'] = lua_count(text, tuple(SHAKE_CALLS))
+    if o['reveal']:
+        done['fog'] = lua_count(text, tuple(FOG_CALLS))
+    v = {'xp': _real(o['xp']), 'gold': _real(o['gold']), 'lumber': _real(o['lumber']), 'drop': _real(o['drop']),
+         'craft': _real(o['craft']), 'respawn': _real(o['respawn']),
+         'reveal': _lua_bool(o['reveal']), 'noshake': _lua_bool(o['noshake'] or o['noshake_default']),
+         'noshake_default': _lua_bool(o['noshake_default'])}
+    nl = '\r\n' if text.count('\r\n') * 2 > text.count('\n') else '\n'
+    head = (LUA_HEAD % v).replace('\n', nl)
+    tail = (LUA_TAIL % v).replace('\n', nl)
+    from doctor.script import lua_ast
+    new = head + text + ('' if text.endswith(('\n', '\r')) else nl) + tail
+    try:
+        lua_ast.parse(new)
+    except lua_ast.LuaSyntaxError:
+        new = (head + 'local QoL_ret = table.pack((function(...)' + nl + text + nl + 'end)(...))' + nl + tail +
+               'return table.unpack(QoL_ret, 1, QoL_ret.n)' + nl)
+        lua_ast.parse(new)
+    return new, done
 
 
 def _real(v):
@@ -756,8 +1653,22 @@ endfunction''')
     if o['respawn'] != 1:
         g.append('    real QoL_respawn = %s' % _real(o['respawn']))
     if o['drop'] != 1 or o['craft'] != 1:
-        g += ['    real QoL_drop = %s' % _real(o['drop']), '    real QoL_craft = %s' % _real(o['craft'])]
+        g += ['    real QoL_drop = %s' % _real(o['drop']), '    real QoL_craft = %s' % _real(o['craft']),
+              '    integer QoL_dsum = 0']
         f.append(ROLL)
+        f.append('''function QoL_DistReset takes nothing returns nothing
+    set QoL_dsum = 0
+    call RandomDistReset()
+endfunction
+function QoL_DistAdd takes integer id, integer w returns nothing
+    if id == -1 then
+        set w = IMaxBJ(0, w - R2I(I2R(QoL_dsum) * (QoL_drop - 1.)))
+    else
+        set QoL_dsum = QoL_dsum + w
+        set w = R2I(RMinBJ(I2R(w) * QoL_drop, 1000000.) + 0.5)
+    endif
+    call RandomDistAddItem(id, w)
+endfunction''')
     if o['noshake'] or o['noshake_default']:
         g.append('    boolean array QoL_still')
         f.append('''function QoL_EQNoise takes player p, real m returns nothing
@@ -838,7 +1749,7 @@ def _rename(text, calls):
     return new, info['swapped']
 
 
-def edit(text, o, rep):
+def edit(text, o, rep, item_vals=None):
     from doctor.fix import map_rewrite
     done = {}
     tree = jass_ast.parse(text)
@@ -849,11 +1760,17 @@ def edit(text, o, rep):
     if o['respawn'] != 1:
         sites, revive, untouched = respawn_sites(text, tree)
         lines = _lines(text)
-        edits += [(k, s, e, ' (' + lines[k][s:e].strip() + ') * QoL_respawn') for k, s, e, _fn, _why in sites]
+        nl = '\r\n' if text.count('\r\n') * 2 > text.count('\n') else '\n'
+        for k, s, e, _fn, why in sites:
+            if why.startswith('delay parameter '):
+                p = why.split()[2]
+                edits.append((k, s, e, nl + 'set %s = (%s) * QoL_respawn' % (p, p)))
+            else:
+                edits.append((k, s, e, ' (' + lines[k][s:e].strip() + ') * QoL_respawn'))
         rep['respawn'] = {'sites': [(fn, why) for _k, _s, _e, fn, why in sites], 'revive': revive,
                           'untouched': untouched}
     if o['drop'] != 1 or o['craft'] != 1:
-        chances = [c for c in chance_sites(text, tree) if o[c[4]] != 1]
+        chances = [c for c in chance_sites(text, tree, item_vals) if o[c[4]] != 1]
         edits += [(k, s, e, r) for k, s, e, r, _kind, _fn in chances]
         rep['chances'] = [(kind, fn) for _k, _s, _e, _r, kind, fn in chances]
     if o['vip']:
@@ -869,6 +1786,9 @@ def edit(text, o, rep):
     text = _apply_edits(text, edits)
     if o['xp'] != 1:
         text, done['xp'] = _rename(text, XP_CALLS)
+    if o['drop'] != 1 and dist_items(text):
+        done['dist'] = dist_items(text)
+        text, _n = _rename(text, DIST_CALLS)
     if o['noshake'] or o['noshake_default']:
         text, done['shake'] = _rename(text, SHAKE_CALLS)
     if o['reveal']:
@@ -907,25 +1827,39 @@ def fix(path_in, path_out, options=None, progress=None):
         if isinstance(e, KeyboardInterrupt):
             raise
         return stop('failed', 'The map cannot be read (%s).' % unprotect._error(e))
-    if sc['language'] != 'jass' or sc['compiled'] or sc['bytes'] is None:
-        return stop('refused', 'This version edits JASS scripts only (the map script is %s).'
+    lua = sc['language'] == 'lua' and sc['bytes'] is not None
+    if not lua and (sc['language'] != 'jass' or sc['compiled'] or sc['bytes'] is None):
+        return stop('refused', 'This version edits JASS and Lua scripts (the map script is %s).'
                     % ('compiled by the KK platform: port it first' if sc['compiled'] else sc['language'] or
                        'unreadable'))
     text = sc['bytes'].decode('utf-8', 'surrogateescape')
     if MARK in text:
         return stop('refused', 'The map already has the QoL edits of the Doctor: edit the original map instead.')
+    if lua and '__ydwe' in text:
+        return stop('refused', 'The map is a KK map ported by the Doctor\'s Lua route: edit the original map before '
+                               'the port.')
     p('Editing the script')
     try:
-        new_text, done = edit(text, o, rep)
-    except (ValueError, jass_ast.JassSyntaxError) as e:
+        if lua:
+            new_text, done = lua_edit(text, o, rep)
+        else:
+            new_text, done = edit(text, o, rep, item_values(_a))
+    except Exception as e:
         return stop('refused', 'The script cannot take the QoL edits (%s).' % e)
     new_bytes = new_text.encode('utf-8', 'surrogateescape')
-    p('Running pjass')
-    rep['pjass'] = map_rewrite.gate(sc['bytes'], new_bytes)
-    if rep['pjass']['state'] == 'failed':
-        return stop('refused', 'pjass does not accept the edited script (%s).' % rep['pjass'].get('new'))
+    if lua:
+        rep['pjass'] = {'state': 'lua'}
+    else:
+        p('Running pjass')
+        rep['pjass'] = map_rewrite.gate(sc['bytes'], new_bytes)
+        if rep['pjass']['state'] == 'failed':
+            return stop('refused', 'pjass does not accept the edited script (%s).' % rep['pjass'].get('new'))
+    files = [(sc['file'], new_bytes)] + [(c, new_bytes) for c in sc['copies']]
+    if o['respawn'] != 1:
+        misc, rep['altar'] = altar_misc(unprotect._read(_a, MISC_FILE), o['respawn'])
+        files.append((MISC_FILE, misc))
     try:
-        w = map_rewrite.write(path_in, path_out, [(sc['file'], new_bytes)] + [(c, new_bytes) for c in sc['copies']], p)
+        w = map_rewrite.write(path_in, path_out, files, p)
     except Exception as e:
         return stop('failed', 'The map could not be written (%s).' % unprotect._error(e))
     rep.update(state='done', file=path_out, same_files=w['same_files'], script=sc['file'])
@@ -943,6 +1877,8 @@ def report(o, done, rep, text):
         out.append(('warn', 'pjass already refused the original script; the edits add no new complaint.'))
     elif pj.get('state') == 'skipped':
         out.append(('warn', pj.get('note') or 'pjass was not found'))
+    elif pj.get('state') == 'lua':
+        out.append(('good', 'The edited Lua script parses.'))
     if o['xp'] != 1:
         out.append(('info', 'Experience x%g: the XP handicap of every player (kills), and %d call(s) of the map that '
                             'give XP or set the handicap.' % (o['xp'], done.get('xp', 0))))
@@ -968,12 +1904,19 @@ def report(o, done, rep, text):
                         % len(r.get('revive') or [])))
         if r.get('untouched'):
             out.append(('warn', 'Revive with nothing to shorten in: %s.' % ', '.join(r['untouched'][:8])))
+        alt = rep.get('altar') or {}
+        if alt:
+            out.append(('info', 'Revive at an altar x%g (the gameplay constants): %s.' % (o['respawn'], ', '.join(
+                '%s %g -> %g' % (k, alt[k][0], alt[k][1]) for k, _d in ALTAR if k in alt))))
     if o['noshake'] or o['noshake_default']:
         out.append(('info', '-noshake turns the camera shakes off and on (%d call(s) of the map rerouted)%s.'
                     % (done.get('shake', 0), '; every player starts with them off' if o['noshake_default'] else '')))
     if o['reveal']:
         out.append(('info', 'The map is revealed from the start (%d fog call(s) of the map rerouted).'
                     % done.get('fog', 0)))
+    if o['drop'] != 1 and done.get('dist'):
+        out.append(('info', 'Item drop x%g in the item tables of the World Editor: %d item(s), the "nothing" share '
+                            'gives up what they take.' % (o['drop'], done['dist'])))
     if o['drop'] != 1 or o['craft'] != 1:
         ch = rep.get('chances') or []
         for kind in ('drop', 'craft'):
@@ -983,7 +1926,7 @@ def report(o, done, rep, text):
             if n:
                 out.append(('info', '%s chance x%g: %d roll(s) in %d function(s).'
                             % ('Item drop' if kind == 'drop' else 'Craft success', o[kind], len(n), len(set(n)))))
-            else:
+            elif not (kind == 'drop' and done.get('dist')):
                 out.append(('warn', '%s chance: no roll of the map was found to change.'
                             % ('Item drop' if kind == 'drop' else 'Craft success')))
     if o['vip']:

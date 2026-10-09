@@ -43,3 +43,26 @@ exitwhen i >= bj_MAX_PLAYERS
 doctor qol "{0}"{1}
 doctor qol "{0}"{1} --strip-indent
 vJass: {0}
+CameraSetSourceNoise(0, 0)
+CameraSetTargetNoise(0, 0)
+Devo's Map Doctor: the quality of life edits (the QoL tab).
+Devo's Map Doctor: the quality of life edits, started after the map's own main.
+DisplayTimedTextToPlayer(p, 0, 0, 5, "Camera shakes off (-noshake turns them back on).")
+DisplayTimedTextToPlayer(p, 0, 0, 5, "Camera shakes on.")
+FogEnable(false)
+FogMaskEnable(false)
+SetPlayerState(p, s, v)
+TriggerRegisterPlayerChatEvent(t, Player(i), "-noshake", true)
+TriggerRegisterPlayerStateEvent(t, p, PLAYER_STATE_RESOURCE_GOLD, GREATER_THAN_OR_EQUAL, 0)
+TriggerRegisterPlayerStateEvent(t, p, PLAYER_STATE_RESOURCE_LUMBER, GREATER_THAN_OR_EQUAL, 0)
+add(u, n, show)
+additem(id, w)
+delay parameter
+{0}_DistAdd
+{0}_DistReset
+{0}set {1} = ({2}) * QoL_respawn
+item drop roll(s) found.
+item(s) in the item tables of the World Editor.
+Call
+the item rolls: the share of the draw that makes the item times m (100% at most), as QoL_RollI/R of the JASS maps
+({0}) * QoL.respawn
