@@ -333,8 +333,12 @@ def _script_items(src, diag, progress):
     except (jass_ast.JassSyntaxError, lua_ast.LuaSyntaxError) as e:
         vjass = lang == 'jass' and re.search(r'(?m)^\s*(?:scope|library|struct|interface|module)\s+\w', text)
         if vjass:
+            try:
+                detail = jass_ast.vjass_summary(jass_ast.parse_vjass(text))
+            except jass_ast.JassSyntaxError as ev:
+                detail = 'vJass: %s' % ev
             items.append(_item('script_vjass', 'blocker', 'The script still has vJass code (scope, library, struct) '
-                               'that was never compiled, so the game cannot run it (%s).' % e, 'none'))
+                               'that was never compiled, so the game cannot run it (%s).' % (detail or e), 'none'))
         else:
             items.append(_item('script_syntax', 'blocker', 'The %s script does not compile (%s).' % (
                 'JASS' if lang == 'jass' else 'Lua', e), 'none'))

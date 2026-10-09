@@ -18,6 +18,11 @@ usage: doctor <command> <map> [options]
   cheatpacks <map>                the cheat packs the map takes, with their options
   cheat <map> --pack=<id> [--set <key>=<value> ...] [--strip-indent]
                                   adds a cheat pack: saves <map>_<pack>.w3x
+  qol <map>                       what the map has for each quality of life edit
+  qol <map> [--xp=<x>] [--gold=<x>] [--lumber=<x>] [--drop=<x>] [--craft=<x>] [--respawn=<x>]
+            [--noshake] [--noshake-off] [--reveal] [--vip] [--strip-indent]
+                                  the quality of life edits (multipliers; --respawn=0.5 halves the hero revive
+                                  time): saves <map>_qol.w3x
   translation groups <map>        the files the texts come from
   translation export <map> <file.txt|file.html> [--only=<group>,...]
   translation check <map> <file>  checks a translated file against the map (apply it: fix --translation=<file>)
@@ -35,7 +40,7 @@ Extras of fix / editor:
   --models --model-names --portraits --data-pointers --kk-textures --green-icons --uabi --preload
   --single-player --shrink --translation=<file> --strip-indent
 
---strip-indent (fix, editor, port, cheat): the script without the spaces and tabs that start its lines
+--strip-indent (fix, editor, port, cheat, qol): the script without the spaces and tabs that start its lines
 
 Everywhere: --json (what the job returned), --quiet (no progress), --help, --version
 '''
@@ -173,7 +178,7 @@ def print_changes(changes):
 
 
 def show(command, r):
-    if command in ('diag', 'fix', 'editor', 'port', 'cheat'):
+    if command in ('diag', 'fix', 'editor', 'port', 'cheat', 'qol apply'):
         print_lines(r.get('lines'))
         if command in ('fix', 'editor'):
             print_changes(r.get('changes'))
@@ -194,6 +199,14 @@ def show(command, r):
                                        p.get('needs')))
             for o in p.get('options') or []:
                 print('    --set %s=%s   %s' % (o.get('key'), o.get('default'), o.get('label')))
+        return
+    if command == 'qol':
+        if not r.get('supported'):
+            print(r.get('reason') or 'The map cannot take the QoL edits.')
+            return
+        print('Script: %s (%s)' % (r.get('script'), r.get('language')))
+        for k, v in (r.get('found') or {}).items():
+            print('  %-18s %s' % (k, ', '.join(v) if isinstance(v, list) else v))
         return
     if command == 'files':
         for f in r.get('files') or []:
@@ -309,6 +322,23 @@ def build_job(command, pos, opts, run):
             options[k] = {'true': True, 'false': False}.get(v.lower(), v)
         return 'cheat', {'task': 'cheatpack_inject', 'map': pos[1], 'pack': opts['pack'], 'options': options,
                          'strip_indent': opts.get('strip-indent') is True}
+    if command == 'qol':
+        need(pos, 2, '<map>')
+        options = {}
+        for k in ('xp', 'gold', 'lumber', 'drop', 'craft', 'respawn'):
+            if k in opts:
+                try:
+                    options[k] = float(opts[k])
+                except (TypeError, ValueError):
+                    raise UsageError('--%s takes a number, not %r' % (k, opts[k]))
+        for flag, key in (('noshake', 'noshake'), ('noshake-off', 'noshake_default'), ('reveal', 'reveal'),
+                          ('vip', 'vip')):
+            if opts.get(flag) is True:
+                options[key] = True
+        if not options:
+            return 'qol', {'task': 'qol', 'map': pos[1]}
+        return 'qol apply', {'task': 'qol_apply', 'map': pos[1], 'options': options,
+                             'strip_indent': opts.get('strip-indent') is True}
     if command == 'translation':
         sub = pos[1] if len(pos) > 1 else None
         rest = pos[1:]

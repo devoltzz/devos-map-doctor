@@ -12,6 +12,10 @@ SWAPS = {
     'DestroyEffect': 'DB_efx_destroi',
 }
 LABEL_TEXT = 'effects annotated at creation'
+def pluralize(body_text):
+    return T.pluralize(body_text, SWAPS)
+
+
 def applies(body_text, expected_count=None, to_report=False):
     new, info = T.applies(body_text, SWAPS, expected_count=expected_count)
     if to_report and not info['failures']:

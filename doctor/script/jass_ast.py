@@ -806,6 +806,668 @@ _STATEMENTS = {'set': _Parser.set_stmt, 'call': _Parser.call_stmt, 'if': _Parser
                'exitwhen': _Parser.exitwhen_stmt, 'return': _Parser.return_stmt, 'debug': _Parser.debug_stmt}
 
 
+_V_BLOCKS = {'library': 'endlibrary', 'library_once': 'endlibrary', 'scope': 'endscope', 'struct': 'endstruct',
+             'interface': 'endinterface', 'module': 'endmodule'}
+_V_MODIFIERS = frozenset(('private', 'public', 'static', 'stub', 'readonly', 'constant', 'delegate', 'optional'))
+_V_ENDERS = frozenset(_V_BLOCKS.values()) | frozenset(('endif', 'else'))
+
+
+class Member(Expr):
+    __slots__ = ('base', 'name')
+    _fields = ('base', 'name')
+
+    def __init__(self, base, name, line=0):
+        self.base = base
+        self.name = name
+        self.line = line
+
+
+class Invoke(Expr):
+    __slots__ = ('callee', 'args')
+    _fields = ('callee', 'args')
+
+    def __init__(self, callee, args, line=0):
+        self.callee = callee
+        self.args = args
+        self.line = line
+
+
+class Method(Function):
+    __slots__ = ('owner', 'modifiers', 'qualified', 'abstract', 'defaults', 'word')
+    _fields = ('name', 'owner', 'params', 'return_type')
+
+
+class VBlock(Node):
+    __slots__ = ('kind', 'name', 'header', 'modifiers', 'items', 'else_items', 'line', 'end_line', 'comment',
+                 'end_comment', 'leading_comments', 'end_comments')
+    _fields = ('kind', 'name', 'header', 'items')
+
+    def __init__(self, kind, name, header, line=0):
+        self.kind = kind
+        self.name = name
+        self.header = header
+        self.modifiers = []
+        self.items = []
+        self.else_items = None
+        self.line = line
+        self.end_line = line
+        self.comment = None
+        self.end_comment = None
+        self.leading_comments = []
+        self.end_comments = []
+
+
+class VDecl(Node):
+    __slots__ = ('kind', 'name', 'type', 'modifiers', 'text', 'initializer', 'is_array', 'line', 'comment',
+                 'leading_comments')
+    _fields = ('kind', 'name', 'text')
+
+    def __init__(self, kind, name, text, line=0):
+        self.kind = kind
+        self.name = name
+        self.type = None
+        self.modifiers = []
+        self.text = text
+        self.initializer = None
+        self.is_array = False
+        self.line = line
+        self.comment = None
+        self.leading_comments = []
+
+
+class StaticIfStmt(IfStmt):
+    __slots__ = ()
+
+
+def _v_skip_literal(text, i):
+    q = text[i]
+    j = i + 1
+    while j < len(text):
+        if text[j] == '\\':
+            j += 2
+            continue
+        if text[j] == q:
+            return j + 1
+        j += 1
+    return j
+
+
+def vjass_preprocess(text):
+    if '/*' in text:
+        out = []
+        i, n = 0, len(text)
+        carry = 0
+        while i < n:
+            c = text[i]
+            if c in '"\'':
+                j = _v_skip_literal(text, i)
+                out.append(text[i:j])
+                i = j
+                continue
+            if c == '/' and text.startswith('//', i):
+                j = i
+                while j < n and text[j] not in '\r\n':
+                    j += 1
+                out.append(text[i:j])
+                i = j
+                continue
+            if c == '/' and text.startswith('/*', i):
+                depth, j = 1, i + 2
+                while j < n and depth:
+                    if text.startswith('/*', j):
+                        depth += 1
+                        j += 2
+                    elif text.startswith('*/', j):
+                        depth -= 1
+                        j += 2
+                    else:
+                        j += 1
+                carry += len(_LINE_BREAK_RE.findall(text[i:j]))
+                out.append(' ')
+                i = j
+                continue
+            if c in '\r\n':
+                j = i + (2 if text.startswith('\r\n', i) else 1)
+                out.append(text[i:j] * (1 + carry))
+                carry = 0
+                i = j
+                continue
+            out.append(c)
+            i += 1
+        out.append('\n' * carry)
+        text = ''.join(out)
+    parts = re.split(r'(\r\n?|\n)', text)
+    lines = parts[0::2]
+    ends = parts[1::2] + ['']
+    skip = None
+    lua = False
+    hash_if = 0
+    continued = False
+    for k, l in enumerate(lines):
+        s = l.lstrip()
+        low = s.lower()
+        if continued:
+            continued = l.rstrip().endswith('\\')
+            lines[k] = '//' + l
+            continue
+        if '<?=' in l:
+            l = lines[k] = re.sub(r'<\?=.*?\?>', '0', l)
+            s = l.lstrip()
+        if skip:
+            if re.match(r'//!\s*' + skip + r'\b', low):
+                skip = None
+            if not s.startswith('//'):
+                lines[k] = '//' + l
+            continue
+        if lua:
+            lines[k] = '//' + l
+            lua = '?>' not in l
+            continue
+        if hash_if:
+            if re.match(r'#\s*if', s):
+                hash_if += 1
+            elif re.match(r'#\s*endif\b', s):
+                hash_if -= 1
+            lines[k] = '//' + l
+            continue
+        m = re.match(r'//!\s*(textmacro|novjass|zinc)\b', low)
+        if m:
+            skip = {'textmacro': 'endtextmacro', 'novjass': 'endnovjass', 'zinc': 'endzinc'}[m.group(1)]
+            continue
+        if s.startswith('<?'):
+            lines[k] = '//' + l
+            lua = '?>' not in s[2:]
+            continue
+        if s.startswith('#'):
+            if re.match(r'#\s*if\s+0\b', s):
+                hash_if = 1
+            continued = l.rstrip().endswith('\\')
+            lines[k] = '//' + l
+            continue
+        if re.match(r'debug\s+(?:if|elseif|else|endif|loop|endloop|exitwhen|local)\b', s):
+            lines[k] = '//' + l
+    rx_head = re.compile(r'\s*(?:(?:private|public|static|stub|constant)\s+)*(?:function|method)\s+\S+.*\btakes\b')
+    for k in range(len(lines) - 4):
+        if re.match(r'\s*static\s+if\b.*\bthen\s*(?://.*)?$', lines[k]) and rx_head.match(lines[k + 1]) and \
+                re.match(r'\s*else\s*(?://.*)?$', lines[k + 2]) and rx_head.match(lines[k + 3]) and \
+                re.match(r'\s*endif\s*(?://.*)?$', lines[k + 4]):
+            for j in (k, k + 2, k + 3, k + 4):
+                lines[j] = '//' + lines[j]
+    return ''.join(l + e for l, e in zip(lines, ends))
+
+
+class _VParser(_Parser):
+    __slots__ = ('static_depth',)
+
+    def __init__(self, text):
+        _Parser.__init__(self, text)
+        self.static_depth = 0
+
+    def script(self):
+        s = Script()
+        s.end_comments = self.items(s.items, frozenset(), None, s)
+        self._index(s, s.items)
+        return s
+
+    def _index(self, s, items, owner=None):
+        for item in items:
+            t = type(item)
+            if t is Function or t is Method:
+                if item.is_native:
+                    s.natives.append(item)
+                else:
+                    s.functions.append(item)
+                s.function_index.setdefault(item.qualified if t is Method else item.name, item)
+                if t is Method and item.qualified != item.name:
+                    s.function_index.setdefault(item.name, item)
+            elif t is Globals:
+                s.globals.extend(item.decls)
+            elif t is TypeDecl:
+                s.types.append(item)
+            elif t is VBlock:
+                self._index(s, item.items)
+                if item.else_items:
+                    self._index(s, item.else_items)
+        if owner is None:
+            for g in s.globals:
+                s.global_index.setdefault(g.name, g)
+
+    def rest_of_line(self):
+        toks = self.toks
+        parts = []
+        while toks[self.i] not in _NL and toks[self.i] != _EOF and toks[self.i][:2] != '//':
+            parts.append(toks[self.i])
+            self.i += 1
+        text = ''
+        for p in parts:
+            if text and (text[-1].isalnum() or text[-1] in '_') and (p[0].isalnum() or p[0] in '_'):
+                text += ' '
+            elif text and p not in ',)]' and text[-1] not in '([':
+                text += ' '
+            text += p
+        return text
+
+    def items(self, out, enders, container, script=None):
+        toks = self.toks
+        pending = []
+        while True:
+            t = toks[self.i]
+            if t in _NL:
+                self.i += 1
+                self.line += 1
+                continue
+            if t == _EOF:
+                if enders:
+                    self.error('missing %s for the %s at line %d' % ('/'.join(sorted(enders)), container.kind,
+                                                                       container.line))
+                return pending
+            if t[:2] == '//':
+                if script is not None:
+                    script.comments.append(CommentStmt(t, self.line))
+                pending.append(t)
+                self.i += 1
+                self.end_of_line()
+                continue
+            if t in enders:
+                return pending
+            item = self.item(container)
+            item.leading_comments = pending
+            pending = []
+            out.append(item)
+
+    def item(self, container):
+        toks = self.toks
+        line = self.line
+        start = self.i
+        mods = []
+        while toks[self.i] in _V_MODIFIERS and not (toks[self.i] == 'static' and toks[self.i + 1] == 'if'):
+            mods.append(toks[self.i])
+            self.i += 1
+        t = toks[self.i]
+        kind = container.kind if container is not None else None
+        if t == 'static' and toks[self.i + 1] == 'if':
+            return self.static_if_items(container)
+        if t in _V_BLOCKS:
+            return self.vblock(t, mods, line)
+        if t == 'function' and toks[self.i + 1] == 'interface':
+            self.i += 2
+            name = self.identifier()
+            d = VDecl('function interface', name, 'function interface ' + name + ' ' + self.rest_of_line(), line)
+            d.modifiers = mods
+            d.comment = self.end_of_line()
+            return d
+        if t == 'function':
+            f = self.method_or_function(line, mods, container, 'function')
+            return f
+        if t == 'method':
+            return self.method_or_function(line, mods, container, 'method')
+        if t == 'native':
+            if container is None and not [m for m in mods if m != 'constant']:
+                return self.native(line, 'constant' in mods)
+            f = Method('', line, True, 'constant' in mods)
+            self._method_fields(f, mods, container)
+            self.i += 1
+            self.signature(f)
+            f.qualified = f.name
+            return f
+        if t == 'globals' and not mods:
+            return self.vglobals()
+        if t == 'type':
+            self.i += 1
+            name = self.identifier()
+            self.expect('extends')
+            base = self.identifier()
+            if toks[self.i] in _NL or toks[self.i] == _EOF or toks[self.i][:2] == '//':
+                d = TypeDecl(name, base, line)
+                d.comment = self.end_of_line()
+                return d
+            d = VDecl('type', name, 'type %s extends %s %s' % (name, base, self.rest_of_line()), line)
+            d.modifiers = mods
+            d.comment = self.end_of_line()
+            return d
+        if t in ('implement', 'keyword', 'hook', 'delegate'):
+            self.i += 1
+            text = t + ' ' + self.rest_of_line()
+            words = text.split()
+            name = words[-1] if t == 'implement' else words[1] if len(words) > 1 else ''
+            d = VDecl(t, name, text, line)
+            d.modifiers = mods
+            d.comment = self.end_of_line()
+            return d
+        if kind in ('struct', 'module', 'interface') and t[0] in _WORD_START and t not in KEYWORDS:
+            return self.member(line, mods)
+        self.i = start
+        self.error('unexpected %s at the top level' % self.found())
+
+    def _method_fields(self, f, mods, container):
+        f.word = 'native' if f.is_native else 'function'
+        f.owner = container.name if container is not None else None
+        f.modifiers = mods
+        f.abstract = False
+        f.defaults = None
+        f.qualified = f.name
+
+    def method_or_function(self, line, mods, container, word):
+        toks = self.toks
+        if container is None and word == 'function' and not [m for m in mods if m != 'constant']:
+            f = self.function(line, 'constant' in mods)
+            return f
+        f = Method('', line, False, 'constant' in mods)
+        self._method_fields(f, mods, container)
+        f.word = word
+        self.i += 1
+        if word == 'method' and toks[self.i] == 'operator':
+            self.i += 1
+            parts = []
+            while toks[self.i] != 'takes' and toks[self.i] not in _NL and toks[self.i] != _EOF:
+                parts.append(toks[self.i])
+                self.i += 1
+            f.name = 'operator ' + ''.join(parts)
+            self.expect('takes')
+            self.i -= 1
+            self.signature_tail(f)
+        else:
+            self.signature(f)
+        f.qualified = container.name + '.' + f.name if container is not None and word == 'method' else f.name
+        if container is not None and container.kind == 'interface':
+            f.abstract = True
+            return f
+        pending = []
+        while True:
+            t = toks[self.i]
+            if t in _NL:
+                self.i += 1
+                self.line += 1
+            elif t[:2] == '//':
+                pending.append(CommentStmt(t, self.line))
+                self.i += 1
+                self.end_of_line()
+            elif t == 'local':
+                d = self.local_decl()
+                d.leading_comments = [c.text for c in pending]
+                pending = []
+                f.locals.append(d)
+            else:
+                break
+        end = 'endmethod' if word == 'method' else 'endfunction'
+        f.body = self.block(pending, frozenset((end,)), f)
+        f.end_line = self.line
+        self.i += 1
+        f.end_comment = self.end_of_line()
+        return f
+
+    def signature_tail(self, f):
+        toks = self.toks
+        self.expect('takes')
+        if toks[self.i] == 'nothing':
+            self.i += 1
+        else:
+            while True:
+                ptype = self.identifier()
+                f.params.append((ptype, self.identifier()))
+                if toks[self.i] != ',':
+                    break
+                self.i += 1
+        self.expect('returns')
+        if toks[self.i] == 'nothing':
+            self.i += 1
+        else:
+            f.return_type = self.identifier()
+        if toks[self.i] == 'defaults':
+            self.i += 1
+            f.defaults = self.rest_of_line()
+        f.comment = self.end_of_line()
+
+    def signature(self, f):
+        f.name = self.identifier()
+        self.signature_tail(f)
+
+    def vblock(self, kind, mods, line):
+        self.i += 1
+        name = self.identifier()
+        b = VBlock(kind, name, self.rest_of_line(), line)
+        b.modifiers = mods
+        b.comment = self.end_of_line()
+        b.end_comments = self.items(b.items, frozenset((_V_BLOCKS[kind],)), b)
+        b.end_line = self.line
+        self.i += 1
+        b.end_comment = self.end_of_line()
+        return b
+
+    def static_if_items(self, container):
+        line = self.line
+        self.i += 2
+        b = VBlock('static if', None, None, line)
+        b.header = self.rest_of_line()
+        if b.header.endswith('then'):
+            b.header = b.header[:-4].rstrip()
+        b.comment = self.end_of_line()
+        holder = VBlock(container.kind if container is not None else 'static if', container.name if container
+                        is not None else None, None, line)
+        b.end_comments = self.items(b.items, frozenset(('else', 'endif')), holder)
+        if self.toks[self.i] == 'else':
+            self.i += 1
+            self.end_of_line()
+            b.else_items = []
+            self.items(b.else_items, frozenset(('endif',)), holder)
+        b.end_line = self.line
+        self.expect('endif')
+        b.end_comment = self.end_of_line()
+        b.kind = 'static if'
+        return b
+
+    def member(self, line, mods):
+        toks = self.toks
+        type_ = self.identifier()
+        is_array = toks[self.i] == 'array'
+        if is_array:
+            self.i += 1
+        name = self.identifier()
+        start = self.i
+        init = None
+        if toks[self.i] == '=':
+            self.i += 1
+            init = self.expression(0)
+        rest = self.rest_of_line()
+        d = VDecl('member', name, ' '.join(mods + [type_] + (['array'] if is_array else []) + [name]) +
+                  ((' = ' + _ue(init)) if init is not None else '') + ((' ' + rest) if rest else ''), line)
+        d.type = type_
+        d.is_array = is_array
+        d.modifiers = mods
+        d.initializer = init
+        del start
+        d.comment = self.end_of_line()
+        return d
+
+    def vglobals(self):
+        toks = self.toks
+        g = Globals(self.line)
+        self.i += 1
+        g.comment = self.end_of_line()
+        pending = []
+        while True:
+            t = toks[self.i]
+            if t in _NL:
+                self.i += 1
+                self.line += 1
+                continue
+            if t[:2] == '//':
+                pending.append(t)
+                self.i += 1
+                self.end_of_line()
+                continue
+            if t == 'endglobals':
+                g.end_line = self.line
+                g.end_comments = pending
+                self.i += 1
+                g.end_comment = self.end_of_line()
+                return g
+            if t == _EOF:
+                self.error('missing endglobals (the block opens at line %d)' % g.line)
+            line = self.line
+            mods = []
+            while toks[self.i] in _V_MODIFIERS:
+                mods.append(toks[self.i])
+                self.i += 1
+            type_ = self.identifier()
+            is_array = toks[self.i] == 'array'
+            if is_array:
+                self.i += 1
+            name = self.identifier()
+            init = None
+            size = None
+            while toks[self.i] == '[':
+                self.i += 1
+                size = (size + '][' if size else '') + _ue(self.expression(0))
+                self.expect(']')
+            if toks[self.i] == '=':
+                self.i += 1
+                init = self.expression(0)
+            d = GlobalDecl(name, type_, is_array, 'constant' in mods, init, line)
+            if [m for m in mods if m != 'constant'] or size is not None:
+                d = VDecl('global', name, ' '.join(mods + [type_] + (['array'] if is_array else []) + [name]) +
+                          ('[' + size + ']' if size is not None else '') +
+                          (' = ' + _ue(init) if init is not None else ''), line)
+                d.type = type_
+                d.is_array = is_array
+                d.modifiers = mods
+                d.initializer = init
+            d.leading_comments = pending
+            pending = []
+            d.comment = self.end_of_line()
+            g.decls.append(d)
+
+    def block(self, body, enders, opener):
+        toks = self.toks
+        while True:
+            t = toks[self.i]
+            if t in _NL:
+                self.i += 1
+                self.line += 1
+                continue
+            if t == 'static' and toks[self.i + 1] == 'if':
+                body.append(self.static_if_stmt())
+                continue
+            h = _V_STATEMENTS.get(t)
+            if h is not None:
+                body.append(h(self))
+            elif t in enders:
+                return body
+            elif t[:2] == '//':
+                body.append(CommentStmt(t, self.line))
+                self.i += 1
+                self.end_of_line()
+            elif t == 'local' and self.static_depth:
+                body.append(self.local_decl())
+            elif t == 'local':
+                self.error('local declaration after the first statement')
+            elif t == _EOF or t in _BLOCK_WORDS or t in _V_ENDERS or t in ('endmethod', 'method'):
+                if t in enders:
+                    return body
+                end, what = _V_CLOSERS.get(type(opener), ('end', 'block'))
+                if isinstance(opener, Method) and opener.owner is not None and 'endmethod' in enders:
+                    end, what = 'endmethod', 'method'
+                self.error('missing %s for the %s at line %d, found %s' % (end, what, opener.line, self.found()))
+            else:
+                self.error('unexpected %s at the start of a statement' % self.found())
+
+    def debug_stmt(self):
+        line = self.line
+        self.i += 1
+        h = _V_STATEMENTS.get(self.toks[self.i])
+        if h is None or h is _VParser.debug_stmt:
+            self.error('expected a statement after debug, found %s' % self.found())
+        return DebugStmt(h(self), line)
+
+    def static_if_stmt(self):
+        line = self.line
+        self.i += 1
+        self.static_depth += 1
+        try:
+            s = self.if_stmt()
+        finally:
+            self.static_depth -= 1
+        out = StaticIfStmt(s.branches, line)
+        out.branch_lines, out.branch_comments = s.branch_lines, s.branch_comments
+        out.comment, out.end_line, out.end_comment = s.comment, s.end_line, s.end_comment
+        return out
+
+    def set_stmt(self):
+        line = self.line
+        self.i += 1
+        target = self.unary()
+        if type(target) not in (Name, Index, Member):
+            self.error('expected a variable to set, found %s' % _ue(target))
+        self.expect('=')
+        s = SetStmt(target, self.expression(0), line)
+        s.comment = self.end_of_line()
+        return s
+
+    def call_stmt(self):
+        line = self.line
+        self.i += 1
+        call = self.unary()
+        if type(call) not in (Call, Invoke):
+            self.error('expected a call, found %s' % self.found())
+        s = CallStmt(call, line)
+        s.comment = self.end_of_line()
+        return s
+
+    def unary(self):
+        toks = self.toks
+        t = toks[self.i]
+        if t == '.' and toks[self.i + 1][:1] in _WORD_START:
+            line = self.line
+            self.i += 1
+            e = Member(None, toks[self.i], line)
+            self.i += 1
+            return self.postfix(e)
+        if t == 'function':
+            line = self.line
+            self.i += 1
+            name = self.identifier()
+            while toks[self.i] == '.' and toks[self.i + 1][:1] in _WORD_START:
+                name += '.' + toks[self.i + 1]
+                self.i += 2
+            return FuncRef(name, line)
+        e = _Parser.unary(self)
+        if type(e) in (Name, Call, Index, Paren):
+            return self.postfix(e)
+        return e
+
+    def postfix(self, e):
+        toks = self.toks
+        while True:
+            t = toks[self.i]
+            if t == '.' and toks[self.i + 1][:1] in _WORD_START:
+                line = self.line
+                name = toks[self.i + 1]
+                self.i += 2
+                e = Member(e, name, line)
+            elif t == ':' and toks[self.i + 1][:1] in _WORD_START:
+                line = self.line
+                name = toks[self.i + 1]
+                self.i += 2
+                e = Member(e, ':' + name, line)
+            elif t == '(' and type(e) is Member:
+                line = self.line
+                self.i += 1
+                e = Invoke(e, self.arguments(), line)
+            elif t == '[' and type(e) in (Member, Invoke, Call, Index):
+                line = self.line
+                self.i += 1
+                e = Index(e, self.expression(0), line)
+                self.expect(']')
+            else:
+                return e
+
+
+_V_STATEMENTS = dict(_STATEMENTS)
+_V_STATEMENTS.update({'set': _VParser.set_stmt, 'call': _VParser.call_stmt, 'debug': _VParser.debug_stmt})
+_V_CLOSERS = {Function: ('endfunction', 'function'), Method: ('endfunction', 'function'), IfStmt: ('endif', 'if'),
+              StaticIfStmt: ('endif', 'static if'), LoopStmt: ('endloop', 'loop')}
+
+
 @contextlib.contextmanager
 def _tree_work():
     if sys.getrecursionlimit() < 20000:
@@ -819,7 +1481,7 @@ def _tree_work():
             gc.enable()
 
 
-def parse(text):
+def parse(text, vjass=False):
     if text[:1] == _BOM:
         text = text[1:]
     with _tree_work():
@@ -827,7 +1489,30 @@ def parse(text):
             tree = _parse_native(text)
             if tree is not None:
                 return tree
-        return _Parser(text).script()
+        if not vjass:
+            return _Parser(text).script()
+        try:
+            return _Parser(text).script()
+        except JassSyntaxError:
+            return _VParser(vjass_preprocess(text)).script()
+
+
+def vjass_summary(tree):
+    count = {}
+    for n in walk(tree):
+        if type(n) is VBlock and n.kind != 'static if':
+            k = 'library' if n.kind == 'library_once' else n.kind
+            count[k] = count.get(k, 0) + 1
+    plural = {'library': 'libraries'}
+    return ', '.join('%d %s' % (count[k], k if count[k] == 1 else plural.get(k, k + 's'))
+                     for k in ('library', 'scope', 'struct', 'interface', 'module') if k in count)
+
+
+def parse_vjass(text):
+    if text[:1] == _BOM:
+        text = text[1:]
+    with _tree_work():
+        return _VParser(vjass_preprocess(text)).script()
 
 
 NATIVE_MIN = 16384
@@ -1139,6 +1824,20 @@ _CHILDREN = {
 }
 
 
+def _vblock_children(n):
+    return list(n.items) + list(n.else_items or ())
+
+
+_CHILDREN.update({
+    Method: _CHILDREN[Function],
+    StaticIfStmt: _branch_children,
+    Member: lambda n: [] if n.base is None else [n.base],
+    Invoke: lambda n: [n.callee] + n.args,
+    VBlock: _vblock_children,
+    VDecl: lambda n: [] if n.initializer is None else [n.initializer],
+})
+
+
 def children(node):
     return list(_CHILDREN[type(node)](node))
 
@@ -1167,6 +1866,16 @@ _STACKED = {
     Binary: lambda n: (n.right, n.left),
     Paren: lambda n: (n.inner,),
 }
+
+
+_STACKED.update({
+    Method: _STACKED[Function],
+    StaticIfStmt: _STACKED[IfStmt],
+    Member: lambda n: () if n.base is None else (n.base,),
+    Invoke: lambda n: (n.args[::-1] + [n.callee]),
+    VBlock: lambda n: _vblock_children(n)[::-1],
+    VDecl: lambda n: () if n.initializer is None else (n.initializer,),
+})
 
 
 def walk(node):
@@ -1224,6 +1933,10 @@ def _ue(e):
         return ('not ' if e.op == 'not' else e.op) + inner
     if t is FuncRef:
         return 'function ' + e.name
+    if t is Member:
+        return ('' if e.base is None else _ue(e.base)) + ('' if e.name[:1] == ':' else '.') + e.name
+    if t is Invoke:
+        return _ue(e.callee) + '(' + ', '.join([_ue(a) for a in e.args]) + ')'
     raise TypeError('not a JASS expression: %r' % (e,))
 
 
@@ -1254,7 +1967,9 @@ def _unparse_stmt(s, ind, out, comments, prefix=''):
         text = 'call ' + _ue(s.call)
     elif t is SetStmt:
         text = 'set ' + _ue(s.target) + ' = ' + _ue(s.value)
-    elif t is IfStmt:
+    elif t is IfStmt or t is StaticIfStmt:
+        if t is StaticIfStmt:
+            prefix = prefix + 'static '
         inner = ind + '    '
         for k, (cond, body) in enumerate(s.branches):
             if k == 0:
@@ -1284,6 +1999,8 @@ def _unparse_stmt(s, ind, out, comments, prefix=''):
         if comments:
             out.append(ind + s.text)
         return
+    elif t is LocalDecl:
+        text = 'local ' + _decl_text(s)
     elif t is DebugStmt:
         _unparse_stmt(s.stmt, ind, out, comments, prefix + 'debug ')
         return
@@ -1292,7 +2009,57 @@ def _unparse_stmt(s, ind, out, comments, prefix=''):
     out.append(ind + _with_comment(prefix + text, s.comment, comments))
 
 
+def _vsignature_text(f):
+    params = ', '.join(t + ' ' + n for t, n in f.params) if f.params else 'nothing'
+    head = ' '.join(f.modifiers + [f.word, f.name])
+    return head + ' takes ' + params + ' returns ' + f.return_type + (' defaults ' + f.defaults if f.defaults else '')
+
+
+def _unparse_vitem(item, out, comments, ind):
+    t = type(item)
+    if comments and t in (Method, VBlock, VDecl):
+        out.extend(ind + c for c in item.leading_comments)
+    if t is Method:
+        out.append(ind + _with_comment(_vsignature_text(item), item.comment, comments))
+        if item.is_native or item.abstract:
+            return
+        for d in item.locals:
+            if comments:
+                out.extend(ind + '    ' + c for c in d.leading_comments)
+            out.append(ind + _with_comment('    local ' + _decl_text(d), d.comment, comments))
+        for st in item.body:
+            _unparse_stmt(st, ind + '    ', out, comments)
+        out.append(ind + _with_comment('endmethod' if item.word == 'method' else 'endfunction', item.end_comment,
+                                       comments))
+    elif t is VBlock:
+        if item.kind == 'static if':
+            out.append(ind + _with_comment('static if ' + item.header + ' then', item.comment, comments))
+        else:
+            out.append(ind + _with_comment(' '.join(item.modifiers + [item.kind, item.name]) +
+                                           (' ' + item.header if item.header else ''), item.comment, comments))
+        for x in item.items:
+            _unparse_vitem(x, out, comments, ind + '    ')
+        if item.else_items is not None:
+            out.append(ind + 'else')
+            for x in item.else_items:
+                _unparse_vitem(x, out, comments, ind + '    ')
+        if comments:
+            out.extend(ind + '    ' + c for c in item.end_comments)
+        end = 'endif' if item.kind == 'static if' else _V_BLOCKS[item.kind]
+        out.append(ind + _with_comment(end, item.end_comment, comments))
+    elif t is VDecl:
+        out.append(ind + _with_comment(item.text if item.kind in ('member', 'global') else
+                                       ' '.join(item.modifiers + [item.text]), item.comment, comments))
+    else:
+        sub = []
+        _unparse_item(item, sub, comments)
+        out.extend(ind + x if x else x for x in sub)
+
+
 def _unparse_item(item, out, comments):
+    if type(item) in (Method, VBlock, VDecl):
+        _unparse_vitem(item, out, comments, '')
+        return
     if comments:
         out.extend(item.leading_comments)
     t = type(item)
@@ -1312,7 +2079,7 @@ def _unparse_item(item, out, comments):
         for d in item.decls:
             if comments:
                 out.extend('    ' + c for c in d.leading_comments)
-            out.append(_with_comment('    ' + _decl_text(d), d.comment, comments))
+            out.append(_with_comment('    ' + (d.text if type(d) is VDecl else _decl_text(d)), d.comment, comments))
         if comments:
             out.extend('    ' + c for c in item.end_comments)
         out.append(_with_comment('endglobals', item.end_comment, comments))
@@ -1333,7 +2100,7 @@ def unparse(node, comments=True):
         out = []
         if isinstance(node, Script):
             for k, item in enumerate(node.items):
-                if k and type(item) is Function and not item.is_native:
+                if k and (type(item) in (Function, Method) and not item.is_native or type(item) is VBlock):
                     out.append('')
                 _unparse_item(item, out, comments)
             if comments:
@@ -1440,9 +2207,13 @@ def _first_difference(a, b):
     return k + 1, la[k] if k < len(la) else '<end>', lb[k] if k < len(lb) else '<end>'
 
 
-def check_text(text):
+def check_text(text, vjass=False):
+    if vjass:
+        if text[:1] == _BOM:
+            text = text[1:]
+        text = vjass_preprocess(text)
     try:
-        s = parse(text)
+        s = parse(text, vjass=vjass)
     except JassSyntaxError as e:
         return False, 'syntax error at ' + str(e)
     out = unparse(s)
@@ -1458,9 +2229,14 @@ def check_text(text):
 
 
 def _load_pjass():
-    path = os.path.join(HERE, '..', 'kk', 'pjass.py')
-    if not os.path.isfile(path):
-        return None
+    path = next((p for p in (os.path.join(HERE, '..', 'kk', 'pjass.py'), os.path.join(HERE, 'pjass.py'))
+                 if os.path.isfile(p)), None)
+    if path is None:
+        try:
+            from doctor.script import pjass
+        except ImportError:
+            return None
+        return pjass if os.path.isfile(pjass.exe()) else None
     import importlib.util
     spec = importlib.util.spec_from_file_location('jass_ast_pjass', path)
     mod = importlib.util.module_from_spec(spec)

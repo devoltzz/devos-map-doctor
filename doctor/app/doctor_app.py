@@ -433,6 +433,8 @@ def run_job(job, emit, G):
                         job.get('strip_indent', False))
     if task == 'cheatpack_inject':
         return _cheatpack_inject(job, progress, emit)
+    if task == 'qol_apply':
+        return _qol_apply(job, progress, emit)
     tool = TOOLS.get(task)
     if tool is None:
         raise ValueError('unknown task %r' % task)
@@ -555,6 +557,26 @@ def _cheatpack_inject(job, progress, emit=lambda event: None):
             'script': r.get('script'), 'options': r.get('options')}
 
 
+def _qol(job, progress):
+    from doctor.fix import qol
+    progress('Reading the script')
+    return qol.scan(job['map'])
+
+
+def _qol_apply(job, progress, emit=lambda event: None):
+    from doctor.fix import qol
+    from doctor.fix import unprotect as D
+    out = D.free_output(job['map'], '_qol')
+    emit({'type': 'output', 'path': out})
+    r = qol.fix(job['map'], out, job.get('options') or {}, progress)
+    if job.get('strip_indent') and r.get('file') and os.path.isfile(r['file']):
+        r['lines'] = list(r.get('lines') or []) + strip_indent_step(r['file'], progress)
+    done = r.get('state') == 'done'
+    return {'lines': page_lines(r.get('lines') or []), 'file': r.get('file') if done else None,
+            'outcome': 'ok' if done else ('nothing' if r.get('state') == 'nothing_to_do' else 'failed'),
+            'state': r.get('state'), 'options': r.get('options')}
+
+
 def _translation_export(job, progress):
     from doctor.translation import translation_io
     only = job.get('only')
@@ -581,7 +603,7 @@ def _compare(job, progress):
 TOOLS = {'card': _card, 'card_image': _card_image, 'gradient': _gradient, 'reforged': _reforged, 'files': _files,
          'preview': _preview, 'extract': _extract, 'script': _script, 'script_checks': _script_checks,
          'triggers': _triggers, 'cheatpacks': _cheatpacks, 'cheatpack_inject': _cheatpack_inject,
-         'rawcodes': _rawcodes,
+         'rawcodes': _rawcodes, 'qol': _qol, 'qol_apply': _qol_apply,
          'translation_export': _translation_export, 'translation_groups': _translation_groups,
          'translation_check': _translation_check, 'compare': _compare}
 

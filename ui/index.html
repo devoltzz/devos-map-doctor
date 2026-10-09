@@ -24,9 +24,11 @@
         <span class="hint">KK and M16 maps</span></button>
       <button data-mode="cheatpacks" data-tab="cheatpacks"><span class="code">04</span><span class="name">CHEATPACKS</span>
         <span class="hint">add cheats</span></button>
-      <button data-mode="translation" data-tab="translation"><span class="code">05</span><span class="name">TRANSLATION</span>
+      <button data-mode="qol" data-tab="qol"><span class="code">05</span><span class="name">QOL</span>
+        <span class="hint">easier to play</span></button>
+      <button data-mode="translation" data-tab="translation"><span class="code">06</span><span class="name">TRANSLATION</span>
         <span class="hint">export and import</span></button>
-      <button data-mode="inspect"><span class="code">06</span><span class="name">INSPECT</span>
+      <button data-mode="inspect"><span class="code">07</span><span class="name">INSPECT</span>
         <span class="hint">files, script and compare</span></button>
     </nav>
     <div class="cat" id="cat" aria-hidden="true">
@@ -101,12 +103,16 @@
           <div class="modehead"><div class="code">04 / CHEATPACKS</div><h2>Cheat packs</h2></div>
           <div class="tab" id="tab-cheatpacks"></div>
         </section>
+        <section class="mode hidden" id="mode-qol">
+          <div class="modehead"><div class="code">05 / QOL</div><h2>Quality of life</h2></div>
+          <div class="tab" id="tab-qol"></div>
+        </section>
         <section class="mode hidden" id="mode-translation">
-          <div class="modehead"><div class="code">05 / TRANSLATION</div><h2>Translation</h2></div>
+          <div class="modehead"><div class="code">06 / TRANSLATION</div><h2>Translation</h2></div>
           <div class="tab" id="tab-translation"></div>
         </section>
         <section class="mode hidden" id="mode-inspect">
-          <div class="modehead"><div class="code">06 / INSPECT</div><h2>Inspect</h2></div>
+          <div class="modehead"><div class="code">07 / INSPECT</div><h2>Inspect</h2></div>
           <nav class="subtabs"><button data-tab="files">Files</button><button data-tab="script">Script</button>
             <button data-tab="compare">Compare</button></nav>
           <div class="tab" id="tab-files"></div>

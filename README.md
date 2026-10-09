@@ -30,6 +30,7 @@ never runs the game.
 | **Fix map** | Removes the protection and repairs the map: fake file tables, scrambled ids, data the 3.0 engine refuses, broken SLK tables, models that crash the game, portrait cameras, data pointers, ability lists, single player. Extras for the map card, the translation and the size. |
 | **Open in World Editor** | Writes a copy the editor opens, with the GUI triggers rebuilt from the script when the round trip proves them. |
 | **Port to Reforged** | KK, KKWE, DzAPI, YDWE and j2b maps get their natives implemented and their scripts back in JASS. Maps whose game runs on the YDWE Lua engine become Reforged Lua maps (their Lua 5.3 bytecode translated to source). |
+| **QoL** | A quality of life version of the map: more experience, gold, lumber, item drops and craft success, a faster hero revive, a -noshake command, the map revealed, VIP for everyone. |
 | **Tabs** | Map card, "Runs on Reforged?", files (previews, raw codes), script and its checks, triggers, translation export and import, compare two versions, cheat packs. |
 
 <table>
@@ -42,6 +43,11 @@ never runs the game.
 <td align="center">A KK map ported, with both compiler gates passed</td>
 </tr>
 </table>
+
+### New in 1.7.1
+
+- A new QoL tab: a quality of life version of an old RPG, made from its own script. Experience, gold and lumber multipliers, item drop and craft success chances (100% at most, tiers kept), a shorter hero revive, a -noshake command, the map revealed and VIP for everyone. The tab shows what the map has for each one before anything is written.
+- The JASS parser reads vJass too, and a map with vJass that was never compiled gets a clearer report.
 
 ### New in 1.7.0
 
@@ -103,6 +109,7 @@ doctor port map.w3x
 doctor check map.w3x
 doctor cheatpacks map.w3x
 doctor cheat map.w3x --pack=nzcp --set activator=-cheat
+doctor qol map.w3x --xp=2 --gold=2 --drop=2 --respawn=0.5
 doctor translation export map.w3x texts.txt
 doctor fix map.w3x --translation=texts.txt
 doctor files map.w3x

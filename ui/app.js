@@ -84,6 +84,7 @@ const state = {
   extras: { card: null, translation: null, models: null, modelNames: null, singlePlayer: null, portraits: null,
     dataPointers: null, kkTextures: null, disabledIcons: null, uabi: null, preload: null },
   cheatpacks: null, cheatPack: { id: null, options: {}, result: null },
+  qol: null, qolOpt: {}, qolResult: null,
   rawcodes: null,
 };
 
@@ -275,6 +276,9 @@ async function openMap(path) {
     dataPointers: null, kkTextures: null, disabledIcons: null, uabi: null, preload: null };
   state.cheatpacks = null;
   state.cheatPack = { id: null, options: {}, result: null };
+  state.qol = null;
+  state.qolOpt = {};
+  state.qolResult = null;
   state.trGroups = null;
   state.trSkip = new Set();
   state.rawcodes = null;
@@ -713,12 +717,12 @@ function offerIndex(release, missing) {
     ['Later', () => {}]] });
 }
 
-const TABS = ['card', 'reforged', 'files', 'script', 'cheatpacks', 'triggers', 'translation', 'compare', 'port'];
-const TAB_DATA = { card: loadCard, files: loadFiles, script: loadScript, cheatpacks: loadCheatpacks,
+const TABS = ['card', 'reforged', 'files', 'script', 'cheatpacks', 'qol', 'triggers', 'translation', 'compare', 'port'];
+const TAB_DATA = { card: loadCard, files: loadFiles, script: loadScript, cheatpacks: loadCheatpacks, qol: loadQol,
   triggers: loadTriggers, reforged: checkReforgedQuietly };
 
 const MODES = { fix: ['fix', 'reforged'], editor: ['editor', 'card', 'triggers'], port: ['port'],
-  cheatpacks: ['cheatpacks'], translation: ['translation'], inspect: ['files', 'script', 'compare'] };
+  cheatpacks: ['cheatpacks'], qol: ['qol'], translation: ['translation'], inspect: ['files', 'script', 'compare'] };
 const modeOf = name => Object.keys(MODES).find(m => MODES[m].includes(name));
 
 function setTabState(name, st) {
@@ -733,7 +737,7 @@ function setTabState(name, st) {
 }
 
 async function loadTabsInBackground(gen) {
-  for (const name of ['card', 'files', 'script', 'cheatpacks', 'triggers']) {
+  for (const name of ['card', 'files', 'script', 'cheatpacks', 'qol', 'triggers']) {
     if (gen !== state.gen) return;
     await TAB_DATA[name](gen);
   }
@@ -1414,6 +1418,154 @@ function cheatpackResult(r) {
       r.file ? el('span', { class: 'faint mono grow', text: r.file }) : null,
       r.file ? folderButton(r.file) : null,
       ok ? null : el('button', { class: 'btn ghost', text: 'Report a problem', onclick: reportProblem })));
+}
+
+const QOL_NUMBERS = [
+  ['xp', 'Experience', 'Multiplies the experience: kills and what the triggers give.'],
+  ['gold', 'Gold', 'Multiplies every gold gain: kills, triggers, mining, selling.'],
+  ['lumber', 'Lumber', 'Multiplies every lumber gain.'],
+  ['drop', 'Item drop chance', 'Multiplies the chance of the item drops the script rolls (100% at most).'],
+  ['craft', 'Craft success chance', 'Multiplies the chance of the crafts the script rolls (100% at most).'],
+  ['respawn', 'Hero revive time', 'Multiplies the time a dead hero waits: 0.5 is half the time, 0 is at once.'],
+];
+const QOL_FLAGS = { xp: 'xp', gold: 'gold', lumber: 'lumber', drop: 'drop', craft: 'craft', respawn: 'respawn',
+  noshake: 'noshake', noshake_default: 'noshake-off', reveal: 'reveal', vip: 'vip' };
+
+async function loadQol(gen) {
+  try {
+    const s = await run('qol', {}, { quiet: true });
+    if (gen !== state.gen) return;
+    if (s.error) { tabFailed('qol', 'Reading the map for the QoL edits', { message: s.error }); return; }
+    state.qol = s;
+    renderQol();
+    setTabState('qol', 'ready');
+  } catch (e) { if (gen === state.gen) tabFailed('qol', 'Reading the map for the QoL edits', e); }
+}
+
+function qolValue(key) {
+  const v = state.qolOpt[key];
+  return v === undefined ? ((state.qol || {}).defaults || {})[key] : v;
+}
+
+function qolOptions() {
+  const out = {};
+  const d = (state.qol || {}).defaults || {};
+  for (const k of Object.keys(QOL_FLAGS)) {
+    const v = qolValue(k);
+    if (typeof d[k] === 'boolean') { if (v === true) out[k] = true; } else if (v !== undefined && v !== '' &&
+      Number(v) !== Number(d[k]) && !isNaN(Number(v))) out[k] = Number(v);
+  }
+  return out;
+}
+
+function qolShell() {
+  const cmd = $('#qol-shell .cmd');
+  if (!cmd) return;
+  const o = qolOptions();
+  const name = state.open ? state.open.name : base(state.map);
+  cmd.textContent = 'doctor qol "' + name + '"' + Object.keys(o).map(k => ' --' + QOL_FLAGS[k] +
+    (o[k] === true ? '' : '=' + o[k])).join('') + (stripIndentOn() ? ' --strip-indent' : '');
+}
+
+function qolHint(key, f) {
+  if (key === 'xp') {
+    return f.xp_calls + ' call(s) of the map give experience or set its rate.' +
+      (f.xp_set ? ' ' + f.xp_set + ' set a hero\'s experience or level directly: those stay as they are.' : '');
+  }
+  if (key === 'gold' && f.save_load) return 'The map has a save/load code: what a load gives back counts as a gain.';
+  if (key === 'drop') return f.drop_chances + ' item drop roll(s) found.';
+  if (key === 'craft') return f.craft_chances + ' craft roll(s) found.';
+  if (key === 'respawn') {
+    return f.revive_waits + ' wait(s) or timer(s) of a hero revive found, in ' + f.revive_functions +
+      ' function(s) that revive.';
+  }
+  return null;
+}
+
+function renderQol() {
+  const d = state.qol;
+  if (!d) return;
+  const f = d.found || {};
+  const head = el('div', { class: 'card' },
+    el('h2', { text: 'Quality of life' }),
+    el('p', { class: 'lead', text: 'Makes the map easier to play: more experience, gold and drops, a faster hero ' +
+      'revive, no camera shakes. Saves an edited copy.' }),
+    el('div', { class: 'badges' },
+      el('span', { class: 'badge ' + (d.supported ? 'info' : 'warn'), text: d.supported ?
+        'The map script is JASS' : 'The map cannot take the QoL edits' }),
+      d.script ? el('span', { class: 'badge', text: d.script }) : null),
+    d.supported ? null : el('p', { class: 'muted', text: d.reason || 'The map script is not one the Doctor can edit.' }),
+    f.kk_mall || (d.reason || '').indexOf('KK') >= 0 ? el('p', { class: 'faint', text: 'Port to Reforged already ' +
+      'unlocks the KK mall items, the map level and the VIP of the platform for every player.' }) : null);
+  if (!d.supported) { tabBody('qol', head, state.qolResult ? qolResult(state.qolResult) : null); return; }
+  const rows = [];
+  for (const [key, label, detail] of QOL_NUMBERS) {
+    const hint = qolHint(key, f);
+    rows.push(el('label', { text: label }), el('div', {},
+      el('div', { class: 'row' }, el('span', { class: 'mono', text: 'x' }), el('input', { class: 'field', type: 'number',
+        min: '0', step: key === 'respawn' ? '0.1' : '0.5', value: String(qolValue(key)), style: 'width:110px',
+        'aria-label': label, oninput: e => { state.qolOpt[key] = e.target.value; qolShell(); } })),
+      el('div', { class: 'faint', text: detail }), hint ? el('div', { class: 'muted', text: hint }) : null));
+  }
+  const tick = (key, title, detail, count) => optionItem({ checked: qolValue(key) === true, title, detail, count,
+    onchange: e => { state.qolOpt[key] = e.target.checked; qolShell(); } });
+  const names = (f.vip_names || []).length ? ' ' + 'Names found:' + ' ' : '';
+  const card = el('div', { class: 'card', id: 'qol-options' },
+    el('div', { class: 'form' }, rows,
+      el('ul', { class: 'steps', style: 'grid-column:1 / -1' },
+        tick('noshake', 'The -noshake command', 'Each player can turn the camera shakes of the map off and on.',
+          f.shake_calls),
+        tick('noshake_default', 'Start with the camera shakes off', 'Every player starts with them off; -noshake ' +
+          'turns them back on.'),
+        tick('reveal', 'Reveal the whole map', 'The map starts revealed and stays so.', f.fog_calls),
+        tick('vip', 'VIP for everyone', 'Every check of a player name against the map\'s list answers as for a ' +
+          'listed name. The same checks may guard the author\'s own commands, which open up too.', f.vip_checks),
+        stripIndentItem()),
+      names ? el('div', { class: 'faint', style: 'grid-column:1 / -1' }, el('span', { text: 'Names found:' }), ' ',
+        el('span', { class: 'mono', translate: 'no', text: f.vip_names.join(', ') })) : null,
+      el('div', { style: 'grid-column:1 / -1' },
+        el('div', { class: 'shell', id: 'qol-shell' }, '$ ', el('span', { class: 'cmd' }), el('span', { class: 'cursor' })),
+        el('button', { class: 'btn primary needs-idle', text: 'Apply the QoL edits', disabled: !!state.running,
+          onclick: runQol }))));
+  tabBody('qol', head, card, state.qolResult ? qolResult(state.qolResult) : null);
+  qolShell();
+}
+
+async function runQol() {
+  if (state.running) return;
+  const options = qolOptions();
+  if (!Object.keys(options).length) { toast('Change at least one option first.'); return; }
+  status('Applying the QoL edits...');
+  try {
+    const r = await run('qol_apply', { options, strip_indent: stripIndentOn() }, { label: 'Applying the QoL edits...' });
+    state.qolResult = r;
+    state.results.qol = r;
+    renderQol();
+    status(r.outcome === 'ok' ? 'QoL edits written.' : 'The QoL edits stopped.');
+    if (r.outcome === 'failed') toast('The QoL edits were not written.', { bad: true });
+  } catch (e) {
+    failed(e, 'Applying the QoL edits');
+    if (e && e.cancelled) { renderQol(); return; }
+    const msg = (e && e.message) || String(e);
+    const lines = [['bad', 'The QoL edits stopped: ' + msg]];
+    if (e && e.trace) e.trace.split('\n').filter(l => l.trim()).forEach(l => lines.push(['info', '  ' + l]));
+    state.qolResult = { outcome: 'failed', lines, file: null };
+    renderQol();
+  }
+}
+
+function qolResult(r) {
+  const ok = r.outcome === 'ok';
+  return el('div', { class: 'card' + (r.outcome === 'failed' ? ' bad' : ''), id: 'result-qol' },
+    el('div', { class: 'row' }, el('h2', { class: 'grow', text: 'QoL edits: result' }),
+      el('span', { class: 'badge ' + (ok ? 'good' : r.outcome === 'failed' ? 'bad' : 'warn'),
+        text: ok ? 'Written' : r.outcome === 'failed' ? 'Stopped' : 'Nothing written' })),
+    reportLines(r.lines || []),
+    el('div', { class: 'foot row', style: 'margin-top:14px' },
+      r.file ? el('span', { class: 'faint mono grow', text: r.file }) : null,
+      r.file ? folderButton(r.file) : null,
+      r.outcome === 'failed' ? el('button', { class: 'btn ghost', text: 'Report a problem', onclick: reportProblem }) :
+        null));
 }
 
 async function loadTriggers(gen) {

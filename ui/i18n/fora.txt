@@ -10,3 +10,36 @@ Lua
 When the original gives each character its own color, keep the codes between whole words, with the space before the code: "Fire |cffff8000Rain |cffffff00Bow", not "Fire|cffff8000Rain|cffffff00Bow".
 Cheat
 SubString({0},0,0)
+// Devo's Map Doctor: the quality of life edits (the QoL tab).
+({0}) * QoL_respawn
+QoL_Roll{0}({1}, {2}, {3}, {4}, {5}, {6}, QoL_{7})
+real QoL_craft = {0}
+real QoL_drop = {0}
+real QoL_gold = {0}
+real QoL_lumber = {0}
+real QoL_respawn = {0}
+real QoL_xp = {0}
+{0}    call TriggerAddAction(t, function QoL_Gain)
+{0}    call TriggerAddAction(t, function QoL_NoShake)
+{0}_AddHeroXP
+{0}_AddHeroXPSwapped
+{0}_EQNoise
+{0}_FogEnable
+{0}_FogEnableOff
+{0}_FogEnableOn
+{0}_FogMaskEnable
+{0}_FogMaskEnableOff
+{0}_FogMaskEnableOn
+{0}_HandicapXP
+{0}_HandicapXPBJ
+{0}_SourceNoise
+{0}_SourceNoiseEx
+{0}_TargetNoise
+{0}_TargetNoiseEx
+boolean array QoL_still
+integer array QoL_last
+exitwhen i >= bj_MAX_PLAYERS
+{0}        call TriggerRegisterPlayerChatEvent(t, Player(i), "-noshake", true)
+doctor qol "{0}"{1}
+doctor qol "{0}"{1} --strip-indent
+vJass: {0}
