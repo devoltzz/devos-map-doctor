@@ -31,13 +31,13 @@ impl Hasher for Fx {
 
 type FxMap<K, V> = HashMap<K, V, BuildHasherDefault<Fx>>;
 
-struct Strs {
+pub(crate) struct Strs {
     list: Vec<Vec<u8>>,
     map: FxMap<Vec<u8>, u32>,
 }
 
 impl Strs {
-    fn new() -> Strs {
+    pub(crate) fn new() -> Strs {
         Strs { list: Vec::new(), map: FxMap::default() }
     }
     fn intern(&mut self, s: &[u8]) -> u32 {
@@ -49,18 +49,18 @@ impl Strs {
         self.map.insert(s.to_vec(), k);
         k
     }
-    fn get(&self, k: u32) -> &[u8] {
+    pub(crate) fn get(&self, k: u32) -> &[u8] {
         &self.list[k as usize]
     }
 }
 
 #[derive(Debug)]
-enum Fail {
+pub(crate) enum Fail {
     Syntax,
     Refuse,
 }
 
-type R<T> = Result<T, Fail>;
+pub(crate) type R<T> = Result<T, Fail>;
 
 fn push_cp(out: &mut Vec<u8>, cp: u32) {
     if cp < 0x80 {
@@ -125,11 +125,11 @@ fn char_len(s: &[u8]) -> u32 {
     s.iter().filter(|&&b| b & 0xC0 != 0x80).count() as u32
 }
 
-const NAME: u8 = 0;
-const NUMBER: u8 = 1;
-const STRING: u8 = 2;
-const EOF: u8 = 3;
-const K_AND: u8 = 4;
+pub(crate) const NAME: u8 = 0;
+pub(crate) const NUMBER: u8 = 1;
+pub(crate) const STRING: u8 = 2;
+pub(crate) const EOF: u8 = 3;
+pub(crate) const K_AND: u8 = 4;
 const K_BREAK: u8 = 5;
 const K_DO: u8 = 6;
 const K_ELSE: u8 = 7;
@@ -192,7 +192,7 @@ const KIND_TEXT: [&str; 55] = [
     ".", "..", "...",
 ];
 
-fn kind_text(k: u8) -> &'static str {
+pub(crate) fn kind_text(k: u8) -> &'static str {
     KIND_TEXT[(k - K_AND) as usize]
 }
 
@@ -247,11 +247,11 @@ const MAX_LOCALS: usize = 200;
 const MAX_UPVALUES: usize = 255;
 
 #[derive(Clone, Copy)]
-struct Tok {
-    kind: u8,
-    line: u32,
-    cpos: u32,
-    sym: u32,
+pub(crate) struct Tok {
+    pub(crate) kind: u8,
+    pub(crate) line: u32,
+    pub(crate) cpos: u32,
+    pub(crate) sym: u32,
     val: u32,
 }
 
@@ -535,13 +535,13 @@ fn long_value(text: &[u8]) -> Vec<u8> {
     out
 }
 
-struct Lexed {
-    toks: Vec<Tok>,
-    comments: Vec<(u32, u32)>,
-    ctok: Vec<u32>,
+pub(crate) struct Lexed {
+    pub(crate) toks: Vec<Tok>,
+    pub(crate) comments: Vec<(u32, u32)>,
+    pub(crate) ctok: Vec<u32>,
 }
 
-fn lex(src: &[u8], st: &mut Strs) -> R<Lexed> {
+pub(crate) fn lex(src: &[u8], st: &mut Strs) -> R<Lexed> {
     let n = src.len();
     let mut toks: Vec<Tok> = Vec::with_capacity(n / 5 + 8);
     let mut comments = Vec::new();
