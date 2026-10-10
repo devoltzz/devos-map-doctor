@@ -83,7 +83,35 @@ constant integer KKRX_TETO=6000
 constant integer KKRX_CODIGO=6000
 constant integer KKRX_GUARDA=12000
 constant integer KKRX_PILHA=4000
+hashtable KKRX_pt=null
+string array KKRX_ppat
+integer array KKRX_pini
+integer array KKRX_pmod
+string array KKRX_plt
+string array KKRX_preq
+boolean array KKRX_pok
+integer KKRX_npat=0
+integer KKRX_ini=0
+integer KKRX_livre=0
+integer KKRX_livre_c=0
+string KKRX_req=""
+integer array KKJN_mk
+string array KKJN_ma
+string array KKJN_mb
+string array KKJN_mc
+string array KKJN_mr
+integer array KKJN_mn
+integer KKJN_mv=0
 //{{KK_FIMSE:KK_JN_REGEX}}
+//{{KK_SE:KK_JN_CARTAO}}
+hashtable KKJN_cb=null
+integer array KKJN_cb_id
+integer array KKJN_cb_hab
+unit KKJN_cb_u=null
+real KKJN_cb_t=-1.0
+timer KKJN_cb_relogio=null
+constant integer KKJN_CB_DADO=2126512128
+//{{KK_FIMSE:KK_JN_CARTAO}}
 //@ENDGLOBALS
 
 function KKJN_Esc takes string s returns string
@@ -218,6 +246,28 @@ function KKJN_PosB takes string s,string sub,integer start returns integer
     endloop
     return -1
 endfunction
+//{{KK_SE:KK_JN_REGEX}}
+
+function KKJN_MAcha takes integer tag,string a,string b,string c returns boolean
+    local integer h=StringHash(a)/2+StringHash(b)/4+StringHash(c)/8+tag*131
+    set h=h-(h/4096)*4096
+    if h<0 then
+        set h=h+4096
+    endif
+    set KKJN_mv=h
+    return KKJN_mk[h]==tag and KKJN_ma[h]==a and KKJN_mb[h]==b and KKJN_mc[h]==c
+endfunction
+
+function KKJN_MPoe takes integer tag,string a,string b,string c,string r,integer n returns string
+    set KKJN_mk[KKJN_mv]=tag
+    set KKJN_ma[KKJN_mv]=a
+    set KKJN_mb[KKJN_mv]=b
+    set KKJN_mc[KKJN_mv]=c
+    set KKJN_mr[KKJN_mv]=r
+    set KKJN_mn[KKJN_mv]=n
+    return r
+endfunction
+//{{KK_FIMSE:KK_JN_REGEX}}
 
 function KKJN_UKey takes string user returns string
     if user==null then
@@ -521,7 +571,23 @@ function KKJN_init takes nothing returns nothing
     //{{KK_FIMSE:KK_JN_BASE}}
     //{{KK_SE:KK_JN_REGEX}}
     set KKRX_dic=InitHashtable()
+    set KKRX_pt=InitHashtable()
     //{{KK_FIMSE:KK_JN_REGEX}}
+    //{{KK_SE:KK_JN_CARTAO}}
+    set KKJN_cb=InitHashtable()
+    set KKJN_cb_relogio=CreateTimer()
+    call TimerStart(KKJN_cb_relogio, 1000000.0, false, null)
+    set i=0
+    loop
+        exitwhen i>=12
+        set KKJN_cb_id[i]=DzFrameGetCommandBarButton(i/4, i-(i/4)*4)
+        if KKJN_cb_id[i]!=0 then
+            call SaveInteger(KKJN_cb, 0, KKJN_cb_id[i]+400, i+1)
+            call SaveInteger(KKJN_cb, 0, KKJN_cb_id[i]+312, i+17)
+        endif
+        set i=i+1
+    endloop
+    //{{KK_FIMSE:KK_JN_CARTAO}}
     set KKJN_pronto=true
 endfunction
 
@@ -1437,15 +1503,29 @@ function JNStringSplit takes string str,string sub,integer index returns string
         endif
         return ""
     endif
+    //{{KK_SE:KK_JN_REGEX}}
+    if KKJN_MAcha(8+8*index, str, sub, "") then
+        return KKJN_mr[KKJN_mv]
+    endif
+    //{{KK_FIMSE:KK_JN_REGEX}}
     loop
         set p=KKJN_PosB(str, sub, i)
         if p<0 then
             if k==index then
+                //{{KK_SE:KK_JN_REGEX}}
+                return KKJN_MPoe(8+8*index, str, sub, "", SubString(str, i, n), 0)
+                //{{KK_FIMSE:KK_JN_REGEX}}
                 return SubString(str, i, n)
             endif
+            //{{KK_SE:KK_JN_REGEX}}
+            return KKJN_MPoe(8+8*index, str, sub, "", "", 0)
+            //{{KK_FIMSE:KK_JN_REGEX}}
             return ""
         endif
         if k==index then
+            //{{KK_SE:KK_JN_REGEX}}
+            return KKJN_MPoe(8+8*index, str, sub, "", SubString(str, i, p), 0)
+            //{{KK_FIMSE:KK_JN_REGEX}}
             return SubString(str, i, p)
         endif
         set k=k+1
@@ -2121,14 +2201,68 @@ function KKRX_Alt takes boolean rev returns nothing
     endloop
 endfunction
 
-function KKRX_Compila takes string pat returns boolean
-    local integer pc=0
+function KKRX_Alcanca takes integer fora returns boolean
+    local integer n=1
+    local integer pc
+    local integer op
+    set KKRX_carimbo=KKRX_carimbo+1
+    set KKRX_wl[0]=KKRX_ini
+    loop
+        exitwhen n<=0
+        set n=n-1
+        set pc=KKRX_wl[n]
+        if pc>=KKRX_ini and pc<KKRX_top and pc!=fora and KKRX_vis[pc]!=KKRX_carimbo and n<KKRX_CODIGO-2 then
+            set KKRX_vis[pc]=KKRX_carimbo
+            set op=KKRX_op[pc]
+            if op==9 then
+                return true
+            elseif op==4 then
+                set KKRX_wl[n]=pc+KKRX_a[pc]
+                set KKRX_wl[n+1]=pc+KKRX_b[pc]
+                set n=n+2
+            elseif op==12 then
+                set KKRX_wl[n]=pc+1
+                set KKRX_wl[n+1]=pc+KKRX_b[pc]
+                set n=n+2
+            elseif op==5 then
+                set KKRX_wl[n]=pc+KKRX_a[pc]
+                set n=n+1
+            elseif op==8 then
+                set KKRX_wl[n]=pc+KKRX_b[pc]
+                set n=n+1
+            else
+                set KKRX_wl[n]=pc+1
+                set n=n+1
+            endif
+        endif
+    endloop
+    return false
+endfunction
+
+function KKRX_Obrig takes nothing returns nothing
+    local integer pc=KKRX_ini
+    set KKRX_req=""
+    loop
+        exitwhen pc>=KKRX_top
+        if KKRX_op[pc]==1 and KKRX_d[pc]==0 and StringLength(KKRX_s[pc])>StringLength(KKRX_req) then
+            if not KKRX_Alcanca(pc) then
+                set KKRX_req=KKRX_s[pc]
+            endif
+        endif
+        set pc=pc+1
+    endloop
+endfunction
+
+function KKRX_CompilaEm takes string pat returns boolean
+    local integer pc
     local string t=""
+    set KKRX_req=""
     set KKRX_pat=pat
     set KKRX_pn=StringLength(pat)
     set KKRX_pp=0
-    set KKRX_top=0
-    set KKRX_nr=0
+    set KKRX_ini=KKRX_livre
+    set KKRX_top=KKRX_livre
+    set KKRX_nr=KKRX_livre_c
     set KKRX_np=0
     set KKRX_nl=0
     set KKRX_erro=false
@@ -2142,6 +2276,7 @@ function KKRX_Compila takes string pat returns boolean
     endif
     set KKRX_pmodo=0
     set KKRX_plit=""
+    set pc=KKRX_ini
     loop
         exitwhen KKRX_op[pc]!=8
         if KKRX_a[pc]==2 and KKRX_op[pc+1]==1 and t=="" then
@@ -2158,7 +2293,60 @@ function KKRX_Compila takes string pat returns boolean
         set KKRX_pmodo=2
         set KKRX_plit=t
     endif
+    if KKRX_pmodo!=1 then
+        call KKRX_Obrig()
+    endif
     return true
+endfunction
+
+function KKRX_Compila takes string pat returns boolean
+    local integer h=0
+    local integer k=0
+    local boolean ok
+    if KKRX_pt!=null then
+        set h=StringHash(pat)
+        set k=LoadInteger(KKRX_pt, 0, h)
+        if k>0 and KKRX_ppat[k]==pat then
+            set KKRX_ini=KKRX_pini[k]
+            set KKRX_pmodo=KKRX_pmod[k]
+            set KKRX_plit=KKRX_plt[k]
+            set KKRX_req=KKRX_preq[k]
+            return KKRX_pok[k]
+        endif
+        if KKRX_livre>KKRX_CODIGO-1500 or KKRX_livre_c>1500 or KKRX_npat>=400 then
+            call FlushChildHashtable(KKRX_pt, 0)
+            set KKRX_npat=0
+            set KKRX_livre=0
+            set KKRX_livre_c=0
+        endif
+    else
+        set KKRX_livre=0
+        set KKRX_livre_c=0
+    endif
+    set ok=KKRX_CompilaEm(pat)
+    if not ok and KKRX_livre>0 and KKRX_pt!=null then
+        call FlushChildHashtable(KKRX_pt, 0)
+        set KKRX_npat=0
+        set KKRX_livre=0
+        set KKRX_livre_c=0
+        set ok=KKRX_CompilaEm(pat)
+    endif
+    if KKRX_pt!=null then
+        set KKRX_npat=KKRX_npat+1
+        set k=KKRX_npat
+        set KKRX_ppat[k]=pat
+        set KKRX_pok[k]=ok
+        set KKRX_pini[k]=KKRX_ini
+        set KKRX_pmod[k]=KKRX_pmodo
+        set KKRX_plt[k]=KKRX_plit
+        set KKRX_preq[k]=KKRX_req
+        call SaveInteger(KKRX_pt, 0, h, k)
+        if ok then
+            set KKRX_livre=KKRX_top
+            set KKRX_livre_c=KKRX_nr
+        endif
+    endif
+    return ok
 endfunction
 
 function KKRX_Pal takes string ch returns boolean
@@ -2369,7 +2557,7 @@ function KKRX_Busca takes integer de returns integer
         elseif KKRX_pmodo==3 and p>0 then
             return -1
         endif
-        set e=KKRX_Roda(0, p)
+        set e=KKRX_Roda(KKRX_ini, p)
         if e>=0 then
             set KKRX_fim=e
             return p
@@ -2560,14 +2748,19 @@ function KKRX_Regex takes string str,string pat,integer idx returns string
     if not KKRX_Compila(pat) then
         return ""
     endif
-    set KKRX_str=str
-    set KKRX_n=StringLength(str)
-    set KKRX_passos=0
-    set KKRX_estouro=false
-    set KKRX_sp=0
-    set r=KKRX_Enesimo(de, idx-k)
-    if KKRX_estouro then
-        return ""
+    if KKRX_req!="" and KKJN_PosB(str, KKRX_req, de)<0 then
+        set KKRX_prox=-1
+        set r=""
+    else
+        set KKRX_str=str
+        set KKRX_n=StringLength(str)
+        set KKRX_passos=0
+        set KKRX_estouro=false
+        set KKRX_sp=0
+        set r=KKRX_Enesimo(de, idx-k)
+        if KKRX_estouro then
+            return ""
+        endif
     endif
     set KKRX_mv[v]=true
     set KKRX_mt[v]=str
@@ -2594,6 +2787,9 @@ function KKRX_Conta takes string str,string pat returns boolean
     set KKRX_passos=0
     set KKRX_estouro=false
     set KKRX_sp=0
+    if KKRX_req!="" and KKJN_PosB(str, KKRX_req, 0)<0 then
+        set de=KKRX_n+1
+    endif
     loop
         exitwhen de>KKRX_n
         call KKRX_Enesimo(de, 0)
@@ -2619,6 +2815,17 @@ function JNStringContains takes string str,string sub returns boolean
     if str==null or sub==null then
         return false
     endif
+    //{{KK_SE:KK_JN_REGEX}}
+    if KKJN_MAcha(2, str, sub, "") then
+        return KKJN_mn[KKJN_mv]==1
+    endif
+    if KKJN_PosB(str, sub, 0)>=0 then
+        call KKJN_MPoe(2, str, sub, "", "", 1)
+        return true
+    endif
+    call KKJN_MPoe(2, str, sub, "", "", 0)
+    return false
+    //{{KK_FIMSE:KK_JN_REGEX}}
     return KKJN_PosB(str, sub, 0)>=0
 endfunction
 
@@ -2634,6 +2841,9 @@ function JNStringCount takes string str,string sub returns integer
     if KKRX_Meta(sub, false) and KKRX_Conta(str, sub) then
         return KKRX_rc
     endif
+    if KKJN_MAcha(4, str, sub, "") then
+        return KKJN_mn[KKJN_mv]
+    endif
     //{{KK_FIMSE:KK_JN_REGEX}}
     set m=StringLength(sub)
     if m<=0 then
@@ -2645,6 +2855,9 @@ function JNStringCount takes string str,string sub returns integer
         set c=c+1
         set i=p+m
     endloop
+    //{{KK_SE:KK_JN_REGEX}}
+    call KKJN_MPoe(4, str, sub, "", "", c)
+    //{{KK_FIMSE:KK_JN_REGEX}}
     return c
 endfunction
 
@@ -2748,6 +2961,11 @@ function JNStringReplace takes string str,string old,string newstr returns strin
     if newstr==null then
         set newstr=""
     endif
+    //{{KK_SE:KK_JN_REGEX}}
+    if KKJN_MAcha(1, str, old, newstr) then
+        return KKJN_mr[KKJN_mv]
+    endif
+    //{{KK_FIMSE:KK_JN_REGEX}}
     set n=StringLength(str)
     set m=StringLength(old)
     loop
@@ -2756,6 +2974,9 @@ function JNStringReplace takes string str,string old,string newstr returns strin
         set r=r+SubString(str, i, p)+newstr
         set i=p+m
     endloop
+    //{{KK_SE:KK_JN_REGEX}}
+    return KKJN_MPoe(1, str, old, newstr, r+SubString(str, i, n), 0)
+    //{{KK_FIMSE:KK_JN_REGEX}}
     return r+SubString(str, i, n)
 endfunction
 
@@ -3089,7 +3310,75 @@ endfunction
 function JNMemorySetByte takes integer offset,integer value returns nothing
 endfunction
 
+//{{KK_SE:KK_JN_CARTAO}}
+function KKJN_cb_calcula takes nothing returns nothing
+    local unit u=DzGetSelectedLeaderUnit()
+    local integer i=0
+    local integer k=0
+    local integer id
+    local integer x
+    local integer y
+    local real agora=0.0
+    local ability a
+    if KKJN_cb_relogio!=null then
+        set agora=TimerGetElapsed(KKJN_cb_relogio)
+    endif
+    if u==KKJN_cb_u and agora>=KKJN_cb_t and agora-KKJN_cb_t<0.02 then
+        set u=null
+        return
+    endif
+    set KKJN_cb_u=u
+    set KKJN_cb_t=agora
+    loop
+        exitwhen i>=12
+        set KKJN_cb_hab[i]=0
+        set i=i+1
+    endloop
+    if u!=null then
+        loop
+            set a=BlzGetUnitAbilityByIndex(u, k)
+            exitwhen a==null or k>=200
+            set id=BlzGetAbilityId(a)
+            if id!='Amov' and id!='Aatk' and GetUnitAbilityLevel(u, id)>0 then
+                set x=BlzGetAbilityPosX(id)
+                set y=BlzGetAbilityPosY(id)
+                if x>=0 and x<4 and y>=0 and y<3 then
+                    if KKJN_cb_hab[y*4+x]==0 then
+                        set KKJN_cb_hab[y*4+x]=id
+                    endif
+                endif
+            endif
+            set k=k+1
+        endloop
+    endif
+    set a=null
+    set u=null
+endfunction
+
+//{{KK_FIMSE:KK_JN_CARTAO}}
 function JNMemoryGetInteger takes integer offset returns integer
+    //{{KK_SE:KK_JN_CARTAO}}
+    local integer i
+    if KKJN_cb!=null then
+        set i=LoadInteger(KKJN_cb, 0, offset)
+        if i>0 then
+            call KKJN_cb_calcula()
+            if KKJN_cb_hab[ModuloInteger(i-1, 16)]==0 then
+                return 0
+            elseif i>16 then
+                return 1
+            endif
+            return KKJN_CB_DADO+(i-1)*16
+        endif
+        if offset>=KKJN_CB_DADO and offset<KKJN_CB_DADO+192 then
+            set i=offset-KKJN_CB_DADO
+            if ModuloInteger(i, 16)==4 then
+                call KKJN_cb_calcula()
+                return KKJN_cb_hab[i/16]
+            endif
+        endif
+    endif
+    //{{KK_FIMSE:KK_JN_CARTAO}}
     return 0
 endfunction
 
