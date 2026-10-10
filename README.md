@@ -33,6 +33,8 @@ never runs the game.
 | **QoL** | A quality of life version of the map: more experience, gold, lumber, item drops and craft success, a faster hero revive and monster respawn, a -noshake command, the map revealed, VIP for everyone. |
 | **Tabs** | Map card, "Runs on Reforged?", files (previews, raw codes), script and its checks, triggers, translation export and import, local machine translation into English, compare two versions, cheat packs. |
 
+How to translate a map, every way step by step: [README-translation.md](README-translation.md).
+
 <table>
 <tr>
 <td width="50%"><img src="docs/images/diagnosis.png" alt="The diagnosis of a protected map"></td>
@@ -44,12 +46,12 @@ never runs the game.
 </tr>
 </table>
 
-### New in 1.7.4
+### New in 1.7.5
 
-- Maps of the classic game (1.24 to 1.29) are checked against their own version: "Runs on Reforged?" can check against 1.24 to 1.29, and the diagnosis says which version a map was made for. "Open in World Editor" writes a copy for the editor of that version. The data of the old versions is downloaded once from the site, the first time it is needed.
-- Port to Reforged takes more of the old game along: the return bug of 1.23 and older is adapted to real types, names the newer game created are renamed, the interface memory hacks of 1.24-1.28 (MemHackAPI) become Reforged natives, and maps made for the UjAPI port too.
-- M16 and KK maps get natives measured from the platforms' own clients: the JN text natives, the movement speed cap, the DzAPI text alignment and colors, key states and the emulated KK server.
-- Fixed: a cheat pack in a map with the return bug (Wintermaul), and a port step that broke array indexes and long texts in some maps.
+- Item recipes: the "Item recipes" card of the Files tab lists the item combinations the map script makes (its triggers and the recipe libraries: YDWE, ItemCombine, DDItemCombine and others), with the ids and names of the items, and saves them as .txt, .json or .csv. Command line: `doctor recipes map.w3x --out=recipes.csv`.
+- A guide to every way of translating a map, step by step: [README-translation.md](README-translation.md).
+- Faster, with the same output byte for byte: the QoL tab and "Runs on Reforged?" on big Lua maps, "Runs on version X?", opening and fixing big protected maps, shrinking textures, cheat packs and translation. Some hot loops now run in C and Rust, with the Python code kept as the fallback.
+- Fixed: machine translation of a classic map could make an object text longer than the classic game reads, and every item broke (issue 19); a KK map ported to Reforged could close after picking a skill; "Open in World Editor" showed outdated placed units when the map script had been edited by hand; shrink refused the Fix map output of some protected maps; cheat packs failed on maps with non-ASCII object ids; the command line shown under Fix map left out the translation file.
 
 ## Get it
 
@@ -103,6 +105,7 @@ doctor translation export map.w3x texts.txt
 doctor translation machine map.w3x english.json
 doctor fix map.w3x --translation=texts.txt
 doctor files map.w3x
+doctor recipes map.w3x --out=recipes.csv
 doctor extract map.w3x war3map.j --to=out
 doctor --help
 ```
