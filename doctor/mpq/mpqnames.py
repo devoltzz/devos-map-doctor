@@ -134,10 +134,24 @@ for _g in EXT_EQUIV:
         _EXT_EQUIV_OF.setdefault(_e, tuple(x for _g2 in EXT_EQUIV if _e in _g2 for x in _g2 if x != _e))
 
 
+_VARIANTS_MEMO = {}
+_VARIANTS_MEMO_CAP = 200000
+
+
 def variants(fname, cap=48, rounds=3):
+    hash_key = (fname, cap, rounds)
+    seq = _VARIANTS_MEMO.get(hash_key)
+    if seq is None:
+        if len(_VARIANTS_MEMO) >= _VARIANTS_MEMO_CAP:
+            _VARIANTS_MEMO.clear()
+        seq = _VARIANTS_MEMO[hash_key] = _variants_seq(fname, cap, rounds)
+    return set(seq)
+
+
+def _variants_seq(fname, cap=48, rounds=3):
     fname = fname.strip()
     if not fname:
-        return set()
+        return ()
     fast_path = ':' not in fname and '/' not in fname and fname[:2] != '\\\\'
     join_lines = None if fast_path else os.path.join
     split, splitext = os.path.split, os.path.splitext
@@ -177,14 +191,14 @@ def variants(fname, cap=48, rounds=3):
             break
         current = new
     if len(direct) >= cap:
-        output = {n for n in sorted(direct)[:cap] if n}
+        output = [n for n in sorted(direct)[:cap] if n]
     else:
         rest = sorted(current - direct)
-        output = {n for n in list(direct) + rest[:cap - len(direct)] if n}
+        output = [n for n in list(direct) + rest[:cap - len(direct)] if n]
     root, ext = os.path.splitext(fname)
     if ext.lower() == '.mdl' and not root.upper().endswith('_PORTRAIT'):
-        output.add(root + '_PORTRAIT.mdx')
-    return output
+        output.append(root + '_PORTRAIT.mdx')
+    return tuple(output)
 
 
 _EXTENSIONS_B = (
@@ -558,7 +572,9 @@ def derived_names(a, name_list, log=None):
     tested = set()
 
     def try_names(candidates):
-        cand = sorted(set(c for c in candidates if c and c.upper() not in keys) - tested)[:DERIVED_LIMIT]
+        new_c = set(candidates)
+        new_c.difference_update(tested)
+        cand = sorted(c for c in new_c if c and c.upper() not in keys)[:DERIVED_LIMIT]
         tested.update(cand)
         opens = [c for c in _with_hash_entry(a, cand) if (a.find(c) or (None, None))[1] in nameless]
         if not opens:
@@ -605,8 +621,12 @@ def derived_names(a, name_list, log=None):
                     cand.append(p + base + '.mdx')
                     if not base.upper().endswith('_PORTRAIT'):
                         cand.append(p + base + '_Portrait.mdx')
+        visited = set()
         for _inner, textures in models.values():
             for t in textures:
+                if t in visited:
+                    continue
+                visited.add(t)
                 cand.extend(variants(t))
                 cand.extend(p + t.rsplit('\\', 1)[-1] for p in IMPORTED_FOLDERS)
         for n in new_ones:
