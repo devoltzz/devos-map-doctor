@@ -1,6 +1,7 @@
 # The release obfuscator of a map script: no comment, every name renamed, strings and raw codes encrypted (used here on the script a cheat pack was injected into).
 import collections
 import hashlib
+import itertools
 import json
 import os
 import random
@@ -38,7 +39,32 @@ def flag(fname):
     return ('--%s' % fname) in sys.argv[1:]
 
 
+TOKEN_KINDS = ('comment', 'str', 'raw', 'num', 'id', 'nl', 'ws', 'op')
+_LEXER = []
+
+
+def _native_lexer():
+    if not _LEXER:
+        try:
+            from doctor.script import jass_native
+            _LEXER.append(jass_native.load_lexer())
+        except Exception:
+            _LEXER.append(None)
+    return _LEXER[0]
+
+
 def tokenize(body_text):
+    lex = _native_lexer()
+    r = lex(body_text, 0) if lex is not None else None
+    if r is not None:
+        types, ends = r
+        kinds = list(map(TOKEN_KINDS.__getitem__, types))
+        texts = list(map(body_text.__getitem__, map(slice, itertools.chain((0,), ends), ends)))
+        return kinds, texts
+    return tokenize_regex(body_text)
+
+
+def tokenize_regex(body_text):
     kinds, texts = [], []
     ka, ta = kinds.append, texts.append
     for m in TOKEN.finditer(body_text):
@@ -51,9 +77,8 @@ def engine_ids(paths):
     out = set()
     for c in paths:
         t = open(c, 'rb').read().decode('utf-8', 'surrogateescape')
-        for m in TOKEN.finditer(t):
-            if m.lastgroup == 'id':
-                out.add(m.group())
+        kinds, texts = tokenize(t)
+        out.update(x for k, x in zip(kinds, texts) if k == 'id')
     return out
 
 
@@ -560,7 +585,7 @@ def main():
         if not c:
             return 0
         v = 0
-        for ch in c.encode('latin-1'):
+        for ch in c.encode('utf-8', 'surrogateescape'):
             v = v * 256 + ch
         return v & 0xFFFFFFFF
 
@@ -581,12 +606,6 @@ def main():
         if g['fname'] in converted:
             outside_globals.add(g['li'])
 
-    def wordish(ch):
-        return ch.isascii() and (ch.isalnum() or ch in '_$.')
-
-    def opchar(ch):
-        return not wordish(ch) and ch not in '"\'()[],'
-
     def resolve(ti, lin, p, f):
         fname = texts[ti]
         if not do_names or fname in KEYWORDS:
@@ -601,10 +620,15 @@ def main():
             return gmap[fname]
         return fmap.get(fname, fname)
 
+    word_ch = frozenset('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_$.')
+    not_op = word_ch | frozenset('"\'()[],')
+    quoted = frozenset('"\'')
+
     def emit(lin, f, skip_init=None):
         out = []
         last_pos = ''
         last_op = False
+        extra = bool(before or after_diag)
         for p, ti in enumerate(lin):
             if skip_init is not None and p >= skip_init:
                 break
@@ -626,16 +650,21 @@ def main():
                     t = texts[ti]
             else:
                 t = texts[ti]
-            t = before.get(ti, '') + t + after_diag.get(ti, '')
-            t = t.replace('\x00NOMEFN', F_NAME)
+            if extra:
+                t = before.get(ti, '') + t + after_diag.get(ti, '')
+            if '\x00' in t:
+                t = t.replace('\x00NOMEFN', F_NAME)
             if out:
                 c0 = t[0]
-                if (wordish(last_pos) and (wordish(c0) or c0 in '"\'')) or (last_pos in '"\'' and wordish(c0)) or \
-                   (last_op and opchar(c0) and inv_slot.get(ti)):
+                if (
+                    (last_pos in word_ch and (c0 in word_ch or c0 in quoted))
+                    or (last_pos in quoted and c0 in word_ch)
+                    or (last_op and c0 not in not_op and inv_slot.get(ti))
+                ):
                     out.append(' ')
             out.append(t)
             last_pos = t[-1]
-            last_op = opchar(last_pos)
+            last_op = last_pos not in not_op
         return ''.join(out)
 
     li_first_function = min(f.li0 for f in functions.values())
