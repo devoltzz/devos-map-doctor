@@ -383,7 +383,7 @@ def _write(part, a, kept, group_of, plan, shift):
             wp, wl, wf = written[g]
             entries[4 * bi:4 * bi + 4] = [wp, wl, len(plan[g][1]), wf]
         hpos = pos
-        hp = (off + a.h.hash_pos) & 0xFFFFFFFF
+        hp = a.h.hash_abs
         fh.write(a.d[hp:hp + 16 * hn])
         bpos = hpos + 16 * hn
         fh.write(M.encrypt(entries, M.BLOCK_TABLE_KEY))
