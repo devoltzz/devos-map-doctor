@@ -51,6 +51,8 @@ async function boot() {
     if (native.huffman) self.mpqHuffman = native.huffman;
     if (native.adpcm) self.mpqAdpcm = native.adpcm;
     if (native.explode) self.mpqExplode = native.explode;
+    if (native.encrypt) self.mpqEncrypt = native.encrypt;
+    if (native.jpegScan) { self.jpegScan = native.jpegScan; self.jpegWrite = native.jpegWrite; }
   }
   for (const d of ['/maps', '/in', '/out']) py.FS.mkdirTree(d);
   try {
