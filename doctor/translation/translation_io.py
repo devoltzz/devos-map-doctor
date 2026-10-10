@@ -183,6 +183,7 @@ class MapText(object):
         self.archive = None
         self.w3i_format = None
         self.longest_object_text = 0
+        self.flow = None
 
     def add(self, **kw):
         self.entries.append(kw)
@@ -554,7 +555,9 @@ def _collect_script(mt, a, read):
     functions = _functions_by_line(lines)
     screen = dict((e['text'], e) for e in found if e['kind'] == 'script')
     cats = collections.defaultdict(collections.Counter)
-    for ln, lit, cat in tr_screen_cjk.occurrences(lines, lambda x: x in screen or RX_TRIGSTR.match(x), protected=()):
+    mt.flow = tr_apply.ScriptFlow(full, layer if any(layer) else None)
+    for ln, lit, cat in tr_screen_cjk.occurrences(lines, lambda x: x in screen or RX_TRIGSTR.match(x), protected=(),
+                                                  script_flow=mt.flow):
         m = RX_TRIGSTR.match(lit)
         if m:
             n = int(m.group(1))
@@ -576,6 +579,9 @@ def _collect_script(mt, a, read):
         calls = [cat.split(':', 1)[1] for cat in c if cat.startswith('screen:')]
         if 'localizada' in e['uses']:
             reason = 'a game string key'
+        elif groups['caution'] and not groups['datum'] and all(
+                cat.startswith('prudencia:fluxo') for cat in c if cat.startswith('caution')):
+            reason = 'compared or used as a key through a function or variable of the map'
         elif groups['caution'] or groups['datum']:
             reason = 'compared by the script'
         elif not groups['screen']:
@@ -1000,6 +1006,9 @@ def check_entry(e, translation, language=''):
             errs.append('niveis: %d virgulas, esperado %d' % (found, expected))
         elif translation.count('"') % 2 != e['text'].count('"') % 2:
             errs.append('niveis: %d aspas, esperado %d' % (translation.count('"'), e['text'].count('"')))
+    if e['source'] == 'profile' and '"' in e['text'] and translation.count('"') != e['text'].count('"') and \
+            not any(x.startswith('level_list') for x in errs):
+        errs.append('niveis: %d aspas, esperado %d' % (translation.count('"'), e['text'].count('"')))
     if not _cjk(e['text']) or _is_cjk_language(language):
         errs = [x for x in errs if not x.startswith('CJK restante')]
     out = [_english(x) for x in errs]
@@ -1072,7 +1081,8 @@ def _build(mt, wanted, linked):
                 seps = separators(src, lines)
             by_text = dict((e['text'], tr) for e, tr in items)
             by_text.update(linked)
-            cats, detail, n = tr_apply.apply_by_occurrence_lines(view, by_text, False, linked, protected=())
+            cats, detail, n = tr_apply.apply_by_occurrence_lines(view, by_text, False, linked, protected=(),
+                                                                 script_flow=mt.flow)
             script.update(replaced=n, categories=dict(cats), per_literal=dict(
                 (lit, d['screen'] + d['all_entries']) for lit, d in detail.items()))
             new = _encode(join_lines([line if x else v for line, v, x in zip(lines, view, layer)], seps))
