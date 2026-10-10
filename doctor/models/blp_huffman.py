@@ -1,6 +1,8 @@
 # Rewrites JPEG BLP textures with optimal Huffman tables, losing nothing.
 import io
+import os
 import struct
+from array import array
 
 
 SOF_NOT_BASELINE = {0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}
@@ -93,10 +95,137 @@ def _dht_tables(seg):
         q += 17 + n
 
 
+_NATIVE_SOUND = [None]
+
+
+def _native_sound():
+    if _NATIVE_SOUND[0] is None:
+        try:
+            here = os.path.dirname(os.path.abspath(__file__))
+            from doctor.mpq import mpqcrypt
+            _NATIVE_SOUND[0] = mpqcrypt.load_jpeg() or False
+        except Exception:
+            _NATIVE_SOUND[0] = False
+    return _NATIVE_SOUND[0]
+
+
+class _HuffAnalysis(dict):
+    def __missing__(self, k):
+        if k != 'seq':
+            raise KeyError(k)
+        keys, recs = self['nat']
+        seq = []
+        ap = seq.append
+        for x in recs:
+            if x & 0x80000000:
+                ap(None)
+                continue
+            key = keys[(x >> 24) & 0x7F]
+            s = (x >> 16) & 0xFF
+            ap((key, s, x & 0xFFFF, s & 15 if key[0] else s))
+        self['seq'] = seq
+        return seq
+
+
+def _analyze_native(scan, d, segs, ent, nmcu, dri, block_list, raw_data):
+    keys, idx, spec = [], {}, bytearray()
+    for (_cid, td, ta), nb in block_list:
+        for key in ((0, td), (1, ta)):
+            if key not in raw_data:
+                return None
+            if key not in idx:
+                idx[key] = len(keys)
+                keys.append(key)
+        if nb > 255:
+            return None
+        spec += bytes((idx[(0, td)], idx[(1, ta)], nb))
+    if len(keys) > 64:
+        return None
+    tabs = bytearray()
+    for key in keys:
+        counts, syms = raw_data[key]
+        tabs += bytes(counts) + struct.pack('<H', len(syms)) + bytes(syms)
+    head = 2 + 256 * len(keys)
+    rst = nmcu // dri if dri else 0
+    out = None
+    for factor in (3, 8):
+        out = scan(d, ent, nmcu, dri, bytes(spec), bytes(tabs), head + factor * max(0, len(d) - ent) + rst + 64)
+        if out is not None:
+            break
+    if out is None:
+        return None
+    end_pos, nrec = out[0], out[1]
+    freq = {}
+    for i, key in enumerate(keys):
+        c = out[2 + 256 * i:2 + 256 * (i + 1)]
+        fr = dict((s, n) for s, n in enumerate(c) if n)
+        if fr:
+            freq[key] = fr
+    q = end_pos
+    while q + 1 < len(d) and d[q] == 0xFF and d[q + 1] == 0xFF:
+        q += 1
+    if d[q:q + 2] != b'\xff\xd9':
+        return False
+    return _HuffAnalysis(d=d, segs=segs, nat=(keys, out[head:head + nrec]), freq=freq, end_ent=end_pos)
+
+
+def _native_entropy(write, a, code_part):
+    keys, recs = a['nat']
+    codes = array('I', bytes(1024 * len(keys)))
+    for i, key in enumerate(keys):
+        for s, (c, L) in (code_part.get(key) or {}).items():
+            if not (0 <= s < 256 and 1 <= L <= 16 and 0 <= c < (1 << L)):
+                return None
+            codes[256 * i + s] = (L << 16) | c
+    return write(recs, codes, bytes(k[0] for k in keys), len(keys), 8 * len(recs) + 16)
+
+
+def _entropy(seq, code_part):
+    out = bytearray()
+    acc = 0
+    n = 0
+    rst = 0
+    for x in seq:
+        if x is None:
+            if n:
+                k = 8 - n
+                b = ((acc << k) | ((1 << k) - 1)) & 0xFF
+                out.append(b)
+                if b == 0xFF:
+                    out.append(0)
+                acc = 0
+                n = 0
+            out += bytes([0xFF, 0xD0 + rst])
+            rst = (rst + 1) & 7
+            continue
+        key, s, extra, nb = x
+        c, L = code_part[key][s]
+        acc = (acc << L) | c
+        n += L
+        if nb:
+            acc = (acc << nb) | extra
+            n += nb
+        while n >= 8:
+            n -= 8
+            b = (acc >> n) & 0xFF
+            out.append(b)
+            if b == 0xFF:
+                out.append(0)
+        acc &= (1 << n) - 1
+    if n:
+        k = 8 - n
+        b = ((acc << k) | ((1 << k) - 1)) & 0xFF
+        out.append(b)
+        if b == 0xFF:
+            out.append(0)
+    return out
+
+
 def analyze(d):
     d = bytes(d)
     segs, ent = _segmentos(d)
     dht = {}
+    raw_data = {}
     comps = {}
     dri = 0
     sof = None
@@ -115,6 +244,7 @@ def analyze(d):
         elif mk == 0xC4:
             for key, counts, syms, _ in _dht_tables(seg):
                 dht[key] = _tab_decod(counts, syms)
+                raw_data[key] = (counts, syms)
         elif mk == 0xDD:
             dri = struct.unpack_from('>H', seg, 0)[0]
     mk, a, b = segs[-1]
@@ -135,6 +265,11 @@ def analyze(d):
     else:
         nmcu = ((ww + 8 * hmax - 1) // (8 * hmax)) * ((hh + 8 * vmax - 1) // (8 * vmax))
         block_list = [(sc, comps[sc[0]][0] * comps[sc[0]][1]) for sc in scan]
+    nat = _NATIVE_SOUND[0] if _NATIVE_SOUND[0] is not None else _native_sound()
+    if nat:
+        r = _analyze_native(nat[0], d, segs, ent, nmcu, dri, block_list, raw_data)
+        if r is not None:
+            return r or None
     lb = _LeBits(d, ent)
     seq = []
     ap = seq.append
@@ -178,6 +313,12 @@ def analyze(d):
 def frequencias(analises):
     freq = {}
     for a in analises:
+        if 'nat' in a:
+            for key, fr in a['freq'].items():
+                f = freq.setdefault(key, {})
+                for s, n in fr.items():
+                    f[s] = f.get(s, 0) + n
+            continue
         for x in a['seq']:
             if x is None:
                 continue
@@ -260,45 +401,15 @@ def _codes(bits, huffval):
 
 
 def rewrite(a, tables):
-    d, segs, seq = a['d'], a['segs'], a['seq']
+    d, segs = a['d'], a['segs']
     code_part = {k: _codes(*v) for k, v in tables.items()}
-    out = bytearray()
-    acc = 0
-    n = 0
-    rst = 0
-    for x in seq:
-        if x is None:
-            if n:
-                k = 8 - n
-                b = ((acc << k) | ((1 << k) - 1)) & 0xFF
-                out.append(b)
-                if b == 0xFF:
-                    out.append(0)
-                acc = 0
-                n = 0
-            out += bytes([0xFF, 0xD0 + rst])
-            rst = (rst + 1) & 7
-            continue
-        key, s, extra, nb = x
-        c, L = code_part[key][s]
-        acc = (acc << L) | c
-        n += L
-        if nb:
-            acc = (acc << nb) | extra
-            n += nb
-        while n >= 8:
-            n -= 8
-            b = (acc >> n) & 0xFF
-            out.append(b)
-            if b == 0xFF:
-                out.append(0)
-        acc &= (1 << n) - 1
-    if n:
-        k = 8 - n
-        b = ((acc << k) | ((1 << k) - 1)) & 0xFF
-        out.append(b)
-        if b == 0xFF:
-            out.append(0)
+    out = None
+    if 'nat' in a:
+        nat = _NATIVE_SOUND[0] if _NATIVE_SOUND[0] is not None else _native_sound()
+        if nat:
+            out = _native_entropy(nat[1], a, code_part)
+    if out is None:
+        out = _entropy(a['seq'], code_part)
     body = bytearray()
     for mk, p, q in segs:
         if mk == 0xC4:
