@@ -1644,3 +1644,9 @@ pub extern "C" fn jass_free(p: *mut u8, len: usize) {
         }
     }
 }
+
+mod slk_parse;
+
+mod lex;
+
+mod lua_lex;
