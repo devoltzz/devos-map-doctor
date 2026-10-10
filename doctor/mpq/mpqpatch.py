@@ -33,7 +33,14 @@ def hash_string(s, htype):
     return seed1
 
 
+def _mpqlib():
+    from doctor.mpq import mpqlib
+    return mpqlib
+
+
 def decrypt(data, key):
+    if 0 <= key <= 0xFFFFFFFF:
+        return _mpqlib().decrypt_bytes(data, key)
     seed = 0xEEEEEEEE
     n = len(data) // 4
     vals = struct.unpack('<%dI' % n, data[:n * 4])
@@ -48,6 +55,8 @@ def decrypt(data, key):
 
 
 def encrypt(data, key):
+    if 0 <= key <= 0xFFFFFFFF:
+        return _mpqlib().encrypt_bytes(data, key)
     seed = 0xEEEEEEEE
     n = len(data) // 4
     vals = struct.unpack('<%dI' % n, data[:n * 4])
