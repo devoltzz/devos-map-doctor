@@ -230,6 +230,16 @@ def main():
         args += ['--add-binary', pjass + os.pathsep + os.path.join('doctor', 'script')]
     elif not os.path.isfile(os.path.join(ENGINE, 'script', pjass_name)):
         print('%s not found (doctor/script/%s or PJASS): the program cannot port maps' % (pjass_name, pjass_name))
+    if not LINUX:
+        import importlib.util
+        for package in ('zopfli',):
+            spec = importlib.util.find_spec(package)
+            if not spec or not spec.origin:
+                continue
+            libs = os.path.join(os.path.dirname(os.path.dirname(spec.origin)), package + '.libs')
+            if os.path.isdir(libs):
+                for f in sorted(os.listdir(libs)):
+                    args += ['--add-binary', os.path.join(libs, f) + os.pathsep + package + '.libs']
     for module in EXCLUDE:
         args += ['--exclude-module', module]
     for module in LUA:
