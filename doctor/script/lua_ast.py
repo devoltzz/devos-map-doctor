@@ -409,6 +409,70 @@ def _escape_error(s, bad, line):
 
 
 def _lex(text):
+    if len(text) >= _LEX_NATIVE_MIN:
+        out = _lex_native(text)
+        if out is not None:
+            return out
+    return _lex_loop(text)
+
+
+_LEX_NATIVE_MIN = 4096
+_LEX_KINDS = ('NAME', 'NUMBER', 'STRING', 'EOF')
+_LEX_FN = [None]
+_LEX_SEP = '\x00'
+
+
+def _lex_native(text):
+    if _LEX_FN[0] is None:
+        _LEX_FN[0] = False
+        dll = _native()
+        if dll and hasattr(dll, 'lua_lex_tokens'):
+            import ctypes
+            f = dll.lua_lex_tokens
+            f.argtypes = [ctypes.c_char_p, ctypes.c_size_t, ctypes.POINTER(ctypes.c_void_p),
+                          ctypes.POINTER(ctypes.c_size_t)]
+            f.restype = ctypes.c_int
+            _LEX_FN[0] = True
+    if not _LEX_FN[0]:
+        return None
+    if sys.byteorder != 'little' or _LEX_SEP in text:
+        return None
+    try:
+        data = text.encode('utf-8', 'surrogatepass')
+    except UnicodeEncodeError:
+        return None
+    r, buf = _call_native('lua_lex_tokens', data)
+    if r != 0:
+        return None
+    import struct
+    ntok, ncom, nesc = struct.unpack_from('<3I', buf)
+    end = 12 + 4 * (3 * ntok + 3 * ncom + nesc)
+    v = memoryview(buf)[12:end].cast('I').tolist()
+    n3 = 3 * ntok
+    names = _LEX_KINDS + _NATIVE_KINDS[4:]
+    kinds = list(map(names.__getitem__, v[0:n3:3]))
+    lines = v[1:n3:3]
+    offs = v[2:n3:3]
+    comments, ctok = [], []
+    p = end
+    for k in range(n3, n3 + 3 * ncom, 3):
+        n = v[k + 2]
+        comments.append(Comment(buf[p:p + n].decode('utf-8', 'surrogatepass'), v[k]))
+        ctok.append(v[k + 1])
+        p += n
+    texts = buf[p:].decode('utf-8', 'surrogatepass').split(_LEX_SEP)
+    if len(texts) != ntok:
+        return None
+    strval = {}
+    for j in v[n3 + 3 * ncom:]:
+        value, bad = _unescape(texts[j][1:-1])
+        if bad is not None:
+            return None
+        strval[j] = value
+    return kinds, texts, lines, offs, comments, ctok, strval
+
+
+def _lex_loop(text):
     kinds, texts, lines, offs = [], [], [], []
     comments, ctok, strval = [], [], {}
     keywords, operators, blanks, name_start = KEYWORDS, _OPERATORS, _BLANKS, _NAME_START
