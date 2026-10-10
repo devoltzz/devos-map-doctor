@@ -194,6 +194,42 @@ def load_data():
     return run_checks
 
 
+def load_lexer():
+    if os.environ.get('JASS_NATIVE') == '0' or sys.platform == 'emscripten':
+        return None
+    dll = _dll()
+    if not dll or not hasattr(dll, 'jass_lex'):
+        return None
+    vp, sz = ctypes.c_void_p, ctypes.c_size_t
+    if dll.jass_lex.restype is not ctypes.c_int:
+        dll.jass_lex.argtypes = [ctypes.c_char_p, sz, ctypes.c_int, ctypes.POINTER(vp), ctypes.POINTER(sz)]
+        dll.jass_lex.restype = ctypes.c_int
+    import array
+
+    def lex(body_text, method, _f=dll.jass_lex, _free=dll.jass_free):
+        b = body_text.encode('utf-32-le', 'surrogatepass')
+        p, n = vp(), sz()
+        if _f(b, len(b), method, ctypes.byref(p), ctypes.byref(n)) != 0:
+            return None
+        try:
+            buf = ctypes.string_at(p.value, n.value) if n.value else b''
+        finally:
+            _free(p, n.value)
+        if method == 0:
+            k = int.from_bytes(buf[:4], 'little')
+            ends = array.array('I')
+            ends.frombytes(buf[4 + k:4 + 5 * k])
+            if sys.byteorder != 'little':
+                ends.byteswap()
+            return buf[4:4 + k], ends
+        quads = array.array('I')
+        quads.frombytes(buf)
+        if sys.byteorder != 'little':
+            quads.byteswap()
+        return quads
+    return lex
+
+
 def _cargo():
     c = shutil.which('cargo')
     if c:
