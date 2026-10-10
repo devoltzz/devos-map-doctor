@@ -215,6 +215,7 @@ def applies(body_text, ref_text, equivalents=True, neutralize=False, suffix=''):
         from doctor.port import memhack_ui
         info['memhack'] = memhack_ui.applies(line_list, ref, ref_text)
         aux += memhack_ui.helpers(info['memhack']['helpers'])
+        info['memui'] = memhack_ui.apply_memui(line_list, ref, ref_text)
         from doctor.port import retype
         info['bridge'] = retype.applies(line_list, ref, ref_text, neutralize=neutralize)
         aux += retype.helpers(ref, info['bridge']['helpers'])
@@ -428,6 +429,9 @@ def report_data(info):
         pieces.append('%d cast(s) unused after the bridge -> neutral' % len(info['no_use']))
     if info.get('memhack') and info['memhack']['translated']:
         pieces.append('%d MemHackAPI function(s) through the 3.0 native' % len(info['memhack']['translated']))
+    if info.get('memui') and (info['memui']['translated'] or info['memui']['readings']):
+        pieces.append('%d MemUI function(s) and %d address read(s) through the layer DzAPI and 3.0'
+                      % (len(info['memui']['translated']), info['memui']['readings']))
     if info.get('bridge'):
         from doctor.port import retype
         retype.report_data(info['bridge'])
