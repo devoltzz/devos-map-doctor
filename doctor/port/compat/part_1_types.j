@@ -26,6 +26,14 @@ hashtable DB_ui_ht=null
 frameeventtype array DB_evt
 integer DB_mouse_focus=0
 integer DB_wheel_delta=0
+framehandle array DB_cova
+integer array DB_cova_tique
+integer DB_cova_ini=0
+integer DB_cova_fim=0
+integer DB_cova_agora=0
+timer DB_cova_relogio=null
+constant integer DB_COVA_TIQUES=8
+constant integer DB_COVA_TAM=8192
 real array DB_mouse_wx
 real array DB_mouse_wy
 trigger DB_mundo_trig=null
