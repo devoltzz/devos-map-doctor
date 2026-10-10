@@ -21,6 +21,42 @@ RX_CITED_B = re.compile(rb'[' + _RX_CHARS + rb']{3,180}?(?:' + b'|'.join(MARK_BY
                         re.I)
 RX_CITED_ANY_B = re.compile(rb'[' + _RX_CHARS + rb'|]{3,180}?\.(?:mdl|mdx)', re.I)
 RX_MODEL_B = re.compile(rb'^(?P<stem>.*?)(?P<portrait>_portrait)?\.(?P<ext>mdl|mdx)$', re.I)
+_RX_EXT_B = re.compile(rb'\.md[lx]', re.I)
+_CITED_BEFORE = 180
+_CITED_TAIL = max(len(m) for m in MARK_BYTES) + len(b'_portrait') + len(b'.mdx')
+
+
+def _windows(anchors, before, after, size):
+    out = []
+    for p in anchors:
+        a, b = max(0, p - before), min(size, p + after)
+        if out and a <= out[-1][1]:
+            if b > out[-1][1]:
+                out[-1][1] = b
+        else:
+            out.append([a, b])
+    return out
+
+
+def _mark_positions(data):
+    out = []
+    for mk in MARK_BYTES:
+        i = data.find(mk)
+        while i >= 0:
+            out.append(i)
+            i = data.find(mk, i + 1)
+    return sorted(out)
+
+
+def _finditer_cited(data):
+    for a, b in _windows(_mark_positions(data), _CITED_BEFORE, _CITED_TAIL, len(data)):
+        yield from RX_CITED_B.finditer(data, a, b)
+
+
+def _finditer_cited_any(data):
+    pos = [m.start() for m in _RX_EXT_B.finditer(data)]
+    for a, b in _windows(pos, _CITED_BEFORE, 4, len(data)):
+        yield from RX_CITED_ANY_B.finditer(data, a, b)
 
 
 def _split_bytes(name):
@@ -121,11 +157,11 @@ def _marked_names(a, names=()):
         if marked(n) and a.find(n):
             out.append(n)
     for _n, data in _citation_files(a, names):
-        for m in RX_CITED_B.finditer(data):
+        for m in _finditer_cited(data):
             for cand in _readings(m.group(0)):
                 if marked(cand) and a.find(cand):
                     out.append(cand)
-        for m in RX_CITED_ANY_B.finditer(data):
+        for m in _finditer_cited_any(data):
             if not any(b >= 0x80 for b in m.group(0)):
                 continue
             for cand in _readings(m.group(0)):
