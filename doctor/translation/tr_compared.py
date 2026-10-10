@@ -26,6 +26,19 @@ def other_lado(ln, pos, lit):
     return ''
 
 
+RX_ASSIGN = re.compile(r'^\s*(?:set\s+(\w+)\s*(?:\[[^\]]*\])?\s*=|local\s+string\s+(\w+)\s*=)\s*(.+?)\s*$')
+
+
+def external_variables(line_list):
+    vals = collections.defaultdict(list)
+    for line in line_list:
+        m = RX_ASSIGN.match(line)
+        if m:
+            vals[m.group(1) or m.group(2)].append(m.group(3))
+    return {n for n, rs in vals.items()
+            if any(RX_EXTERNO.search(r) for r in rs) and all(RX_EXTERNO.search(r) or r in ('""', 'null') for r in rs)}
+
+
 def measure(jtexto, entries, tr):
     comparados = {e['text'] for e in entries if e['kind'] == 'command' and not e['text'].startswith('-')
                   and 'chat' not in (e.get('uses') or [])}
@@ -36,6 +49,7 @@ def measure(jtexto, entries, tr):
     by = {lit: {'externo': 0, 'inner': 0, 'window': 0, 'clusters': collections.Counter(), 'exemplo': ''}
           for lit in comparados}
     line_list, _sep = tx.line_break(jtexto, jass=True)
+    external_vars = external_variables(line_list)
     for line in line_list:
         for pos, lit in ki.literals(line):
             if lit not in by:
@@ -45,7 +59,8 @@ def measure(jtexto, entries, tr):
             by[lit]['clusters'][g] += 1
             if g == 'caution':
                 lado = other_lado(line, pos, lit)
-                if lado and RX_EXTERNO.search(lado):
+                var = re.match(r'[\s(]*(\w+)\s*(?:\[[^\]]*\])?\s*\)*\s*$', lado or '')
+                if lado and (RX_EXTERNO.search(lado) or (var and var.group(1) in external_vars)):
                     by[lit]['externo'] += 1
                 elif lado and RX_WINDOW.search(lado):
                     by[lit]['window'] += 1
