@@ -552,6 +552,15 @@ def _rawcodes(job, progress):
     return rawcodes.extract(job['map'])
 
 
+def _recipes(job, progress):
+    from doctor.data import recipes
+    r = recipes.find(job['map'], progress, all_kinds=bool(job.get('all')))
+    r['text'] = recipes.text(r)
+    r['csv'] = recipes.csv_text(r)
+    r['json'] = recipes.json_text(r)
+    return r
+
+
 def _extract(job, progress):
     from doctor.viewers import map_files
     return map_files.extract(job['map'], job['names'], job['folder'], progress)
@@ -665,7 +674,7 @@ def _compare(job, progress):
 TOOLS = {'card': _card, 'card_image': _card_image, 'gradient': _gradient, 'reforged': _reforged, 'files': _files,
          'preview': _preview, 'extract': _extract, 'script': _script, 'script_checks': _script_checks,
          'triggers': _triggers, 'cheatpacks': _cheatpacks, 'cheatpack_inject': _cheatpack_inject,
-         'rawcodes': _rawcodes, 'qol': _qol, 'qol_apply': _qol_apply,
+         'rawcodes': _rawcodes, 'recipes': _recipes, 'qol': _qol, 'qol_apply': _qol_apply,
          'translation_export': _translation_export, 'translation_groups': _translation_groups,
          'translation_check': _translation_check, 'translation_machine': _translation_machine,
          'translation_images': _translation_images, 'translation_image_preview': _translation_image_preview,
@@ -780,7 +789,8 @@ class Api:
         import webview
         types = {'translation': ('Translation files (*.json)',),
                  'translation_html': ('Web page for machine translation (*.html)',),
-                 'script': ('Scripts (*.j;*.lua)', 'All files (*.*)')}.get(kind, ('All files (*.*)',))
+                 'script': ('Scripts (*.j;*.lua)', 'All files (*.*)'),
+                 'recipes': ('Text (*.txt)', 'JSON (*.json)', 'CSV (*.csv)')}.get(kind, ('All files (*.*)',))
         return self._dialog(webview.FileDialog.SAVE, save_filename=suggested or '', file_types=types)
 
     def pick_folder(self):
