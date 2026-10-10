@@ -764,11 +764,12 @@ function setTabState(name, st) {
 }
 
 async function loadTabsInBackground(gen) {
+  const groups = loadTranslationGroups(gen);
   for (const name of ['card', 'files', 'script', 'cheatpacks', 'qol', 'triggers']) {
     if (gen !== state.gen) return;
     await TAB_DATA[name](gen);
   }
-  if (gen === state.gen) await loadTranslationGroups(gen);
+  await groups;
 }
 
 function selectTab(name) {
@@ -1802,7 +1803,8 @@ function translationGroupsBox() {
 
 function renderTranslation() {
   const tr = state.extras.translation;
-  const none = state.trGroups && state.trGroups.groups && pickedGroups() !== null && !pickedGroups().length;
+  const none = !state.trGroups ||
+    (state.trGroups.groups && pickedGroups() !== null && !pickedGroups().length);
   tabBody('translation', el('div', { class: 'card' }, el('h2', { text: 'Export' }),
     el('p', { class: 'lead', text: 'Pick the texts, export them, translate the file, then load it back below.' }),
     translationGroupsBox(),
