@@ -1624,6 +1624,9 @@ function DB_ui_boot takes nothing returns nothing
     call TimerStart(CreateTimer(), 0.00, false, function DB_ui_pos_init)
     set DB_cova_relogio=CreateTimer()
     call TimerStart(DB_cova_relogio, 0.25, true, function DB_cova_passa)
+    //{{KK_SE:KK_CMD_ATAQUE}}
+    call DB_cmd_atk_boot()
+    //{{KK_FIMSE:KK_CMD_ATAQUE}}
 endfunction
 
 function DB_i32 takes integer n returns integer
