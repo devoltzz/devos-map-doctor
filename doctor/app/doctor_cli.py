@@ -38,6 +38,10 @@ usage: doctor <command> <map> [options]
   extract <map> <name>... [--to=<folder>]
   script <map> [--to=<file>]      the map script (printed, or saved)
   rawcodes <map>                  the object ids with their names
+  recipes <map> [--out=<file>] [--all]
+                                  the item recipes the script makes (result = ingredients, with ids and names);
+                                  --out writes them: .txt (one per line), .json or .csv by the extension;
+                                  --all also lists one item for another and the blocks that make several items
   card <map>                      name, author, players, loading screen
   compare <map> <other map>       what differs between two maps
 
@@ -229,6 +233,11 @@ def show(command, r):
         print('%d files' % (r.get('total') or 0))
         return
     if command == 'rawcodes':
+        sys.stdout.write(r.get('text') or '')
+        return
+    if command == 'recipes':
+        if r.get('error'):
+            print(r['error'])
         sys.stdout.write(r.get('text') or '')
         return
     if command == 'translation groups':
@@ -437,6 +446,11 @@ def build_job(command, pos, opts, run):
     if command == 'rawcodes':
         need(pos, 2, '<map>')
         return 'rawcodes', {'task': 'rawcodes', 'map': pos[1]}
+    if command == 'recipes':
+        need(pos, 2, '<map>')
+        if opts.get('out') is True:
+            raise UsageError('--out needs a file: --out=<file.txt|.json|.csv>')
+        return 'recipes', {'task': 'recipes', 'map': pos[1], 'all': opts.get('all') is True}
     if command == 'card':
         need(pos, 2, '<map>')
         return 'card', {'task': 'card', 'map': pos[1]}
@@ -504,6 +518,13 @@ def main(argv, window, version=''):
         return 1
     if opts.get('json'):
         print(json.dumps(doctor_app._jsonable(r), ensure_ascii=False, indent=1))
+    elif command == 'recipes' and isinstance(opts.get('out'), str):
+        out_file = opts['out']
+        low = out_file.lower()
+        data = r.get('json') if low.endswith('.json') else r.get('csv') if low.endswith('.csv') else r.get('text')
+        with open(out_file, 'w', encoding='utf-8', newline='') as f:
+            f.write(data or '')
+        print('%d recipes saved as: %s' % (len(r.get('recipes') or []), os.path.abspath(out_file)))
     elif command == 'script' and isinstance(opts.get('to'), str):
         with open(opts['to'], 'w', encoding='utf-8', newline='') as f:
             f.write(r.get('text') or '')
