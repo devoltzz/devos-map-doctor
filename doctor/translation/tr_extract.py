@@ -265,9 +265,10 @@ def extract_script_text(src, entries, stats, protected=(), tem_text=None):
     for lit, e in seen.items():
         if 'comparison' in e['uses'] or 'hash/substring' in e['uses'] or 'chat' in e['uses']:
             e['kind'] = 'command'
-        if record.search(lit) or any(
-            re.search(r'SubString\([^)]*\)\s*[=!]=\s*"' + re.escape(lit) + '"', c) for c in e['contexts']
-        ):
+        q = '"' + lit + '"'
+        if record.search(lit) or any('SubString(' in c and q in c and
+                                     re.search(r'SubString\([^)]*\)\s*[=!]=\s*"' + re.escape(lit) + '"', c)
+                                     for c in e['contexts']):
             e['kind'] = 'data'
         if protected and lit not in outside:
             e['kind'] = 'data'
