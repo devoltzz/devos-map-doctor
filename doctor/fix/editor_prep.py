@@ -871,6 +871,12 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
                 missing_items.append(n)
             details['count'].append(info)
             continue
+        if n == 'war3mapUnits.doo' and a.find(n) and step_on('script_objects'):
+            done = inflated_counts.update_units_doo(a.read(n), body_text, context=dict(context, current=a.read(n)))
+            if done:
+                replacements[n] = done[0]
+                details['count'].append(done[1])
+                continue
         if not a.find(n) and n != 'war3map.w3s':
             new_ones[n] = empty_file(n, None)
             missing_items.append(n)
