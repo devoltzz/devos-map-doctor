@@ -68,7 +68,17 @@ def _block(a, name):
 def _raw(a, bi):
     off, cs, fs, fl = a.blocks[bi]
     p = (a.h.offset + off) & 0xFFFFFFFF
-    return a.d[p:p + cs], fs, fl, off
+    return memoryview(a.d)[p:p + cs], fs, fl, off
+
+
+def _same_stored(ra, rb, piece=1 << 22):
+    if ra[1:3] != rb[1:3] or len(ra[0]) != len(rb[0]):
+        return False
+    va, vb = ra[0], rb[0]
+    for i in range(0, len(va), piece):
+        if va[i:i + piece].tobytes() != vb[i:i + piece].tobytes():
+            return False
+    return True
 
 
 def _unnamed(a, blocks):
@@ -87,7 +97,7 @@ def _files(a, b, na, nb, read_a, read_b):
         used_b.append(bb)
         if ba is not None and bb is not None:
             ra, rb = _raw(a, ba), _raw(b, bb)
-            if ra[:3] == rb[:3] and (not ra[2] & MPQ_FILE_FIX_KEY or ra[3] == rb[3]):
+            if _same_stored(ra, rb) and (not ra[2] & MPQ_FILE_FIX_KEY or ra[3] == rb[3]):
                 out['same'].append({'name': name, 'size': ra[1]})
                 continue
         da = read_a(na[key]) if key in na else None
