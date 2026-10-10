@@ -53,18 +53,39 @@ def decrypt_bytes(data, key):
     return src.tobytes() + bytes(data[n * 4:])
 
 
+_CIPHER = [None]
+
+
+def _native_cipher():
+    if _CIPHER[0] is None:
+        try:
+            from doctor.mpq import mpqcrypt
+            _CIPHER[0] = mpqcrypt.load_cipher() or False
+        except Exception:
+            _CIPHER[0] = False
+    return _CIPHER[0]
+
+
 def encrypt_bytes(data, key):
+    native = _CIPHER[0] if _CIPHER[0] is not None else _native_cipher()
+    if native and len(data) >= 16 and 0 <= key <= 0xFFFFFFFF:
+        return native(data, key)
+    n = len(data) // 4
+    src = array('I')
+    src.frombytes(bytes(data[:n * 4]))
+    if sys.byteorder != 'little':
+        src.byteswap()
+    crypt = CRYPT
     sd = 0xEEEEEEEE
-    out = bytearray()
-    for i in range(0, len(data) - 3, 4):
-        sd = (sd + CRYPT[0x400 + (key & 0xFF)]) & 0xFFFFFFFF
-        pt = struct.unpack_from('<I', data, i)[0]
-        ct = pt ^ ((key + sd) & 0xFFFFFFFF)
-        key = _mix_key(key)
+    for i in range(n):
+        sd = (sd + crypt[0x400 + (key & 0xFF)]) & 0xFFFFFFFF
+        pt = src[i]
+        src[i] = pt ^ ((key + sd) & 0xFFFFFFFF)
+        key = ((((~key) << 0x15) & 0xFFFFFFFF) + 0x11111111) & 0xFFFFFFFF | (key >> 0x0B)
         sd = (pt + sd + (sd << 5) + 3) & 0xFFFFFFFF
-        out += struct.pack('<I', ct)
-    out += data[len(data) // 4 * 4:]
-    return bytes(out)
+    if sys.byteorder != 'little':
+        src.byteswap()
+    return src.tobytes() + bytes(data[n * 4:])
 
 
 def decrypt(data, key):
@@ -247,6 +268,13 @@ def is_malformed(h):
 def decrypt_array(data, key):
     from array import array
     n = len(data) // 4
+    native = _NATIVE_DECRYPT[0] if _NATIVE_DECRYPT[0] is not None else _native_decrypt()
+    if native and n >= 4 and 0 <= key <= 0xFFFFFFFF:
+        out = array('I')
+        out.frombytes(native(data[:n * 4], key))
+        if sys.byteorder != 'little':
+            out.byteswap()
+        return out
     src = array('I')
     src.frombytes(bytes(data[:n * 4]))
     out = array('I', bytes(n * 4))
