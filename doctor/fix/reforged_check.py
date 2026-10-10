@@ -28,6 +28,22 @@ PROTECTIONS = ('fake_header', 'missing_hm3w', 'read_only', 'virtual_tables', 'sp
                'scrambled_ids', 'sector512')
 SEVERITIES = ('blocker', 'warning', 'info')
 _REF = {}
+_REFS = {}
+
+
+def _version(version):
+    if not version:
+        return None
+    from doctor.data import wc3_versions
+    v = wc3_versions.normalize(version)
+    if v is None:
+        raise ValueError('unknown game version: %s (the Doctor knows %s and 3.0)' % (
+            version, ', '.join(wc3_versions.versions())))
+    return None if v == wc3_versions.REFORGED else v
+
+
+def _label(version):
+    return 'Warcraft III %s' % version if version else '3.0'
 
 
 def _nothing(*_a, **_k):
@@ -45,7 +61,25 @@ def _mb(n):
     return '%.1f MB' % (n / 1048576.0)
 
 
-def reference():
+def reference(version=None):
+    version = _version(version)
+    if version:
+        if version not in _REFS:
+            from doctor.data import wc3_versions
+            folder = wc3_versions.scripts_dir(version)
+            if folder is None:
+                raise FileNotFoundError('the scripts of Warcraft III %s' % version)
+            ref = {'globals': set(), 'common_globals': set(), 'hidden': frozenset()}
+            for key, name in (('natives', 'common.j'), ('ai_natives', 'common.ai'), ('functions', 'blizzard.j')):
+                tree = jass_ast.parse(jass_ast.read_script(os.path.join(folder, name)))
+                src = tree.functions if key == 'functions' else tree.natives
+                ref[key] = dict((f.name, len(f.params)) for f in src)
+                if key != 'ai_natives':
+                    ref['globals'].update(g.name for g in tree.globals)
+                if key == 'natives':
+                    ref['common_globals'].update(g.name for g in tree.globals)
+            _REFS[version] = ref
+        return _REFS[version]
     if not _REF:
         from doctor.triggers import triggerdata
         _REF['globals'] = set()
@@ -76,14 +110,25 @@ def _names(rows, limit=30):
     return sorted(rows, key=lambda r: (-r['uses'], r['name']))[:limit]
 
 
-def jass_items(tree, own_blizzard=None):
+def jass_items(tree, own_blizzard=None, version=None):
+    version = _version(version)
     try:
-        ref = reference()
+        ref = reference(version)
     except FileNotFoundError:
+        if version:
+            return [_item('reference_missing', 'info', 'The natives were not checked: the scripts of Warcraft III %s '
+                          'are not here.' % version, 'none')]
         return [_item('reference_missing', 'info', 'The natives were not checked: the scripts of Warcraft III 3.0 were '
                       'not found (the game is not installed here).', 'none')]
     declared = dict((f.name, len(f.params)) for f in tree.natives)
     defined = dict((f.name, len(f.params)) for f in tree.functions)
+    own_functions = {}
+    if version and own_blizzard:
+        try:
+            own_functions = dict((f.name, len(f.params)) for f in jass_ast.parse(own_blizzard).functions)
+        except jass_ast.JassSyntaxError:
+            own_functions = dict((n, None) for n in missing_natives.declara_functions(own_blizzard))
+    functions = dict(ref['functions'], **own_functions) if own_functions else ref['functions']
     uses, bad_args, team_zero = {}, {}, 0
     for n in jass_ast.walk(tree):
         t = type(n)
@@ -91,7 +136,7 @@ def jass_items(tree, own_blizzard=None):
             uses[n.name] = uses.get(n.name, 0) + 1
             if t is jass_ast.Call:
                 want = defined.get(n.name, declared.get(n.name, ref['natives'].get(n.name,
-                                                                                  ref['functions'].get(n.name))))
+                                                                                  functions.get(n.name))))
                 if want is not None and want != len(n.args):
                     bad_args.setdefault(n.name, [want, len(n.args), 0])[2] += 1
         elif t is jass_ast.Binary and n.op in ('==', '!=', '<', '>', '<=', '>='):
@@ -100,6 +145,8 @@ def jass_items(tree, own_blizzard=None):
             if any(type(s) is jass_ast.Call and s.name == 'GetPlayerTeam' for s in sides) and \
                     any(type(s) is jass_ast.Literal and s.kind == 'integer' and s.value == 0 for s in sides):
                 team_zero += 1
+    if version:
+        return _classic_jass_items(tree, ref, version, declared, defined, own_blizzard, own_functions, uses, bad_args)
     items = []
     hidden = [n for n in declared if n in ref['hidden'] and n not in ref['natives']]
     missing = [n for n in declared if n not in ref['natives'] and n not in ref['ai_natives'] and n not in hidden]
@@ -151,11 +198,101 @@ def jass_items(tree, own_blizzard=None):
     return items
 
 
-def model_items(path, progress=None):
+def _classic_jass_items(tree, ref, version, declared, defined, own_blizzard, own_functions, uses, bad_args):
+    from doctor.data import wc3_versions
+    label = _label(version)
+    vkey = wc3_versions._key(version)
+    functions = own_functions if own_functions else ref['functions']
+    names_of_game = set(ref['natives']) | set(functions)
+    items = []
+    missing = [n for n in declared if n not in ref['natives'] and n not in ref['ai_natives']]
+    unknown = [n for n in uses if n not in defined and n not in declared and n not in ref['natives'] and
+               n not in functions]
+    newer, platform, other, nowhere = [], [], [], []
+    for n in missing + unknown:
+        patch = wc3_versions.first_patch(n)
+        if patch and wc3_versions._key(patch) > vkey:
+            newer.append({'name': n, 'patch': patch, 'uses': uses.get(n, 0)})
+        elif is_platform(n):
+            platform.append({'name': n, 'family': family(n), 'uses': uses.get(n, 0)})
+        elif n in declared:
+            other.append({'name': n, 'uses': uses.get(n, 0)})
+        else:
+            nowhere.append({'name': n, 'uses': uses[n]})
+    if newer:
+        rows = _names(newer)
+        items.append(_item('newer_natives', 'blocker', 'The script uses %d natives that %s does not have: they came in '
+                           'later patches (%s), so it does not compile on that game.' % (
+                               len(newer), label, ', '.join('%s %s' % (r['name'], r['patch']) for r in rows[:3])),
+                           'none', natives=rows))
+    if platform:
+        fams = {}
+        for r in platform:
+            fams[r['family']] = fams.get(r['family'], 0) + 1
+        items.append(_item('platform_natives', 'blocker', 'The script uses %d natives of a platform client (KK/DzAPI, '
+                           'JAPI, JN or YDWE), called %d times. %s does not have them: the map runs only with that '
+                           'client.' % (len(platform), sum(r['uses'] for r in platform), label), 'none',
+                           families=fams, natives=_names(platform)))
+    if other:
+        items.append(_item('missing_natives', 'blocker', 'The script declares %d natives %s does not have, so it does '
+                           'not compile.' % (len(other), label), 'none', natives=_names(other)))
+    if own_functions:
+        own_used = sorted(n for n in uses if n in own_functions and n not in ref['functions'])
+        items.append(
+            _item(
+                'own_blizzard_j_loaded',
+                'info',
+                'The map brings its own Scripts\\Blizzard.j, which %s loads '
+                'in place of its own%s.'
+                % (label, ' (the script calls %d functions only that file has)' % len(own_used) if own_used else ''),
+                'none',
+                functions=own_used[:30],
+            )
+        )
+    if nowhere:
+        items.append(_item('undeclared_functions', 'blocker', 'The script calls %d functions that nothing declares, '
+                           'so it does not compile.' % len(nowhere), 'none', functions=_names(nowhere)))
+    game_globals = ref['common_globals'] if own_functions else ref['globals']
+    if own_functions:
+        try:
+            game_globals = game_globals | set(g.name for g in jass_ast.parse(own_blizzard).globals)
+        except jass_ast.JassSyntaxError:
+            pass
+    again = sorted(set(g.name for g in tree.globals if g.name in game_globals) |
+                   set(n for n in list(defined) + list(declared) if n in names_of_game))
+    if again:
+        items.append(_item('redeclared_names', 'blocker', 'The script declares again %d names the common.j or '
+                           'blizzard.j of %s already has, so it does not compile.' % (len(again), label), 'none',
+                           names=again[:30]))
+    if bad_args:
+        rows = [{'name': n, 'takes': w, 'given': g, 'uses': k} for n, (w, g, k) in bad_args.items()]
+        items.append(_item('wrong_arguments', 'blocker', 'The script calls %d functions with a number of arguments %s '
+                           'does not take, so it does not compile.' % (len(rows), label), 'none',
+                           functions=_names(rows)))
+    return items
+
+
+def pjass_items(text, version, own_blizzard=None):
+    from doctor.data import wc3_versions
+    r = wc3_versions.pjass_check(text, version, own_blizzard)
+    if r.get('skipped'):
+        return [_item('pjass_skipped', 'info', 'The script was not compiled with pjass (%s).' % r['skipped'], 'none')]
+    if r['rc'] == 0 and not r['errors']:
+        return []
+    errors = [e for e in r['errors'] if not e.startswith(('Parse failed', 'war3map.j failed'))] or r['errors']
+    return [_item('pjass_errors', 'blocker', 'pjass, with the common.j and blizzard.j of %s, finds %d errors in the '
+                  'script (the first: %s).' % (_label(version), len(errors), errors[0] if errors else 'exit %d'
+                                               % r['rc']), 'none', errors=errors[:30])]
+
+
+def model_items(path, progress=None, version=None):
     r = model_check.scan(path, progress)
     if r.get('error'):
         return [], 0
     hang = [m['file'] for m in r['models'] if any(x['code'] == 'matrix_groups' for x in m['problems'])]
+    if version:
+        hang = []
+        r = dict(r, portraits=[])
     fixable = all(x.get('fixable') for m in r['models'] for x in m['problems'] if x['code'] == 'matrix_groups')
     broken = [m['file'] for m in r['models'] if any(x['code'] == 'broken_structure' for x in m['problems'])]
     items = []
@@ -308,12 +445,59 @@ def _finish(res, unknown):
     items = res['items']
     items.sort(key=lambda x: SEVERITIES.index(x['severity']))
     sev = set(x['severity'] for x in items)
-    res['verdict'] = ('node' if 'blocker' in sev else 'unknown' if unknown else 'probably' if 'warning' in sev
+    res['verdict'] = ('no' if 'blocker' in sev else 'unknown' if unknown else 'probably' if 'warning' in sev
                       else 'yes')
     return res
 
 
-def _script_items(src, diag, progress):
+def made_for(read, text=None, lang=None, size=None, platform=None):
+    try:
+        from doctor.data import wc3_versions
+        objects = dict((n, read(n)) for n in wc3_versions.OBJECT_FILES)
+        return wc3_versions.detect_parts(read('war3map.w3i'), text, lang, objects, read('war3map.wtg'), size,
+                                         platform)
+    except Exception:
+        return None
+
+
+def _made_for_archive(src, size, script):
+    try:
+        a = single_player.read_map(src)[0]
+    except Exception:
+        return None
+    return made_for(lambda name: unprotect._read(a, name), None, None, size,
+                    'the script is %s bytecode, which only the KK platform client runs' % (
+                        'KKWE' if script == 'kkwe' else 'j2b'))
+
+
+def limit_items(version, size, detected):
+    from doctor.data import wc3_versions
+    lim = wc3_versions.limits(version)
+    label = _label(version)
+    items = []
+    if size and size > lim['map_bytes']:
+        items.append(_item('map_too_large', 'blocker', 'The map is %s; %s does not list maps above %d MB (a client '
+                           'or loader that lifts the limit is needed).' % (_mb(size), label,
+                                                                          lim['map_bytes'] // 1048576), 'none',
+                           size=size))
+    d = detected or {}
+    info = d.get('w3i') or {}
+    if info.get('format') is not None and info['format'] > lim['w3i']:
+        items.append(_item('map_info_format', 'blocker', 'The map info (war3map.w3i) is in format %d%s; %s reads up to '
+                           'format %d, so it does not open the map.' % (
+                               info['format'], ', saved by the %s editor' % info['game'] if info.get('game') else '',
+                               label, lim['w3i']), 'none', format=info['format']))
+    if d.get('players') and d['players'] > lim['players']:
+        items.append(_item('too_many_players', 'blocker', 'The map has %d player slots; %s has %d.' % (
+            d['players'], label, lim['players']), 'none', players=d['players']))
+    newer_objects = [r for r in d.get('reasons') or [] if 'object data format' in r]
+    if newer_objects:
+        items.append(_item('object_format', 'warning', 'The object data is in a newer format than %s writes (%s): '
+                           'the older game may not read the custom objects.' % (label, newer_objects[0]), 'none'))
+    return items
+
+
+def _script_items(src, diag, progress, version=None, extra=None):
     p = progress
     items = []
     try:
@@ -327,6 +511,11 @@ def _script_items(src, diag, progress):
         return [_item('script_unreadable', 'warning', 'The script cannot be read.', 'none')], True
     p('Reading the script')
     text = sc['bytes'].decode('utf-8', 'surrogateescape')
+    if extra is not None:
+        extra['made_for'] = made_for(lambda name: unprotect._read(a, name), text, lang, diag.get('byte_size'))
+    if version and lang == 'lua':
+        return [_item('lua_script', 'blocker', 'The script is Lua, which only 1.31 and later run; %s runs JASS.'
+                      % _label(version), 'none')], False
     tree = None
     try:
         tree = jass_ast.parse(text) if lang == 'jass' else lua_ast.parse(text)
@@ -351,8 +540,11 @@ def _script_items(src, diag, progress):
     if tree is not None and lang == 'jass':
         p('Checking the natives')
         own = unprotect._read(a, 'scripts\\blizzard.j')
-        items += jass_items(tree, own.decode('latin-1') if own else None)
-    if tree is not None:
+        items += jass_items(tree, own.decode('latin-1') if own else None, version)
+        if version:
+            p('Compiling the script with pjass')
+            items += pjass_items(sc['bytes'], version, own)
+    if tree is not None and not version:
         sp = single_player.analyze(text, lang, strings, tree)
         if sp['found']:
             items.append(_item('single_player_lock', 'warning', 'The map ends the game in single player mode. Since '
@@ -376,9 +568,11 @@ def _source(path, diag, codes):
     return path
 
 
-def check(path, progress=None, diag=None):
+def check(path, progress=None, diag=None, version=None):
+    version = _version(version)
     p = progress or _nothing
-    res = {'verdict': None, 'items': [], 'script': None, 'size': None, 'models': 0}
+    res = {'verdict': None, 'items': [], 'script': None, 'size': None, 'models': 0, 'version': version or '3.0',
+           'made_for': None}
     items = res['items']
     p('Reading the archive')
     if diag is None:
@@ -400,7 +594,7 @@ def check(path, progress=None, diag=None):
         items.append(_item('truncated', 'blocker', 'The file is cut short: the end of the archive, where its tables '
                            'are, is missing. Only a complete copy can run.', 'none'))
         return _finish(res, False)
-    if (res['size'] or 0) > MAX_MAP:
+    if (res['size'] or 0) > MAX_MAP and not version:
         items.append(_item('map_too_large', 'blocker', 'The map is %s; the game does not list maps above 512 MiB.'
                            % _mb(res['size']), 'none', size=res['size']))
     prot = diag.get('protections') or []
@@ -417,7 +611,7 @@ def check(path, progress=None, diag=None):
                            'still reads it; the Doctor removes the protection, which only matters to open or change '
                            'the map.', 'doctor', protections=protections))
     for x in prot:
-        if x['code'] in _SLK:
+        if x['code'] in _SLK and not version:
             code, sev, text = _SLK[x['code']]
             items.append(_item(code, sev, text, 'doctor', count=x.get('n'), files=x.get('file_set')))
     if diag.get('kind') == 'campaign_info':
@@ -439,9 +633,10 @@ def check(path, progress=None, diag=None):
         return _finish(res, True)
     unknown = False
     src = _source(path, diag, codes)
+    extra = {}
     if res['script'] in ('jass', 'lua'):
         try:
-            found, unknown = _script_items(src, diag, p)
+            found, unknown = _script_items(src, diag, p, version, extra)
         except Exception as e:
             found, unknown = [_item('script_unreadable', 'warning', 'The script could not be checked (%s).'
                                     % unprotect._error(e), 'none')], True
@@ -449,15 +644,22 @@ def check(path, progress=None, diag=None):
     elif res['script'] is None and not any(x['severity'] == 'blocker' for x in items):
         items.append(_item('no_script', 'warning', 'The map has no script the game can find.', 'none'))
         unknown = True
+    res['made_for'] = extra.get('made_for')
+    if res['made_for'] is None and res['script'] in ('kkwe', 'j2b'):
+        res['made_for'] = _made_for_archive(src, res['size'], res['script'])
+    if version:
+        items += limit_items(version, res['size'], res['made_for'])
     if res['script'] != 'kk_encrypted' and not unknown:
-        found, res['models'] = model_items(src, p)
+        found, res['models'] = model_items(src, p, version)
         items += found
-        p('Checking the object data')
-        items += object_items(src)
+        if not version:
+            p('Checking the object data')
+            items += object_items(src)
         p('Checking the imported files')
         items += import_items(src)
         p('Checking the textures')
         items += texture_items(src)
-        p('Checking the icons')
-        items += icon_items(src)
+        if not version:
+            p('Checking the icons')
+            items += icon_items(src)
     return _finish(res, unknown)

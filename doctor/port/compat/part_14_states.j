@@ -61,6 +61,15 @@ function DB_est_arred takes real x returns integer
     return DB_est_piso(x+0.5)
 endfunction
 
+function DB_est_trunca takes real x returns integer
+    if x>=2147483000.0 then
+        return 2147483000
+    elseif x<=-2147483000.0 then
+        return -2147483000
+    endif
+    return R2I(x)
+endfunction
+
 function DB_estado_max_vida takes unit u,real v returns nothing
     local real atual
     local real maxv
@@ -496,7 +505,10 @@ function DB_estado_le takes unit u,integer st returns real
     endif
     //{{KK_FIMSE:KK_EST_14}}
     if st==0x15 then
-        return I2R(BlzGetUnitBaseDamage(u,0))+DB_est_media_dados(u)+LoadReal(DB_est_ht,h,DB_EST_BONUS)
+        //{{KK_SE:KK_EST_14}}
+        return I2R(BlzGetUnitBaseDamage(u,0)+BlzGetUnitDiceNumber(u,0)*BlzGetUnitDiceSides(u,0))+DB_est_primario(u)+LoadReal(DB_est_ht,h,DB_EST_BONUS)
+        //{{KK_FIMSE:KK_EST_14}}
+        return I2R(BlzGetUnitBaseDamage(u,0)+BlzGetUnitDiceNumber(u,0)*BlzGetUnitDiceSides(u,0))+LoadReal(DB_est_ht,h,DB_EST_BONUS)
     elseif st==0x51 then
         return LoadReal(DB_est_ht,h,DB_EST_VEL)
     elseif st==0x25 then
@@ -506,6 +518,34 @@ function DB_estado_le takes unit u,integer st returns real
         return LoadReal(DB_est_ht,h,DB_EST_BONUS)
     elseif st==0x16 then
         return DB_est_alcance(u,h)
+    elseif st==0x52 then
+        return BlzGetUnitRealField(u,UNIT_RF_ACQUISITION_RANGE)
+    elseif st==0x53 then
+        return BlzGetUnitRealField(u,UNIT_RF_HIT_POINTS_REGENERATION_RATE)
+    elseif st==0x54 then
+        return BlzGetUnitRealField(u,UNIT_RF_MANA_REGENERATION)
+    elseif st==0x60 then
+        return I2R(BlzGetUnitIntegerField(u,UNIT_IF_TARGETED_AS))
+    elseif not DB_est_ataca(u) then
+        return 0.0
+    elseif st==0x21 then
+        return BlzGetUnitWeaponRealField(u,UNIT_WEAPON_RF_ATTACK_DAMAGE_LOSS_FACTOR,0)
+    elseif st==0x22 then
+        return I2R(BlzGetUnitWeaponIntegerField(u,UNIT_WEAPON_IF_ATTACK_WEAPON_SOUND,0))
+    elseif st==0x24 then
+        return I2R(BlzGetUnitWeaponIntegerField(u,UNIT_WEAPON_IF_ATTACK_MAXIMUM_NUMBER_OF_TARGETS,0))
+    elseif st==0x26 then
+        return BlzGetUnitWeaponRealField(u,UNIT_WEAPON_RF_ATTACK_DAMAGE_POINT,0)
+    elseif st==0x28 then
+        return BlzGetUnitWeaponRealField(u,UNIT_WEAPON_RF_ATTACK_BACKSWING_POINT,0)
+    elseif st==0x29 then
+        return I2R(BlzGetUnitWeaponIntegerField(u,UNIT_WEAPON_IF_ATTACK_TARGETS_ALLOWED,0))
+    elseif st==0x40 then
+        return BlzGetUnitWeaponRealField(u,UNIT_WEAPON_RF_ATTACK_RANGE,1)
+    elseif st==0x56 then
+        return BlzGetUnitWeaponRealField(u,UNIT_WEAPON_RF_ATTACK_DAMAGE_SPILL_DISTANCE,0)
+    elseif st==0x57 then
+        return BlzGetUnitWeaponRealField(u,UNIT_WEAPON_RF_ATTACK_DAMAGE_SPILL_RADIUS,0)
     endif
     return 0.0
 endfunction
@@ -519,10 +559,9 @@ function DB_estado_set takes unit u,integer st,real v returns nothing
     call DB_morfo_confere(u)
     //{{KK_FIMSE:KK_MORFO_ESTADO}}
     if st==0x12 then
-        call BlzSetUnitBaseDamage(u,DB_est_arred(v),0)
-    elseif st==0x15 then
-        set h=DB_est_h(u)
-        call BlzSetUnitBaseDamage(u,DB_est_arred(v-DB_est_media_dados(u)-LoadReal(DB_est_ht,h,DB_EST_BONUS)),0)
+        call BlzSetUnitBaseDamage(u,DB_est_trunca(v),0)
+    elseif st==0x14 or st==0x15 then
+        return
     elseif st==0x20 then
         call BlzSetUnitArmor(u,v)
     elseif st==0x51 then
@@ -556,6 +595,32 @@ function DB_estado_set takes unit u,integer st,real v returns nothing
         call BlzSetUnitDiceNumber(u,DB_est_piso(v),0)
     elseif st==0x11 then
         call BlzSetUnitDiceSides(u,DB_est_piso(v),0)
+    elseif st==0x52 then
+        call BlzSetUnitRealField(u,UNIT_RF_ACQUISITION_RANGE,v)
+    elseif st==0x53 then
+        call BlzSetUnitRealField(u,UNIT_RF_HIT_POINTS_REGENERATION_RATE,v)
+    elseif st==0x54 then
+        call BlzSetUnitRealField(u,UNIT_RF_MANA_REGENERATION,v)
+    elseif st==0x60 then
+        call BlzSetUnitIntegerField(u,UNIT_IF_TARGETED_AS,DB_est_trunca(v))
+    elseif not DB_est_ataca(u) then
+        return
+    elseif st==0x21 then
+        call BlzSetUnitWeaponRealField(u,UNIT_WEAPON_RF_ATTACK_DAMAGE_LOSS_FACTOR,0,v)
+    elseif st==0x22 then
+        call BlzSetUnitWeaponIntegerField(u,UNIT_WEAPON_IF_ATTACK_WEAPON_SOUND,0,DB_est_trunca(v))
+    elseif st==0x24 then
+        call BlzSetUnitWeaponIntegerField(u,UNIT_WEAPON_IF_ATTACK_MAXIMUM_NUMBER_OF_TARGETS,0,DB_est_trunca(v))
+    elseif st==0x26 then
+        call BlzSetUnitWeaponRealField(u,UNIT_WEAPON_RF_ATTACK_DAMAGE_POINT,0,v)
+    elseif st==0x28 then
+        call BlzSetUnitWeaponRealField(u,UNIT_WEAPON_RF_ATTACK_BACKSWING_POINT,0,v)
+    elseif st==0x29 then
+        call BlzSetUnitWeaponIntegerField(u,UNIT_WEAPON_IF_ATTACK_TARGETS_ALLOWED,0,DB_est_trunca(v))
+    elseif st==0x56 then
+        call BlzSetUnitWeaponRealField(u,UNIT_WEAPON_RF_ATTACK_DAMAGE_SPILL_DISTANCE,0,v)
+    elseif st==0x57 then
+        call BlzSetUnitWeaponRealField(u,UNIT_WEAPON_RF_ATTACK_DAMAGE_SPILL_RADIUS,0,v)
     endif
     //{{KK_SE:KK_MORFO_ESTADO}}
     call DB_morfo_refoto(u)

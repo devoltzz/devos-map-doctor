@@ -824,6 +824,10 @@ function DzFrameSetFont takes integer frame,string fileName,real height,integer 
     endif
 endfunction
 
+//{{KK_SE:KK_DZ_REAL}}
+hashtable DB_alinha_ht=InitHashtable()
+
+//{{KK_FIMSE:KK_DZ_REAL}}
 function DzFrameSetTextAlignment takes integer frame,integer align returns nothing
     local framehandle f=DB_fh(frame)
     local textaligntype v=TEXT_JUSTIFY_MIDDLE
@@ -833,6 +837,38 @@ function DzFrameSetTextAlignment takes integer frame,integer align returns nothi
     if f==null then
         return
     endif
+    //{{KK_SE:KK_DZ_REAL}}
+    set dv=LoadInteger(DB_alinha_ht, frame, 0)
+    set dh=LoadInteger(DB_alinha_ht, frame, 1)
+    if ModuloInteger(align, 2)==1 then
+        set dv=1
+    elseif ModuloInteger(align/2, 2)==1 then
+        set dv=2
+    elseif ModuloInteger(align/4, 2)==1 then
+        set dv=3
+    endif
+    if ModuloInteger(align/8, 2)==1 then
+        set dh=1
+    elseif ModuloInteger(align/16, 2)==1 then
+        set dh=2
+    elseif ModuloInteger(align/32, 2)==1 then
+        set dh=3
+    endif
+    call SaveInteger(DB_alinha_ht, frame, 0, dv)
+    call SaveInteger(DB_alinha_ht, frame, 1, dh)
+    if dv==1 then
+        set v=TEXT_JUSTIFY_TOP
+    elseif dv==3 then
+        set v=TEXT_JUSTIFY_BOTTOM
+    endif
+    if dh==1 then
+        set h=TEXT_JUSTIFY_LEFT
+    elseif dh==3 then
+        set h=TEXT_JUSTIFY_RIGHT
+    endif
+    call BlzFrameSetTextAlignment(f, v, h)
+    return
+    //{{KK_FIMSE:KK_DZ_REAL}}
     if align>=11 then
         set dh=align/10-(align/100)*10
         set dv=align-(align/10)*10
@@ -1525,6 +1561,9 @@ function DB_ui_pos_init takes nothing returns nothing
     //{{KK_SE:KK_UI_BORDAS}}
     call DB_bordas_aplica()
     //{{KK_FIMSE:KK_UI_BORDAS}}
+    //{{KK_SE:KK_TECLAS}}
+    call DB_teclas_registra()
+    //{{KK_FIMSE:KK_TECLAS}}
     call DB_mov_registra(DB_mundo_trig)
     set i=0
     loop
@@ -1880,8 +1919,83 @@ function DzTriggerRegisterWindowResizeEventByCode takes trigger trig,boolean syn
 endfunction
 
 function DzIsKeyDown takes integer iKey returns boolean
-    return DB_key_down[iKey]
+    if BlzGetTriggerPlayerKey()!=null and GetHandleId(BlzGetTriggerPlayerKey())==iKey then
+        return BlzGetTriggerPlayerIsKeyDown()
+    endif
+    if iKey<0 or iKey>255 then
+        return false
+    endif
+    return DB_key_down[GetPlayerId(GetLocalPlayer())*256+iKey]
 endfunction
+
+//{{KK_SE:KK_TECLAS}}
+constant string DB_teclas_lista="{{KK_TECLAS_LISTA}}"
+
+function DB_tecla_muda takes nothing returns nothing
+    local integer k=GetHandleId(BlzGetTriggerPlayerKey())
+    if k>=0 and k<256 then
+        set DB_key_down[GetPlayerId(GetTriggerPlayer())*256+k]=BlzGetTriggerPlayerIsKeyDown()
+    endif
+endfunction
+
+function DB_botao_muda takes nothing returns nothing
+    local integer k=1
+    if BlzGetTriggerPlayerMouseButton()==MOUSE_BUTTON_TYPE_RIGHT then
+        set k=2
+    elseif BlzGetTriggerPlayerMouseButton()==MOUSE_BUTTON_TYPE_MIDDLE then
+        set k=4
+    endif
+    set DB_key_down[GetPlayerId(GetTriggerPlayer())*256+k]=GetTriggerEventId()==EVENT_PLAYER_MOUSE_DOWN
+endfunction
+
+function DB_teclas_registra takes nothing returns nothing
+    local trigger t=CreateTrigger()
+    local trigger tb=null
+    local integer i=0
+    local integer j
+    local integer p
+    local integer m
+    local integer n=StringLength(DB_teclas_lista)
+    local integer k
+    call TriggerAddAction(t, function DB_tecla_muda)
+    loop
+        exitwhen i>=n
+        set j=i
+        loop
+            exitwhen j>=n or SubString(DB_teclas_lista, j, j+1)==","
+            set j=j+1
+        endloop
+        set k=S2I(SubString(DB_teclas_lista, i, j))
+        set p=0
+        loop
+            exitwhen p>=bj_MAX_PLAYERS
+            if GetPlayerController(Player(p))==MAP_CONTROL_USER and GetPlayerSlotState(Player(p))==PLAYER_SLOT_STATE_PLAYING then
+                if k==1 or k==2 or k==4 then
+                    if tb==null then
+                        set tb=CreateTrigger()
+                        call TriggerAddAction(tb, function DB_botao_muda)
+                    endif
+                    call TriggerRegisterPlayerEvent(tb, Player(p), EVENT_PLAYER_MOUSE_DOWN)
+                    call TriggerRegisterPlayerEvent(tb, Player(p), EVENT_PLAYER_MOUSE_UP)
+                elseif k>0 and k<256 then
+                    set m=0
+                    loop
+                        exitwhen m>15
+                        call BlzTriggerRegisterPlayerKeyEvent(t, Player(p), ConvertOsKeyType(k), m, true)
+                        call BlzTriggerRegisterPlayerKeyEvent(t, Player(p), ConvertOsKeyType(k), m, false)
+                        set m=m+1
+                    endloop
+                endif
+            endif
+            set p=p+1
+        endloop
+        set i=j+1
+    endloop
+    set t=null
+    set tb=null
+endfunction
+
+//{{KK_FIMSE:KK_TECLAS}}
 
 function DzGetTriggerKey takes nothing returns integer
     return GetHandleId(BlzGetTriggerPlayerKey())

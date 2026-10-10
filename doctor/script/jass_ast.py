@@ -8,6 +8,8 @@ import sys
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+REF_DIR = os.path.join(HERE, '..', 'ref', '3.0')
+
 KEYWORDS = frozenset((
     'globals', 'endglobals', 'native', 'constant', 'type', 'extends', 'function', 'endfunction', 'takes', 'returns',
     'nothing', 'local', 'array', 'set', 'call', 'if', 'then', 'elseif', 'else', 'endif', 'loop', 'endloop',
@@ -2242,4 +2244,33 @@ def _load_pjass():
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod if os.path.isfile(mod.exe()) else None
+
+
+def pjass_check(paths):
+    pj = _load_pjass()
+    if pj is None:
+        return [('pjass', True, 'skipped: no pjass (common/kk/pjass.py and its executable)')]
+    import tempfile
+    res = []
+    with tempfile.TemporaryDirectory(prefix='jass_ast_') as tmp:
+        refs = []
+        for name in ('common.j', 'blizzard.j'):
+            src = os.path.join(REF_DIR, name)
+            dst = os.path.join(tmp, 'rt_' + name)
+            with open(dst, 'wb') as fh:
+                fh.write(unparse(parse(read_script(src))).encode('utf-8', 'surrogateescape'))
+            refs.append((src, dst, name))
+        for k, p in enumerate(paths):
+            dst = os.path.join(tmp, 'rt_%d.j' % k)
+            with open(dst, 'wb') as fh:
+                fh.write(unparse(parse(read_script(p))).encode('utf-8', 'surrogateescape'))
+            a = pj.run_action([(s, n) for s, _d, n in refs] + [(p, 'war3map.j')], tmp=os.path.join(tmp, 'a'))
+            b = pj.run_action([(d, n) for _s, d, n in refs] + [(dst, 'war3map.j')], tmp=os.path.join(tmp, 'b'))
+            sa = (a['rc'], len(a['error_list']), len(a['warnings']))
+            sb = (b['rc'], len(b['error_list']), len(b['warnings']))
+            detail = 'exit %d, %d errors, %d warnings' % sa
+            if sa != sb:
+                detail += '; after the round trip: exit %d, %d errors, %d warnings' % sb
+            res.append(('pjass ' + os.path.basename(p), sa == sb, detail))
+    return res
 

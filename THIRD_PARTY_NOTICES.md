@@ -116,6 +116,74 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER I
 OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
+## UjAPI
+
+https://github.com/UnryzeC/UjAPI
+
+`doctor/port/.../ujapi_api.j` lists the types, constants and native declarations of the UjAPI `common.j` (the map
+porter reads it to port maps made for the UjAPI); it is derived from the UjAPI files, under the MIT License:
+
+```
+MIT License
+
+Copyright (c) 2022 Sandro Takaishvili
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit
+persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
+Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+## MemHackAPI
+
+https://github.com/UnryzeC/MemHackAPI
+
+`doctor/port/memhack_api.json` is a catalog of the MemHackAPI functions (name, parameter and return types, library,
+file), taken from its source so the map porter can recognize the library inside a map (interoperability); the porter's
+translation of those functions to Warcraft III 3.0 natives is this program's own code. The repository has no license
+file. Credits, from its README: Unryze, leandrotp, Dracol1ch, Karaul0v, ENAlexey, Lord of the Ding, Aniki, LeP and
+Vexorian.
+
+## DzAPIConverter
+
+https://github.com/garden-hose/DzAPIConverter
+
+The bodies of the twelve `EX*` data natives in the port layer (`doctor/port/compat/part_natives.j`: the event damage
+data, the item data strings and the ability data reads and writes) are adapted from `lib/DzCompat_YDWE_EX.j` of
+DzAPIConverter, under the MIT License:
+
+```
+MIT License
+
+Copyright (c) 2026 garden-hose
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
 ## The local machine translation: CTranslate2, SentencePiece and OPUS-MT
 
 https://github.com/OpenNMT/CTranslate2 (MIT), https://github.com/google/sentencepiece (Apache-2.0),

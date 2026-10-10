@@ -102,7 +102,8 @@ STYLE = {'heading': 'title', 'heading2': 'subtitle', 'ok': 'good', 'warning': 'w
          'file_path': 'path'}
 PAGE_STYLES = frozenset(STYLE.values())
 OUTCOME = {'done': 'ok', 'partial': 'partial', 'nothing_to_do': 'nothing', 'nothing_selected': 'nothing'}
-VERDICT = {'yes': 'v-yes', 'probably': 'v-probably', 'node': 'v-no', 'unknown': 'v-unknown'}
+EDITOR_VERSIONS = ('1.29', '1.28', '1.27', '1.26', '1.25', '1.24')
+VERDICT = {'yes': 'v-yes', 'probably': 'v-probably', 'no': 'v-no', 'unknown': 'v-unknown'}
 SCRIPT_LABEL = {'jass': 'JASS', 'lua': 'Lua', 'kkwe': 'KK compiled (KKWE)', 'j2b': 'KK compiled and encrypted (j2b)',
                 'kk_encrypted': 'KK encrypted outside the map', 'none': 'none'}
 STEP_TEXT = {
@@ -166,6 +167,20 @@ def page_steps(D, d):
 
 
 NOTICE_CODES = ('ntfs_copy',)
+
+
+def editor_version_guess(path):
+    out = {'guess': None, 'why': '', 'available': []}
+    try:
+        from doctor.fix import editor_version
+        out['available'] = [v for v in EDITOR_VERSIONS if editor_version.available(v)]
+        from doctor.mpq import mpqread
+        a = mpqread.Archive(path)
+        out['guess'], out['why'] = editor_version.made_for(path, a.read('war3map.w3i') if a.find('war3map.w3i')
+                                                           else None)
+    except Exception as e:
+        out['why'] = '%s: %s' % (type(e).__name__, e)
+    return out
 
 
 def page_summary(D, d):
@@ -286,6 +301,7 @@ def run_action(D, G, job, path, task, progress, emit):
     options = job.get('options') or None
     extras = dict((k, v) for k, v in (job.get('extras') or {}).items() if v)
     out = D.free_output(path, '_fixed' if task == 'fix' else '_editor')
+    version = job.get('editor_version') or None if task == 'editor' else None
     emit({'type': 'output', 'path': out})
     x = None
     if task == 'fix':
@@ -313,14 +329,14 @@ def run_action(D, G, job, path, task, progress, emit):
                 x = D.apply_extras(base, os.path.join(tmp, 'extras.w3x'), before, progress)
                 if x['output']:
                     base = x['output']
-                r = D.prepare_for_editor(base, out, progress, options=options)
+                r = D.prepare_for_editor(base, out, progress, options=options, version_num=version)
                 r['before'] = d
                 if r1 is not None:
                     r['unprotection'] = r1
             finally:
                 shutil.rmtree(tmp, ignore_errors=True)
         else:
-            r = D.prepare_for_editor(path, out, progress, diag=d, options=options)
+            r = D.prepare_for_editor(path, out, progress, diag=d, options=options, version_num=version)
         lines = G.editor_text(r)
         if extras.get('strip_indent') and r.get('status') in ('done', 'partial') and r.get('output') and \
                 os.path.isfile(r['output']):
@@ -424,7 +440,7 @@ def run_job(job, emit, G):
         d = cached_diagnosis(D, path, progress)
         return {'map': os.path.abspath(path), 'name': os.path.basename(path), 'size': os.path.getsize(path),
                 'lines': page_lines(G.diagnosis_text(d)), 'steps': page_steps(D, d),
-                'summary': page_summary(D, d)}
+                'summary': page_summary(D, d), 'editor_version': editor_version_guess(path)}
     if task in ('fix', 'editor'):
         return run_action(D, G, job, path, task, progress, emit)
     if task == 'port':
@@ -456,10 +472,29 @@ def _gradient(job, progress):
     return map_card.gradient(job['text'], job['colors'])
 
 
+def game_versions():
+    out = [{'value': '', 'label': 'Reforged (3.0)', 'range': '3.0'}]
+    try:
+        from doctor.data import wc3_versions
+    except ImportError:
+        return out
+    for v in reversed(wc3_versions.versions()):
+        if wc3_versions.scripts_dir(v):
+            out.append({'value': v, 'label': v, 'range': wc3_versions.range_of(v)})
+    return out
+
+
 def _reforged(job, progress):
     from doctor.fix import unprotect as D
     from doctor.fix import reforged_check
+    if job.get('version'):
+        r = reforged_check.check(job['map'], progress, diag=cached_diagnosis(D, job['map'], progress),
+                                 version=job['version'])
+        r['verdict_code'] = VERDICT.get(r.get('verdict'), 'v-unknown')
+        r['versions'] = game_versions()
+        return r
     r = reforged_check.check(job['map'], progress, diag=cached_diagnosis(D, job['map'], progress))
+    r['versions'] = game_versions()
     items = dict((x['code'], x) for x in r.get('items') or [])
     lock, groups = items.get('single_player_lock'), items.get('model_matrix_groups')
     r['verdict_code'] = VERDICT.get(r.get('verdict'), 'v-unknown')
@@ -467,7 +502,7 @@ def _reforged(job, progress):
     r['models'] = {'fixable': len((groups.get('data') or {}).get('models') or []) if groups and
                    groups.get('fix') == 'doctor' else 0}
     portraits, pointers, uabi = items.get('portrait_camera'), items.get('data_pointers'), items.get('uabi_distinct')
-    runs = r.get('verdict') != 'node'
+    runs = r.get('verdict') != 'no'
     from doctor.mpq import mpqadd
     writable = mpqadd.format(job['map']) == 0 or 'protected_archive' in items
     if not writable:

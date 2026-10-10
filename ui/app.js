@@ -87,6 +87,7 @@ const state = {
   cheatpacks: null, cheatPack: { id: null, options: {}, result: null },
   qol: null, qolOpt: {}, qolResult: null,
   rawcodes: null,
+  editorVersion: 'reforged',
 };
 
 const api = () => window.pywebview.api;
@@ -268,6 +269,7 @@ async function openMap(path) {
   state.open = null;
   state.lastError = null;
   state.card = state.files = state.reforged = null;
+  state.gameCheck = null;
   state.images = {};
   state.imageData = {};
   state.results = {};
@@ -283,6 +285,7 @@ async function openMap(path) {
   state.trGroups = null;
   state.trSkip = new Set();
   state.rawcodes = null;
+  state.editorVersion = 'reforged';
   TABS.forEach(n => setTabState(n, 'wait'));
   $('#welcome').classList.add('hidden');
   $('#mapview').classList.remove('hidden');
@@ -505,8 +508,26 @@ function shellLine(action) {
     if (!flags.includes(f)) flags.push(f);
   }
   const name = state.open ? state.open.name : base(state.map);
+  if (action === 'editor' && state.editorVersion !== 'reforged') flags.push(['editor-version', state.editorVersion].join('='));
   $('.shell .cmd', card).textContent = 'doctor ' + action + ' "' + name + '"' +
     flags.map(f => ' --' + f).join('');
+}
+
+function editorVersionRow() {
+  const ev = state.open.editor_version || {};
+  const versions = ev.available || [];
+  if (!versions.length) return null;
+  const guess = ev.guess;
+  const sel = el('select', { class: 'field', style: 'width:auto', 'data-editor-version': '1',
+    title: 'The World Editor that will open the map: Reforged, or the one of the map\'s own version, which keeps it.',
+    onchange: e => { state.editorVersion = e.target.value; shellLine('editor'); } },
+    el('option', { value: 'reforged', text: 'Reforged (3.0)' }),
+    versions.map(v => el('option', { value: v, text: v })));
+  sel.value = versions.includes(state.editorVersion) ? state.editorVersion : 'reforged';
+  return el('div', { class: 'row', style: 'gap:8px;align-items:center;margin:4px 0 8px' },
+    el('span', { text: 'World Editor' }), sel,
+    guess ? el('span', { class: 'muted' }, el('span', { text: 'Made for World Editor' }), ' ',
+      el('span', { class: 'mono', text: guess })) : null);
 }
 
 function renderAction(action) {
@@ -529,6 +550,7 @@ function renderAction(action) {
     el('div', { class: 'head' }, el('h2', { text: a.title }),
       presetMenu(action)),
     el('p', { class: 'lead', text: a.lead }),
+    action === 'editor' ? editorVersionRow() : null,
     any ? list : el('p', { class: 'muted', text: 'Nothing to do here for this map.' }),
     el('div', { class: 'foot' },
       el('button', { class: 'btn primary needs-idle', text: a.title, disabled: !any || !!state.running,
@@ -630,6 +652,7 @@ async function runAction(action) {
   if (extras.translation && state.extras.translation) params.extras.translation = state.extras.translation.file;
   if (extras.stripIndent) params.extras.strip_indent = true;
   if (extras.shrink) params.extras.shrink = { recompress: true, blp: true, dedup: true };
+  if (action === 'editor' && state.editorVersion !== 'reforged') params.editor_version = state.editorVersion;
   status(a.label);
   try {
     const r = await run(action, params, { label: a.label });
@@ -999,19 +1022,62 @@ async function replaceImage(which, box) {
 }
 
 function renderReforged() {
-  const r = state.reforged;
-  if (!r) { tabBody('reforged', el('div', { class: 'card muted', text: 'Checking...' })); return; }
+  const base = state.reforged;
+  if (!base) { tabBody('reforged', el('div', { class: 'card muted', text: 'Checking...' })); return; }
+  const g = state.gameCheck;
+  const older = g && g.version;
+  if (older && !g.result) {
+    tabBody('reforged', el('div', { class: 'card' }, gamePicker(base, older),
+      g.error ? el('p', { class: 'muted' }, el('span', { text: 'Could not check:' }), ' ', el('span', { text: g.error }))
+        : el('p', { class: 'muted', text: 'Checking...' })));
+    return;
+  }
+  const r = older ? g.result : base;
   const sev = { blocker: 'bad', warning: 'warn', info: 'info' };
-  const verdict = { 'v-yes': 'Yes, it should run on Reforged.', 'v-probably': 'Probably: nothing known stops it.',
-    'v-no': 'Not as it is: see the blockers below.', 'v-unknown': 'Cannot tell.' }[r.verdict_code] || 'Cannot tell.';
+  const verdict = older ? ({ 'v-yes': 'Yes, it should run on this version.',
+    'v-probably': 'Probably: nothing known stops it.', 'v-no': 'Not as it is: see the blockers below.',
+    'v-unknown': 'Cannot tell.' }[r.verdict_code] || 'Cannot tell.') :
+    ({ 'v-yes': 'Yes, it should run on Reforged.', 'v-probably': 'Probably: nothing known stops it.',
+      'v-no': 'Not as it is: see the blockers below.', 'v-unknown': 'Cannot tell.' }[r.verdict_code] ||
+      'Cannot tell.');
   const fix = { doctor: '"Fix map" or "Open in World Editor" takes care of it.', port: 'It needs a port, not a fix.',
     none: '' };
-  tabBody('reforged', el('div', { class: 'card' }, el('h2', { text: verdict }),
-    el('p', { class: 'lead', text: 'A "yes" means none of the measured problems is there.' }),
+  const made = r.made_for || base.made_for;
+  tabBody('reforged', el('div', { class: 'card' }, gamePicker(base, older), el('h2', { text: verdict }),
+    el('p', { class: 'lead', text: older ? 'A "yes" means none of the known limits of that version is there.' :
+      'A "yes" means none of the measured problems is there.' }),
+    made && made.label ? el('p', { class: 'muted' }, el('span', { text: 'Made for:' }), ' ',
+      el('b', { text: made.label }), el('span', { class: 'faint', text: ' (' + (made.reasons || []).join('; ') + ')' }))
+      : null,
     (r.items || []).length ? el('div', { class: 'report' }, r.items.map(it => el('div', { class: 'step' },
       el('span', { class: 'badge ' + (sev[it.severity] || ''), text: it.severity }),
       el('div', {}, el('div', { text: it.text }), fix[it.fix] ? el('div', { class: 'd muted', text: fix[it.fix] }) :
         null)))) : el('p', { class: 'muted', text: 'Nothing found.' })));
+}
+
+function gamePicker(base, current) {
+  const list = base.versions || [{ value: '', label: 'Reforged (3.0)' }];
+  if (list.length < 2) return null;
+  return el('div', { class: 'row' }, el('span', { class: 'muted', text: 'Check against:' }),
+    el('select', { class: 'field', style: 'width:auto', title: 'The game version to check the map against',
+      onchange: e => checkGameVersion(e.target.value) },
+    ...list.map(x => el('option', { value: x.value, text: x.label, selected: (x.value || '') === (current || '') }))));
+}
+
+async function checkGameVersion(version) {
+  const gen = state.gen;
+  if (!version) { state.gameCheck = null; renderReforged(); return; }
+  state.gameCheck = { version, result: null };
+  renderReforged();
+  try {
+    const r = await run('reforged', { version }, { quiet: true });
+    if (gen !== state.gen || !state.gameCheck || state.gameCheck.version !== version) return;
+    state.gameCheck.result = r;
+  } catch (e) {
+    if (gen !== state.gen || !state.gameCheck || state.gameCheck.version !== version) return;
+    state.gameCheck.error = String(e && e.message || e);
+  }
+  renderReforged();
 }
 
 async function loadFiles(gen) {

@@ -5,7 +5,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 from doctor.fix import unprotect as D
 
-VERSION = '1.7.3'
+VERSION = '1.7.4'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -348,6 +348,37 @@ def diagnosis_text(d):
     return out
 
 
+def version_lines(r):
+    ev = (r.get('editor') or {}).get('editor_target') or {}
+    if not ev:
+        return []
+    out = [('info', 'Made for World Editor %s: the map keeps its version (war3map.w3i, triggers and object data in the '
+                    'formats that editor reads).' % ev.get('version_num'))]
+    if ev.get('needs_jasshelper'):
+        out.append(('warning', 'World Editor %s has no JassHelper: the custom script uses //! inject or globals of its '
+                               'own, so save the map with Jass NewGen Pack or WEX.' % ev.get('version_num')))
+    else:
+        out.append(('info', 'World Editor %s saves it without JassHelper.' % ev.get('version_num')))
+    for warning in ev.get('warnings') or []:
+        out.append(('warning', 'Check in World Editor %s: %s.' % (ev.get('version_num'), warning)))
+    missing_items = ev.get('missing_functions') or []
+    if missing_items:
+        out.append(
+            (
+                'warning',
+                'The script calls %s that Warcraft III %s does not have (%s%s): the editor will not save '
+                'it as it is.'
+                % (
+                    pluralize(len(missing_items), 'function', 'functions'),
+                    ev.get('version_num'),
+                    ', '.join(missing_items[:3]),
+                    '...' if len(missing_items) > 3 else '',
+                ),
+            )
+        )
+    return out
+
+
 def editor_reason(status):
     return {
         'script_kkwe': 'the script is compiled (KKWE) and the editor cannot read it.',
@@ -540,9 +571,19 @@ def editor_text(r):
     if r['status'] in ('script_lua', 'script_kkwe', 'script_j2b', 'script_none', 'script_cut_off', 'w3i_unreadable',
                        'w3i_missing', 'unreadable'):
         return out + [('invalid', 'Not possible: ' + editor_reason(r['status']))]
+    version_num = r.get('editor_version_used')
+    if r['status'] == 'wrong_editor_version':
+        return out + [
+            ('invalid', 'Not possible in World Editor %s: %s. Nothing was saved.' % (version_num, r.get('err'))),
+            ('info', 'Choose the Reforged World Editor: the map belongs to a newer editor than %s.' % version_num),
+        ]
+    if r['status'] == 'no_version_files':
+        return out + [('invalid', 'The game files of Warcraft III %s are missing (%s): the Doctor checks the triggers '
+                                  'against them. Nothing was saved.' % (version_num, r.get('err')))]
     out.append(('ok', 'Ready for the World Editor.' if r['status'] == 'done' else
                 'Ready for the World Editor, with leftovers (see below).'))
     out.append(('file_path', 'Saved as: %s' % r['output']))
+    out.extend(version_lines(r))
     out.append(('', ''))
     if (r.get('editor') or {}).get('campaign_info'):
         for m in r['editor'].get('map_list') or []:
@@ -696,8 +737,14 @@ def editor_text(r):
                     % (pluralize(n, 'file', 'files'), 'has' if n == 1 else 'have', ', '.join(pieces))))
     out.append(('', ''))
     out.append(('info', 'Good to know:'))
+    ev = details.get('editor_target') or {}
     if lua:
         out.append(('info', '  - Test the map after saving it from the editor.'))
+    elif ev and not ev.get('needs_jasshelper'):
+        out.append(('info', '  - World Editor %s saves it as it is: no JassHelper needed.' % ev.get('version_num')))
+    elif ev:
+        out.append(('info', '  - Save it with JassHelper enabled (Jass NewGen Pack or WEX on World Editor %s).'
+                    % ev.get('version_num')))
     else:
         out.append(('info', '  - Keep JassHelper enabled (the default) when you save the map.'))
     if sv.get('natives') or sv.get('hooks'):

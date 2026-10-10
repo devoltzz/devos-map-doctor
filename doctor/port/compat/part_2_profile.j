@@ -591,6 +591,15 @@ function DB_decode takes player p,string blob returns nothing
     endloop
 endfunction
 
+function DB_srv_ns takes integer dataType returns string
+    if dataType==38 or dataType==39 or dataType==103 then
+        return "ex~"
+    elseif dataType==36 or dataType==37 then
+        return "gl~"
+    endif
+    return "pb~"
+endfunction
+
 function RequestExtraIntegerData takes integer dataType,player whichPlayer,string param1,string param2,boolean param3,integer param4,integer param5,integer param6 returns integer
     if dataType==4 or dataType==5 then
         call DB_perfil_garante()
@@ -604,6 +613,11 @@ function RequestExtraIntegerData takes integer dataType,player whichPlayer,strin
         return 0
     endif
     //{{KK_INCLUI:plataforma_inteiro}}
+    if dataType==30 or dataType==41 then
+        return 1
+    elseif dataType==82 then
+        return 999999
+    endif
     return 0
 endfunction
 
@@ -620,6 +634,16 @@ function RequestExtraBooleanData takes integer dataType,player whichPlayer,strin
         return true
     endif
     //{{KK_INCLUI:plataforma_booleano}}
+    if dataType==39 or dataType==103 or dataType==37 or dataType==31 then
+        if whichPlayer==null or param1==null or param1=="" then
+            return false
+        endif
+        call DB_perfil_garante()
+        call DB_put(whichPlayer, DB_srv_ns(dataType)+param1, param2)
+        return true
+    elseif dataType==10 or dataType==42 or dataType==102 or dataType==104 then
+        return true
+    endif
     return false
 endfunction
 
@@ -634,6 +658,13 @@ function RequestExtraStringData takes integer dataType,player whichPlayer,string
         return DB_nome_conta(whichPlayer)
     endif
     //{{KK_INCLUI:plataforma_texto}}
+    if dataType==38 or dataType==36 or dataType==32 then
+        call DB_perfil_garante()
+        return DB_get(whichPlayer, DB_srv_ns(dataType)+param1)
+    elseif dataType==37 and whichPlayer!=null and param1!=null and param1!="" then
+        call DB_perfil_garante()
+        call DB_put(whichPlayer, DB_srv_ns(dataType)+param1, param2)
+    endif
     return ""
 endfunction
 

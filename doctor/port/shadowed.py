@@ -1,4 +1,5 @@
 # Renames map globals that clash with names Warcraft III 3.0 defines.
+import os
 import re
 
 from doctor.port import lbkkapi
@@ -34,7 +35,7 @@ def _rename_global(body_text, name_list):
     return rx.sub(lambda m: 'kkm_' + m.group(1), body_text)
 
 
-def applies(body_text, expected_count=None, ref_dir=None):
+def applies(body_text, expected_count=None, ref_dir=None, version_num=None):
     info = {'failures': [], 'removed_ones': []}
     m_start = RX_GLOBALS.search(body_text)
     m_end = RX_ENDGLOBALS.search(body_text, m_start.end()) if m_start else None
@@ -45,10 +46,15 @@ def applies(body_text, expected_count=None, ref_dir=None):
     ref_text = lbkkapi.read_reference(ref_dir)
     ref = reference_declarations(ref_text)
     REF_CONSTANTS[0] = set(re.findall(r'(?m)^[ \t]*constant[ \t]+\w+[ \t]+(\w+)', ref_text))
+    from_game = set(re.findall(r'(?m)^[ \t]*(?:constant[ \t]+)?native[ \t]+(\w+)', ref_text)) | \
+        set(re.findall(r'(?m)^[ \t]*function[ \t]+(\w+)', ref_text))
     block_entry = body_text[m_start.end():m_end.start()]
     line_list = block_entry.split('\n')
     for k, ln in enumerate(line_list):
         m = RX_DECL_LINE.match(ln)
+        if m and m.group(3) not in KEYWORDS and m.group(5) in from_game and m.group(5) not in ref:
+            info.setdefault('renamed_list', []).append((m.group(5), m.group(3), 'function'))
+            continue
         if not m or m.group(3) in KEYWORDS or m.group(5) not in ref:
             continue
         kind, fname = m.group(3), m.group(5)
@@ -63,18 +69,41 @@ def applies(body_text, expected_count=None, ref_dir=None):
                         % (m.group(1), ref_value or 'no value', ln.strip(), m.group(7)))
     body_text = body_text[:m_start.end()] + '\n'.join(line_list) + body_text[m_end.start():]
     body_text = _rename_global(body_text, set(n for n, _t, _r in info.get('renamed_list', [])))
-    from_game = set(re.findall(r'(?m)^[ \t]*(?:constant[ \t]+)?native[ \t]+(\w+)', ref_text)) | \
-        set(re.findall(r'(?m)^[ \t]*function[ \t]+(\w+)', ref_text))
-    functions = sorted(set(re.findall(r'(?m)^[ \t]*function[ \t]+(\w+)[ \t]+takes\b', body_text)) & from_game)
+    functions = sorted(
+        set(re.findall(r'(?m)^[ \t]*function[ \t]+(\w+)[ \t]+takes\b', body_text)) & (from_game | set(ref))
+    )
     body_text = _rename_global(body_text, functions)
     if functions:
         info['functions'] = functions
     body_text, res = reserved_names(body_text)
     if res:
-        info['functions'] = info.get('functions', []) + ['%s (reserved in pjass)' % r for r in res]
+        info['functions'] = info.get('functions', []) + ['%s (reserved by pjass)' % r for r in res]
+    if version_num:
+        info['born'] = born(info, version_num)
     if expected_count is not None and len(info['removed_ones']) != expected_count:
         info['failures'].append('redeclared globals: %d, measured is %d' % (expected_count, len(info['removed_ones'])))
     return body_text, info
+
+
+def born(info, version_num):
+    import os
+    scripts = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'scripts'))
+    try:
+        from doctor.data import wc3_versions
+    except ImportError:
+        return []
+    out = []
+    item_entries = [(n, 'function') for n in info.get('functions', []) if not n.endswith('(reserved by pjass)')]
+    item_entries += [(n, 'global') for n, _t, _r in info.get('renamed_list', [])]
+    item_entries += [(n, 'global (removed)') for n, _t, _v, _r in info.get('removed_ones', [])]
+    for fname, obj_kind in item_entries:
+        p = wc3_versions.first_patch(fname)
+        after_diag = bool(p) and wc3_versions._key(p) > wc3_versions._key(version_num)
+        out.append((fname, obj_kind, p, after_diag))
+    return out
+
+
+RANGE_CAP = {'pre-1.24': '1.23', '1.24-1.28': '1.28.5', '1.29': '1.29.2'}
 
 
 PJASS_RESERVED = ('alias',)
@@ -122,6 +151,10 @@ def report_data(info):
     if info.get('renamed_list'):
         print('0e shadowed: %d map global(s) with the name of a 3.0 one and ANOTHER type, renamed to kkm_<name>: %s'
               % (len(info['renamed_list']), ', '.join('%s (%s x %s)' % x for x in info['renamed_list'])))
+    after_diag = [x for x in info.get('born', []) if x[3]]
+    if after_diag:
+        print('0e shadowed: %d map name(s) the game created AFTER the map version: %s'
+              % (len(after_diag), ', '.join('%s (%s, %s)' % (n, e, p) for n, e, p, _d in after_diag)))
     if not info['removed_ones']:
         print('0e shadowed: no map global that common.j 3.0 already declares')
         return

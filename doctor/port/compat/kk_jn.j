@@ -22,6 +22,11 @@ constant string KKJN_GRAU="°"
 constant string KKJN_HANGUL="가각갂갃간갅갆갇갈갉갊갋갌갍갎갏감갑값갓갔강갖갗갘같갚갛개객갞갟갠갡갢갣갤갥갦갧갨갩갪갫갬갭갮갯갰갱갲갳갴갵갶갷갸갹갺갻갼갽갾갿"
 constant string KKJN_B64="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 integer array KKJN_b64i
+constant string KKJN_LATIN1=" ¡¢£¤¥¦§¨©ª«¬­®¯°±²³´µ¶·¸¹º»¼½¾¿ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿ"
+constant string KKJN_NBSP=" "
+real KKJN_vel_ataque=5.0
+integer KKJN_atraso=100
+constant string KKJN_ESP_CJK="　"
 //{{KK_SE:KK_JN_BASE}}
 constant string KKJN_BASE="{{KK_JN_BASE_CAMPOS}}"
 integer KKJN_nbase=0
@@ -498,6 +503,12 @@ function KKJN_init takes nothing returns nothing
         set i=i+1
     endloop
     set KKJN_C2=SubString(KKJN_GRAU, 0, 1)
+    set i=0
+    loop
+        exitwhen i>=96
+        call SaveBoolean(KKJN_cont, 2, StringHash(SubString(KKJN_LATIN1, i*2, i*2+2)), true)
+        set i=i+1
+    endloop
     set i=0
     loop
         exitwhen i>=64
@@ -1392,19 +1403,21 @@ endfunction
 
 function JNStringSub takes string str,integer start,integer length returns string
     local integer b0
-    local integer b1
-    if str==null or length<=0 then
+    if str==null or length==0 then
         return ""
     endif
     if start<0 then
+        set length=length+start
         set start=0
     endif
     set b0=KKJN_CharToByte(str, start)
-    set b1=KKJN_CharToByte(str, start+length)
-    if b1<=b0 then
+    if b0>=StringLength(str) then
         return ""
     endif
-    return SubString(str, b0, b1)
+    if length<0 then
+        return SubString(str, b0, StringLength(str))
+    endif
+    return SubString(str, b0, KKJN_CharToByte(str, start+length))
 endfunction
 
 function JNStringSplit takes string str,string sub,integer index returns string
@@ -2661,8 +2674,15 @@ function JNStringTrimStart takes string str returns string
     loop
         exitwhen i>=n
         set b=SubString(str, i, i+1)
-        exitwhen b!=" " and b!="\t" and b!="\r" and b!="\n"
-        set i=i+1
+        if b==" " or b=="\t" or b=="\r" or b=="\n" then
+            set i=i+1
+        elseif SubString(str, i, i+2)==KKJN_NBSP then
+            set i=i+2
+        elseif SubString(str, i, i+3)==KKJN_ESP_CJK then
+            set i=i+3
+        else
+            exitwhen true
+        endif
     endloop
     return SubString(str, i, n)
 endfunction
@@ -2677,8 +2697,15 @@ function JNStringTrimEnd takes string str returns string
     loop
         exitwhen i<=0
         set b=SubString(str, i-1, i)
-        exitwhen b!=" " and b!="\t" and b!="\r" and b!="\n"
-        set i=i-1
+        if b==" " or b=="\t" or b=="\r" or b=="\n" then
+            set i=i-1
+        elseif i>=2 and SubString(str, i-2, i)==KKJN_NBSP then
+            set i=i-2
+        elseif i>=3 and SubString(str, i-3, i)==KKJN_ESP_CJK then
+            set i=i-3
+        else
+            exitwhen true
+        endif
     endloop
     return SubString(str, 0, i)
 endfunction
@@ -2699,9 +2726,12 @@ function JNStringInsert takes string str,integer index,string val returns string
     set n=KKJN_CharLen(str)
     if index<0 then
         set index=0
-    elseif index>n then
-        set index=n
     endif
+    loop
+        exitwhen n>=index
+        set str=str+" "
+        set n=n+1
+    endloop
     set b=KKJN_CharToByte(str, index)
     return SubString(str, 0, b)+val+SubString(str, b, StringLength(str))
 endfunction
@@ -2736,11 +2766,115 @@ function JNStringRegex takes string str,string regex,integer index returns strin
     return ""
 endfunction
 
-function JNStringCalcLines takes string str,integer length returns integer
-    if str==null or length<=0 then
-        return 1
+function KKJN_EhHex takes string c returns boolean
+    local integer i=0
+    if StringLength(c)!=1 then
+        return false
     endif
-    return 1+(KKJN_CharLen(str)/length)
+    loop
+        exitwhen i>=22
+        if SubString("0123456789abcdefABCDEF", i, i+1)==c then
+            return true
+        endif
+        set i=i+1
+    endloop
+    return false
+endfunction
+
+function JNStringCalcLines takes string str,integer length returns integer
+    local integer n
+    local integer i=0
+    local integer j
+    local integer k
+    local integer linhas=1
+    local integer linha=0
+    local integer pal=0
+    local string c
+    local string d
+    local boolean mede
+    if str==null or length<=0 then
+        return 0
+    endif
+    set str=JNStringTrimEnd(str)
+    set n=StringLength(str)
+    loop
+        exitwhen i>=n
+        set c=SubString(str, i, i+1)
+        set j=i+1
+        loop
+            exitwhen j>=n or not KKJN_IsCont(SubString(str, j, j+1))
+            set j=j+1
+        endloop
+        if c==" " then
+            set pal=pal+1
+            set linha=linha+pal
+            set pal=0
+            set i=j
+        elseif j-i==1 and (c=="\n" or c=="\r" or c=="|") then
+            set d=SubString(str, j, j+1)
+            set mede=false
+            if c=="\n" then
+                set linha=0
+                set pal=0
+                set linhas=linhas+1
+                if j>=n or d==" " then
+                    set pal=pal+1
+                endif
+            elseif c=="\r" then
+                set mede=false
+            elseif d=="c" or d=="C" then
+                set k=0
+                loop
+                    exitwhen k>=8 or not KKJN_EhHex(SubString(str, j+1+k, j+2+k))
+                    set k=k+1
+                endloop
+                if k>=8 then
+                    set j=j+9
+                else
+                    set pal=pal+1
+                    set mede=true
+                endif
+            elseif d=="r" or d=="R" then
+                set j=j+1
+            elseif d=="n" or d=="N" then
+                set j=j+1
+                set linha=0
+                set pal=0
+                set linhas=linhas+1
+                if j>=n or SubString(str, j, j+1)==" " then
+                    set pal=pal+1
+                endif
+            else
+                set pal=pal+1
+                set mede=true
+            endif
+            if mede then
+                if pal>=length then
+                    set pal=0
+                    set linhas=linhas+1
+                elseif linha>0 and pal+linha+1>=length then
+                    set linha=0
+                    set linhas=linhas+1
+                endif
+            endif
+            set i=j
+        else
+            if j-i==1 or (j-i==2 and HaveSavedBoolean(KKJN_cont, 2, StringHash(SubString(str, i, j)))) then
+                set pal=pal+1
+            else
+                set pal=pal+2
+            endif
+            if pal>=length then
+                set pal=0
+                set linhas=linhas+1
+            elseif linha>0 and pal+linha+1>=length then
+                set linha=0
+                set linhas=linhas+1
+            endif
+            set i=j
+        endif
+    endloop
+    return linhas
 endfunction
 
 function KKJN_B64Char takes integer v returns string
@@ -2873,11 +3007,71 @@ function JNOpenBrowser takes string Address returns nothing
 endfunction
 
 function JNI2R takes integer i returns real
-    return I2R(i)
+    local boolean neg=i<0
+    local integer e
+    local integer m
+    local real v
+    if i==0 or i==-2147483647-1 then
+        return 0.0
+    endif
+    if neg then
+        set i=i+2147483647+1
+    endif
+    set e=i/8388608
+    set m=i-e*8388608
+    if e==0 then
+        set v=I2R(m)
+        set e=-149
+    else
+        set v=1.0+I2R(m)/8388608.0
+        set e=e-127
+    endif
+    loop
+        exitwhen e<=0
+        set v=v*2.0
+        set e=e-1
+    endloop
+    loop
+        exitwhen e>=0
+        set v=v*0.5
+        set e=e+1
+    endloop
+    if neg then
+        return -v
+    endif
+    return v
 endfunction
 
 function JNR2I takes real r returns integer
-    return R2I(r)
+    local integer e=127
+    local integer m
+    local real a=r
+    if r==0.0 then
+        return 0
+    endif
+    if r<0.0 then
+        set a=-r
+    endif
+    loop
+        exitwhen a<2.0 or e>=254
+        set a=a*0.5
+        set e=e+1
+    endloop
+    loop
+        exitwhen a>=1.0 or e<=1
+        set a=a*2.0
+        set e=e-1
+    endloop
+    if a<1.0 then
+        set m=R2I(a*8388608.0)
+        set e=0
+    else
+        set m=R2I((a-1.0)*8388608.0)
+    endif
+    if r<0.0 then
+        return e*8388608+m-2147483647-1
+    endif
+    return e*8388608+m
 endfunction
 
 function JNGetModuleHandle takes string moduleName returns integer
@@ -2921,10 +3115,11 @@ function JNProcCall takes integer callConv,integer address,hashtable params retu
 endfunction
 
 function JNGetMaxAttackSpeed takes nothing returns real
-    return 0.0
+    return KKJN_vel_ataque
 endfunction
 
 function JNSetMaxAttackSpeed takes real speed returns nothing
+    set KKJN_vel_ataque=speed
 endfunction
 
 function JNSetLog takes string MapId,string UserId,string SecretKey,string Character,string Version,string Loging returns string
@@ -2970,10 +3165,17 @@ function JNServerUnixTime takes nothing returns integer
 endfunction
 
 function JNGetSyncDelay takes nothing returns integer
-    return 0
+    return KKJN_atraso
 endfunction
 
 function JNSetSyncDelay takes integer delay returns nothing
+    if delay<=10 then
+        set KKJN_atraso=10
+    elseif delay>=550 then
+        set KKJN_atraso=550
+    else
+        set KKJN_atraso=delay
+    endif
 endfunction
 
 function JNProcessStart takes string fileName,string arguments returns boolean

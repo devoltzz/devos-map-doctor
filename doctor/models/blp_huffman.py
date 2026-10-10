@@ -402,8 +402,8 @@ def otimiza_blp(c, proof=True):
         out += body
     nmo, nms = [], []
     for o, s in zip(mo, ms):
-        node, ns = new_pos[(o, s)] if (o and s) else (o, s)
-        nmo.append(node)
+        no, ns = new_pos[(o, s)] if (o and s) else (o, s)
+        nmo.append(no)
         nms.append(ns)
     struct.pack_into('<16I', out, 28, *nmo)
     struct.pack_into('<16I', out, 92, *nms)

@@ -8,6 +8,7 @@ RX_LOCAL = re.compile(r'^[ \t]*local[ \t]+(\w+)[ \t]+(?:array[ \t]+)?(\w+)')
 RX_RETURN_ID = re.compile(r'^[ \t]*return[ \t]+\(*[ \t]*([A-Za-z_]\w*)[ \t]*\)*[ \t]*(?://.*)?$')
 RX_RETURN_I2R = re.compile(r'^([ \t]*return[ \t]+)\(*[ \t]*([A-Za-z_]\w*)(?:[ \t]*\))*([ \t]*(?://.*)?)$')
 RX_GLOBAL = re.compile(r'^[ \t]*(?:constant[ \t]+)?(\w+)[ \t]+(array[ \t]+)?([A-Za-z_]\w*)')
+RX_WORD = re.compile(r'[A-Za-z_]\w*')
 NEUTRAL = {'integer': '0', 'real': '0.0', 'boolean': 'false', 'string': 'null'}
 VAZIA = 'KKMH_vazio'
 TABLE_NAME = 'KK_mh_ht'
@@ -140,10 +141,48 @@ def _conversion_body(ref, p, r, pack_name):
         return saved + ['return GetHandleId(%s)' % pack_name]
     if p == 'integer' and ref.handle(r) and ref.load_data.get(r):
         return lazy_init + ['return %s(%s, 0, %s)' % (ref.load_data[r], TABLE_NAME, pack_name)]
+    if ref.handle(p) and ref.handle(r) and ref.fits(r, p) and ref.load_data.get(r) and ref.fits(p, 'agent'):
+        savers = ref.savers.get(p) or 'SaveAgentHandle'
+        return lazy_init + ['call %s(%s, 0, GetHandleId(%s), %s)' % (savers, TABLE_NAME, pack_name, pack_name),
+                            'return %s(%s, 0, GetHandleId(%s))' % (ref.load_data[r], TABLE_NAME, pack_name)]
     return None
 
 
-def _code_only(ln, fn):
+def starts_in_string(line_list):
+    out = []
+    inside = False
+    for line in line_list:
+        out.append(inside)
+        if '"' not in line:
+            continue
+        i, n = 0, len(line)
+        while i < n:
+            c = line[i]
+            if inside:
+                if c == '\\':
+                    i += 2
+                    continue
+                if c == '"':
+                    inside = False
+            elif c == '"':
+                inside = True
+            elif c == "'":
+                k = line.find("'", i + 1)
+                i = n if k < 0 else k
+            elif line.startswith('//', i):
+                break
+            i += 1
+    return out
+
+
+def _code_only(ln, fn, as_text=False):
+    if as_text:
+        k = 0
+        while k < len(ln) and ln[k] != '"':
+            k += 2 if ln[k] == '\\' else 1
+        if k >= len(ln):
+            return ln
+        return ln[:k + 1] + _code_only(ln[k + 1:], fn)
     out, i, n, begin = [], 0, len(ln), 0
     while i < n:
         c = ln[i]
@@ -163,18 +202,29 @@ def _code_only(ln, fn):
 
 
 def applies(body_text, ref_text, equivalents=True, neutralize=False, suffix=''):
-    info = {'conversions': [], 'effects': [], 'arrays': {}, 'codes': [], 'neutrals': [], 'i2r': []}
+    info = {'conversions': [], 'effects': [], 'arrays': {}, 'codes': [], 'neutrals': [], 'i2r': [], 'no_use': []}
     if not equivalents and not neutralize:
         return body_text, info
     ref = Reference(ref_text)
     line_list = body_text.split('\n')
     cr = [line.endswith('\r') for line in line_list]
     line_list = [line.rstrip('\r') for line in line_list]
+    needs_empty = needs_table = False
+    aux = []
+    if equivalents:
+        from doctor.port import memhack_ui
+        info['memhack'] = memhack_ui.applies(line_list, ref, ref_text)
+        aux += memhack_ui.helpers(info['memhack']['helpers'])
+        from doctor.port import retype
+        info['bridge'] = retype.applies(line_list, ref, ref_text, neutralize=neutralize)
+        aux += retype.helpers(ref, info['bridge']['helpers'])
+        needs_table = any(TABLE_NAME in line for line in aux)
+        needs_empty = bool(info['bridge'].get('empty_code'))
     global_type_map, vectors, block_entry = _globals(line_list)
     fs = _functions(line_list)
     signature = dict((fname, ps) for _i, _f, _r, fname, ps, _ret in fs)
     replacements = {}
-    needs_empty = needs_table = False
+    uses = None
     for begin, end_pos, indent_trim, fname, ps, ret in fs:
         body = line_list[begin + 1:end_pos]
         if (
@@ -220,6 +270,12 @@ def applies(body_text, ref_text, equivalents=True, neutralize=False, suffix=''):
             new = _conversion_body(ref, ps[0][0], ret, ps[0][1])
             if new is not None:
                 info['conversions'].append((fname, ps[0][0], ret))
+        if new is None:
+            if uses is None:
+                uses = _uses(line_list)
+            if uses.get(fname, 0) <= 1:
+                new = ['return function %s' % VAZIA] if ret == 'code' else ['return %s' % NEUTRAL.get(ret, 'null')]
+                info['no_use'].append(fname)
         if new is None and neutralize:
             new = ['return function %s' % VAZIA] if ret == 'code' else ['return %s' % NEUTRAL.get(ret, 'null')]
             info['neutrals'].append(fname)
@@ -236,6 +292,7 @@ def applies(body_text, ref_text, equivalents=True, neutralize=False, suffix=''):
         _g, vectors, block_entry = _globals(line_list)
         if vectors:
             rxs = {}
+            as_text = starts_in_string(line_list)
             for begin, end_pos, _r, _n, ps, _ret in _functions(line_list):
                 own = set(p[1] for p in ps)
                 for line in line_list[begin + 1:end_pos]:
@@ -245,20 +302,22 @@ def applies(body_text, ref_text, equivalents=True, neutralize=False, suffix=''):
                 shadow = frozenset(own & vectors)
                 if shadow not in rxs:
                     tgt = sorted(vectors - shadow)
-                    rxs[shadow] = re.compile(r'\b(%s)\b(?![ \t]*\[)' % '|'.join(map(re.escape, tgt))) if tgt else None
-                rx = rxs[shadow]
+                    rxs[shadow] = (re.compile(r'(?<![\w$])(%s)\b(?![ \t]*\[)' % '|'.join(map(re.escape, tgt))) if tgt
+                                   else None,
+                                   frozenset(tgt))
+                rx, name_list = rxs[shadow]
                 if rx is None:
                     continue
                 for k in range(begin + 1, end_pos):
                     line = line_list[k]
-                    if not rx.search(line) or RX_LOCAL.match(line):
+                    if name_list.isdisjoint(RX_WORD.findall(line)) or not rx.search(line) or RX_LOCAL.match(line):
                         continue
 
                     def zero_out(seg, rx=rx):
                         for m in rx.finditer(seg):
                             info['arrays'][m.group(1)] = info['arrays'].get(m.group(1), 0) + 1
                         return rx.sub('0', seg)
-                    line_list[k] = _code_only(line, zero_out)
+                    line_list[k] = _code_only(line, zero_out, as_text[k])
         with_params = set(n for n, ps in signature.items() if ps)
         if with_params:
             rx_func_ref = re.compile(r'\bfunction[ \t]+(%s)\b' % '|'.join(map(re.escape, sorted(with_params))))
@@ -274,6 +333,10 @@ def applies(body_text, ref_text, equivalents=True, neutralize=False, suffix=''):
                 needs_empty = True
     body_text = '\n'.join(line + ('\r' if c else '') for line, c in zip(line_list, cr))
     nl = '\r\n' if '\r\n' in body_text else '\n'
+    if aux:
+        m = re.search(r'(?m)^[ \t]*(?:constant[ \t]+)?function[ \t]', body_text)
+        if m:
+            body_text = body_text[:m.start()] + nl.join(aux) + nl + body_text[m.start():]
     if needs_table and not re.search(r'(?m)^[ \t]*hashtable[ \t]+%s\b' % TABLE_NAME, body_text):
         m = re.search(r'(?m)^[ \t]*globals[ \t]*\r?$', body_text)
         if m:
@@ -291,8 +354,60 @@ def applies(body_text, ref_text, equivalents=True, neutralize=False, suffix=''):
                 + body_text[m.start() :]
             )
     if suffix:
-        body_text = re.sub(r'\b(%s|%s)\b' % (VAZIA, TABLE_NAME), r'\g<1>' + suffix, body_text)
+        body_text = re.sub(r'\b(KKMH_\w+|%s)\b' % TABLE_NAME, r'\g<1>' + suffix, body_text)
     return body_text, info
+
+
+def _uses(line_list):
+    import collections
+    from doctor.port import retype
+    c = collections.Counter()
+    for line in line_list:
+        c.update(retype.RX_ID.findall(retype.bitmask(line)))
+    for line in line_list:
+        if 'ExecuteFunc' in line:
+            c.update(re.findall(r'ExecuteFunc[ \t]*\([ \t]*"(\w+)"', line))
+    return c
+
+
+def summary(census, info, ref, after_diag=None):
+    from doctor.port import retype
+    by_class, by_shape = {}, {}
+    functions = {}
+    for fname, forma, from_, new_value, _l in census:
+        c = retype.classe(ref, from_, new_value)
+        by_class[c] = by_class.get(c, 0) + 1
+        by_shape[forma] = by_shape.get(forma, 0) + 1
+        functions.setdefault(fname, c)
+    bridge = info.get('bridge') or retype.new_info()
+    conv = set(n for n, _p, _r in info['conversions'])
+    expr = set(n for n, _d, _p in bridge['expressions'])
+    neutrals = set(info['neutrals']) | set(n for n, _d, _p in bridge['neutral_expr'])
+    no_use = set(info.get('no_use', []))
+    adapted_names = set(expr)
+    agents = set(f for f, _p in bridge['agents'])
+    dest = {}
+    for n in functions:
+        if n in neutrals:
+            dest[n] = 'neutral'
+        elif n in no_use:
+            dest[n] = 'unused'
+        elif n in adapted_names or n in agents:
+            dest[n] = 'adapted'
+        elif n in conv:
+            dest[n] = 'equivalent'
+        elif after_diag is not None and n not in set(x[0] for x in after_diag):
+            dest[n] = 'adapted'
+        else:
+            dest[n] = 'left'
+    count = {}
+    for d in dest.values():
+        count[d] = count.get(d, 0) + 1
+    return {'returns': len(census), 'functions': len(functions), 'by_class': by_class, 'by_form': by_shape,
+            'outcome': count, 'retyped': ['%s %s %s->%s' % x for x in bridge['retyped_vars']],
+            'agent_params': ['%s.%s' % x for x in bridge['agents']],
+            'neutral': sorted(n for n, d in dest.items() if d == 'neutral'),
+            'not_retyped': ['%s %s (%s): %s' % x for x in bridge['kept_neutral']][:12]}
 
 
 def report_data(info):
@@ -309,4 +424,11 @@ def report_data(info):
         pieces.append('%d return bug(s) without an equivalent -> the neutral value' % len(info['neutrals']))
     if info.get('i2r'):
         pieces.append('%d `return <integer>` in a real function -> I2R' % len(info['i2r']))
+    if info.get('no_use'):
+        pieces.append('%d cast(s) unused after the bridge -> neutral' % len(info['no_use']))
+    if info.get('memhack') and info['memhack']['translated']:
+        pieces.append('%d MemHackAPI function(s) through the 3.0 native' % len(info['memhack']['translated']))
+    if info.get('bridge'):
+        from doctor.port import retype
+        retype.report_data(info['bridge'])
     print('0h memory: ' + ('; '.join(pieces) if pieces else 'no memory hack'))

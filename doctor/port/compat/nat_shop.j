@@ -9,3 +9,11 @@ endfunction
 function DzAPI_Map_GetPlatformVIP takes player whichPlayer returns integer
     return 1
 endfunction
+
+function DzAPI_Map_IsRedVIP takes player whichPlayer returns boolean
+    return true
+endfunction
+
+function DzAPI_Map_IsBlueVIP takes player whichPlayer returns boolean
+    return true
+endfunction

@@ -11,10 +11,14 @@ usage: doctor <command> <map> [options]
 
   diag <map>                      what protects the map and what the World Editor needs
   fix <map> [steps] [extras]      Fix map: saves <map>_fixed.w3x
-  editor <map> [steps] [extras]   Open in World Editor: saves <map>_editor.w3x
+  editor <map> [steps] [extras] [--editor-version=<v>]
+                                  Open in World Editor: saves <map>_editor.w3x; --editor-version: the World
+                                  Editor to open it in, reforged (the default), 1.24 to 1.29 (keeps the map's
+                                  version), or auto (the version the map was saved for)
   port <map> [--package=<name>] [--icons] [--textures] [--keep-memory] [--balance-numbers] [--strip-indent]
                                   Port to Reforged (KK and M16 maps): saves <map>_reforged.w3x and the report
-  check <map>                     Runs on Reforged? (what crashes or misses on 3.0)
+  check <map> [--game=<version>]  Runs on Reforged? (what crashes or misses on 3.0); --game=1.27 (or --version=1.27)
+                                  checks an older game instead: 1.24a to 1.28.5 and 1.29.2
   cheatpacks <map>                the cheat packs the map takes, with their options
   cheat <map> --pack=<id> [--set <key>=<value> ...] [--strip-indent]
                                   adds a cheat pack: saves <map>_<pack>.w3x
@@ -190,7 +194,11 @@ def show(command, r):
             print('\nReport: %s' % r['report'])
         return
     if command == 'check':
-        print('Runs on Reforged? %s' % r.get('verdict'))
+        game = r.get('version') or '3.0'
+        print('Runs on %s? %s' % ('Reforged' if game == '3.0' else 'Warcraft III ' + game, r.get('verdict')))
+        made = r.get('made_for') or {}
+        if made.get('label'):
+            print('Made for: %s (%s)' % (made['label'], '; '.join(made.get('reasons') or [])))
         for it in r.get('items') or []:
             print('  [%s] %s' % (it.get('severity'), it.get('text')))
         return
@@ -301,6 +309,22 @@ def show(command, r):
     print(json.dumps(r, ensure_ascii=False, indent=1, default=str))
 
 
+def editor_version_flag(command, opts):
+    value = opts.get('editor-version')
+    if value is None or value is False:
+        return None
+    if command != 'editor':
+        raise UsageError('--editor-version is an option of editor')
+    if value is True:
+        raise UsageError('--editor-version needs a value: reforged, auto or 1.24 to 1.29')
+    from doctor.fix import editor_version
+    try:
+        v = editor_version.normalize(value)
+    except ValueError as e:
+        raise UsageError(str(e))
+    return v
+
+
 def need(pos, n, what):
     if len(pos) < n:
         raise UsageError('missing %s' % what)
@@ -315,9 +339,13 @@ def build_job(command, pos, opts, run):
         return 'diag', {'task': 'open', 'map': pos[1]}
     if command in ('fix', 'editor'):
         need(pos, 2, '<map>')
+        version = editor_version_flag(command, opts)
         opened = run({'task': 'open', 'map': pos[1]})
-        return command, {'task': command, 'map': pos[1], 'options': pick_steps(opened['steps'], command, opts),
-                         'extras': pick_extras(command, opts)}
+        job = {'task': command, 'map': pos[1], 'options': pick_steps(opened['steps'], command, opts),
+               'extras': pick_extras(command, opts)}
+        if version:
+            job['editor_version'] = version
+        return command, job
     if command == 'port':
         need(pos, 2, '<map>')
         packages = [p for p in str(opts.get('package') or '').split(',') if p] if opts.get('package') else []
@@ -327,7 +355,17 @@ def build_job(command, pos, opts, run):
                         'strip_indent': opts.get('strip-indent') is True}
     if command == 'check':
         need(pos, 2, '<map>')
-        return 'check', {'task': 'reforged', 'map': pos[1]}
+        job = {'task': 'reforged', 'map': pos[1]}
+        game = opts.get('game') if isinstance(opts.get('game'), str) else \
+            opts.get('version') if isinstance(opts.get('version'), str) else None
+        if game:
+            from doctor.data import wc3_versions
+            v = wc3_versions.normalize(game)
+            if v is None:
+                raise UsageError('unknown game version %r: %s or 3.0' % (game, ', '.join(wc3_versions.versions())))
+            if v != wc3_versions.REFORGED:
+                job['version'] = v
+        return 'check', job
     if command == 'cheatpacks':
         need(pos, 2, '<map>')
         return 'cheatpacks', {'task': 'cheatpacks', 'map': pos[1]}
@@ -427,7 +465,7 @@ def main(argv, window, version=''):
     except UsageError as e:
         sys.stderr.write('doctor: %s\n' % e)
         return 2
-    if opts.get('version'):
+    if opts.get('version') is True or (opts.get('version') and not (pos and pos[0] == 'check')):
         print(version)
         return 0
     if opts.get('help') or not pos:

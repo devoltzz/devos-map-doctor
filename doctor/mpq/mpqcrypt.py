@@ -1,12 +1,15 @@
 # The MPQ hot loops in native code (mpqcrypt.c: a DLL in the exe, WebAssembly on the site): the decryption, the key search of nameless files, the sound sectors.
 import ctypes
 import os
+import subprocess
 import sys
 from array import array
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+SOURCE = os.path.join(HERE, 'mpqcrypt.c')
 DLL = 'mpqcrypt.so' if sys.platform.startswith('linux') else 'mpqcrypt.dll'
+WASM = 'mpqcrypt.wasm'
 _LOADED_DLL = [None]
 
 
@@ -227,3 +230,17 @@ def load_explode():
         return None if r < 0 else out.raw[:r]
     return explode
 
+
+def compiles(output):
+    os.makedirs(output, exist_ok=True)
+    zig = [sys.executable, '-m', 'ziglang', 'cc']
+    targets = [(os.path.join(output, 'mpqcrypt.dll'), ['-target', 'x86_64-windows-gnu', '-shared']),
+               (os.path.join(output, 'mpqcrypt.so'), ['-target', 'x86_64-linux-gnu.2.17', '-shared', '-fPIC']),
+               (os.path.join(output, WASM), ['-target', 'wasm32-freestanding', '-nostdlib', '-Wl,--no-entry'])]
+    done = []
+    for dest, options in targets:
+        r = subprocess.run(zig + options + ['-O2', '-s', '-o', dest, SOURCE], capture_output=True, text=True)
+        if r.returncode:
+            raise SystemExit('mpqcrypt: zig stopped (%s)\n%s%s' % (dest, r.stdout, r.stderr))
+        done.append(dest)
+    return done

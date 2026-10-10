@@ -18,6 +18,7 @@ from doctor.triggers import wtg
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REF_DIR = os.path.normpath(os.path.join(HERE, '..', 'ref', '3.0'))
+TARGET = {'ref_dir': None, 'editor': None, 'jasshelper': True, 'sound_labels': None}
 JASS, LUA = 'jass', 'lua'
 CATEGORY = 'Restored triggers'
 ICT, RIT = 'InitCustomTriggers', 'RunInitializationTriggers'
@@ -2283,7 +2284,7 @@ def _pjass_errors(result):
     return collections.Counter(RX_PJASS_WHERE.sub('', x) for x in result['line_list'] if RX_PJASS_WHERE.match(x))
 
 
-def _pjass_proof(expected, original):
+def _pjass_proof(expected, original, ref_dir=None):
     try:
         from doctor.script import pjass
     except ImportError as e:
@@ -2291,7 +2292,7 @@ def _pjass_proof(expected, original):
     exe = pjass.exe()
     if not os.path.isfile(exe):
         return True, 'skipped: no pjass at %s' % exe
-    ref = pjass.game_scripts_dir(REF_DIR)
+    ref = pjass.game_scripts_dir(ref_dir or TARGET['ref_dir'] or REF_DIR)
     if not ref:
         return True, 'skipped: no 3.0 common.j/Blizzard.j to compile against'
     tmp = tempfile.mkdtemp(prefix='trigger_restore_')
@@ -2434,11 +2435,24 @@ def _lua_env_proof(header_text, private, mt, td, texts, generated_src):
 def _editor_fit(res, src, td, mt, texts, header_text, editor_files):
     from doctor.triggers import editor_render
     reference = _expected_jass(mt, td, header_text, texts)
-    f = editor_render.fit(header_text, editor_files, td, mt, texts, reference=reference, original=src.text,
-                          triggers=_triggers_code(mt, td, texts, JASS))
+    f = editor_render.fit(
+        header_text,
+        editor_files,
+        td,
+        mt,
+        texts,
+        reference=reference,
+        original=src.text,
+        triggers=_triggers_code(mt, td, texts, JASS),
+        editor=TARGET['editor'] or editor_render.EDITOR_3,
+        ref_dir=TARGET['ref_dir'],
+        jasshelper=TARGET['jasshelper'],
+        sound_labels=TARGET['sound_labels'],
+    )
     res.report['editor_save'] = {'ok': f.ok, 'level': f.level, 'globals_to_editor': len(f.dropped),
                                  'functions_to_editor': list(f.replaced), 'objects_named': len(f.objects),
-                                 'inject': f.inject, 'lines': list(f.lines), 'reason': f.reason, 'notes': f.notes[:3]}
+                                 'inject': f.inject, 'lines': list(f.lines), 'reason': f.reason, 'notes': f.notes[:3],
+                                 'vanilla': f.vanilla}
     return f if f.ok else None
 
 
@@ -2553,16 +2567,16 @@ def _assemble(res, src, td, mt, texts, header_text, decisions, editor_files=None
     res.ok = all(ok for ok, _d in proofs.values())
 
 
-def standard_script(text, players=None, say=None, doo=None):
+def standard_script(text, players=None, say=None, doo=None, ref_dir=None):
     try:
-        new, rep = jass_normal.standard(text, players)
+        new, rep = jass_normal.standard(text, players, ref_dir)
         new, rep['setup'] = jass_setup.setup(new, doo)
     except Exception as e:
         return text, {'error': '%s: %s' % (type(e).__name__, str(e)[:200]), 'changed': False}
     rep['changed'] = new != text
     if not rep['changed']:
         return text, rep
-    ok, rep['pjass'] = _pjass_proof(new, text)
+    ok, rep['pjass'] = _pjass_proof(new, text, ref_dir)
     if not ok:
         rep['refused'], rep['changed'] = True, False
         return text, rep
@@ -2572,15 +2586,17 @@ def standard_script(text, players=None, say=None, doo=None):
 
 
 def restore(script_text, lang=JASS, td=None, init_per_trigger=True, log=None, matcher=None, editor_files=None,
-            players=None, standard=None, object_names=None):
+            players=None, standard=None, object_names=None, ref_dir=None, editor=None, jasshelper=True,
+            sound_labels=None):
     lang = LUA if lang == LUA else JASS
     res = Restoration(lang)
     say = log or (lambda *a: None)
+    TARGET.update(ref_dir=ref_dir, editor=editor, jasshelper=jasshelper, sound_labels=sound_labels)
     try:
         text = _normalize(script_text)
         if lang == JASS:
             if standard is None:
-                text, standard = standard_script(text, players, say)
+                text, standard = standard_script(text, players, say, ref_dir=ref_dir)
             res.report['optimizer'] = standard
             if standard.get('changed'):
                 res.proofs['standard_library'] = (True, (
@@ -2594,6 +2610,8 @@ def restore(script_text, lang=JASS, td=None, init_per_trigger=True, log=None, ma
         res.reason = 'internal error: %s: %s' % (type(e).__name__, str(e)[:200])
         res.report['traceback'] = traceback.format_exc()[-3000:]
         return res
+    finally:
+        TARGET.update(ref_dir=None, editor=None, jasshelper=True, sound_labels=None)
 
 
 def outcome(res):

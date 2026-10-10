@@ -210,7 +210,8 @@ def assemble(r, argv=None):
     verify('0d typecast', exp_len.get('typecast'), info['rewrites'])
     medidas['typecast'] = info['rewrites']
 
-    t, info = shadowed.applies(t)
+    t, info = shadowed.applies(t, version_num=getattr(r, 'MAP_VERSION', None))
+    r.SHADOWED_INFO = info
     if info['failures']:
         aborts('0e (redeclared globals)', info['failures'])
     shadowed.report_data(info)

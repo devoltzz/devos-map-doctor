@@ -68,7 +68,7 @@ def save(file_path, body_text):
         f.write(body_text)
 
 
-def layer_parts(jn=False, blizzard=False):
+def layer_parts(jn=False, blizzard=False, ujapi=False):
     return (
         [
             'KK:part_0_natives.j',
@@ -95,6 +95,7 @@ def layer_parts(jn=False, blizzard=False):
         ]
         + (['KK:kk_jn.j', 'KKN:nat_jn.j'] if jn else [])
         + ['KKN:nat_blizzard.j', 'KKN:nat_shop.j', 'KKN:nat_dzapi.j', 'KKN:nat_relatives.j', 'KKN:nat_emulated.j']
+        + (['KKN:nat_ujapi.j', 'KKN:nat_ujapi_eq.j'] if ujapi else [])
         + (['out_blizzard_mapa.j'] if blizzard else [])
     )
 
@@ -237,7 +238,30 @@ def jninit_gate(body_text):
 
 
 def jnregex_gate(body_text):
-    return 'true' if re.search(r'\bJNStringRegex\s*\(', body_text) else 'false'
+    if re.search(r'\bJNStringRegex\s*\(', body_text):
+        return 'true'
+    for m in re.finditer(r'\bJNStringCount[ \t]*\(', body_text):
+        end_pos = _close_parens(body_text, m.end())
+        if end_pos < 0:
+            continue
+        args, max_depth, i, cut = body_text[m.end():end_pos - 1], 0, 0, None
+        while i < len(args) and cut is None:
+            c = args[i]
+            if c == '"':
+                i += 1
+                while i < len(args) and args[i] != '"':
+                    i += 2 if args[i] == '\\' else 1
+            elif c == '(':
+                max_depth += 1
+            elif c == ')':
+                max_depth -= 1
+            elif c == ',' and max_depth == 0:
+                cut = i
+            i += 1
+        lits = re.findall(r'"((?:[^"\\\n]|\\.)*)"', args[cut + 1:]) if cut is not None else []
+        if any(re.search(r'[\[\](){}.*+?^$|]|\\\\', s) for s in lits):
+            return 'true'
+    return 'false'
 
 
 RX_PLUGIN = re.compile(r'\bJNServerPluginVersion[ \t]*\([ \t]*\)[ \t]*(<=|<|>=|>|==)[ \t]*\(?[ \t]*(\d+)')
@@ -352,6 +376,72 @@ def big_life(extract):
                 if mid == 'uhpm' and vt == 0 and len(val) == 4 and struct.unpack('<i', val)[0] >= BIG_LIFE:
                     return 'true'
     return 'false'
+
+
+RX_MEM_CAP = r'(?:0x|\$)0*D38804\b'
+RX_NUMBER = r'[0-9]+\.?[0-9]*|\.[0-9]+'
+
+
+def speed_cap(body_text):
+    if not re.search(RX_MEM_CAP, body_text):
+        return None
+    globals_block = dict((n, float(v)) for n, v in re.findall(
+        r'(?m)^[ \t]*(?:constant[ \t]+)?real[ \t]+(\w+)[ \t]*=[ \t]*(%s)[ \t\r]*$' % RX_NUMBER, body_text))
+
+    def field_value(arg):
+        arg = arg.strip().strip('()').strip()
+        if re.fullmatch(RX_NUMBER, arg):
+            return float(arg)
+        return globals_block.get(arg)
+    vals = []
+    for m in re.finditer(
+        r'\bJNMemorySetReal[ \t]*\([^,\n]*%s[ \t]*\)?[ \t]*,[ \t]*([^)\n]+)\)' % RX_MEM_CAP, body_text
+    ):
+        vals.append(field_value(m.group(1)))
+    for m in re.finditer(r'(?s)\bfunction[ \t]+(\w+)[ \t]+takes[ \t]+real[ \t]+(\w+)[ \t]+returns[ \t]+nothing(.*?)'
+                         r'\bendfunction', body_text):
+        fname, pair, body = m.groups()
+        if re.search(r'\bJNMemorySetReal[ \t]*\([^,\n]*%s[ \t]*\)?[ \t]*,[ \t]*%s[ \t]*\)' % (RX_MEM_CAP, pair), body):
+            vals.extend(field_value(a) for a in re.findall(r'\b%s[ \t]*\(([^()\n]*)\)' % fname, body_text))
+    vals = [v for v in vals if v]
+    return max(vals) if vals else None
+
+
+def queried_keys(body_text):
+    out = set()
+    for m in re.finditer(r'\bDzIsKeyDown[ \t]*\([ \t]*(0[xX][0-9A-Fa-f]+|\$[0-9A-Fa-f]+|\d+)[ \t]*\)', body_text):
+        x = m.group(1)
+        n = int(x, 16) if x[:2].lower() == '0x' else int(x[1:], 16) if x[0] == '$' else int(x)
+        if 0 < n < 256:
+            out.add(n)
+    return ','.join(str(n) for n in sorted(out))
+
+
+def hero_xp(extract, body_text):
+    if not re.search(r'\bDzGetUnitNeededXP[ \t]*\(', re.sub(r'(?m)^[ \t]*native\b.*$', '', body_text)):
+        return {'KK_XP': 'false'}
+    vals = {'NeedHeroXP': '200', 'NeedHeroXPFormulaA': '1', 'NeedHeroXPFormulaB': '100', 'NeedHeroXPFormulaC': '0'}
+    p = None
+    for d in os.listdir(extract) if extract and os.path.isdir(extract) else []:
+        if d.lower() == 'war3mapmisc.txt':
+            p = os.path.join(extract, d)
+    sec = None
+    for ln in (open(p, 'rb').read().decode('utf-8', 'replace').splitlines() if p else []):
+        s = ln.strip()
+        m = re.match(r'^\[(.+)\]$', s)
+        if m:
+            sec = m.group(1).strip().lower()
+        elif sec == 'misc' and '=' in s and s.split('=', 1)[0].strip() in vals:
+            vals[s.split('=', 1)[0].strip()] = s.split('=', 1)[1].strip()
+
+    def real(x, default_value):
+        try:
+            return repr(float(x))
+        except ValueError:
+            return default_value
+    table = ','.join(str(int(float(v))) for v in re.findall(r'-?\d+(?:\.\d+)?', vals['NeedHeroXP'])) or '200'
+    return {'KK_XP': 'true', 'KK_XP_TABELA': table, 'KK_XP_A': real(vals['NeedHeroXPFormulaA'], '1.0'),
+            'KK_XP_B': real(vals['NeedHeroXPFormulaB'], '100.0'), 'KK_XP_C': real(vals['NeedHeroXPFormulaC'], '0.0')}
 
 
 def reads_state_14(body_text):

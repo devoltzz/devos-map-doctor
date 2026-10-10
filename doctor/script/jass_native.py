@@ -2,10 +2,13 @@
 import ctypes
 import json
 import os
+import shutil
+import subprocess
 import sys
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+CRATE = os.path.normpath(os.path.join(HERE, '..', 'native', 'jass_checks'))
 DLL = 'jass_checks.so' if sys.platform.startswith('linux') else 'jass_checks.dll'
 _LOADED_DLL = [None]
 
@@ -189,6 +192,46 @@ def load_data():
         finally:
             _free(p, n.value)
     return run_checks
+
+
+def _cargo():
+    c = shutil.which('cargo')
+    if c:
+        return c
+    c = os.path.join(os.path.expanduser('~'), '.cargo', 'bin', 'cargo' + ('.exe' if os.name == 'nt' else ''))
+    if os.path.isfile(c):
+        return c
+    raise SystemExit('jass_native: cargo not found (Rust: https://rustup.rs)')
+
+
+def _linux_linker(folder):
+    os.makedirs(folder, exist_ok=True)
+    cmd = os.path.join(folder, 'zig_linux_cc.cmd')
+    with open(cmd, 'w', encoding='ascii', newline='\r\n') as f:
+        f.write('@echo off\n"%s" -m ziglang cc -target x86_64-linux-gnu.2.17 %%*\n' % sys.executable)
+    return cmd
+
+
+def compiles(output, linux=False):
+    os.makedirs(output, exist_ok=True)
+    target_dir = os.path.normpath(os.path.join(HERE, '..', 'cache', 'native_target'))
+    env = dict(os.environ, CARGO_TARGET_DIR=target_dir)
+    done = []
+    targets = [(None, 'jass_checks.dll' if os.name == 'nt' else 'libjass_checks.so', DLL)]
+    if linux and os.name == 'nt':
+        targets.append(('x86_64-unknown-linux-gnu', 'libjass_checks.so', 'jass_checks.so'))
+        env['CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER'] = _linux_linker(os.path.join(target_dir, 'linker'))
+    for tgt, fname, dest in targets:
+        cmd = [_cargo(), 'build', '--release', '--manifest-path', os.path.join(CRATE, 'Cargo.toml')]
+        if tgt:
+            cmd += ['--target', tgt]
+        r = subprocess.run(cmd, env=env, capture_output=True, text=True, encoding='utf-8', errors='replace')
+        if r.returncode:
+            raise SystemExit('jass_native: cargo stopped (%s)\n%s%s' % (tgt or 'host', r.stdout, r.stderr))
+        origin = os.path.join(target_dir, *([tgt] if tgt else []), 'release', fname)
+        shutil.copyfile(origin, os.path.join(output, dest))
+        done.append(os.path.join(output, dest))
+    return done
 
 
 def _scripts(paths):

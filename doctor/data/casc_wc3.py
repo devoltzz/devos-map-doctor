@@ -210,6 +210,8 @@ class CascWC3(object):
         self.version_num, self.build_key = m['version'], m['build_key']
         self.build_info, self.config = {'Version': self.version_num, 'Build Key': self.build_key}, {}
         self.index_, self._open_files, self._encoding = {}, {}, None
+        self._objects = m.get('objects') or {}
+        self._store = os.path.normpath(os.path.join(self.game, m.get('store') or 'objects'))
         with open(os.path.join(self.game, PACK_LIST), encoding='utf-8') as f:
             self.file_set = dict((line.lower(), (line, None)) for line in f.read().split('\n') if line)
         if len(self.file_set) != m['total']:
@@ -414,8 +416,9 @@ class CascWC3(object):
         if ent is None:
             raise CascError('"%s" is not in the CASC' % file_path)
         if self.is_pack:
+            sha = self._objects.get(hash_key)
             try:
-                with open(pack_file_path(self.game, hash_key), 'rb') as f:
+                with open(os.path.join(self._store, sha) if sha else pack_file_path(self.game, hash_key), 'rb') as f:
                     return f.read()
             except OSError:
                 raise CascError('"%s" is a game file, but the game data pack does not have it' % file_path)

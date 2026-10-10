@@ -1221,14 +1221,59 @@ def _unprotect_by_carving(file_path, output, p, diag, res):
     return res
 
 
+def target_version(file_path, version_num):
+    from doctor.fix import editor_version
+    v = editor_version.normalize(version_num)
+    if v != 'auto':
+        return v
+    try:
+        a = _open(file_path)
+        return editor_version.made_for(file_path, _read(a, 'war3map.w3i'))[0]
+    except Exception:
+        return None
+
+
+def opens_in_editor(d, version_num=None):
+    ed = d.get('editor') or {}
+    if ed.get('status') == 'ready':
+        return True
+    if version_num is None or ed.get('status') != 'needs_work' or not ed.get('duplicate_textures'):
+        return False
+    codes = set(x['code'] for x in d.get('protections') or [])
+    return ed.get('w3i') in ('ok', 'new') and not ed.get('missing_items') and not codes & set(EDITOR_BLOCKERS) and \
+        not ed.get('trigger_list')
+
+
+def version_block(file_path, version_num):
+    from doctor.fix import editor_version
+    try:
+        a = _open(file_path)
+        c = editor_version.check_map(version_num, lambda n: _read(a, n))
+    except Exception:
+        return None
+    return '; '.join(t for _c, t in c['blocks']) or None
+
+
 def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=True, unprotection=None, extra_ids=(),
-                       options=None):
+                       options=None, version_num=None):
     p = progress or _nothing
     diag = diag or diagnose(file_path, p, extra_ids=extra_ids)
     if options is not None and 'safe_units' in options:
         safe_units = step_on(options, 'safe_units')
     res = {'status': None, 'output': None, 'before': diag, 'unprotection': None, 'editor': None, 'after_diag': None,
            'err': None}
+    version_num = target_version(file_path, version_num)
+    res['editor_version_used'] = version_num
+    if version_num is not None:
+        from doctor.fix import editor_version
+        if not editor_version.available(version_num):
+            res['status'] = 'no_version_files'
+            res['err'] = 'Warcraft III %s: %s' % (
+                version_num,
+                editor_version.where(version_num) or 'externos/wc3_versoes',
+            )
+            return res
+        options = dict(options or {}, **dict(('dados:' + x, False) for x in slk_patch.PROBLEMS))
     if _same_file(file_path, output):
         res['status'], res['err'] = 'failed', 'the output is the input map itself: the original is never written'
         return res
@@ -1237,9 +1282,19 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
         return res
     status = diag['editor'].get('status')
     if status == 'campaign_needs_work':
+        if version_num is not None:
+            res['status'], res['err'] = 'wrong_editor_version', 'a campaign: only the Reforged route opens it'
+            return res
         return _prepare_campaign_for_editor(file_path, output, p, diag, res, safe_units, unprotection, options)
     data_bytes = set(SLK_CODE[x] for x in slk_patch.PROBLEMS if step_on(options, 'dados:' + x)) & \
         set(x['code'] for x in diag['protections'])
+    if version_num is not None and opens_in_editor(diag, version_num):
+        status = 'ready'
+    if version_num is not None and status == 'ready':
+        block_reason = version_block(file_path, version_num)
+        if block_reason:
+            res['status'], res['err'] = 'wrong_editor_version', block_reason
+            return res
     if status != 'needs_work' and not (status == 'ready' and data_bytes):
         res['status'] = 'nothing_to_do' if status == 'ready' else status
         return res
@@ -1283,7 +1338,7 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
         res['output'] = part
         with quiet():
             details, _assembled = editor_prep.prepare(src, part, name_list, log=_nothing, safe_units=safe_units,
-                                                   extra_ids=extra_ids, options=options)
+                                                   extra_ids=extra_ids, options=options, version_num=version_num)
         if res.get('script'):
             details['script_restore'] = res['script']
         res['editor'] = details
@@ -1293,11 +1348,13 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
         res['after_diag'] = after_diag = diagnose(part, extra_ids=extra_ids)
         os.replace(part, output)
         res['output'] = after_diag['file_name'] = os.path.abspath(output)
-        res['status'] = 'done' if after_diag['editor'].get('status') == 'ready' else 'partial'
+        res['status'] = 'done' if opens_in_editor(after_diag, version_num) else 'partial'
     except (Exception, SystemExit) as e:
         res['status'] = 'script_cut_off' if isinstance(e, editor_prep.ScriptCutOff) else \
-            'script_not_restored' if isinstance(e, editor_prep.ScriptNotRestored) else 'failed'
-        res['err'] = str(e) if isinstance(e, editor_prep.ScriptNotRestored) else _error(e)
+            'script_not_restored' if isinstance(e, editor_prep.ScriptNotRestored) else \
+            'wrong_editor_version' if isinstance(e, editor_prep.EditorVersionMismatch) else 'failed'
+        res['err'] = str(e) if isinstance(e, (editor_prep.ScriptNotRestored, editor_prep.EditorVersionMismatch)) else \
+            _error(e)
         _remove_quietly(res['output'])
         res['output'] = None
     finally:

@@ -6,6 +6,7 @@ import { mpqNative } from './mpqcrypt.js';
 
 const ENGINE = '/home/pyodide/engine';
 const GAME = '/home/pyodide/game';
+const VERSIONS = '/home/pyodide/wc3_versions';
 let py = null;
 let runJob = null;
 let mounts = 0;
@@ -33,6 +34,9 @@ async function boot() {
   await unpack('engine.zip', ENGINE, true);
   if (await unpack('data/game_data.zip', GAME, false)) {
     py.runPython(`import os; os.environ['WC3_GAME'] = os.environ['WC3_JOGO'] = '${GAME}'`);
+  }
+  if (await unpack('data/wc3_versions.zip', VERSIONS, false)) {
+    py.runPython(`import os; os.environ['WC3_VERSOES_DADOS'] = '${VERSIONS}'`);
   }
   const pj = await fetch('pjass.wasm');
   if (pj.ok) {

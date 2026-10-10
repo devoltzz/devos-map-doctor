@@ -143,6 +143,34 @@ def lua_route(a, raw_data, body_text, scripts_dir, log):
     return {'finding': finding, 'collect': col, 'natives': added}, raw_data, body_text
 
 
+def own_scripts(extract, name_list=('blizzard.j',)):
+    out = []
+    for d in os.listdir(extract) if os.path.isdir(extract) else ():
+        folder = os.path.join(extract, d)
+        if d.lower() != 'scripts' or not os.path.isdir(folder):
+            continue
+        for f in os.listdir(folder):
+            if f.lower() in name_list:
+                out.append(open(os.path.join(folder, f), 'rb').read().decode('latin-1'))
+    return out
+
+
+def ujapi_route(extract, raw_data, body_text, scripts_dir, log):
+    from doctor.port import ujapi
+    new_text, info = ujapi.prepare(body_text, extras=own_scripts(extract))
+    if not info:
+        return None, raw_data, body_text
+    new_raw = os.path.join(scripts_dir, 'war3map.j')
+    _writes(new_raw, new_text.encode('latin-1'))
+    log(
+        '2c. UjAPI map (the Unryze JASS API %s): %d native(s) declared for the layer, %d constant(s) and %d type(s) '
+        'mapped to Reforged'
+        % (info['version_num'], len(info['natives']), len(info['w3p_constants']), len(info['types']))
+    )
+    WARNINGS.extend(ujapi.warnings(info, new_text))
+    return info, new_raw, new_text
+
+
 def build_lua_route(r, lua, original, extract, log, details):
     from doctor.port import ydwe_port
     from doctor.port import slk_tables
@@ -379,7 +407,7 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
     if 'blizzard.j' in own:
         without_127 = not os.path.isfile(blizzard_map.VANILLA)
         base = os.path.join(new.REF, 'blizzard.j') if without_127 else None
-        blz_part, blz_info = blizzard_map.extract_parts(own['blizzard.j'], raw_data, vanilla_path=base)
+        blz_part, blz_info = blizzard_map.extract_parts(own['blizzard.j'], raw_data, vanilla=base)
         failures = [] if without_127 else blizzard_map.failures_of(blz_info)
         if failures:
             WARNINGS.append(
@@ -428,6 +456,12 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
     pair['KK_UI_BORDAS'] = new.ui_borders(body_text)
     pair['KK_UI_RETRATO'] = new.ui_portrait(body_text)
     pair['KK_EST_VIDA_GRANDE'] = new.big_life(extract)
+    pair['KK_DZ_REAL'] = 'true'
+    pair.update(new.hero_xp(extract, body_text))
+    key_codes = new.queried_keys(body_text)
+    pair['KK_TECLAS'] = 'true' if key_codes else 'false'
+    if key_codes:
+        pair['KK_TECLAS_LISTA'] = key_codes
     buttons = new.fdf_buttons(extract, body_text)
     pair['KK_UI_BOTOES'] = 'true' if buttons else 'false'
     if buttons:
@@ -477,7 +511,7 @@ def recipe(root, raw_data, diag, blz, no_dot_name_list, heading):
         GENERATOR='porta.py (%s)' % heading,
         NO_DOT=no_dot_name_list,
         LEVEL_FIELDS=diag['fields'],
-        PARTS=new.layer_parts(bool(diag['jn']), blz),
+        PARTS=new.layer_parts(bool(diag['jn']), blz, bool(diag.get('ujapi'))),
         EXPECTED=dict(new.EMPTY_EXPECTED),
         UI_FIXED=True,
         UI_TOLERANT=True,
@@ -694,6 +728,38 @@ def stubs_and_dependents(r, decl_order):
     return out
 
 
+def speed_cap(r, extract, body_text, log):
+    requested = new.speed_cap(body_text)
+    if not requested:
+        return None
+    from doctor.port import int32_balance
+    raw, origin = None, None
+    for folder in (r.DATA, os.path.join(r.ROOT, 'port', 'out', 'extract_en'), extract):
+        p = int32_balance._find_ci(folder, ['war3mapMisc.txt']) if os.path.isdir(folder) else None
+        if p and os.path.getsize(p):
+            raw, origin = open(p, 'rb').read(), p
+            break
+    txt = raw.decode('utf-8', 'surrogateescape') if raw else ''
+    before, sec = 522.0, None
+    for ln in txt.split('\n'):
+        s = ln.strip()
+        m = re.match(r'^\[(.+)\]$', s)
+        if m:
+            sec = m.group(1).strip().lower()
+        elif sec == 'misc' and s.split('=', 1)[0].strip() == 'MaxUnitSpeed' and '=' in s:
+            try:
+                before = float(s.split('=', 1)[1].strip())
+            except ValueError:
+                pass
+    info = {'requested': requested, 'before': before, 'saved': requested > before}
+    if info['saved']:
+        dest = origin if origin and os.path.dirname(origin) == r.DATA else os.path.join(r.DATA, 'war3mapMisc.txt')
+        _writes(dest, int32_balance._misc_text(txt, {'MaxUnitSpeed': requested}).encode('utf-8', 'surrogateescape'))
+        log('5. the movement speed cap: MaxUnitSpeed %g -> %g (the map raised it through the memory of patch 1.28)'
+            % (before, requested))
+    return info
+
+
 def report_text(details):
     L = ['Port to Reforged 3.0 - report', '=' * 30, '',
          'Map: %s' % details['map_path'], 'Result: %s' % details['resultado'], '']
@@ -707,11 +773,18 @@ def report_text(details):
               '- script: %s' % {'jass': 'JASS (war3map.j)', 'kkwe': 'KKWE bytecode (kkmap.jc) decompiled and proved',
                                 'j2b': 'j2b bytecode (war3map.bin) decompiled and proved'}[details['forma']],
               '- platform: %s' % ('M16 (JN): the platform save is ported to a local save' if d['jn'] else
+                                  'UjAPI (the Unryze JASS API %s): %d native(s), %d constant(s) and %d type(s) of it '
+                                  'mapped to Reforged' % (d['ujapi']['version_num'], d['ujapi']['natives'],
+                                                          d['ujapi']['w3p_constants'], len(d['ujapi']['types']))
+                                  if d.get('ujapi') else
                                   'KK (DzAPI/japi)' if d['plataforma'] else 'none'),
               '- object data: %s' % ('SLK tables' if d['slk'] else 'w3u/w3t/w3a over the game data'),
               '- platform natives declared: %d; implemented by the port layer: %d'
               % (len(d['plataforma']), len(d['implemented_count'])),
               '- EXExecuteScript sites: %d' % d['exec_sites']]
+        fp = details.get('made_for')
+        if fp and fp.get('label'):
+            L.append('- made for: %s (%s)' % (fp['label'], (fp.get('reasons') or ['-'])[0]))
     if 'g1' in details:
         L += ['', 'Compiler gates (pjass of Reforged 3.0)', '-' * 38,
               '- G1 (the layer with the map script): %s' % ('PASS' if details['g1'] else 'FAIL'),
@@ -728,6 +801,14 @@ def report_text(details):
         L += ['', 'Removed (dead platform code)', '-' * 28,
               '- the type(s) %s, used only by code nothing calls: %d function(s), %d global(s), %d native(s)'
               % (', '.join(tm['types']), len(tm['functions']), len(tm['globals_block']), len(tm['natives']))]
+    vel = details.get('speed')
+    if vel:
+        L += ['', 'Movement speed cap', '-' * 18,
+              ('- the map raised it to %g at run time through the memory of patch 1.28, which Reforged does not allow: '
+               'MaxUnitSpeed is now %g in the gameplay constants (war3mapMisc.txt; it was %g)'
+               % (vel['requested'], vel['requested'], vel['before'])) if vel['saved'] else
+              ('- the map raises it to %g at run time; the gameplay constants already have MaxUnitSpeed %g'
+               % (vel['requested'], vel['before']))]
     if details.get('numbers'):
         from doctor.port import int32_balance
         L += [''] + int32_balance.report_lines(details['numbers'])
@@ -756,6 +837,9 @@ def report_text(details):
           'loading does not desync',
           '- the menus and panels the platform drew (shop, lobby, F-keys) and the map frames (DzFrame -> BlzFrame)',
           '- every feature listed under the stubs above']
+    if d and d.get('ujapi'):
+        L += ['- the UjAPI parts: the frames, the damage and key events, and the objects Reforged has no type for '
+              '(sprites, doodads, projectiles, handle lists) -- those natives are stubs and do nothing']
     return '\n'.join(L) + '\n'
 
 
@@ -783,9 +867,67 @@ def port_checks(original, output, details):
         pass
 
 
+def made_for(extract, body_text):
+    try:
+        from doctor.data import wc3_versions
+        w3i = os.path.join(extract, 'war3map.w3i')
+        data_bytes = open(w3i, 'rb').read() if os.path.isfile(w3i) else None
+        return wc3_versions.detect_parts(data_bytes, body_text, 'jass')
+    except Exception:
+        return None
+
+
+def name_warnings(info):
+    if not info:
+        return
+    born_at = dict((n, (p, d)) for n, _e, p, d in info.get('born') or [])
+
+    def label(n):
+        p, d = born_at.get(n, (None, False))
+        return '%s (Reforged has it since %s)' % (n, p) if p and d else n
+    name_list = [n for n in info.get('functions') or [] if not n.endswith('(reserved by pjass)')]
+    name_list += [n for n, _t, _r in info.get('renamed_list') or []]
+    if name_list:
+        WARNINGS.append(
+            '%d name(s) of the map are also names of the newer game (a native, function or global Reforged '
+            'created after the map was made): the map\'s own were renamed to kkm_<name> everywhere, '
+            'ExecuteFunc("...") included: %s' % (len(name_list), ', '.join(label(n) for n in name_list[:12]))
+        )
+    if info.get('removed_ones'):
+        WARNINGS.append('%d global(s) the map declares with the same name and type as a Reforged constant were removed '
+                        '(the map now uses the Reforged value): %s'
+                        % (len(info['removed_ones']), ', '.join('%s (map %s, Reforged %s)' % (n, v or '-', r or '-')
+                                                                for n, _t, v, r in info['removed_ones'][:8])))
+
+
 def memory_warnings(info):
     if not info:
         return
+    bridge = info.get('bridge') or {}
+    if bridge.get('retyped_vars') or bridge.get('agents') or bridge.get('expressions'):
+        pieces = []
+        if bridge.get('retyped_vars'):
+            pieces.append('%d variable(s), parameter(s) or return(s) that carried a handle disguised as another type '
+                          'now have the real type (%s)' % (len(bridge['retyped_vars']), ', '.join(
+                              '%s %s: %s -> %s' % x for x in bridge['retyped_vars'][:6])))
+        if bridge.get('agents'):
+            pieces.append('%d handle parameter(s) became agent so the handle table keeps the real handle for the '
+                          'integer-to-handle casts (%s)' % (len(bridge['agents']), ', '.join(
+                              '%s.%s' % x for x in bridge['agents'][:6])))
+        if bridge.get('expressions'):
+            pieces.append('%d return(s) of another type go through the handle table (%s)' % (
+                len(bridge['expressions']), ', '.join(sorted(set(n for n, _d, _p in bridge['expressions']))[:8])))
+        WARNINGS.append('the return bug of patch 1.23 and older was adapted: ' + '; '.join(pieces))
+    if info.get('no_use'):
+        WARNINGS.append('%d typecast function(s) of the return bug have no use left after that and only compile now: %s'
+                        % (len(info['no_use']), ', '.join(info['no_use'][:12])))
+    mh = info.get('memhack') or {}
+    if mh.get('translated'):
+        WARNINGS.append(
+            '%d function(s) of the MemHackAPI (the patch 1.24-1.28 memory hack) now use the Reforged natives '
+            'by what they do (frames, special effects, unit and ability fields): %s'
+            % (len(mh['translated']), ', '.join(mh['translated'][:16]))
+        )
     if info['conversions']:
         WARNINGS.append(
             '%d typecast function(s) of the patch 1.2x memory hacks (the return bug) now use the Reforged '
@@ -797,7 +939,8 @@ def memory_warnings(info):
             % (len(info['effects']), ', '.join(info['effects'][:12]))
         )
     lost_blocks = sorted(set(re.sub(r'^l__(\w+?)__MemoryBlock.*$', r'\1', n) for n in info['arrays']))
-    if info['arrays'] or info['codes'] or info['neutrals']:
+    neutral_expr = bridge.get('neutral_expr') or []
+    if info['arrays'] or info['codes'] or info['neutrals'] or neutral_expr:
         WARNINGS.append(
             'the map reads and writes the memory of the patch 1.28 game (memory hacks), which Reforged does '
             'not have: %d memory address read(s), %d code reference(s) and %d typecast function(s) were '
@@ -805,8 +948,12 @@ def memory_warnings(info):
             % (
                 sum(info['arrays'].values()),
                 len(info['codes']),
-                len(info['neutrals']),
-                (' (' + ', '.join(lost_blocks[:10]) + ')') if lost_blocks else '',
+                len(info['neutrals']) + len(set(n for n, _d, _p in neutral_expr)),
+                (' (' + ', '.join(lost_blocks[:10]) + ')')
+                if lost_blocks
+                else (' (' + ', '.join((info['neutrals'] + [n for n, _d, _p in neutral_expr])[:10]) + ')')
+                if info['neutrals'] or neutral_expr
+                else '',
             )
         )
 
@@ -870,16 +1017,33 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
         details['forma'] = forma
         body_text = re.sub(r'\r(?!\n)', '\n', open(raw_data, 'rb').read().decode('latin-1'))
         lua, raw_data, body_text = lua_route(a, raw_data, body_text, os.path.join(root, 'scripts'), log)
+        uj, raw_data, body_text = ujapi_route(extract, raw_data, body_text, os.path.join(root, 'scripts'), log)
         diag = diagnostico(body_text, extract)
+        if uj:
+            diag['ujapi'] = {
+                'version_num': uj['version_num'],
+                'natives': len(uj['natives']),
+                'w3p_constants': len(uj['w3p_constants']),
+                'types': sorted(uj['types']),
+            }
         details['diagnostico'] = diag
+        details['made_for'] = made_for(extract, body_text)
+        from doctor.port import memhack_ui
+        details['memhack'] = memhack_ui.detect_memhack(body_text)
+        mh_warning = memhack_ui.warning(details['memhack'])
+        if mh_warning:
+            WARNINGS.append(mh_warning)
         log('3. diagnosis: %d platform natives (%d with a body in the layer), %s, %s data'
-            % (len(diag['plataforma']), len(diag['implemented_count']), 'M16/JN' if diag['jn'] else 'KK',
+            % (len(diag['plataforma']), len(diag['implemented_count']), 'M16/JN' if diag['jn'] else
+               'UjAPI' if diag.get('ujapi') else 'KK',
                'SLK' if diag['slk'] else 'w3u'))
         blz, _pair = map_part(root, compat, extract, raw_data, body_text, diag, heading, log, memory_hacks=memory_hacks)
         from doctor.port import name_without_dot
         listing = name_without_dot.map_models(set(name_list))
         r = recipe(root, raw_data, diag, blz, listing, heading)
         r.MEMORY_LEVEL = memory_hacks
+        from doctor.port import shadowed
+        r.MAP_VERSION = shadowed.RANGE_CAP.get((details.get('made_for') or {}).get('range'))
         log('5. the script chain (this is the long step)')
         ok, g1, g2, chain_log = run_chain(r)
         if not ok:
@@ -908,6 +1072,7 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
             open(os.path.join(new.REF, 'common.j'), 'rb').read().decode('latin-1')))[1] if m0f else {}
         details['stubs'] = stubs_and_dependents(r, order)
         memory_warnings(getattr(r, 'MEMORY_INFO', None))
+        name_warnings(getattr(r, 'SHADOWED_INFO', None))
         log('   G1 %s | G2 %s; %d stub(s) called by the map' % ('PASS' if g1 else 'FAIL', 'PASS' if g2 else 'FAIL',
                                                               len(details['stubs'])))
         if not ok:
@@ -922,6 +1087,7 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
             raise Aborts('the compiler gates did not pass (G1 %s, G2 %s): %s'
                          % ('PASS' if g1 else 'FAIL', 'PASS' if g2 else 'FAIL', '; '.join(error_list[:3]) or
                             os.path.join(root, 'port', 'out', 'cadeia.log')))
+        details['speed'] = speed_cap(r, extract, body_text, log)
         if balance_numbers:
             from doctor.port import int32_balance
             details['numbers'] = int32_balance.port_step(r, extract, log)

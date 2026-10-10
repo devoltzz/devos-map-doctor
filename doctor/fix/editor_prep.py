@@ -50,6 +50,50 @@ def enable_jasshelper(extra):
     ), True
 
 
+class EditorVersionMismatch(ValueError):
+    pass
+
+
+def target_editor(version_num):
+    if version_num is None:
+        return None
+    from doctor.fix import editor_version
+    v = editor_version.normalize(version_num)
+    if v is None:
+        return None
+    tgt = editor_version.profile(v)
+    tgt['td'] = editor_version.trigger_data(v)
+    tgt['ref'] = editor_version.scripts_dir(v)
+    tgt['arities'] = wtg_triggers.arities(editor_version.trigger_data_text(v))
+    tgt['sound_label_map'] = editor_version.sound_labels(v)
+    return tgt
+
+
+def check_version(a, tgt):
+    from doctor.fix import editor_version
+
+    def read_data(fname):
+        try:
+            return a.read(fname) if a.find(fname) else None
+        except Exception:
+            return None
+    c = editor_version.check_map(tgt['version'], read_data)
+    if c['blocks']:
+        raise EditorVersionMismatch('; '.join(t for _c, t in c['blocks']))
+    j = read_data('war3map.j') or read_data('scripts\\war3map.j') or b''
+    return {'version_num': tgt['version'], 'label': tgt['label'], 'files_at': tgt['files_at'],
+            'warnings': [t for _c, t in c['warnings']], 'regenerate': c['regenerate_triggers'],
+            'missing_functions': editor_version.missing_natives(tgt['version'], j.decode('latin-1'))}
+
+
+def needs_jasshelper(trigger_list, restored, restoration, details):
+    if not trigger_list:
+        return False
+    if restored:
+        return not (restoration[0].get('editor_fit') or {}).get('vanilla')
+    return not (details.get('editor_fit') or {}).get('vanilla')
+
+
 def fix_w3i(b, sobe=False):
     new, report, tail = _fix_w3i(b)
     if sobe:
@@ -137,8 +181,8 @@ def empty_w3c():
     return struct.pack('<ii', 0, 0)
 
 
-def empty_w3s():
-    return struct.pack('<ii', 3, 0)
+def empty_w3s(version_num=3):
+    return struct.pack('<ii', version_num, 0)
 
 
 def empty_mmp():
@@ -427,7 +471,7 @@ def same_code(assembled, original):
     return g1 == g2 and f1 == [f for f in f2 if f[0] not in ('main', 'config')] + end_pos
 
 
-def to_standard_script(body_text, b_w3i, log=print, doo=None):
+def to_standard_script(body_text, b_w3i, log=print, doo=None, ref=None):
     try:
         from doctor.script import jass_normal
         from doctor.triggers import trigger_restore
@@ -438,7 +482,7 @@ def to_standard_script(body_text, b_w3i, log=print, doo=None):
     except struct.error:
         n_players = None
     try:
-        new, report = trigger_restore.standard_script(body_text, n_players, log, doo)
+        new, report = trigger_restore.standard_script(body_text, n_players, log, doo, ref)
         report['line_list'] = trigger_restore.optimizer_lines(report)
         return new, report, n_players
     except Exception as e:
@@ -446,7 +490,9 @@ def to_standard_script(body_text, b_w3i, log=print, doo=None):
         return body_text, None, n_players
 
 
-def restore_triggers(body_text, is_lua, log=print, file_set=None, n_players=None, default_value=None, read_data=None):
+def restore_triggers(
+    body_text, is_lua, log=print, file_set=None, n_players=None, default_value=None, read_data=None, tgt=None
+):
     try:
         from doctor.triggers import trigger_restore
     except ImportError:
@@ -459,8 +505,24 @@ def restore_triggers(body_text, is_lua, log=print, file_set=None, n_players=None
                 name_list = lambda: object_names.names(read_data)
             except ImportError:
                 name_list = None
-        r = trigger_restore.restore(body_text, 'lua' if is_lua else 'jass', log=log, editor_files=file_set,
-                                    players=n_players, standard=default_value, object_names=name_list)
+        if tgt is None:
+            r = trigger_restore.restore(body_text, 'lua' if is_lua else 'jass', log=log, editor_files=file_set,
+                                        players=n_players, standard=default_value, object_names=name_list)
+        else:
+            r = trigger_restore.restore(
+                body_text,
+                'lua' if is_lua else 'jass',
+                td=tgt['td'],
+                log=log,
+                editor_files=file_set,
+                players=n_players,
+                standard=default_value,
+                object_names=name_list,
+                ref_dir=tgt['ref'],
+                editor=tgt['editor'],
+                jasshelper=tgt['jasshelper'],
+                sound_labels=tgt['sound_label_map'],
+            )
     except Exception as e:
         log('trigger_restore: %s: %s' % (type(e).__name__, e))
         return {'used': False, 'reason': 'failed: %s: %s' % (type(e).__name__, e)}, None, None, None
@@ -631,13 +693,19 @@ EDITOR_FILE_NAMES = ('war3map.w3i', 'war3map.w3r', 'war3map.w3c', 'war3map.w3s',
                      'war3map.w3a', 'war3mapSkin.w3a', 'war3map.w3b', 'war3mapSkin.w3b')
 
 
-def fit_to_editor(header_text, file_set, original, log=print):
+def fit_to_editor(header_text, file_set, original, log=print, tgt=None):
     try:
         from doctor.triggers import editor_render
         from doctor.triggers import triggerdata
     except ImportError:
         return None
     try:
+        if tgt is not None:
+            td = tgt['td']
+            return editor_render.outcome(editor_render.fit(header_text, file_set, td, original=original, log=log,
+                                                           editor=tgt['editor'], ref_dir=tgt['ref'],
+                                                           jasshelper=tgt['jasshelper'],
+                                                           sound_labels=tgt['sound_label_map']), td)
         td = triggerdata.load()
         return editor_render.outcome(editor_render.fit(header_text, file_set, td, original=original, log=log), td)
     except Exception as e:
@@ -646,13 +714,16 @@ def fit_to_editor(header_text, file_set, original, log=print):
 
 
 def prepare(entry, output, extra_names=(), log=print, method='attach', safe_units=True, extra_ids=(),
-            options=None):
+            options=None, version_num=None):
     def step_on(hash_key):
         return options is None or options.get(hash_key, True) is not False
     a = mpqread.Archive(entry)
     details = {}
+    tgt = target_editor(version_num)
+    if tgt is not None:
+        details['editor_target'] = check_version(a, tgt)
     b_w3i = a.read('war3map.w3i')
-    new_w3i, details['w3i'], details['w3i_tail'] = fix_w3i(b_w3i, sobe=True)
+    new_w3i, details['w3i'], details['w3i_tail'] = fix_w3i(b_w3i, sobe=tgt is None)
     w3i_era = _fix_w3i(b_w3i)[0]
     details['w3i_raised'] = new_w3i != w3i_era
     try:
@@ -675,7 +746,8 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
     default_value, details['n_players'] = None, None
     if not is_lua:
         body_text, default_value, details['n_players'] = to_standard_script(body_text, b_w3i, log,
-                                                         a.read('war3map.doo') if a.find('war3map.doo') else None)
+                                                         a.read('war3map.doo') if a.find('war3map.doo') else None,
+                                                         tgt['ref'] if tgt is not None else None)
         details['optimizer'] = default_value
     expected_len = body_text
     counts = inflated_counts.analyze_map(a)
@@ -685,7 +757,8 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
         not (a.find('war3map.wtg') and a.find('war3map.wct'))
     if not trigger_list:
         try:
-            reason = wtg_triggers.needs_regeneration(a.read('war3map.wtg'))
+            reason = wtg_triggers.needs_regeneration(a.read('war3map.wtg'), tgt['arities'] if tgt else None) or (
+                details['editor_target']['regenerate'] if tgt else None)
         except Exception:
             reason = None
         if reason:
@@ -699,7 +772,7 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
                        and not RX_NATIVE.match(n.split('\\')[-1]) and a.read(n) is not None),
                       key=lambda n: (n.lower(), n))
     engine = []
-    for t in ENGINE_TEXTURES:
+    for t in (ENGINE_TEXTURES if tgt is None else ()):
         try:
             if a.find(t) and jpeg_flat.blp_is_white(a.read(t) or b''):
                 engine.append(t)
@@ -714,8 +787,8 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
     missing_items = []
     replacements = {} if new_w3i == b_w3i else {'war3map.w3i': new_w3i}
     try:
-        skin_files = skin_split.split(dict((n, a.read(n)) for n in ('war3map.w3u', 'war3map.w3t', 'war3mapSkin.w3u',
-                                                                    'war3mapSkin.w3t') if a.find(n)))
+        skin_files = {} if tgt is not None else skin_split.split(dict(
+            (n, a.read(n)) for n in ('war3map.w3u', 'war3map.w3t', 'war3mapSkin.w3u', 'war3mapSkin.w3t') if a.find(n)))
     except Exception as e:
         skin_files = {}
         log('skin: %s' % e)
@@ -737,6 +810,8 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
         editor_w3i = None
     context = {'w3i': w3i_version, 'game_132': _game_is_132(w3i_era), 'mpq': a,
                'safe_units': safe_units, 'editor_w3i': editor_w3i, 'file_set': replacements}
+    if tgt is not None:
+        context['w3s_version'] = tgt['w3s']
     try:
         _bd = a.read('war3map.doo')
         if _bd:
@@ -750,19 +825,17 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
     except Exception as e:
         log('war3map.doo: %s' % e)
     try:
-        _duplicates, details['duplicate_textures'] = duplicate_textures.make_distinct(
-            a, sorted(name_list, key=lambda n: (n.lower(), n))
+        _duplicates, details['duplicate_textures'] = (
+            duplicate_textures.make_distinct(a, sorted(name_list, key=lambda n: (n.lower(), n)))
+            if tgt is None
+            else ({}, [])
         )
         replacements.update(_duplicates)
     except Exception as e:
         details['duplicate_textures'] = []
         log('duplicate textures: %s' % e)
-    EMPTY_FILES = {
-        'war3map.w3r': empty_w3r,
-        'war3map.w3c': empty_w3c,
-        'war3map.w3s': empty_w3s,
-        'war3map.mmp': empty_mmp,
-    }
+    EMPTY_FILES = {'war3map.w3r': empty_w3r, 'war3map.w3c': empty_w3c, 'war3map.mmp': empty_mmp,
+                   'war3map.w3s': empty_w3s if tgt is None else (lambda: empty_w3s(tgt['w3s']))}
 
     def empty_file(fname, b):
         if fname == 'war3mapUnits.doo':
@@ -834,6 +907,7 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
                 details['n_players'],
                 default_value,
                 read_file,
+                tgt,
             )
         )
     restored = restoration is not None and restoration[0].get('used', False)
@@ -883,7 +957,7 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
                 else 'DIFFERENT from',
             )
         )
-        adjustment = fit_to_editor(expected_len, editor_file_set, body_text, log)
+        adjustment = fit_to_editor(expected_len, editor_file_set, body_text, log, tgt)
         if adjustment is not None:
             details['editor_fit'] = adjustment[6]
             if adjustment[0]:
@@ -947,7 +1021,9 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
         details['unnamed'] = unnamed(a, name_list)
     except Exception as e:
         log('unnamed: %s' % e)
-    if trigger_list and not is_lua:
+    if tgt is not None:
+        details['editor_target']['needs_jasshelper'] = needs_jasshelper(trigger_list, restored, restoration, details)
+    if trigger_list and not is_lua and tgt is None:
         extra, changed = enable_jasshelper(a.read('war3mapExtra.txt') if a.find('war3mapExtra.txt') else b'')
         if changed:
             if a.find('war3mapExtra.txt'):

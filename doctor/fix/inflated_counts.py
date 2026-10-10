@@ -818,7 +818,9 @@ def fixable(fname, b, script=None, context=None):
         done = _from_script(fname, script, x, context=context)
         if done:
             return done
-        new = _empty(fname, b, {'version_num': None, 'count_pos': None})
+        new = _empty(
+            fname, b, {'version_num': None, 'count_pos': None, 'w3s_version': (context or {}).get('w3s_version')}
+        )
         return (new, {'file_name': fname, 'declared': None, 'read_count': 0, 'new': 0, 'from_script': False,
                       'reason': EMPTY, 'report': '%s: empty (does not even have the header)' % fname}) if new else \
             (None, {'file_name': fname, 'reason': EMPTY, 'report': '%s: empty, no rewrite' % fname})
@@ -1082,9 +1084,12 @@ def _from_script(fname, script, x, declared=None, context=None):
                 info['not_fitting'] = outside
             return data_bytes, info
         try:
-            data_bytes = (
-                write(item_entries, **_camera_layout(context)) if fname == 'war3map.w3c' else write(item_entries)
-            )
+            if fname == 'war3map.w3c':
+                data_bytes = write(item_entries, **_camera_layout(context))
+            elif fname == 'war3map.w3s' and context.get('w3s_version'):
+                data_bytes = write(item_entries, context['w3s_version'])
+            else:
+                data_bytes = write(item_entries)
         except _DOES_NOT_FIT:
             return None
         return data_bytes, {'file_name': fname, 'declared': declared, 'read_count': 0, 'new': len(item_entries),
@@ -1168,7 +1173,7 @@ def _empty(fname, b, d):
     if fname == 'war3map.w3c':
         return struct.pack('<ii', v if v else 0, 0)
     if fname == 'war3map.w3s':
-        return struct.pack('<ii', v if v else 3, 0)
+        return struct.pack('<ii', v if v else (d.get('w3s_version') or 3), 0)
     if fname == 'war3map.imp':
         return struct.pack('<ii', 1, 0)
     if fname == 'war3map.mmp':

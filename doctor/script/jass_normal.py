@@ -1190,7 +1190,7 @@ def _game_calls_python(text, names):
     return ''.join(out), calls, used
 
 
-def standard(text, players=None):
+def standard(text, players=None, ref_dir=None):
     report = {'players': players, 'neutral_players': 0, 'copies': {}, 'versions': [], 'calls': 0, 'removed': []}
     if players == 12:
         text, report['neutral_players'] = symbolic_players(text)
@@ -1198,7 +1198,7 @@ def standard(text, players=None):
         script = existing.parse(text)
     except existing.JassSyntaxError:
         return text, report
-    found = copies(script, reference(players=players), text)
+    found = copies(script, reference(ref_dir, players=players), text)
     if not found or not found.optimized:
         return text, report
     spans = dict((f.name, (f.line, f.end_line)) for f in script.functions if f.name in found)

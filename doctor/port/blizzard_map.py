@@ -95,9 +95,9 @@ def reference_names(ref):
     return name_list
 
 
-def extract_parts(map_bj, script, vanilla_path=None, ref=None):
+def extract_parts(map_bj, script, vanilla=None, ref=None):
     map_script_text = read_data(map_bj)
-    van_t = read_data(vanilla_path or VANILLA)
+    van_t = read_data(vanilla or VANILLA)
     scr = read_data(script)
     mv, mf, mn = pieces(map_script_text)
     vv, vf, _vn = pieces(van_t)

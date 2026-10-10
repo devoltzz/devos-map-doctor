@@ -1,0 +1,13178 @@
+{
+"A2I": [
+[
+"ability"
+],
+"integer",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"AddAbilityCooldown": [
+[
+"ability",
+"real"
+],
+"nothing",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"AddAbilityHidden": [
+[
+"ability",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"AddAddressAbilityHidden": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"AddBerserkOrder": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackBerserkHook",
+"3-MemHackBerserkHook.j"
+],
+"AddCModelFrameModel": [
+[
+"integer",
+"string",
+"integer"
+],
+"integer",
+"MemoryHackCModelFrameAPI",
+"28-MemHackCModelFrameAPI.j"
+],
+"AddFrameType": [
+[
+"string",
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"APIMemoryFrameData",
+"12-APIMemoryFrameData.j"
+],
+"AddNewOffsetToRestore": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"APIMemoryRestorer",
+"09-APIMemoryRestorer.j"
+],
+"AddUnitAbility": [
+[
+"unit",
+"integer"
+],
+"boolean",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"AddUnitAbilityCooldown": [
+[
+"unit",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"AddUnitAbilityEx": [
+[
+"unit",
+"integer",
+"boolean"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"AddUnitAbilityHidden": [
+[
+"unit",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"AddUnitArmour": [
+[
+"unit",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"AddUnitAttackSpeed": [
+[
+"unit",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"AddUnitBaseDamage": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"AddUnitBonusDamage": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"AddUnitBonusMovespeed": [
+[
+"unit",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"AddUnitExtraAttack": [
+[
+"unit"
+],
+"boolean",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"AddUnitFlags": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"AddUnitFlags_2": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"AddUnitLifeRegen": [
+[
+"unit",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"AddUnitManaRegen": [
+[
+"unit",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"AddUnitMaxLife": [
+[
+"unit",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"AddUnitMaxMana": [
+[
+"unit",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"AllocCSimpleFont": [
+[],
+"integer",
+"MemoryHackCSimpleFontAPI",
+"30-MemHackCSimpleFontAPI.j"
+],
+"AllocCSimpleFrame": [
+[],
+"integer",
+"MemoryHackCSimpleFrameAPI",
+"32-MemHackCSimpleFrameAPI.j"
+],
+"AllocCSimpleTexture": [
+[],
+"integer",
+"MemoryHackCSimpleTextureAPI",
+"41-MemHackCSimpleTextureAPI.j"
+],
+"AllocExecMemEx": [
+[
+"string",
+"string",
+"integer"
+],
+"nothing",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"AllocFunctionCall": [
+[
+"string",
+"integer"
+],
+"nothing",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"AllocateCBackdropFrameMemory": [
+[],
+"integer",
+"MemoryHackCFrameBackDropAPI",
+"26-MemHackCBackDropFrameAPI.j"
+],
+"AllocateCallMemory": [
+[],
+"nothing",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"AllocateExecutableMemory": [
+[
+"integer"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"AllocatePointerArray": [
+[
+"string",
+"integer",
+"integer"
+],
+"nothing",
+"APIMemory",
+"04-APIMemory.j"
+],
+"ApplyUnitUpgrades": [
+[
+"unit"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"B2I": [
+[
+"boolean"
+],
+"integer",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"B2S": [
+[
+"boolean"
+],
+"string",
+"APIBasicUtils",
+"02-APIBasicUtils.j"
+],
+"BerserkHookEnd": [
+[],
+"nothing",
+"MemoryHackBerserkHook",
+"3-MemHackBerserkHook.j"
+],
+"BerserkHookMemAlloc": [
+[
+"integer"
+],
+"nothing",
+"MemoryHackBerserkHook",
+"3-MemHackBerserkHook.j"
+],
+"BerserkHookStart": [
+[],
+"boolean",
+"MemoryHackBerserkHook",
+"3-MemHackBerserkHook.j"
+],
+"BitwiseAnd": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryBitwise",
+"06-APIMemoryBitwise.j"
+],
+"BitwiseNot": [
+[
+"integer"
+],
+"integer",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"BitwiseOperation": [
+[
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"BitwiseOr": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryBitwise",
+"06-APIMemoryBitwise.j"
+],
+"BitwiseXor": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryBitwise",
+"06-APIMemoryBitwise.j"
+],
+"C2I": [
+[
+"code"
+],
+"integer",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"CItemGetAbilityByIndex": [
+[
+"integer",
+"integer"
+],
+"ability",
+"MemoryHackItemNormalAPI",
+"73-MemHackItemNormalAPI.j"
+],
+"CItemGetLife": [
+[
+"integer"
+],
+"real",
+"MemoryHackItemNormalAPI",
+"73-MemHackItemNormalAPI.j"
+],
+"CItemGetMaxLife": [
+[
+"integer"
+],
+"real",
+"MemoryHackItemNormalAPI",
+"73-MemHackItemNormalAPI.j"
+],
+"CItemSetLife": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackItemNormalAPI",
+"73-MemHackItemNormalAPI.j"
+],
+"CItemSetMaxLife": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackItemNormalAPI",
+"73-MemHackItemNormalAPI.j"
+],
+"CItemSetModel": [
+[
+"integer",
+"string",
+"boolean"
+],
+"nothing",
+"MemoryHackItemNormalAPI",
+"73-MemHackItemNormalAPI.j"
+],
+"CItemSetTypeId": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackItemNormalAPI",
+"73-MemHackItemNormalAPI.j"
+],
+"CItemStartCooldown": [
+[
+"integer",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackItemNormalAPI",
+"73-MemHackItemNormalAPI.j"
+],
+"CUnitAddAbility": [
+[
+"integer",
+"integer"
+],
+"boolean",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"CUnitAddAbilityEx": [
+[
+"integer",
+"integer",
+"boolean"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"CUnitApplyUpgrades": [
+[
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"CUnitMorphToTypeId": [
+[
+"integer",
+"integer"
+],
+"boolean",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"CUnitMorphToTypeIdEx": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"boolean",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"CUnitRefreshInfoBarOnSelect": [
+[
+"integer"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"CUnitRefreshPortraitOnSelect": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"CUnitRemoveAbility": [
+[
+"integer",
+"integer"
+],
+"boolean",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"CUnitRemoveAbilityById": [
+[
+"integer",
+"integer"
+],
+"boolean",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"CUnitRemoveAbilityEx": [
+[
+"integer",
+"integer",
+"boolean"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"CUnitUnapplyUpgrades": [
+[
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"CUnitUpdateHeroBar": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"CUnitUpdateInfoBar": [
+[
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"CastAbilityBasic": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCastAbility",
+"61-MemHackCastAbility.j"
+],
+"CastAbilityPosition": [
+[
+"integer",
+"unit",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCastAbility",
+"61-MemHackCastAbility.j"
+],
+"CastAbilityTarget": [
+[
+"integer",
+"unit",
+"widget"
+],
+"nothing",
+"MemoryHackCastAbility",
+"61-MemHackCastAbility.j"
+],
+"CastAbilityTargetGround": [
+[
+"integer",
+"unit",
+"integer",
+"real",
+"real",
+"boolean"
+],
+"nothing",
+"MemoryHackCastAbility",
+"61-MemHackCastAbility.j"
+],
+"CastAbilityTargetSelf": [
+[
+"integer",
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackCastAbility",
+"61-MemHackCastAbility.j"
+],
+"CastAbilityTargetWidget": [
+[
+"integer",
+"unit",
+"widget",
+"integer",
+"boolean"
+],
+"nothing",
+"MemoryHackCastAbility",
+"61-MemHackCastAbility.j"
+],
+"ChangeOffsetProtection": [
+[
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryRestorer",
+"09-APIMemoryRestorer.j"
+],
+"CharToId": [
+[
+"string"
+],
+"integer",
+"APIBasicUtils",
+"02-APIBasicUtils.j"
+],
+"CleanInt": [
+[
+"integer"
+],
+"integer",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"CleanReal": [
+[
+"real"
+],
+"real",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"ClearBenchmark": [
+[],
+"nothing",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"ClearCLayoutFrameAllPoints": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCLayoutFrameAPI",
+"25-MemHackCLayoutFrameAPI.j"
+],
+"ClearFrameAllPoints": [
+[
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"ClickCControl": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"ClickCSimpleButton": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackCSimpleButtonAPI",
+"29-MemHackCSimpleButtonAPI.j"
+],
+"ClickCSimpleButtonEx": [
+[
+"integer",
+"integer"
+],
+"boolean",
+"MemoryHackCSimpleButtonAPI",
+"29-MemHackCSimpleButtonAPI.j"
+],
+"ClickFrame": [
+[
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"ClickFrameEx": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"CloseHandle": [
+[
+"integer"
+],
+"nothing",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"ConvertHandle": [
+[
+"handle"
+],
+"integer",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"ConvertHandleId": [
+[
+"integer"
+],
+"integer",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"ConvertNullTerminatedStringToString": [
+[
+"integer"
+],
+"string",
+"APIMemoryForString",
+"07-APIMemoryString.j"
+],
+"ConvertPointer": [
+[
+"integer"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"CopyMemory": [
+[
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"CreateButtonCooldown": [
+[
+"integer",
+"integer"
+],
+"boolean",
+"MemoryHackzDrawCooldowns",
+"1-MemHackDrawCooldown.j"
+],
+"CreateCBackdropFrame": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackCFrameBackDropAPI",
+"26-MemHackCBackDropFrameAPI.j"
+],
+"CreateCBackdropFrameEx": [
+[
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackCFrameBackDropAPI",
+"26-MemHackCBackDropFrameAPI.j"
+],
+"CreateCFrameByTagName": [
+[
+"string",
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackCFrameAPI",
+"22-MemHackCFrameAPI.j"
+],
+"CreateCFrameByTagNameEx": [
+[
+"string",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackCFrameAPI",
+"22-MemHackCFrameAPI.j"
+],
+"CreateCSimpleButton": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCSimpleButtonAPI",
+"29-MemHackCSimpleButtonAPI.j"
+],
+"CreateCSimpleConsoleByTagName": [
+[
+"string",
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackCSimpleConsoleAPI",
+"33-MemHackCSimpleConsoleAPI.j"
+],
+"CreateCSimpleFont": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCSimpleFontAPI",
+"30-MemHackCSimpleFontAPI.j"
+],
+"CreateCSimpleFontEx": [
+[
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackCSimpleFontAPI",
+"30-MemHackCSimpleFontAPI.j"
+],
+"CreateCSimpleFrame": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCSimpleFrameAPI",
+"32-MemHackCSimpleFrameAPI.j"
+],
+"CreateCSimpleTexture": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCSimpleTextureAPI",
+"41-MemHackCSimpleTextureAPI.j"
+],
+"CreateDirectory": [
+[
+"string",
+"integer"
+],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"CreateDoubleIntegerAndGetOne": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"boolean"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"CreateFile": [
+[
+"string",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"CreateFileSimple": [
+[
+"string"
+],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"CreateFrame": [
+[
+"string",
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"CreateFrameEx": [
+[
+"string",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"CreateInteger1": [
+[
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"CreateIntegerFromTwoByOffset": [
+[
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"CreateJassNativeHook": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"CreateSimpleFrame": [
+[
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"DestroyCSimpleButton": [
+[
+"integer"
+],
+"boolean",
+"MemoryHackCSimpleButtonAPI",
+"29-MemHackCSimpleButtonAPI.j"
+],
+"DestroyFrame": [
+[
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"DisableAllyCheckbox": [
+[],
+"nothing",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"DisableCustomUnitAbilityCharges": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackTestAbilityChargesHook",
+"4-MemHackCustomAbilityChargesHook.j"
+],
+"DisableFrame": [
+[
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"DisableSaveGameMenu": [
+[],
+"nothing",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"DisplayExtrasPageDisplayOnExit": [
+[],
+"nothing",
+"APIMemoryRestorer",
+"09-APIMemoryRestorer.j"
+],
+"DrawAllButtonCooldowns": [
+[],
+"nothing",
+"MemoryHackzDrawCooldowns",
+"1-MemHackDrawCooldown.j"
+],
+"DrawAllCooldownSetDelay": [
+[
+"real"
+],
+"nothing",
+"MemoryHackzDrawCooldowns",
+"1-MemHackDrawCooldown.j"
+],
+"DrawButtonCooldown": [
+[
+"integer",
+"integer"
+],
+"boolean",
+"MemoryHackzDrawCooldowns",
+"1-MemHackDrawCooldown.j"
+],
+"EditBlackBorders": [
+[
+"real",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackUIAPI",
+"45-MemHackUIAPI.j"
+],
+"EditCommandBarButton": [
+[
+"integer",
+"integer",
+"integer",
+"real",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackUIAPI",
+"45-MemHackUIAPI.j"
+],
+"EditHeroBarButton": [
+[
+"integer",
+"integer",
+"real",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackUIAPI",
+"45-MemHackUIAPI.j"
+],
+"EditHeroBarHealthBar": [
+[
+"integer",
+"integer",
+"real",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackUIAPI",
+"45-MemHackUIAPI.j"
+],
+"EditHeroBarManaBar": [
+[
+"integer",
+"integer",
+"real",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackUIAPI",
+"45-MemHackUIAPI.j"
+],
+"EditItemBarButton": [
+[
+"integer",
+"integer",
+"real",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackUIAPI",
+"45-MemHackUIAPI.j"
+],
+"EditMiniMap": [
+[
+"integer",
+"real",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackUIAPI",
+"45-MemHackUIAPI.j"
+],
+"EditMinimapButton": [
+[
+"integer",
+"integer",
+"real",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackUIAPI",
+"45-MemHackUIAPI.j"
+],
+"EditTooltipUber": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackUIAPI",
+"45-MemHackUIAPI.j"
+],
+"EditUpperButtonBarButton": [
+[
+"integer",
+"integer",
+"real",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackUIAPI",
+"45-MemHackUIAPI.j"
+],
+"EnableAllyCheckbox": [
+[],
+"nothing",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"EnableCustomUnitAbilityCharges": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackTestAbilityChargesHook",
+"4-MemHackCustomAbilityChargesHook.j"
+],
+"EnableFrame": [
+[
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"EnableOPLimit": [
+[
+"boolean"
+],
+"nothing",
+"MemoryHackConstantsAPI",
+"20-MemHackConstantsAPI.j"
+],
+"EnableOPLimitEx": [
+[
+"boolean",
+"integer"
+],
+"nothing",
+"MemoryHackConstantsAPI",
+"20-MemHackConstantsAPI.j"
+],
+"ExecuteBytecode": [
+[
+"integer"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"ExportFileFromMPQ": [
+[
+"string",
+"string"
+],
+"boolean",
+"APIMemoryMPQ",
+"11-APIMemoryMPQ.j"
+],
+"ExportFileFromMPQByAddr": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryMPQ",
+"11-APIMemoryMPQ.j"
+],
+"FileExists": [
+[
+"string"
+],
+"boolean",
+"APIMemoryMPQ",
+"11-APIMemoryMPQ.j"
+],
+"FillCSimpleTexture": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackCSimpleTextureAPI",
+"41-MemHackCSimpleTextureAPI.j"
+],
+"FindCLayerUnderCursor": [
+[],
+"integer",
+"MemoryHackCLayerAPI",
+"24-MemHackCLayerAPI.j"
+],
+"FindCLayerUnderCursorEx": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackCLayerAPI",
+"24-MemHackCLayerAPI.j"
+],
+"FindLayerUnderCursor": [
+[],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"FindWindow": [
+[
+"string",
+"string"
+],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"FindWindowByAddr": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"FindWindowEx": [
+[
+"integer",
+"integer",
+"string",
+"string"
+],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"FindWindowExByAddr": [
+[
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"ForEach": [
+[
+"group"
+],
+"unit",
+"MemoryHackGroupAPI",
+"80-MemHackGroupAPI.j"
+],
+"FromPixelX": [
+[
+"integer"
+],
+"real",
+"APIMemoryWC3GameWindow",
+"16-APIMemoryGameWindow.j"
+],
+"FromPixelY": [
+[
+"integer"
+],
+"real",
+"APIMemoryWC3GameWindow",
+"16-APIMemoryGameWindow.j"
+],
+"GetARGBColour": [
+[
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"GetAbilityBackswing": [
+[
+"ability"
+],
+"real",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"GetAbilityBaseAoE": [
+[
+"ability",
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseAoEById": [
+[
+"integer",
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseButtonX": [
+[
+"ability"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseButtonXById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseButtonY": [
+[
+"ability"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseButtonYById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseCooldown": [
+[
+"ability",
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseCooldownById": [
+[
+"integer",
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseCurrentIcon": [
+[
+"ability"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseCurrentIconById": [
+[
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseCursorTexture": [
+[
+"ability"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseCursorTextureById": [
+[
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseData": [
+[
+"ability"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseDataA": [
+[
+"ability",
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseDataAById": [
+[
+"integer",
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseDataB": [
+[
+"ability",
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseDataBById": [
+[
+"integer",
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseDataByAddress": [
+[
+"integer"
+],
+"integer",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"GetAbilityBaseDataById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseDataByIdCaching": [
+[
+"integer"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseDataC": [
+[
+"ability",
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseDataCById": [
+[
+"integer",
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseDataCaching": [
+[
+"ability"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseDataD": [
+[
+"ability",
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseDataDById": [
+[
+"integer",
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseDataE": [
+[
+"ability",
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseDataEById": [
+[
+"integer",
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseDataF": [
+[
+"ability",
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseDataFById": [
+[
+"integer",
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseDefData": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseEffectId": [
+[
+"ability",
+"integer"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseEffectIdById": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseEffectSound": [
+[
+"ability"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseEffectSoundById": [
+[
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseEffectSoundLooped": [
+[
+"ability"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseEffectSoundLoopedById": [
+[
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseGlobalMessage": [
+[
+"ability"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseGlobalMessageById": [
+[
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseGlobalSound": [
+[
+"ability"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseGlobalSoundById": [
+[
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseHeroDuration": [
+[
+"ability",
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseHeroDurationById": [
+[
+"integer",
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseHotkeyId": [
+[
+"ability"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseHotkeyIdById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseHotkeyParam": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseIcon": [
+[
+"ability"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseIconById": [
+[
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseId": [
+[
+"ability"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseManaCost": [
+[
+"ability",
+"integer"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseManaCostById": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseMaxLevel": [
+[
+"ability"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseMaxLevelById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseMissileArc": [
+[
+"ability"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseMissileArcById": [
+[
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseMissileArt": [
+[
+"ability"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseMissileArtById": [
+[
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseMissileSpeed": [
+[
+"ability"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseMissileSpeedById": [
+[
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseMissingIcon": [
+[
+"ability"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseMissingIconById": [
+[
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseName": [
+[
+"ability"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseNameById": [
+[
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseNormalDuration": [
+[
+"ability",
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseNormalDurationById": [
+[
+"integer",
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseRange": [
+[
+"ability",
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseRangeById": [
+[
+"integer",
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseResearchButtonX": [
+[
+"ability"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseResearchButtonXById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseResearchButtonY": [
+[
+"ability"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseResearchButtonYById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseResearchHotkeyId": [
+[
+"ability"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseResearchHotkeyIdById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseResearchTip": [
+[
+"ability",
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseResearchTipById": [
+[
+"integer",
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseResearchUberTip": [
+[
+"ability",
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseResearchUberTipById": [
+[
+"integer",
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseResearchUnUberTip": [
+[
+"ability",
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseResearchUnUberTipById": [
+[
+"integer",
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseSpellDetails": [
+[
+"ability"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseSpellDetailsById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseSummonedUnit": [
+[
+"ability",
+"integer"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseSummonedUnitById": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseTip": [
+[
+"ability",
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseTipById": [
+[
+"integer",
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseUI": [
+[
+"ability"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseUIBoolParam": [
+[
+"integer",
+"integer"
+],
+"boolean",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseUIById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseUIByIdCaching": [
+[
+"integer"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseUICaching": [
+[
+"ability"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseUIIntegerParam": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseUIPStringParam": [
+[
+"integer",
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseUIRealParam": [
+[
+"integer",
+"integer"
+],
+"real",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseUIStringParam": [
+[
+"integer",
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseUIStringParam2": [
+[
+"integer",
+"integer",
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseUbertip": [
+[
+"ability",
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseUbertipById": [
+[
+"integer",
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseUnButtonX": [
+[
+"ability"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseUnButtonXById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseUnButtonY": [
+[
+"ability"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseUnButtonYById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseUnHotkeyId": [
+[
+"ability"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseUnHotkeyIdById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseUnTip": [
+[
+"ability",
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityBaseUnTipById": [
+[
+"integer",
+"integer"
+],
+"string",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetAbilityCastTime": [
+[
+"ability"
+],
+"real",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"GetAbilityCastpoint": [
+[
+"ability"
+],
+"real",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"GetAbilityCooldownStamp": [
+[
+"ability"
+],
+"real",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"GetAbilityCurrentCooldown": [
+[
+"ability"
+],
+"real",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"GetAbilityDisabled": [
+[
+"ability"
+],
+"integer",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"GetAbilityDisabledEx": [
+[
+"ability"
+],
+"integer",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"GetAbilityManaCost": [
+[
+"ability",
+"integer"
+],
+"integer",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"GetAbilityOrderId": [
+[
+"ability"
+],
+"integer",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"GetAbilityTypeId": [
+[
+"ability"
+],
+"integer",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"GetActiveWindow": [
+[],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"GetAddressAbilityBackswing": [
+[
+"integer"
+],
+"real",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"GetAddressAbilityBaseId": [
+[
+"integer"
+],
+"integer",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"GetAddressAbilityBaseTypeId": [
+[
+"integer"
+],
+"integer",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"GetAddressAbilityCastTime": [
+[
+"integer"
+],
+"real",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"GetAddressAbilityCastpoint": [
+[
+"integer"
+],
+"real",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"GetAddressAbilityCooldownStamp": [
+[
+"integer"
+],
+"real",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"GetAddressAbilityCurrentCooldown": [
+[
+"integer"
+],
+"real",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"GetAddressAbilityDefaultCooldown": [
+[
+"integer"
+],
+"real",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"GetAddressAbilityDisabled": [
+[
+"integer"
+],
+"integer",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"GetAddressAbilityDisabledEx": [
+[
+"integer"
+],
+"integer",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"GetAddressAbilityManaCost": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"GetAddressAbilityOrderId": [
+[
+"integer"
+],
+"integer",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"GetAddressAbilityTypeId": [
+[
+"integer"
+],
+"integer",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"GetAddressBuffLevel": [
+[
+"integer"
+],
+"integer",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"GetAddressGroupAddressUnitByIndex": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackGroupAPI",
+"80-MemHackGroupAPI.j"
+],
+"GetAddressGroupUnitCount": [
+[
+"integer"
+],
+"integer",
+"MemoryHackGroupAPI",
+"80-MemHackGroupAPI.j"
+],
+"GetAddressLocustFlags": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetAgentHashKey": [
+[
+"integer"
+],
+"integer",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"GetAgentTimerCooldown": [
+[
+"integer"
+],
+"real",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"GetAgentTimerExtendedCooldown": [
+[
+"integer"
+],
+"real",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"GetAgentType": [
+[
+"handle"
+],
+"integer",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"GetAgentUIDefById": [
+[
+"integer"
+],
+"integer",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"GetAgileDataNodeById": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"GetArrayAAddress": [
+[],
+"integer",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"GetArrayAddress": [
+[],
+"integer",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"GetArrayBAddress": [
+[],
+"integer",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"GetArrayCAddress": [
+[],
+"integer",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"GetArrayDAddress": [
+[],
+"integer",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"GetArrayEAddress": [
+[],
+"integer",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"GetAsyncKeyState": [
+[
+"integer"
+],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"GetBTableShadow": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackzDrawCooldowns",
+"1-MemHackDrawCooldown.j"
+],
+"GetBTableText": [
+[
+"integer"
+],
+"integer",
+"MemoryHackzDrawCooldowns",
+"1-MemHackDrawCooldown.j"
+],
+"GetBuffLevel": [
+[
+"buff"
+],
+"integer",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"GetButtonCooldown": [
+[
+"integer",
+"boolean"
+],
+"real",
+"APIMemoryWC3GameUIButton",
+"15-APIMemoryGameUIButton.j"
+],
+"GetButtonCooldownOld": [
+[
+"integer"
+],
+"real",
+"APIMemoryWC3GameUIButton",
+"15-APIMemoryGameUIButton.j"
+],
+"GetButtonData": [
+[
+"integer"
+],
+"integer",
+"APIMemoryWC3GameUIButton",
+"15-APIMemoryGameUIButton.j"
+],
+"GetButtonGoldCost": [
+[
+"integer"
+],
+"integer",
+"APIMemoryWC3GameUIButton",
+"15-APIMemoryGameUIButton.j"
+],
+"GetButtonLumberCost": [
+[
+"integer"
+],
+"integer",
+"APIMemoryWC3GameUIButton",
+"15-APIMemoryGameUIButton.j"
+],
+"GetButtonManaCost": [
+[
+"integer"
+],
+"integer",
+"APIMemoryWC3GameUIButton",
+"15-APIMemoryGameUIButton.j"
+],
+"GetByteFromInteger": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"GetBytecodeAddress": [
+[],
+"integer",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"GetCAgentFromHash": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"GetCAgentFromHashGroup": [
+[
+"integer"
+],
+"integer",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"GetCDTable": [
+[],
+"hashtable",
+"MemoryHackzDrawCooldowns",
+"1-MemHackDrawCooldown.j"
+],
+"GetCEditBoxText": [
+[
+"integer"
+],
+"string",
+"MemoryHackCFrameEditBoxAPI",
+"27-MemHackCEditBoxAPI.j"
+],
+"GetCFrameByName": [
+[
+"string",
+"integer"
+],
+"integer",
+"MemoryHackCFrameAPI",
+"22-MemHackCFrameAPI.j"
+],
+"GetCGameObjectStruct": [
+[],
+"integer",
+"MemoryHackPlayerAPI",
+"55-MemHackPlayerAPI.j"
+],
+"GetCLayoutFrameHeight": [
+[
+"integer"
+],
+"real",
+"MemoryHackCLayoutFrameAPI",
+"25-MemHackCLayoutFrameAPI.j"
+],
+"GetCModelFrameHeight": [
+[
+"integer"
+],
+"real",
+"MemoryHackCModelFrameAPI",
+"28-MemHackCModelFrameAPI.j"
+],
+"GetCMouseEvent": [
+[],
+"integer",
+"MemoryHackMouseAPI",
+"83-MemHackMouseAPI.j"
+],
+"GetCObjectFromHash": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"GetCObjectFromHashEx": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"GetCObjectFromHashGroup": [
+[
+"integer"
+],
+"integer",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"GetCObjectFromHashGroup2": [
+[
+"integer"
+],
+"integer",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"GetCObjectFromHashGroupEx": [
+[
+"integer"
+],
+"integer",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"GetCSimpleFontByName": [
+[
+"string",
+"integer"
+],
+"integer",
+"MemoryHackCSimpleFontAPI",
+"30-MemHackCSimpleFontAPI.j"
+],
+"GetCSimpleFontStringHeight": [
+[
+"integer"
+],
+"real",
+"MemoryHackCSimpleFontAPI",
+"30-MemHackCSimpleFontAPI.j"
+],
+"GetCSimpleFontTextByName": [
+[
+"string",
+"integer"
+],
+"string",
+"MemoryHackCSimpleFontAPI",
+"30-MemHackCSimpleFontAPI.j"
+],
+"GetCSimpleFrameByName": [
+[
+"string",
+"integer"
+],
+"integer",
+"MemoryHackCSimpleFrameAPI",
+"32-MemHackCSimpleFrameAPI.j"
+],
+"GetCSimpleTextureByName": [
+[
+"string",
+"integer"
+],
+"integer",
+"MemoryHackCSimpleTextureAPI",
+"41-MemHackCSimpleTextureAPI.j"
+],
+"GetCSpriteFrameHeight": [
+[
+"integer"
+],
+"real",
+"MemoryHackCSpriteFrameAPI",
+"34-MemHackCSpriteFrameAPI.j"
+],
+"GetCTextFrameHeight": [
+[
+"integer"
+],
+"real",
+"MemoryHackCTextFrameAPI",
+"38-MemHackCTextFrameAPI.j"
+],
+"GetCWidgetAgent": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCWidgetAPI",
+"65-MemHackWidgetNormalAPI.j"
+],
+"GetCWidgetPresence": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCWidgetAPI",
+"65-MemHackWidgetNormalAPI.j"
+],
+"GetChargesTable": [
+[],
+"hashtable",
+"MemoryHackTestAbilityChargesHook",
+"4-MemHackCustomAbilityChargesHook.j"
+],
+"GetCommandBarButton": [
+[
+"integer"
+],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetCurrentProcessId": [
+[],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"GetCursorPos": [
+[],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"GetCursorPosStruct": [
+[],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"GetCursorRelativeAxis": [
+[],
+"integer",
+"MemoryHackMouseAPI",
+"83-MemHackMouseAPI.j"
+],
+"GetCursorX": [
+[],
+"integer",
+"MemoryHackMouseAPI",
+"83-MemHackMouseAPI.j"
+],
+"GetCursorXRelative": [
+[],
+"integer",
+"MemoryHackMouseAPI",
+"83-MemHackMouseAPI.j"
+],
+"GetCursorY": [
+[],
+"integer",
+"MemoryHackMouseAPI",
+"83-MemHackMouseAPI.j"
+],
+"GetCursorYRelative": [
+[],
+"integer",
+"MemoryHackMouseAPI",
+"83-MemHackMouseAPI.j"
+],
+"GetCustomUnitAbilityCharges": [
+[
+"unit",
+"integer"
+],
+"integer",
+"MemoryHackTestAbilityChargesHook",
+"4-MemHackCustomAbilityChargesHook.j"
+],
+"GetDamageEventESPData": [
+[],
+"integer",
+"MemoryHackDamageEventHook",
+"2-MemHackDamageHook.j"
+],
+"GetEffectColour": [
+[
+"effect"
+],
+"integer",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"GetEffectColourA": [
+[
+"effect"
+],
+"integer",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"GetEffectColourB": [
+[
+"effect"
+],
+"integer",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"GetEffectColourG": [
+[
+"effect"
+],
+"integer",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"GetEffectColourR": [
+[
+"effect"
+],
+"integer",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"GetEffectFacing": [
+[
+"effect"
+],
+"real",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"GetEffectPitch": [
+[
+"effect"
+],
+"real",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"GetEffectRoll": [
+[
+"effect"
+],
+"real",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"GetEffectScale": [
+[
+"effect"
+],
+"real",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"GetEffectTimeScale": [
+[
+"effect"
+],
+"real",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"GetEffectX": [
+[
+"effect"
+],
+"real",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"GetEffectY": [
+[
+"effect"
+],
+"real",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"GetEffectYaw": [
+[
+"effect"
+],
+"real",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"GetEffectZ": [
+[
+"effect"
+],
+"real",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"GetFileAttributes": [
+[
+"string"
+],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"GetFileSizeFromMPQ": [
+[
+"string"
+],
+"integer",
+"APIMemoryMPQ",
+"11-APIMemoryMPQ.j"
+],
+"GetForegroundWindow": [
+[],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"GetFrameAbsolutePoint": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"GetFrameAbsolutePointX": [
+[
+"integer",
+"integer"
+],
+"real",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"GetFrameAbsolutePointY": [
+[
+"integer",
+"integer"
+],
+"real",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"GetFrameAlpha": [
+[
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"GetFrameByName": [
+[
+"string",
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"GetFrameHasLayout": [
+[
+"integer"
+],
+"boolean",
+"APIMemoryFrameData",
+"12-APIMemoryFrameData.j"
+],
+"GetFrameHeight": [
+[
+"integer"
+],
+"real",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"GetFrameLayout": [
+[
+"integer"
+],
+"integer",
+"APIMemoryFrameData",
+"12-APIMemoryFrameData.j"
+],
+"GetFrameLayoutAddress": [
+[
+"integer"
+],
+"integer",
+"APIMemoryFrameData",
+"12-APIMemoryFrameData.j"
+],
+"GetFrameLayoutByType": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryFrameData",
+"12-APIMemoryFrameData.j"
+],
+"GetFrameName": [
+[
+"integer"
+],
+"string",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"GetFrameParent": [
+[
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"GetFramePoint": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"GetFramePointRelativePoint": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"GetFrameRelativePoint": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"GetFrameRelativePointParent": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"GetFrameRelativePointX": [
+[
+"integer",
+"integer"
+],
+"real",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"GetFrameRelativePointY": [
+[
+"integer",
+"integer"
+],
+"real",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"GetFrameSkinByName": [
+[
+"string",
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"GetFrameState": [
+[
+"integer",
+"integer"
+],
+"boolean",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"GetFrameText": [
+[
+"integer"
+],
+"string",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"GetFrameTextByName": [
+[
+"string",
+"integer"
+],
+"string",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"GetFrameTextLength": [
+[
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"GetFrameTextMaxLength": [
+[
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"GetFrameType": [
+[
+"integer"
+],
+"integer",
+"APIMemoryFrameData",
+"12-APIMemoryFrameData.j"
+],
+"GetFrameTypeName": [
+[
+"integer"
+],
+"string",
+"APIMemoryFrameData",
+"12-APIMemoryFrameData.j"
+],
+"GetFrameTypeNameByIndex": [
+[
+"integer"
+],
+"string",
+"APIMemoryFrameData",
+"12-APIMemoryFrameData.j"
+],
+"GetFrameValue": [
+[
+"integer"
+],
+"real",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"GetFrameWidth": [
+[
+"integer"
+],
+"real",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"GetFuncFromDll": [
+[
+"string",
+"string",
+"boolean"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"GetGameDataNode": [
+[],
+"integer",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"GetGameStateInstance": [
+[],
+"integer",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"GetGameTypeSupported": [
+[],
+"integer",
+"APIMemoryBitwise",
+"06-APIMemoryBitwise.j"
+],
+"GetGameUI": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetGroupUnitCount": [
+[
+"group"
+],
+"integer",
+"MemoryHackGroupAPI",
+"80-MemHackGroupAPI.j"
+],
+"GetHeroBarButton": [
+[
+"integer"
+],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetHeroBarHealthBar": [
+[
+"integer"
+],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetHeroBarManaBar": [
+[
+"integer"
+],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetHeroBasePrimaryAttribute": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetHeroBasePrimaryAttributeById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetHeroNeededXP": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetHeroNeededXPForLevel": [
+[
+"unit",
+"integer"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetHeroPrimaryAttribute": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetIntHex": [
+[
+"integer"
+],
+"string",
+"APIBasicUtils",
+"02-APIBasicUtils.j"
+],
+"GetItemAbilityByIndex": [
+[
+"item",
+"integer"
+],
+"ability",
+"MemoryHackItemNormalAPI",
+"73-MemHackItemNormalAPI.j"
+],
+"GetItemBarButton": [
+[
+"integer"
+],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetItemBaseData": [
+[
+"item"
+],
+"integer",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseDataById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseDataByIdCaching": [
+[
+"integer"
+],
+"integer",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseDataCaching": [
+[
+"item"
+],
+"integer",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseGoldCost": [
+[
+"item"
+],
+"integer",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseGoldCostById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseHotkey": [
+[
+"item"
+],
+"integer",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseHotkeyById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseIconPath": [
+[
+"item"
+],
+"string",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseIconPathById": [
+[
+"integer"
+],
+"string",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseLevel": [
+[
+"item"
+],
+"integer",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseLevelById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseLumberCost": [
+[
+"item"
+],
+"integer",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseLumberCostById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseName": [
+[
+"item"
+],
+"string",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseNameById": [
+[
+"integer"
+],
+"string",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseTip": [
+[
+"item"
+],
+"string",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseTipById": [
+[
+"integer"
+],
+"string",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseTypeId": [
+[
+"item"
+],
+"integer",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseTypeIdById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseUIData": [
+[
+"item"
+],
+"integer",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseUIDataById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseUIDataByIdCaching": [
+[
+"integer"
+],
+"integer",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseUIDataCaching": [
+[
+"item"
+],
+"integer",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseUIStringParam": [
+[
+"item",
+"integer",
+"integer"
+],
+"string",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseUIStringParamById": [
+[
+"integer",
+"integer",
+"integer"
+],
+"string",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseUbertip": [
+[
+"item"
+],
+"string",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemBaseUbertipById": [
+[
+"integer"
+],
+"string",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"GetItemLife": [
+[
+"item"
+],
+"real",
+"MemoryHackItemNormalAPI",
+"73-MemHackItemNormalAPI.j"
+],
+"GetItemMaxLife": [
+[
+"item"
+],
+"real",
+"MemoryHackItemNormalAPI",
+"73-MemHackItemNormalAPI.j"
+],
+"GetJassTable": [
+[],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"GetJassVM": [
+[
+"integer"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"GetLocalPlayerIdReal": [
+[],
+"integer",
+"MemoryHackPlayerAPI",
+"55-MemHackPlayerAPI.j"
+],
+"GetLocalPlayerReal": [
+[],
+"integer",
+"MemoryHackPlayerAPI",
+"55-MemHackPlayerAPI.j"
+],
+"GetLocalTime": [
+[
+"integer"
+],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"GetMemoryArrayAddress": [
+[],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"GetMinimapButton": [
+[
+"integer"
+],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetModuleHandle": [
+[
+"string"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"GetModuleHandleByAddr": [
+[
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"GetModuleProcAddress": [
+[
+"string",
+"string"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"GetModuleProcAddressByAddr": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"GetMouseWorldAxis": [
+[
+"integer"
+],
+"real",
+"MemoryHackMouseAPI",
+"83-MemHackMouseAPI.j"
+],
+"GetMouseWorldEnv": [
+[],
+"integer",
+"MemoryHackMouseAPI",
+"83-MemHackMouseAPI.j"
+],
+"GetMouseWorldX": [
+[],
+"real",
+"MemoryHackMouseAPI",
+"83-MemHackMouseAPI.j"
+],
+"GetMouseWorldY": [
+[],
+"real",
+"MemoryHackMouseAPI",
+"83-MemHackMouseAPI.j"
+],
+"GetMouseWorldZ": [
+[],
+"real",
+"MemoryHackMouseAPI",
+"83-MemHackMouseAPI.j"
+],
+"GetObjectColour": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"GetObjectColourA": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"GetObjectColourB": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"GetObjectColourG": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"GetObjectColourR": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"GetObjectFacing": [
+[
+"integer"
+],
+"real",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"GetObjectFacingRad": [
+[
+"integer"
+],
+"real",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"GetObjectPitch": [
+[
+"integer"
+],
+"real",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"GetObjectPitchRad": [
+[
+"integer"
+],
+"real",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"GetObjectRoll": [
+[
+"integer"
+],
+"real",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"GetObjectRollRad": [
+[
+"integer"
+],
+"real",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"GetObjectScale": [
+[
+"integer"
+],
+"real",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"GetObjectSprite": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"GetObjectSpriteFloat": [
+[
+"integer",
+"integer"
+],
+"real",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"GetObjectTimeScale": [
+[
+"integer"
+],
+"real",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"GetObjectTypeId": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"GetObjectX": [
+[
+"integer"
+],
+"real",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"GetObjectY": [
+[
+"integer"
+],
+"real",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"GetObjectYaw": [
+[
+"integer"
+],
+"real",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"GetObjectYawRad": [
+[
+"integer"
+],
+"real",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"GetObjectZ": [
+[
+"integer"
+],
+"real",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"GetOrderPlayerId": [
+[
+"unit"
+],
+"integer",
+"MemoryHackPlayerAPI",
+"55-MemHackPlayerAPI.j"
+],
+"GetPanelButton": [
+[
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetPlayerSelectedUnitReal": [
+[
+"integer"
+],
+"integer",
+"MemoryHackPlayerAPI",
+"55-MemHackPlayerAPI.j"
+],
+"GetRandomUnitFromGroup": [
+[
+"group"
+],
+"unit",
+"MemoryHackGroupAPI",
+"80-MemHackGroupAPI.j"
+],
+"GetRealFromMemory": [
+[
+"integer"
+],
+"real",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"GetRealPlayerById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackPlayerAPI",
+"55-MemHackPlayerAPI.j"
+],
+"GetRootFrame": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetScreenHeight": [
+[],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"GetScreenWidth": [
+[],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"GetSkillBarButton": [
+[
+"integer"
+],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetSkillBarButtonXY": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetSmartPositionAxis": [
+[
+"integer"
+],
+"integer",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"GetSpriteBaseAnimComplex": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"GetSpriteBaseFacing": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"GetSpriteBaseFacingRad": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"GetSpriteBaseFloat": [
+[
+"integer",
+"integer"
+],
+"real",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"GetSpriteBaseModelComplex": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"GetSpriteBasePitch": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"GetSpriteBasePitchRad": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"GetSpriteBaseRoll": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"GetSpriteBaseRollRad": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"GetSpriteBaseScale": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"GetSpriteBaseTimeScale": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"GetSpriteBaseType": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"GetSpriteBaseX": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"GetSpriteBaseY": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"GetSpriteBaseYaw": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"GetSpriteBaseYawRad": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"GetSpriteBaseZ": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"GetSpriteMiniFacing": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"GetSpriteMiniFacingRad": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"GetSpriteMiniPitch": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"GetSpriteMiniPitchRad": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"GetSpriteMiniRoll": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"GetSpriteMiniRollRad": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"GetSpriteMiniScale": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"GetSpriteMiniTimeScale": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"GetSpriteMiniX": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"GetSpriteMiniY": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"GetSpriteMiniYaw": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"GetSpriteMiniYawRad": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"GetSpriteMiniZ": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"GetSpriteUberColour": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"GetSpriteUberColourA": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"GetSpriteUberColourB": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"GetSpriteUberColourG": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"GetSpriteUberColourR": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"GetSpriteUberFacing": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"GetSpriteUberFacingRad": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"GetSpriteUberPitch": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"GetSpriteUberPitchRad": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"GetSpriteUberRoll": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"GetSpriteUberRollRad": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"GetSpriteUberScale": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"GetSpriteUberTimeScale": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"GetSpriteUberX": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"GetSpriteUberY": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"GetSpriteUberYaw": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"GetSpriteUberYawRad": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"GetSpriteUberZ": [
+[
+"integer"
+],
+"real",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"GetStringAddress": [
+[
+"string"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"GetSystemMetrics": [
+[
+"integer"
+],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"GetTempestThread": [
+[],
+"integer",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"GetTerrainZ": [
+[
+"real",
+"real"
+],
+"real",
+"MemoryHackCWidgetAPI",
+"65-MemHackWidgetNormalAPI.j"
+],
+"GetTooltipUberFrame": [
+[],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"GetTrackableColour": [
+[
+"trackable"
+],
+"integer",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"GetTrackableColourA": [
+[
+"trackable"
+],
+"integer",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"GetTrackableColourB": [
+[
+"trackable"
+],
+"integer",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"GetTrackableColourG": [
+[
+"trackable"
+],
+"integer",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"GetTrackableColourR": [
+[
+"trackable"
+],
+"integer",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"GetTrackableFacing": [
+[
+"trackable"
+],
+"real",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"GetTrackablePitch": [
+[
+"trackable"
+],
+"real",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"GetTrackableRoll": [
+[
+"trackable"
+],
+"real",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"GetTrackableScale": [
+[
+"trackable"
+],
+"real",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"GetTrackableTimeScale": [
+[
+"trackable"
+],
+"real",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"GetTrackableX": [
+[
+"trackable"
+],
+"real",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"GetTrackableY": [
+[
+"trackable"
+],
+"real",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"GetTrackableYaw": [
+[
+"trackable"
+],
+"real",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"GetTrackableZ": [
+[
+"trackable"
+],
+"real",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"GetUIChatEditBar": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUIChatMessage": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUICinematicPanel": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUIClickableBlock": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUICommandBar": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUIFrameA": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUIFrameB": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUIHeroBar": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUIInfoBar": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUIMessage": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUIMinimap": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUIMinimapButton1": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUIMinimapButton2": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUIMinimapButton3": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUIMinimapButton4": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUIMinimapButton5": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUIMouseBorders": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUIPeonBar": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUIPortrait": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUIResourceBarFrame": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUISimpleConsole": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUITimeOfDayIndicator": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUITopMessage": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUIUnitMessage": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUIUnknown1": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUIUnknown2": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUIUpperButtonBarFrame": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUIWorldFrameWar3": [
+[],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUnitAbility": [
+[
+"unit",
+"integer"
+],
+"integer",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"GetUnitAbilityBackswing": [
+[
+"unit",
+"integer"
+],
+"real",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"GetUnitAbilityBase": [
+[
+"unit",
+"integer"
+],
+"integer",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"GetUnitAbilityByIndex": [
+[
+"unit",
+"integer"
+],
+"ability",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"GetUnitAbilityCastTime": [
+[
+"unit",
+"integer"
+],
+"real",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"GetUnitAbilityCastpoint": [
+[
+"unit",
+"integer"
+],
+"real",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"GetUnitAbilityCooldownStamp": [
+[
+"unit",
+"integer"
+],
+"real",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"GetUnitAbilityCurrentCooldown": [
+[
+"unit",
+"integer"
+],
+"real",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"GetUnitAbilityData": [
+[
+"unit",
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"GetUnitAbilityDisabled": [
+[
+"unit",
+"integer"
+],
+"integer",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"GetUnitAbilityDisabledEx": [
+[
+"unit",
+"integer"
+],
+"integer",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"GetUnitAbilityManaCost": [
+[
+"unit",
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"GetUnitAbilityOrderId": [
+[
+"unit",
+"integer"
+],
+"integer",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"GetUnitAbilityReal": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"GetUnitAddressFloatsRelated": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"GetUnitArmour": [
+[
+"unit"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitArmourType": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitAttackAbility": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitAttackBackswing": [
+[
+"unit"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitAttackDamage": [
+[
+"unit"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitAttackEnabledIndex": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitAttackOffsetValue": [
+[
+"unit",
+"integer"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitAttackPoint1": [
+[
+"unit"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitAttackPoint2": [
+[
+"unit"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitAttackPointByIndex": [
+[
+"unit",
+"integer"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitAttackRange1": [
+[
+"unit"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitAttackRange2": [
+[
+"unit"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitAttackRangeByIndex": [
+[
+"unit",
+"integer"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitAttackSpeed": [
+[
+"unit"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitAttackType1": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitAttackType2": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitAttackTypeByIndex": [
+[
+"unit",
+"integer"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitBAT1": [
+[
+"unit"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitBAT2": [
+[
+"unit"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitBATByIndex": [
+[
+"unit",
+"integer"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitBaseAttributeDamage": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitBaseColor": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseColorById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseDamage": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitBaseData": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseDataById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseDataByIdCaching": [
+[
+"integer"
+],
+"integer",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseDataCaching": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseHotkey": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseHotkeyById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseIconPath": [
+[
+"unit"
+],
+"string",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseIconPathById": [
+[
+"integer"
+],
+"string",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseMissileArcById": [
+[
+"integer",
+"integer"
+],
+"real",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseMissileArt": [
+[
+"unit",
+"integer"
+],
+"string",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseMissileArtById": [
+[
+"integer",
+"integer"
+],
+"string",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseMissileSpeed": [
+[
+"unit",
+"integer"
+],
+"real",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseMissileSpeedById": [
+[
+"integer",
+"integer"
+],
+"real",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseModel": [
+[
+"unit"
+],
+"string",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseModelById": [
+[
+"integer"
+],
+"string",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseMoveSpeed": [
+[
+"unit"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitBasePortrait": [
+[
+"unit"
+],
+"string",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBasePortraitById": [
+[
+"integer"
+],
+"string",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseTip": [
+[
+"unit"
+],
+"string",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseTipById": [
+[
+"integer"
+],
+"string",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseUIData": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseUIDataById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseUIDataByIdCaching": [
+[
+"integer"
+],
+"integer",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseUIDataCaching": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseUIIntegerParam": [
+[
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseUIStringParam": [
+[
+"integer",
+"integer",
+"integer"
+],
+"string",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseUbertip": [
+[
+"unit"
+],
+"string",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBaseUbertipById": [
+[
+"integer"
+],
+"string",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitBonusDamage": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitBonusMoveSpeed": [
+[
+"unit"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitBuffLevel": [
+[
+"unit",
+"integer"
+],
+"integer",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"GetUnitCollisionSize": [
+[
+"unit"
+],
+"real",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitCollisionSizeById": [
+[
+"integer"
+],
+"real",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitCritterFlag": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitCurrentSight": [
+[
+"unit"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitDamageDicesCount": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitDamageDicesSideCount": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitFlags": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitFlags_2": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitFoodCost": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitFoodCostById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitFromGroupByIndex": [
+[
+"group",
+"integer"
+],
+"unit",
+"MemoryHackGroupAPI",
+"80-MemHackGroupAPI.j"
+],
+"GetUnitGoldCostById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitGoldCostEx": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitImpactZ": [
+[
+"unit"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitInvulnerableCounter": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitJAbility": [
+[
+"unit",
+"integer"
+],
+"ability",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"GetUnitLifeRegen": [
+[
+"unit"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitLumberCost": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitLumberCostById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"GetUnitMagicResist": [
+[
+"unit"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"79-MemHackUnitNormalAPI.j"
+],
+"GetUnitMagicResistEx": [
+[
+"unit",
+"integer"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"79-MemHackUnitNormalAPI.j"
+],
+"GetUnitManaRegen": [
+[
+"unit"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitMoveType": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitNextAttackTimestamp": [
+[
+"unit"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitTimeScale": [
+[
+"unit"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitTimedLife": [
+[
+"unit"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitTotalDamage": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitTypeIdReal": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitVertexColour": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitVertexColourA": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitVertexColourB": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitVertexColourG": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitVertexColourR": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitVisibilityClass": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitWeaponSound": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUnitWeaponType": [
+[
+"unit"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetUpperButtonBarButton": [
+[
+"integer"
+],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"GetUtilityLibraryHashtable": [
+[],
+"hashtable",
+"APIMemoryUtilityLibraryAPI",
+"17-APIMemoryUtilityLibraryAPI.j"
+],
+"GetWarcraftWindow": [
+[],
+"integer",
+"APIMemoryWC3GameWindow",
+"16-APIMemoryGameWindow.j"
+],
+"GetWidgetAgent": [
+[
+"widget"
+],
+"integer",
+"MemoryHackCWidgetAPI",
+"65-MemHackWidgetNormalAPI.j"
+],
+"GetWidgetBaseData": [
+[
+"integer",
+"widget"
+],
+"integer",
+"MemoryHackCWidgetBaseAPI",
+"64-MemHackWidgetBaseAPI.j"
+],
+"GetWidgetBaseDataById": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackCWidgetBaseAPI",
+"64-MemHackWidgetBaseAPI.j"
+],
+"GetWidgetBaseDataByIdCaching": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackCWidgetBaseAPI",
+"64-MemHackWidgetBaseAPI.j"
+],
+"GetWidgetBaseDataByIdCachingEx": [
+[
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackCWidgetBaseAPI",
+"64-MemHackWidgetBaseAPI.j"
+],
+"GetWidgetBaseDataCaching": [
+[
+"integer",
+"widget"
+],
+"integer",
+"MemoryHackCWidgetBaseAPI",
+"64-MemHackWidgetBaseAPI.j"
+],
+"GetWidgetBaseUIData": [
+[
+"widget"
+],
+"integer",
+"MemoryHackCWidgetBaseAPI",
+"64-MemHackWidgetBaseAPI.j"
+],
+"GetWidgetBaseUIDataById": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCWidgetBaseAPI",
+"64-MemHackWidgetBaseAPI.j"
+],
+"GetWidgetBaseUIDataByIdCaching": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCWidgetBaseAPI",
+"64-MemHackWidgetBaseAPI.j"
+],
+"GetWidgetBaseUIDataCaching": [
+[
+"widget"
+],
+"integer",
+"MemoryHackCWidgetBaseAPI",
+"64-MemHackWidgetBaseAPI.j"
+],
+"GetWidgetBaseUIIntegerParamById": [
+[
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackCWidgetBaseAPI",
+"64-MemHackWidgetBaseAPI.j"
+],
+"GetWidgetBaseUIStringParamById": [
+[
+"integer",
+"integer",
+"integer"
+],
+"string",
+"MemoryHackCWidgetBaseAPI",
+"64-MemHackWidgetBaseAPI.j"
+],
+"GetWidgetLifeRegen": [
+[
+"widget"
+],
+"real",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"GetWidgetPresence": [
+[
+"widget"
+],
+"integer",
+"MemoryHackCWidgetAPI",
+"65-MemHackWidgetNormalAPI.j"
+],
+"GetWidgetTerrainZ": [
+[
+"widget"
+],
+"real",
+"MemoryHackCWidgetAPI",
+"65-MemHackWidgetNormalAPI.j"
+],
+"GetWidgetTypeId": [
+[
+"widget"
+],
+"integer",
+"MemoryHackCWidgetBaseAPI",
+"64-MemHackWidgetBaseAPI.j"
+],
+"GetWidgetUIDefById": [
+[
+"integer"
+],
+"integer",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"GetWindowCenterX": [
+[],
+"real",
+"APIMemoryWC3GameWindow",
+"16-APIMemoryGameWindow.j"
+],
+"GetWindowCenterY": [
+[],
+"real",
+"APIMemoryWC3GameWindow",
+"16-APIMemoryGameWindow.j"
+],
+"GetWindowClassName": [
+[
+"integer"
+],
+"string",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"GetWindowHeight": [
+[],
+"real",
+"APIMemoryWC3GameWindow",
+"16-APIMemoryGameWindow.j"
+],
+"GetWindowRect": [
+[
+"integer"
+],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"GetWindowRectStruct": [
+[
+"integer"
+],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"GetWindowText": [
+[
+"integer"
+],
+"string",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"GetWindowWidth": [
+[],
+"real",
+"APIMemoryWC3GameWindow",
+"16-APIMemoryGameWindow.j"
+],
+"GetWindowX": [
+[
+"integer"
+],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"GetWindowY": [
+[
+"integer"
+],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"H2I": [
+[
+"handle"
+],
+"integer",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"HandleIdToObject": [
+[
+"integer"
+],
+"integer",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"HideAllUI": [
+[],
+"nothing",
+"MemoryHackUIAPI",
+"45-MemHackUIAPI.j"
+],
+"HideBlackBorders": [
+[],
+"nothing",
+"MemoryHackUIAPI",
+"45-MemHackUIAPI.j"
+],
+"HideCLayer": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCLayerAPI",
+"24-MemHackCLayerAPI.j"
+],
+"HideCSimpleFrame": [
+[
+"integer"
+],
+"boolean",
+"MemoryHackCSimpleFrameAPI",
+"32-MemHackCSimpleFrameAPI.j"
+],
+"HideCSimpleRegion": [
+[
+"integer"
+],
+"nothing",
+"MemoryHackCSimpleRegionAPI",
+"42-MemHackCSimpleRegionAPI.j"
+],
+"HideFrame": [
+[
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"HideMiniMap": [
+[],
+"nothing",
+"MemoryHackUIAPI",
+"45-MemHackUIAPI.j"
+],
+"HideUI": [
+[],
+"nothing",
+"MemoryHackUIAPI",
+"45-MemHackUIAPI.j"
+],
+"I2A": [
+[
+"integer"
+],
+"ability",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"I2B": [
+[
+"integer"
+],
+"boolean",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"I2C": [
+[
+"integer"
+],
+"code",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"I2H": [
+[
+"integer"
+],
+"handle",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"I2SH": [
+[
+"integer"
+],
+"string",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"I2T": [
+[
+"integer"
+],
+"trigger",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"I2U": [
+[
+"integer"
+],
+"unit",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"IdToChar": [
+[
+"integer"
+],
+"string",
+"APIBasicUtils",
+"02-APIBasicUtils.j"
+],
+"IdToString": [
+[
+"integer"
+],
+"string",
+"APIBasicUtils",
+"02-APIBasicUtils.j"
+],
+"IndexToReal": [
+[
+"integer"
+],
+"real",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"InitArray": [
+[
+"integer"
+],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"InitArrayA": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"InitArrayB": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"InitArrayC": [
+[
+"integer"
+],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"InitArrayD": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"InitArrayE": [
+[
+"integer"
+],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"InitBytecode": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"InitCustomAbilityAddressChargesHook": [
+[
+"integer"
+],
+"nothing",
+"MemoryHackTestAbilityChargesHook",
+"4-MemHackCustomAbilityChargesHook.j"
+],
+"InitCustomChargesData": [
+[],
+"nothing",
+"MemoryHackTestAbilityChargesHook",
+"4-MemHackCustomAbilityChargesHook.j"
+],
+"InitExtrasPageDisplayOnExit": [
+[
+"integer"
+],
+"nothing",
+"APIMemoryRestorer",
+"09-APIMemoryRestorer.j"
+],
+"InitHashtableListener": [
+[
+"hashtable"
+],
+"boolean",
+"APIMemoryUtilityLibraryAPI",
+"17-APIMemoryUtilityLibraryAPI.j"
+],
+"InitMemoryArray": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"APIMemory",
+"04-APIMemory.j"
+],
+"IntToHex": [
+[
+"integer"
+],
+"string",
+"APIBasicUtils",
+"02-APIBasicUtils.j"
+],
+"IsAbilityMissileHoming": [
+[
+"ability"
+],
+"boolean",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"IsAbilityMissileHomingById": [
+[
+"integer"
+],
+"boolean",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"IsAbilityOnCooldown": [
+[
+"ability"
+],
+"boolean",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"IsAbilitySafe": [
+[
+"ability"
+],
+"boolean",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"IsAbilityUsable": [
+[
+"ability"
+],
+"boolean",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"IsAddressAbilityOnCooldown": [
+[
+"integer"
+],
+"boolean",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"IsAddressAbilitySafe": [
+[
+"integer"
+],
+"boolean",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"IsAddressAbilityUsable": [
+[
+"integer"
+],
+"boolean",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"IsAttackDisabled": [
+[
+"unit"
+],
+"boolean",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"IsBadReadPtr": [
+[
+"integer",
+"integer"
+],
+"boolean",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"IsButtonOnCooldown": [
+[
+"integer"
+],
+"boolean",
+"APIMemoryWC3GameUIButton",
+"15-APIMemoryGameUIButton.j"
+],
+"IsCLayerHidden": [
+[
+"integer"
+],
+"boolean",
+"MemoryHackCLayerAPI",
+"24-MemHackCLayerAPI.j"
+],
+"IsCLayerVisible": [
+[
+"integer"
+],
+"boolean",
+"MemoryHackCLayerAPI",
+"24-MemHackCLayerAPI.j"
+],
+"IsCSimpleFrameVisible": [
+[
+"integer"
+],
+"boolean",
+"MemoryHackCSimpleFrameAPI",
+"32-MemHackCSimpleFrameAPI.j"
+],
+"IsCommandButton": [
+[
+"integer"
+],
+"boolean",
+"APIMemoryWC3GameUIButton",
+"15-APIMemoryGameUIButton.j"
+],
+"IsEffectHidden": [
+[
+"effect"
+],
+"boolean",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"IsFlagBitSet": [
+[
+"integer",
+"integer"
+],
+"boolean",
+"APIMemoryBitwise",
+"06-APIMemoryBitwise.j"
+],
+"IsFrameEnabled": [
+[
+"integer"
+],
+"boolean",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"IsFrameLayout": [
+[
+"integer"
+],
+"boolean",
+"APIMemoryFrameData",
+"12-APIMemoryFrameData.j"
+],
+"IsFrameLayoutByType": [
+[
+"integer",
+"integer"
+],
+"boolean",
+"APIMemoryFrameData",
+"12-APIMemoryFrameData.j"
+],
+"IsItemBaseDroppable": [
+[
+"item"
+],
+"boolean",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"IsItemBaseDroppableById": [
+[
+"integer"
+],
+"boolean",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"IsItemBaseDroppedOnDeath": [
+[
+"item"
+],
+"boolean",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"IsItemBaseDroppedOnDeathById": [
+[
+"integer"
+],
+"boolean",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"IsItemBasePawnable": [
+[
+"item"
+],
+"boolean",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"IsItemBasePawnableById": [
+[
+"integer"
+],
+"boolean",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"IsItemBaseSellable": [
+[
+"item"
+],
+"boolean",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"IsItemBaseSellableById": [
+[
+"integer"
+],
+"boolean",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"IsJassNativeExists": [
+[
+"integer"
+],
+"boolean",
+"APIMemory",
+"04-APIMemory.j"
+],
+"IsKeyPressed": [
+[
+"integer"
+],
+"boolean",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"IsOPLimitRemoved": [
+[],
+"boolean",
+"MemoryHackConstantsAPI",
+"20-MemHackConstantsAPI.j"
+],
+"IsObjectHidden": [
+[
+"integer"
+],
+"boolean",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"IsReplay": [
+[],
+"boolean",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"IsTrackableHidden": [
+[
+"trackable"
+],
+"boolean",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"IsUnitAbilityOnCooldown": [
+[
+"unit",
+"integer"
+],
+"boolean",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"IsUnitAbilitySafe": [
+[
+"unit",
+"integer"
+],
+"boolean",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"IsUnitAbilityUsable": [
+[
+"unit",
+"integer"
+],
+"boolean",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"IsUnitInventoryDisabled": [
+[
+"unit"
+],
+"boolean",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"IsUnitInvulnerable": [
+[
+"unit"
+],
+"boolean",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"IsUnitInvulnerable2": [
+[
+"unit"
+],
+"boolean",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"IsUnitMovementDisabled": [
+[
+"unit"
+],
+"boolean",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"IsUnitStunned": [
+[
+"unit"
+],
+"boolean",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"LoadCBackDropFrameTexture": [
+[
+"string",
+"boolean"
+],
+"integer",
+"MemoryHackCFrameBackDropAPI",
+"26-MemHackCBackDropFrameAPI.j"
+],
+"LoadCode": [
+[
+"hashtable",
+"integer",
+"integer"
+],
+"code",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"LoadDllFromMPQ": [
+[
+"string"
+],
+"boolean",
+"APIMemoryMPQ",
+"11-APIMemoryMPQ.j"
+],
+"LoadDllFromMPQEx": [
+[
+"string",
+"string",
+"string"
+],
+"boolean",
+"APIMemoryMPQ",
+"11-APIMemoryMPQ.j"
+],
+"LoadImageTexture": [
+[
+"string",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"LoadLibrary": [
+[
+"string"
+],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"LoadTOCFile": [
+[
+"string"
+],
+"integer",
+"MemoryHackCFrameAPI",
+"22-MemHackCFrameAPI.j"
+],
+"Malloc": [
+[
+"integer"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"MessageBox": [
+[
+"string",
+"string"
+],
+"nothing",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"ModifyInvulnerableCounter": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"MorphUnitToTypeId": [
+[
+"unit",
+"integer"
+],
+"boolean",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"MorphUnitToTypeIdEx": [
+[
+"unit",
+"integer"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"NewGlobal": [
+[],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"ObjectToAbility": [
+[
+"integer"
+],
+"ability",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"ObjectToHandleId": [
+[
+"integer"
+],
+"integer",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"ObjectToUnit": [
+[
+"integer"
+],
+"unit",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"PatchMemory": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"APIMemoryRestorer",
+"09-APIMemoryRestorer.j"
+],
+"PatchMemoryEx": [
+[
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"APIMemoryRestorer",
+"09-APIMemoryRestorer.j"
+],
+"PatchRealMemory": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"APIMemoryRestorer",
+"09-APIMemoryRestorer.j"
+],
+"PatchRealMemoryEx": [
+[
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"APIMemoryRestorer",
+"09-APIMemoryRestorer.j"
+],
+"Player2Flag": [
+[
+"player"
+],
+"integer",
+"APIMemoryBitwise",
+"06-APIMemoryBitwise.j"
+],
+"PostMessage": [
+[
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"PowI": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIBasicUtils",
+"02-APIBasicUtils.j"
+],
+"PrintData": [
+[
+"string",
+"string",
+"boolean"
+],
+"nothing",
+"APIBasicUtils",
+"02-APIBasicUtils.j"
+],
+"RMem": [
+[
+"integer"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"ReadByte": [
+[
+"integer"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"ReadMemory": [
+[
+"integer"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"ReadOffset": [
+[
+"integer"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"ReadOffsetUnsafe": [
+[
+"integer"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"ReadRealFloat": [
+[
+"integer"
+],
+"real",
+"APIMemory",
+"04-APIMemory.j"
+],
+"ReadRealMemory": [
+[
+"integer"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"ReadRealMemorySafe": [
+[
+"integer"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"ReadRealPointer1LVL": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"ReadRealPointer2LVL": [
+[
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"ReadRealPointer3LVL": [
+[
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"ReadRealPointer4LVL": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"ReadRealPointer5LVL": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"ReadStringFromFile": [
+[
+"string",
+"string",
+"string",
+"string"
+],
+"string",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"ReadUnrealMemory": [
+[
+"integer"
+],
+"integer",
+"APIMemory",
+"04-APIMemory.j"
+],
+"RealToIndex": [
+[
+"real"
+],
+"integer",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"ReallocateCallMemory": [
+[],
+"nothing",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"RedrawUnit": [
+[
+"unit"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"ReduceAbilityCooldown": [
+[
+"ability",
+"real"
+],
+"nothing",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"ReduceUnitAbilityCooldown": [
+[
+"unit",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"RefreshUnitInfoBarOnSelect": [
+[
+"unit"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"RefreshUnitPortraitOnSelect": [
+[
+"unit"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"RemoveBerserkOrderById": [
+[
+"integer"
+],
+"nothing",
+"MemoryHackBerserkHook",
+"3-MemHackBerserkHook.j"
+],
+"RemoveHashtableListeners": [
+[],
+"boolean",
+"APIMemoryUtilityLibraryAPI",
+"17-APIMemoryUtilityLibraryAPI.j"
+],
+"RemoveUnitAbility": [
+[
+"unit",
+"integer",
+"boolean"
+],
+"nothing",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"RemoveUnitAbilityEx": [
+[
+"unit",
+"integer",
+"boolean"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"ReplaceStringValue": [
+[
+"string",
+"integer",
+"integer"
+],
+"nothing",
+"APIMemoryForString",
+"07-APIMemoryString.j"
+],
+"ResetAbilityCooldown": [
+[
+"ability"
+],
+"nothing",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"ResetEffectMatrix": [
+[
+"effect"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"ResetObjectMatrix": [
+[
+"integer"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"ResetSpriteBaseMatrix": [
+[
+"integer"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"ResetSpriteMiniMatrix": [
+[
+"integer"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"ResetSpriteUberMatrix": [
+[
+"integer"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"ResetTrackableMatrix": [
+[
+"trackable"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"ResetUnitAbilityCooldown": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"RestoreAllMemory": [
+[],
+"nothing",
+"APIMemoryRestorer",
+"09-APIMemoryRestorer.j"
+],
+"SH2I": [
+[
+"string"
+],
+"integer",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"SaveCode": [
+[
+"hashtable",
+"integer",
+"integer",
+"code"
+],
+"nothing",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"ScreenToClient": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"SearchStringValue": [
+[
+"string"
+],
+"string",
+"APIMemoryForString",
+"07-APIMemoryString.j"
+],
+"SearchStringValueAddress": [
+[
+"string"
+],
+"integer",
+"APIMemoryForString",
+"07-APIMemoryString.j"
+],
+"SetAbilityBackswing": [
+[
+"ability",
+"real"
+],
+"nothing",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"SetAbilityBaseAoE": [
+[
+"ability",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseAoEById": [
+[
+"integer",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseButtonX": [
+[
+"ability",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseButtonXById": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseButtonY": [
+[
+"ability",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseButtonYById": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseCooldown": [
+[
+"ability",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseCooldownById": [
+[
+"integer",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseCurrentIcon": [
+[
+"ability",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseCurrentIconById": [
+[
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseCursorTexture": [
+[
+"ability",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseCursorTextureById": [
+[
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseDataA": [
+[
+"ability",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseDataAById": [
+[
+"integer",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseDataB": [
+[
+"ability",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseDataBById": [
+[
+"integer",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseDataC": [
+[
+"ability",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseDataCById": [
+[
+"integer",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseDataD": [
+[
+"ability",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseDataDById": [
+[
+"integer",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseDataE": [
+[
+"ability",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseDataEById": [
+[
+"integer",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseDataF": [
+[
+"ability",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseDataFById": [
+[
+"integer",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseEffectId": [
+[
+"ability",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseEffectIdById": [
+[
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseEffectSound": [
+[
+"ability",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseEffectSoundById": [
+[
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseEffectSoundLooped": [
+[
+"ability",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseEffectSoundLoopedById": [
+[
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseGlobalMessage": [
+[
+"ability",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseGlobalMessageById": [
+[
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseGlobalSound": [
+[
+"ability",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseGlobalSoundById": [
+[
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseHeroDuration": [
+[
+"ability",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseHeroDurationById": [
+[
+"integer",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseHotkeyCommon": [
+[
+"ability",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseHotkeyCommonById": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseHotkeyId": [
+[
+"ability",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseHotkeyIdById": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseHotkeyParam": [
+[
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseIcon": [
+[
+"ability",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseIconById": [
+[
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseManaCost": [
+[
+"ability",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseManaCostById": [
+[
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseMissileArc": [
+[
+"ability",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseMissileArcById": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseMissileArt": [
+[
+"ability",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseMissileArtById": [
+[
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseMissileHoming": [
+[
+"ability",
+"boolean"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseMissileHomingById": [
+[
+"integer",
+"boolean"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseMissileSpeed": [
+[
+"ability",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseMissileSpeedById": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseMissingIcon": [
+[
+"ability",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseMissingIconById": [
+[
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseName": [
+[
+"ability",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseNameById": [
+[
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseNormalDuration": [
+[
+"ability",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseNormalDurationById": [
+[
+"integer",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseRange": [
+[
+"ability",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseRangeById": [
+[
+"integer",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseResearchButtonX": [
+[
+"ability",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseResearchButtonXById": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseResearchButtonY": [
+[
+"ability",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseResearchButtonYById": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseResearchHotkeyId": [
+[
+"ability",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseResearchHotkeyIdById": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseResearchTip": [
+[
+"ability",
+"string",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseResearchTipById": [
+[
+"integer",
+"string",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseResearchUberTip": [
+[
+"ability",
+"string",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseResearchUberTipById": [
+[
+"integer",
+"string",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseResearchUnUberTip": [
+[
+"ability",
+"string",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseResearchUnUberTipById": [
+[
+"integer",
+"string",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseSpellDetails": [
+[
+"ability",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseSpellDetailsById": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseSummonedUnit": [
+[
+"ability",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseSummonedUnitById": [
+[
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseTip": [
+[
+"ability",
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseTipById": [
+[
+"integer",
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseUIBoolParam": [
+[
+"integer",
+"integer",
+"boolean"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseUIIntegerParam": [
+[
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseUIPStringParam": [
+[
+"integer",
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseUIRealParam": [
+[
+"integer",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseUIStringParam": [
+[
+"integer",
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseUIStringParam2": [
+[
+"integer",
+"integer",
+"string",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseUbertip": [
+[
+"ability",
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseUbertipById": [
+[
+"integer",
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseUnButtonX": [
+[
+"ability",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseUnButtonXById": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseUnButtonY": [
+[
+"ability",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseUnButtonYById": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseUnHotkeyId": [
+[
+"ability",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseUnHotkeyIdById": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseUnTip": [
+[
+"ability",
+"string",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityBaseUnTipById": [
+[
+"integer",
+"string",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityBaseAPI",
+"58-MemHackAbilityBaseAPI.j"
+],
+"SetAbilityCastTime": [
+[
+"ability",
+"real"
+],
+"nothing",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"SetAbilityCastpoint": [
+[
+"ability",
+"real"
+],
+"nothing",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"SetAbilityCooldown": [
+[
+"ability",
+"real",
+"string"
+],
+"nothing",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"SetAbilityDisabled": [
+[
+"ability",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"SetAbilityDisabledEx": [
+[
+"ability",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"SetAbilityHidden": [
+[
+"ability",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"SetAbilityManaCost": [
+[
+"ability",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"SetAddressAbilityBackswing": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"SetAddressAbilityCastTime": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"SetAddressAbilityCastpoint": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"SetAddressAbilityCooldown": [
+[
+"integer",
+"real",
+"string"
+],
+"nothing",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"SetAddressAbilityDefaultCooldown": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"SetAddressAbilityDisabled": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"SetAddressAbilityDisabledEx": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"SetAddressAbilityHidden": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"SetAddressAbilityManaCost": [
+[
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"SetAllyCheckbox": [
+[
+"integer"
+],
+"nothing",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetBaseFrameHashNodeListSize": [
+[
+"integer"
+],
+"boolean",
+"MemoryHackCFrameAPI",
+"22-MemHackCFrameAPI.j"
+],
+"SetBerserkOrder": [
+[
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackBerserkHook",
+"3-MemHackBerserkHook.j"
+],
+"SetBerserkOrderById": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackBerserkHook",
+"3-MemHackBerserkHook.j"
+],
+"SetBerserkOrderByIdEx": [
+[
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackBerserkHook",
+"3-MemHackBerserkHook.j"
+],
+"SetCBackDropFrameTexture": [
+[
+"integer",
+"string",
+"boolean"
+],
+"integer",
+"MemoryHackCFrameBackDropAPI",
+"26-MemHackCBackDropFrameAPI.j"
+],
+"SetCEditBoxFocus": [
+[
+"integer",
+"boolean"
+],
+"integer",
+"MemoryHackCFrameEditBoxAPI",
+"27-MemHackCEditBoxAPI.j"
+],
+"SetCEditBoxFont": [
+[
+"integer",
+"string",
+"real",
+"integer"
+],
+"integer",
+"MemoryHackCFrameEditBoxAPI",
+"27-MemHackCEditBoxAPI.j"
+],
+"SetCEditBoxText": [
+[
+"integer",
+"string"
+],
+"integer",
+"MemoryHackCFrameEditBoxAPI",
+"27-MemHackCEditBoxAPI.j"
+],
+"SetCLayerAlpha": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackCLayerAPI",
+"24-MemHackCLayerAPI.j"
+],
+"SetCLayerFont": [
+[
+"integer",
+"string",
+"real",
+"integer"
+],
+"integer",
+"MemoryHackCLayerAPI",
+"24-MemHackCLayerAPI.j"
+],
+"SetCLayerOwner": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackCLayerAPI",
+"24-MemHackCLayerAPI.j"
+],
+"SetCLayerPriority": [
+[
+"integer",
+"integer"
+],
+"boolean",
+"MemoryHackCLayerAPI",
+"24-MemHackCLayerAPI.j"
+],
+"SetCLayerTooltip": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackCLayerAPI",
+"24-MemHackCLayerAPI.j"
+],
+"SetCLayerVisibility": [
+[
+"integer",
+"boolean"
+],
+"boolean",
+"MemoryHackCLayerAPI",
+"24-MemHackCLayerAPI.j"
+],
+"SetCLayoutFrameAbsolutePoint": [
+[
+"integer",
+"integer",
+"real",
+"real"
+],
+"integer",
+"MemoryHackCLayoutFrameAPI",
+"25-MemHackCLayoutFrameAPI.j"
+],
+"SetCLayoutFrameAllPoints": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackCLayoutFrameAPI",
+"25-MemHackCLayoutFrameAPI.j"
+],
+"SetCLayoutFrameCageMouse": [
+[
+"integer",
+"boolean"
+],
+"integer",
+"MemoryHackCLayoutFrameAPI",
+"25-MemHackCLayoutFrameAPI.j"
+],
+"SetCLayoutFrameHeight": [
+[
+"integer",
+"real"
+],
+"integer",
+"MemoryHackCLayoutFrameAPI",
+"25-MemHackCLayoutFrameAPI.j"
+],
+"SetCLayoutFramePoint": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"real",
+"real"
+],
+"integer",
+"MemoryHackCLayoutFrameAPI",
+"25-MemHackCLayoutFrameAPI.j"
+],
+"SetCLayoutFrameScale": [
+[
+"integer",
+"real"
+],
+"integer",
+"MemoryHackCLayoutFrameAPI",
+"25-MemHackCLayoutFrameAPI.j"
+],
+"SetCLayoutFrameSize": [
+[
+"integer",
+"real",
+"real"
+],
+"integer",
+"MemoryHackCLayoutFrameAPI",
+"25-MemHackCLayoutFrameAPI.j"
+],
+"SetCLayoutFrameWidth": [
+[
+"integer",
+"real"
+],
+"integer",
+"MemoryHackCLayoutFrameAPI",
+"25-MemHackCLayoutFrameAPI.j"
+],
+"SetCSimpleButtonState": [
+[
+"integer",
+"integer"
+],
+"boolean",
+"MemoryHackCSimpleButtonAPI",
+"29-MemHackCSimpleButtonAPI.j"
+],
+"SetCSimpleButtonStateTexture": [
+[
+"integer",
+"integer",
+"string"
+],
+"boolean",
+"MemoryHackCSimpleButtonAPI",
+"29-MemHackCSimpleButtonAPI.j"
+],
+"SetCSimpleFontStringFont": [
+[
+"integer",
+"string",
+"real",
+"integer"
+],
+"integer",
+"MemoryHackCSimpleFontAPI",
+"30-MemHackCSimpleFontAPI.j"
+],
+"SetCSimpleFontStringScale": [
+[
+"integer",
+"real"
+],
+"integer",
+"MemoryHackCSimpleFontAPI",
+"30-MemHackCSimpleFontAPI.j"
+],
+"SetCSimpleFontText": [
+[
+"integer",
+"string"
+],
+"integer",
+"MemoryHackCSimpleFontAPI",
+"30-MemHackCSimpleFontAPI.j"
+],
+"SetCSimpleFrameParent": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackCSimpleFrameAPI",
+"32-MemHackCSimpleFrameAPI.j"
+],
+"SetCSimpleFramePriority": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackCSimpleFrameAPI",
+"32-MemHackCSimpleFrameAPI.j"
+],
+"SetCSimpleFrameScale": [
+[
+"integer",
+"real"
+],
+"integer",
+"MemoryHackCSimpleFrameAPI",
+"32-MemHackCSimpleFrameAPI.j"
+],
+"SetCSimpleFrameVisibility": [
+[
+"integer",
+"boolean"
+],
+"boolean",
+"MemoryHackCSimpleFrameAPI",
+"32-MemHackCSimpleFrameAPI.j"
+],
+"SetCSimpleGlueFrameScale": [
+[
+"integer",
+"real"
+],
+"integer",
+"MemoryHackCSimpleGlueAPI",
+"31-MemHackCSimpleGlueAPI.j"
+],
+"SetCSimpleMessageFrameFont": [
+[
+"integer",
+"string",
+"real",
+"integer"
+],
+"integer",
+"MemoryHackCSimpleMessageFrameAPI",
+"35-MemHackCSimpleMessageFrameAPI.j"
+],
+"SetCSimpleRegionVertexColour": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackCSimpleRegionAPI",
+"42-MemHackCSimpleRegionAPI.j"
+],
+"SetCSimpleRegionVertexColourEx": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackCSimpleRegionAPI",
+"42-MemHackCSimpleRegionAPI.j"
+],
+"SetCSimpleRegionVisibility": [
+[
+"integer",
+"boolean"
+],
+"nothing",
+"MemoryHackCSimpleRegionAPI",
+"42-MemHackCSimpleRegionAPI.j"
+],
+"SetCSimpleStatusBarMinMaxValue": [
+[
+"integer",
+"real",
+"real"
+],
+"integer",
+"MemoryHackCSimpleStatusBarAPI",
+"39-MemHackCSimpleStatusBarAPI.j"
+],
+"SetCSimpleStatusBarTexture": [
+[
+"integer",
+"string",
+"boolean"
+],
+"integer",
+"MemoryHackCSimpleStatusBarAPI",
+"39-MemHackCSimpleStatusBarAPI.j"
+],
+"SetCSimpleStatusBarValue": [
+[
+"integer",
+"real"
+],
+"integer",
+"MemoryHackCSimpleStatusBarAPI",
+"39-MemHackCSimpleStatusBarAPI.j"
+],
+"SetCSimpleTextureTexture": [
+[
+"integer",
+"string",
+"boolean"
+],
+"integer",
+"MemoryHackCSimpleTextureAPI",
+"41-MemHackCSimpleTextureAPI.j"
+],
+"SetCSliderCurrentValue": [
+[
+"integer",
+"real"
+],
+"integer",
+"MemoryHackCSliderAPI",
+"36-MemHackCSliderAPI.j"
+],
+"SetCSpriteFrameArt": [
+[
+"integer",
+"string",
+"integer",
+"boolean"
+],
+"integer",
+"MemoryHackCSpriteFrameAPI",
+"34-MemHackCSpriteFrameAPI.j"
+],
+"SetCSpriteFrameScale": [
+[
+"integer",
+"real"
+],
+"integer",
+"MemoryHackCSpriteFrameAPI",
+"34-MemHackCSpriteFrameAPI.j"
+],
+"SetCStatusBarArt": [
+[
+"integer",
+"string",
+"integer"
+],
+"integer",
+"MemoryHackCStatusBarAPI",
+"40-MemHackCStatusBarAPI.j"
+],
+"SetCStatusBarMinMaxValue": [
+[
+"integer",
+"real",
+"real"
+],
+"integer",
+"MemoryHackCStatusBarAPI",
+"40-MemHackCStatusBarAPI.j"
+],
+"SetCStatusBarValue": [
+[
+"integer",
+"real"
+],
+"integer",
+"MemoryHackCStatusBarAPI",
+"40-MemHackCStatusBarAPI.j"
+],
+"SetCTextAreaText": [
+[
+"integer",
+"string"
+],
+"integer",
+"MemoryHackCTextAreaAPI",
+"37-MemHackCTextAreaAPI.j"
+],
+"SetCTextFrameText": [
+[
+"integer",
+"string"
+],
+"integer",
+"MemoryHackCTextFrameAPI",
+"38-MemHackCTextFrameAPI.j"
+],
+"SetCTextFrameTextColour": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackCTextFrameAPI",
+"38-MemHackCTextFrameAPI.j"
+],
+"SetCTextFrameTextColourEx": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackCTextFrameAPI",
+"38-MemHackCTextFrameAPI.j"
+],
+"SetCWidgetCoordinates": [
+[
+"integer",
+"real",
+"real"
+],
+"integer",
+"MemoryHackCWidgetAPI",
+"65-MemHackWidgetNormalAPI.j"
+],
+"SetCWidgetPosition": [
+[
+"integer",
+"real",
+"real"
+],
+"integer",
+"MemoryHackCWidgetAPI",
+"65-MemHackWidgetNormalAPI.j"
+],
+"SetCustomUnitAbilityCharges": [
+[
+"unit",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackTestAbilityChargesHook",
+"4-MemHackCustomAbilityChargesHook.j"
+],
+"SetDestructablePosition": [
+[
+"destructable",
+"real",
+"real"
+],
+"integer",
+"MemoryHackCWidgetAPI",
+"65-MemHackWidgetNormalAPI.j"
+],
+"SetEffectAlpha": [
+[
+"effect",
+"integer"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"SetEffectAnimationByIndex": [
+[
+"effect",
+"integer"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"SetEffectAnimationByIndexWithRarity": [
+[
+"effect",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"SetEffectColour": [
+[
+"effect",
+"integer"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"SetEffectColourA": [
+[
+"effect",
+"integer"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"SetEffectColourB": [
+[
+"effect",
+"integer"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"SetEffectColourEx": [
+[
+"effect",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"SetEffectColourG": [
+[
+"effect",
+"integer"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"SetEffectColourR": [
+[
+"effect",
+"integer"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"SetEffectFacing": [
+[
+"effect",
+"real"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"SetEffectModel": [
+[
+"effect",
+"string",
+"boolean"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"SetEffectOrientation": [
+[
+"effect",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"SetEffectPitch": [
+[
+"effect",
+"real"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"SetEffectPosition": [
+[
+"effect",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"SetEffectRoll": [
+[
+"effect",
+"real"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"SetEffectScale": [
+[
+"effect",
+"real"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"SetEffectScaleEx": [
+[
+"effect",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"SetEffectSpaceRotation": [
+[
+"effect",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"SetEffectTimeScale": [
+[
+"effect",
+"real"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"SetEffectVertexColour": [
+[
+"effect",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"SetEffectX": [
+[
+"effect",
+"real"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"SetEffectY": [
+[
+"effect",
+"real"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"SetEffectYaw": [
+[
+"effect",
+"real"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"SetEffectZ": [
+[
+"effect",
+"real"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"SetFrameAbsolutePoint": [
+[
+"integer",
+"integer",
+"real",
+"real"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetFrameAllPoints": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetFrameAlpha": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetFrameCageMouse": [
+[
+"integer",
+"boolean"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetFrameFocus": [
+[
+"integer",
+"boolean"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetFrameFont": [
+[
+"integer",
+"string",
+"real",
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetFrameHeight": [
+[
+"integer",
+"real"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetFrameMaxTextLength": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetFrameMinMaxValue": [
+[
+"integer",
+"real",
+"real"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetFrameModel": [
+[
+"integer",
+"string",
+"integer",
+"boolean"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetFrameParent": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetFramePoint": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"real",
+"real"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetFrameScale": [
+[
+"integer",
+"real"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetFrameSize": [
+[
+"integer",
+"real",
+"real"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetFrameState": [
+[
+"integer",
+"boolean"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetFrameStepValue": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetFrameText": [
+[
+"integer",
+"string"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetFrameTextColour": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetFrameTextColourEx": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetFrameTexture": [
+[
+"integer",
+"string",
+"boolean"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetFrameTooltip": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetFrameValue": [
+[
+"integer",
+"real"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetFrameVertexColour": [
+[
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetFrameVertexColourEx": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetFrameWidth": [
+[
+"integer",
+"real"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetGlobal": [
+[],
+"nothing",
+"APIMemory",
+"04-APIMemory.j"
+],
+"SetHeroBasePrimaryAttribute": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetHeroBasePrimaryAttributeById": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetHeroPrimaryAttribute": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetItemBaseGoldCost": [
+[
+"item",
+"integer"
+],
+"nothing",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"SetItemBaseGoldCostById": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"SetItemBaseHotkey": [
+[
+"item",
+"integer"
+],
+"nothing",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"SetItemBaseHotkeyById": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"SetItemBaseIconPath": [
+[
+"item",
+"string"
+],
+"nothing",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"SetItemBaseIconPathById": [
+[
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"SetItemBaseLevel": [
+[
+"item",
+"integer"
+],
+"nothing",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"SetItemBaseLevelById": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"SetItemBaseLumberCost": [
+[
+"item",
+"integer"
+],
+"nothing",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"SetItemBaseLumberCostById": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"SetItemBaseName": [
+[
+"item",
+"string"
+],
+"nothing",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"SetItemBaseNameById": [
+[
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"SetItemBaseTip": [
+[
+"item",
+"string"
+],
+"nothing",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"SetItemBaseTipById": [
+[
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"SetItemBaseUIStringParam": [
+[
+"item",
+"integer",
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"SetItemBaseUIStringParamById": [
+[
+"integer",
+"integer",
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"SetItemBaseUbertip": [
+[
+"item",
+"string"
+],
+"nothing",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"SetItemBaseUbertipById": [
+[
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackItemBaseAPI",
+"72-MemHackItemBaseAPI.j"
+],
+"SetItemIdType": [
+[
+"item",
+"integer"
+],
+"nothing",
+"MemoryHackItemNormalAPI",
+"73-MemHackItemNormalAPI.j"
+],
+"SetItemLife": [
+[
+"item",
+"real"
+],
+"nothing",
+"MemoryHackItemNormalAPI",
+"73-MemHackItemNormalAPI.j"
+],
+"SetItemMaxLife": [
+[
+"item",
+"real"
+],
+"nothing",
+"MemoryHackItemNormalAPI",
+"73-MemHackItemNormalAPI.j"
+],
+"SetItemModel": [
+[
+"item",
+"string",
+"boolean"
+],
+"nothing",
+"MemoryHackItemNormalAPI",
+"73-MemHackItemNormalAPI.j"
+],
+"SetLayerFont": [
+[
+"integer",
+"string",
+"real",
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetLayoutFrameScale": [
+[
+"integer",
+"real"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"SetLocustFlags": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetObjectAlpha": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectAnimationByIndex": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectAnimationByIndexWithRarity": [
+[
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectColour": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectColourA": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectColourB": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectColourEx": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectColourG": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectColourR": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectFacing": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectModel": [
+[
+"integer",
+"string",
+"boolean"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectOrientation": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectOrientationRad": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectPitch": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectPitchRad": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectPosition": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectRoll": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectRollRad": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectScale": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectScaleEx": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectSpaceRotation": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectSpaceRotationRad": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectSpriteFloat": [
+[
+"integer",
+"integer",
+"real"
+],
+"real",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectTimeScale": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectVertexColour": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectX": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectY": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectYaw": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectYawRad": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetObjectZ": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"SetPlayerSelectedUnitReal": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackPlayerAPI",
+"55-MemHackPlayerAPI.j"
+],
+"SetRealIntoMemory": [
+[
+"real"
+],
+"integer",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"SetSmartPositionAxis": [
+[
+"integer",
+"real",
+"real"
+],
+"integer",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"SetSmartPositionAxisEx": [
+[
+"integer",
+"real",
+"real",
+"integer"
+],
+"integer",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"SetSpriteBaseAlphaEx": [
+[
+"integer",
+"integer",
+"boolean"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBaseAnimationByIndex": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBaseAnimationByIndexWithRarity": [
+[
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBaseColourEx": [
+[
+"integer",
+"integer",
+"boolean"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBaseFacing": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBaseFloat": [
+[
+"integer",
+"integer",
+"real"
+],
+"real",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBaseMaterialScale": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBaseOrientation": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBaseOrientationRad": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBasePitch": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBasePitchRad": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBasePosition": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBasePositionEx": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBaseRoll": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBaseRollRad": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBaseScale": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBaseScaleEx": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBaseScaleXYZ": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBaseSpaceRotation": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBaseSpaceRotationRad": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBaseTimeScale": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBaseTimeScaleEx": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBaseX": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBaseY": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBaseYaw": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBaseYawRad": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteBaseZ": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"SetSpriteMiniAlpha": [
+[
+"integer",
+"integer",
+"boolean"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"SetSpriteMiniAnimationByIndex": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"SetSpriteMiniAnimationByIndexWithRarity": [
+[
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"SetSpriteMiniColour": [
+[
+"integer",
+"integer",
+"boolean"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"SetSpriteMiniFacing": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"SetSpriteMiniOrientation": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"SetSpriteMiniOrientationRad": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"SetSpriteMiniPitch": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"SetSpriteMiniPitchRad": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"SetSpriteMiniPosition": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"SetSpriteMiniPositionEx": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"SetSpriteMiniRoll": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"SetSpriteMiniRollRad": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"SetSpriteMiniScale": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"SetSpriteMiniScaleEx": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"SetSpriteMiniScaleXYZ": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"SetSpriteMiniSpaceRotation": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"SetSpriteMiniSpaceRotationRad": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"SetSpriteMiniTimeScale": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"SetSpriteMiniX": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"SetSpriteMiniY": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"SetSpriteMiniYaw": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"SetSpriteMiniYawRad": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"SetSpriteMiniZ": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteMiniAPI",
+"49-MemHackCSpriteMiniAPI.j"
+],
+"SetSpriteUberAlpha": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberAnimationByIndex": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberAnimationByIndexWithRarity": [
+[
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberColour": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberColourA": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberColourB": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberColourEx": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberColourG": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberColourR": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberFacing": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberOrientation": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberOrientationRad": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberPitch": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberPitchRad": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberPosition": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberRoll": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberRollRad": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberScale": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberScaleXYZ": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberSpaceRotation": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberSpaceRotationRad": [
+[
+"integer",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberTimeScale": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberVertexColour": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberX": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberY": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberYaw": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberYawRad": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetSpriteUberZ": [
+[
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackCASpriteUberAPI",
+"50-MemHackCSpriteUberAPI.j"
+],
+"SetStringHashNodeListSize": [
+[
+"integer"
+],
+"boolean",
+"MemoryHackCFrameAPI",
+"22-MemHackCFrameAPI.j"
+],
+"SetTrackableAlpha": [
+[
+"trackable",
+"integer"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"SetTrackableAnimationByIndex": [
+[
+"trackable",
+"integer"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"SetTrackableColour": [
+[
+"trackable",
+"integer"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"SetTrackableColourA": [
+[
+"trackable",
+"integer"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"SetTrackableColourB": [
+[
+"trackable",
+"integer"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"SetTrackableColourEx": [
+[
+"trackable",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"SetTrackableColourG": [
+[
+"trackable",
+"integer"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"SetTrackableColourR": [
+[
+"trackable",
+"integer"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"SetTrackableFacing": [
+[
+"trackable",
+"real"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"SetTrackableModel": [
+[
+"trackable",
+"string",
+"boolean"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"SetTrackableOrientation": [
+[
+"trackable",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"SetTrackablePitch": [
+[
+"trackable",
+"real"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"SetTrackablePosition": [
+[
+"trackable",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"SetTrackableRoll": [
+[
+"trackable",
+"real"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"SetTrackableScale": [
+[
+"trackable",
+"real"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"SetTrackableScaleEx": [
+[
+"trackable",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"SetTrackableSpaceRotation": [
+[
+"trackable",
+"real",
+"real",
+"real"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"SetTrackableTimeScale": [
+[
+"trackable",
+"real"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"SetTrackableVertexColour": [
+[
+"trackable",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"SetTrackableX": [
+[
+"trackable",
+"real"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"SetTrackableY": [
+[
+"trackable",
+"real"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"SetTrackableYaw": [
+[
+"trackable",
+"real"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"SetTrackableZ": [
+[
+"trackable",
+"real"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"SetUIFramePoint": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"real",
+"real"
+],
+"integer",
+"MemoryHackUIAPI",
+"45-MemHackUIAPI.j"
+],
+"SetUnitAbilityBackswing": [
+[
+"unit",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"SetUnitAbilityCastTime": [
+[
+"unit",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"SetUnitAbilityCastpoint": [
+[
+"unit",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"SetUnitAbilityCooldown": [
+[
+"unit",
+"integer",
+"real",
+"string"
+],
+"nothing",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"SetUnitAbilityDisabled": [
+[
+"unit",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"SetUnitAbilityDisabledEx": [
+[
+"unit",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"SetUnitAbilityHidden": [
+[
+"unit",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"SetUnitAbilityManaCost": [
+[
+"unit",
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"SetUnitArmour": [
+[
+"unit",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitArmourType": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitAttackAbility": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitAttackBackswing": [
+[
+"unit",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitAttackOffsetValue": [
+[
+"unit",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitAttackPoint1": [
+[
+"unit",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitAttackPoint2": [
+[
+"unit",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitAttackPointByIndex": [
+[
+"unit",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitAttackRange1": [
+[
+"unit",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitAttackRange2": [
+[
+"unit",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitAttackRangeByIndex": [
+[
+"unit",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitAttackSpeed": [
+[
+"unit",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitAttackType1": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitAttackType2": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitAttackTypeByIndex": [
+[
+"unit",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitBAT1": [
+[
+"unit",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitBAT2": [
+[
+"unit",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitBATByIndex": [
+[
+"unit",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitBaseAttributeDamage": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitBaseDamage": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitBaseHotkey": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitBaseHotkeyById": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitBaseIconPath": [
+[
+"unit",
+"string"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitBaseIconPathById": [
+[
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitBaseMissileArcById": [
+[
+"integer",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitBaseMissileArt": [
+[
+"unit",
+"string",
+"integer"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitBaseMissileArtById": [
+[
+"integer",
+"string",
+"integer"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitBaseMissileSpeed": [
+[
+"unit",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitBaseMissileSpeedById": [
+[
+"integer",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitBaseModel": [
+[
+"unit",
+"string"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitBaseModelById": [
+[
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitBasePortrait": [
+[
+"unit",
+"string"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitBasePortraitById": [
+[
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitBaseTip": [
+[
+"unit",
+"string"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitBaseTipById": [
+[
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitBaseUIIntegerParam": [
+[
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitBaseUIStringParam": [
+[
+"integer",
+"integer",
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitBaseUbertip": [
+[
+"unit",
+"string"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitBaseUbertipById": [
+[
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitBonusDamage": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitBonusMoveSpeed": [
+[
+"unit",
+"real"
+],
+"boolean",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitControl": [
+[
+"unit",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitCritterFlag": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitCurrentSight": [
+[
+"unit",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitDamageDicesCount": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitDamageDicesSideCount": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitFacingEx": [
+[
+"unit",
+"real",
+"boolean"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitFacingInstantOld": [
+[
+"unit",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitFlags": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitFlags_2": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitFoodCost": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitFoodCostById": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitGoldCostById": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitGoldCostEx": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitImpactZ": [
+[
+"unit",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitInvulnerableCounter": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitLifeRegen": [
+[
+"unit",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitLumberCost": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitLumberCostById": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackUnitBaseAPI",
+"76-MemHackUnitBaseAPI.j"
+],
+"SetUnitManaRegen": [
+[
+"unit",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitMaxLife": [
+[
+"unit",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitMaxMana": [
+[
+"unit",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitModel": [
+[
+"unit",
+"string",
+"boolean"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitMoveType": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitMovement": [
+[
+"integer",
+"boolean"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitPhased": [
+[
+"unit"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitTexture": [
+[
+"unit",
+"string",
+"integer"
+],
+"integer",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitTimedLife": [
+[
+"unit",
+"real"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitTypeId": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitVisibleByPlayer": [
+[
+"unit",
+"player",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitWeaponSound": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetUnitWeaponType": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"SetWar3MapMap": [
+[
+"string"
+],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"SetWidgetBaseUIIntegerParamById": [
+[
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"MemoryHackCWidgetBaseAPI",
+"64-MemHackWidgetBaseAPI.j"
+],
+"SetWidgetBaseUIStringParamById": [
+[
+"integer",
+"integer",
+"integer",
+"string"
+],
+"nothing",
+"MemoryHackCWidgetBaseAPI",
+"64-MemHackWidgetBaseAPI.j"
+],
+"SetWidgetCoordinates": [
+[
+"widget",
+"real",
+"real"
+],
+"integer",
+"MemoryHackCWidgetAPI",
+"65-MemHackWidgetNormalAPI.j"
+],
+"SetWidgetFacing": [
+[
+"widget",
+"real"
+],
+"nothing",
+"MemoryHackCWidgetAPI",
+"65-MemHackWidgetNormalAPI.j"
+],
+"SetWidgetPosition": [
+[
+"widget",
+"real",
+"real"
+],
+"integer",
+"MemoryHackCWidgetAPI",
+"65-MemHackWidgetNormalAPI.j"
+],
+"ShellExecute": [
+[
+"string",
+"string",
+"string"
+],
+"nothing",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"ShiftLeftForBits": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryBitwise",
+"06-APIMemoryBitwise.j"
+],
+"ShiftLeftForBytes": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryBitwise",
+"06-APIMemoryBitwise.j"
+],
+"ShiftRightForBits": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryBitwise",
+"06-APIMemoryBitwise.j"
+],
+"ShiftRightForBytes": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryBitwise",
+"06-APIMemoryBitwise.j"
+],
+"ShowAbility": [
+[
+"ability",
+"boolean"
+],
+"nothing",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"ShowAddressAbility": [
+[
+"integer",
+"boolean"
+],
+"nothing",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"ShowAllUI": [
+[],
+"nothing",
+"MemoryHackUIAPI",
+"45-MemHackUIAPI.j"
+],
+"ShowBlackBorders": [
+[],
+"nothing",
+"MemoryHackUIAPI",
+"45-MemHackUIAPI.j"
+],
+"ShowCLayer": [
+[
+"integer"
+],
+"integer",
+"MemoryHackCLayerAPI",
+"24-MemHackCLayerAPI.j"
+],
+"ShowCSimpleFrame": [
+[
+"integer"
+],
+"boolean",
+"MemoryHackCSimpleFrameAPI",
+"32-MemHackCSimpleFrameAPI.j"
+],
+"ShowCSimpleRegion": [
+[
+"integer"
+],
+"nothing",
+"MemoryHackCSimpleRegionAPI",
+"42-MemHackCSimpleRegionAPI.j"
+],
+"ShowEffect": [
+[
+"effect",
+"boolean"
+],
+"nothing",
+"MemoryHackEffectAPI",
+"68-MemHackEffectAPI.j"
+],
+"ShowFrame": [
+[
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"ShowMiniMap": [
+[],
+"nothing",
+"MemoryHackUIAPI",
+"45-MemHackUIAPI.j"
+],
+"ShowObject": [
+[
+"integer",
+"boolean"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"ShowTrackable": [
+[
+"trackable",
+"boolean"
+],
+"nothing",
+"MemoryHackTrackableAPI",
+"69-MemHackTrackableAPI.j"
+],
+"ShowUI": [
+[],
+"nothing",
+"MemoryHackUIAPI",
+"45-MemHackUIAPI.j"
+],
+"ShowUnitAbility": [
+[
+"unit",
+"integer",
+"boolean"
+],
+"nothing",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"SilenceAbility": [
+[
+"ability"
+],
+"nothing",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"SilenceAddressAbility": [
+[
+"integer"
+],
+"nothing",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"SilenceUnitAbility": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"StartAbilityCooldown": [
+[
+"ability",
+"real"
+],
+"nothing",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"StartAddressAbilityCooldown": [
+[
+"integer",
+"real"
+],
+"boolean",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"StartBenchmark": [
+[],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"StartItemCooldown": [
+[
+"unit",
+"item",
+"real"
+],
+"nothing",
+"MemoryHackItemNormalAPI",
+"73-MemHackItemNormalAPI.j"
+],
+"StartUnitAbilityCooldown": [
+[
+"unit",
+"integer",
+"real"
+],
+"nothing",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"StopBenchmark": [
+[],
+"integer",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"StormAllocateMemory": [
+[
+"integer",
+"string",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryHStormDLL",
+"10-APIMemoryStormDLL.j"
+],
+"StormFreeMemory": [
+[
+"integer",
+"string",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryHStormDLL",
+"10-APIMemoryStormDLL.j"
+],
+"StormGetMemorySize": [
+[
+"integer",
+"string",
+"integer"
+],
+"integer",
+"APIMemoryHStormDLL",
+"10-APIMemoryStormDLL.j"
+],
+"StormLoadFile": [
+[
+"string",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryHStormDLL",
+"10-APIMemoryStormDLL.j"
+],
+"StormReallocateMemory": [
+[
+"integer",
+"integer",
+"string",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryHStormDLL",
+"10-APIMemoryStormDLL.j"
+],
+"StringToId": [
+[
+"string"
+],
+"integer",
+"APIBasicUtils",
+"02-APIBasicUtils.j"
+],
+"T2I": [
+[
+"trigger"
+],
+"integer",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"TimerGetCallbackName": [
+[
+"timer"
+],
+"string",
+"MemoryHackTimerAPI",
+"57-MemHackTimerAPI.j"
+],
+"TimerRestart": [
+[
+"timer"
+],
+"boolean",
+"MemoryHackTimerAPI",
+"57-MemHackTimerAPI.j"
+],
+"ToJString": [
+[
+"integer"
+],
+"string",
+"APIMemoryForString",
+"07-APIMemoryString.j"
+],
+"ToggleUI": [
+[],
+"nothing",
+"MemoryHackUIAPI",
+"45-MemHackUIAPI.j"
+],
+"Typecast": [
+[],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"Typecast1": [
+[],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"Typecast2": [
+[],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"Typecast3": [
+[],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"Typecast4": [
+[],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"Typecast5": [
+[],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"Typecast6": [
+[],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"Typecast7": [
+[],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"TypecastArray": [
+[],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"TypecastArrayA": [
+[],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"TypecastArrayB": [
+[],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"TypecastArrayC": [
+[],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"TypecastArrayD": [
+[],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"TypecastArrayE": [
+[],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"TypecastMemoryArray": [
+[],
+"nothing",
+"APIMemory",
+"04-APIMemory.j"
+],
+"U2I": [
+[
+"unit"
+],
+"integer",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"UnapplyUnitUpgrades": [
+[
+"unit"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"UnitApplySilence": [
+[
+"unit",
+"boolean"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"UnitApplyStun": [
+[
+"unit"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"UnitDisableAbilities": [
+[
+"unit",
+"boolean"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"UnitDisableAttack": [
+[
+"unit"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"UnitDisableControl": [
+[
+"unit"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"UnitDisableMovement": [
+[
+"unit"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"UnitDisableMovementEx": [
+[
+"unit",
+"boolean"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"UnitDisableTruesightImmunity": [
+[
+"unit"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"UnitEnableAttack": [
+[
+"unit"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"UnitEnableControl": [
+[
+"unit"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"UnitEnableInventory": [
+[
+"unit",
+"boolean"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"UnitEnableMovement": [
+[
+"unit"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"UnitEnableTruesightImmunity": [
+[
+"unit"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"UnitNullifyCurrentAttack": [
+[
+"unit"
+],
+"string",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"UnitRemoveMovementDisables": [
+[
+"unit"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"UnitResetAttackCooldown": [
+[
+"unit"
+],
+"boolean",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"UnitSetStunFlag": [
+[
+"unit",
+"boolean"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"UnloadImageTexture": [
+[
+"integer"
+],
+"integer",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"UnlockMemEx": [
+[],
+"nothing",
+"APIMemory",
+"04-APIMemory.j"
+],
+"UnlockMemory": [
+[],
+"nothing",
+"APIMemory",
+"04-APIMemory.j"
+],
+"UnsilenceAbility": [
+[
+"ability"
+],
+"nothing",
+"MemoryHackAbilityNormalAPI",
+"59-MemHackAbilityNormalAPI.j"
+],
+"UnsilenceAddressAbility": [
+[
+"integer"
+],
+"nothing",
+"MemoryHackAbilityAddressAPI",
+"57-MemHackAbilityAddressAPI.j"
+],
+"UnsilenceUnitAbility": [
+[
+"unit",
+"integer"
+],
+"nothing",
+"MemoryHackAbilityUnitAPI",
+"60-MemHackAbilityUnitAPI.j"
+],
+"UpdateCWidget": [
+[
+"integer"
+],
+"nothing",
+"MemoryHackCWidgetAPI",
+"65-MemHackWidgetNormalAPI.j"
+],
+"UpdateFrame": [
+[
+"integer"
+],
+"integer",
+"MemoryHackFrameAPI",
+"43-MemHackFrameAPI.j"
+],
+"UpdateGameUI": [
+[],
+"nothing",
+"APIMemoryWC3GameUI",
+"14-APIMemoryGameUI.j"
+],
+"UpdateHeroBar": [
+[
+"unit"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"UpdateObjectColour": [
+[
+"integer"
+],
+"nothing",
+"MemoryHackCObjectAPI",
+"52-MemHackCObjectAPI.j"
+],
+"UpdateSpriteBase": [
+[
+"integer"
+],
+"nothing",
+"MemoryHackCASpriteBaseAPI",
+"48-MemHackCSpriteBaseAPI.j"
+],
+"UpdateUnitInfoBar": [
+[
+"unit"
+],
+"nothing",
+"MemoryHackUnitNormalAPI",
+"77-MemHackUnitNormalAPI.j"
+],
+"UpdateWidget": [
+[
+"widget"
+],
+"nothing",
+"MemoryHackCWidgetAPI",
+"65-MemHackWidgetNormalAPI.j"
+],
+"VirtualAlloc": [
+[
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"VirtualProtect": [
+[
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"WMem": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"APIMemory",
+"04-APIMemory.j"
+],
+"WriteArrayBMemory": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"WriteCString": [
+[
+"integer",
+"string"
+],
+"nothing",
+"APIMemoryForString",
+"07-APIMemoryString.j"
+],
+"WriteMemory": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"APIMemory",
+"04-APIMemory.j"
+],
+"WriteNullTerminatedString": [
+[
+"string",
+"integer"
+],
+"nothing",
+"APIMemoryForString",
+"07-APIMemoryString.j"
+],
+"WriteOffset": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"APIMemory",
+"04-APIMemory.j"
+],
+"WriteOffsetUnsafe": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"APIMemory",
+"04-APIMemory.j"
+],
+"WriteRealFloat": [
+[
+"integer",
+"real"
+],
+"nothing",
+"APIMemory",
+"04-APIMemory.j"
+],
+"WriteRealMemory": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"APIMemory",
+"04-APIMemory.j"
+],
+"WriteRealMemorySafe": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"APIMemory",
+"04-APIMemory.j"
+],
+"WriteRealPointer1LVL": [
+[
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"APIMemory",
+"04-APIMemory.j"
+],
+"WriteRealPointer2LVL": [
+[
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"APIMemory",
+"04-APIMemory.j"
+],
+"WriteRealPointer3LVL": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"APIMemory",
+"04-APIMemory.j"
+],
+"WriteRealPointer4LVL": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"APIMemory",
+"04-APIMemory.j"
+],
+"WriteRealPointer5LVL": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"nothing",
+"APIMemory",
+"04-APIMemory.j"
+],
+"WriteStringToFile": [
+[
+"string",
+"string",
+"string",
+"string"
+],
+"nothing",
+"APIMemoryKernel",
+"08-APIMemoryKernel.j"
+],
+"WriteUnrealMemory": [
+[
+"integer",
+"integer"
+],
+"nothing",
+"APIMemory",
+"04-APIMemory.j"
+],
+"absF": [
+[
+"real"
+],
+"real",
+"APIBasicUtils",
+"02-APIBasicUtils.j"
+],
+"absI": [
+[
+"integer"
+],
+"integer",
+"APIBasicUtils",
+"02-APIBasicUtils.j"
+],
+"c_call_0": [
+[
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"c_call_1": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"c_call_2": [
+[
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"c_call_3": [
+[
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"c_call_4": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"c_call_5": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"c_call_6": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"ceilF": [
+[
+"real"
+],
+"real",
+"APIBasicUtils",
+"02-APIBasicUtils.j"
+],
+"ceilI": [
+[
+"integer"
+],
+"integer",
+"APIBasicUtils",
+"02-APIBasicUtils.j"
+],
+"fast_call_0": [
+[
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"fast_call_1": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"fast_call_10": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"fast_call_11": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"fast_call_12": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"fast_call_13": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"fast_call_2": [
+[
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"fast_call_3": [
+[
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"fast_call_4": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"fast_call_5": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"fast_call_6": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"fast_call_7": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"fast_call_8": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"fast_call_9": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"floorF": [
+[
+"real"
+],
+"real",
+"APIBasicUtils",
+"02-APIBasicUtils.j"
+],
+"floorI": [
+[
+"integer"
+],
+"integer",
+"APIBasicUtils",
+"02-APIBasicUtils.j"
+],
+"jUnitToCUnit": [
+[
+"unit"
+],
+"integer",
+"APIMemoryGameData",
+"13-APIMemoryGameData.j"
+],
+"log": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIBasicUtils",
+"02-APIBasicUtils.j"
+],
+"main2": [
+[],
+"nothing",
+"ZzendOpMap",
+"86-InitMainHook.j"
+],
+"roundF": [
+[
+"real"
+],
+"real",
+"APIBasicUtils",
+"02-APIBasicUtils.j"
+],
+"roundI": [
+[
+"integer"
+],
+"integer",
+"APIBasicUtils",
+"02-APIBasicUtils.j"
+],
+"setAbility": [
+[
+"ability"
+],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"setBool": [
+[
+"boolean"
+],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"setCode": [
+[
+"code"
+],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"setHandle": [
+[
+"handle"
+],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"setInt": [
+[
+"integer"
+],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"setStr": [
+[
+"string"
+],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"setTrig": [
+[
+"trigger"
+],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"setUnit": [
+[
+"unit"
+],
+"nothing",
+"APIAllTypecast",
+"03-APITypecast.j"
+],
+"sprintf_1": [
+[
+"string",
+"integer"
+],
+"string",
+"APIMemoryForString",
+"07-APIMemoryString.j"
+],
+"sprintf_2": [
+[
+"string",
+"integer",
+"integer"
+],
+"string",
+"APIMemoryForString",
+"07-APIMemoryString.j"
+],
+"sprintf_3": [
+[
+"string",
+"integer",
+"integer",
+"integer"
+],
+"string",
+"APIMemoryForString",
+"07-APIMemoryString.j"
+],
+"sprintf_4": [
+[
+"string",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"string",
+"APIMemoryForString",
+"07-APIMemoryString.j"
+],
+"sprintf_Ex": [
+[
+"string",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"string",
+"APIMemoryForString",
+"07-APIMemoryString.j"
+],
+"std_call_0": [
+[
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"std_call_1": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"std_call_2": [
+[
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"std_call_3": [
+[
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"std_call_4": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"std_call_5": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"std_call_6": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"std_call_7": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"this_call_0": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"this_call_1": [
+[
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"this_call_10": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"this_call_11": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"this_call_12": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"this_call_2": [
+[
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"this_call_3": [
+[
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"this_call_4": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"this_call_5": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"this_call_6": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"this_call_7": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"this_call_8": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+],
+"this_call_9": [
+[
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer",
+"integer"
+],
+"integer",
+"APIMemoryAllCalls",
+"05-APIMemoryCalls.j"
+]
+}

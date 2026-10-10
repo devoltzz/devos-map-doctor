@@ -690,15 +690,15 @@ class _Analysis(object):
     def _taken(self, branches, f, sp):
         out, reach = [], 'yes'
         for cond, _body in branches:
-            if reach == 'node':
-                out.append('node')
+            if reach == 'no':
+                out.append('no')
                 continue
             v = True if cond is None else self.value(cond, f, sp)
             if v is True:
                 out.append(reach)
-                reach = 'node'
+                reach = 'no'
             elif v is False:
-                out.append('node')
+                out.append('no')
             else:
                 out.append('maybe')
                 reach = 'maybe'
@@ -709,9 +709,9 @@ class _Analysis(object):
         if branches[-1][0] is not None:
             branches.append((None, []))
         tsp, tmp = self._taken(branches, f, True), self._taken(branches, f, False)
-        regions = [b for (_c, b), a, m in zip(branches, tsp, tmp) if m == 'node' and a != 'node']
-        mp_live = [b for (_c, b), m in zip(branches, tmp) if m != 'node']
-        sp_live = [b for (_c, b), a in zip(branches, tsp) if a != 'node']
+        regions = [b for (_c, b), a, m in zip(branches, tsp, tmp) if m == 'no' and a != 'no']
+        mp_live = [b for (_c, b), m in zip(branches, tmp) if m != 'no']
+        sp_live = [b for (_c, b), a in zip(branches, tsp) if a != 'no']
         if mp_live and all(_exits(b) for b in mp_live) and any(not _exits(b) for b in sp_live):
             body, k = path[-1]
             regions.append(body[k + 1:])

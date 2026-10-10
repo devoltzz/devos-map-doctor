@@ -44,10 +44,12 @@ never runs the game.
 </tr>
 </table>
 
-### New in 1.7.3
+### New in 1.7.4
 
-- Local machine translation, in the Translation tab: the texts of a Chinese, Korean, Japanese, Russian, Vietnamese or Thai map translated into English on your computer, with an open translation model (OPUS-MT). Nothing is sent anywhere: the model the map needs is downloaded once (60 to 220 MB). The result is the same translation file as an export, checked and ready to apply, and it can be reviewed first.
-- The text drawn in the map's images (buttons, loading screens, interface art) can be read too (OCR), translated and drawn back in its place, after a review where each image shows as it is and as it will be, and every line can be corrected or left out.
+- Maps of the classic game (1.24 to 1.29) are checked against their own version: "Runs on Reforged?" can check against 1.24 to 1.29, and the diagnosis says which version a map was made for. "Open in World Editor" writes a copy for the editor of that version. The data of the old versions is downloaded once from the site, the first time it is needed.
+- Port to Reforged takes more of the old game along: the return bug of 1.23 and older is adapted to real types, names the newer game created are renamed, the interface memory hacks of 1.24-1.28 (MemHackAPI) become Reforged natives, and maps made for the UjAPI port too.
+- M16 and KK maps get natives measured from the platforms' own clients: the JN text natives, the movement speed cap, the DzAPI text alignment and colors, key states and the emulated KK server.
+- Fixed: a cheat pack in a map with the return bug (Wintermaul), and a port step that broke array indexes and long texts in some maps.
 
 ## Get it
 
@@ -90,8 +92,10 @@ shows the command of each action under its button.
 doctor diag map.w3x
 doctor fix map.w3x --unprotect --listfile --portraits
 doctor editor map.w3x
+doctor editor map.w3x --editor-version=1.27
 doctor port map.w3x
 doctor check map.w3x
+doctor check map.w3x --game=1.27
 doctor cheatpacks map.w3x
 doctor cheat map.w3x --pack=nzcp --set activator=-cheat
 doctor qol map.w3x --xp=2 --gold=2 --drop=2 --respawn=0.5
@@ -140,6 +144,11 @@ Use "Report a problem" in the window: it opens an issue here with the report fil
 - sangje_wc3 ([hachamacha106](https://github.com/hachamacha106)), whose
   [w3x2lni-reforged](https://github.com/hachamacha106/w3x2lni-reforged), the w3x2lni fork for Warcraft III 3.0 maps,
   pointed out gaps the Doctor now covers in its own code.
+- [Unryze](https://github.com/UnryzeC), for the [UjAPI](https://github.com/UnryzeC/UjAPI), whose declarations the
+  porter reads for maps made for it, the [MemHackAPI](https://github.com/UnryzeC/MemHackAPI), whose catalog lets the
+  porter recognize the interface memory hacks, and [WFE](https://github.com/UnryzeC/WFE-Release).
+- [garden-hose](https://github.com/garden-hose), whose [DzAPIConverter](https://github.com/garden-hose/DzAPIConverter)
+  gave the base of the `EX*` data natives of the port layer (MIT).
 
 ## License
 

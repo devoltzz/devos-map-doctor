@@ -14,6 +14,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 EDITOR_3 = 7000
 NEUTRAL_HOSTILE, NEUTRAL_PASSIVE = 'PLAYER_NEUTRAL_AGGRESSIVE', 'PLAYER_NEUTRAL_PASSIVE'
 DEFAULT_FLOAT = 4294967296.0
+OLD_MAX_DISTANCE = 10000.0
 
 
 class Unreadable(Exception):
@@ -616,7 +617,7 @@ def sound_is_music(snd):
     return bool(snd['flags'] & 8)
 
 
-def render_sounds(sounds, st, durations=None):
+def render_sounds(sounds, st, durations=None, labels=None):
     body = []
     exact = True
     for snd in sounds:
@@ -629,8 +630,14 @@ def render_sounds(sounds, st, durations=None):
         body.append('set %s = CreateSound( %s, %s, %s, %s, %d, %d, %s )' % (
             var, path, _bool(f & 1), _bool(f & 2), _bool(f & 4), snd['fade_in'], snd['fade_out'], jstring(snd['eax'])))
         label = snd.get('label')
+        if label is None and labels is not None:
+            found = labels.get(snd['path'].decode('latin-1').replace('/', '\\').lower())
+            label = found.encode('latin-1') if found else None
         if label:
             body.append(_call('SetSoundParamsFromLabel', var, jstring(label)))
+        max_distance = snd['max_distance']
+        if labels is not None and max_distance == DEFAULT_FLOAT:
+            max_distance = OLD_MAX_DISTANCE
         for key, setter in (('facial_label', 'SetSoundFacialAnimationLabel'),
                             ('facial_group', 'SetSoundFacialAnimationGroupLabel'),
                             ('facial_path', 'SetSoundFacialAnimationSetFilepath')):
@@ -653,7 +660,7 @@ def render_sounds(sounds, st, durations=None):
             body.append(_call('SetSoundPitch', var, real(snd['pitch'])))
         if f & 2:
             if snd['min_distance'] != DEFAULT_FLOAT:
-                body.append(_call('SetSoundDistances', var, real(snd['min_distance']), real(snd['max_distance'])))
+                body.append(_call('SetSoundDistances', var, real(snd['min_distance']), real(max_distance)))
             if snd['cutoff'] != DEFAULT_FLOAT:
                 body.append(_call('SetSoundDistanceCutoff', var, real(snd['cutoff'])))
             if snd['cone_inside'] != DEFAULT_FLOAT:
@@ -1334,7 +1341,8 @@ def _items_and_units(records, game):
     return marked, [u for u in marked if u['item']], [u for u in marked if not u['item'] and u['ident'] != b'sloc']
 
 
-def render(files, td=None, editor=None, game=None, mt=None, texts=None, durations=None, hints=None, header=None):
+def render(files, td=None, editor=None, game=None, mt=None, texts=None, durations=None, hints=None, header=None,
+           sound_labels=None):
     w3i_ = None
     try:
         w3i_ = read_w3i(files['war3map.w3i'])
@@ -1423,7 +1431,7 @@ def render(files, td=None, editor=None, game=None, mt=None, texts=None, duration
             out.add('Doodad%06d_DropItems' % d['index'], render_drop('Doodad%06d_DropItems' % d['index'],
                                                                       d['item_sets'], st))
     if sounds:
-        text, exact = render_sounds(sounds, st, durations)
+        text, exact = render_sounds(sounds, st, durations, sound_labels)
         out.add('InitSounds', text)
         if not exact:
             out.unknown['InitSounds'] = 'the sound durations (the editor measures the audio files)'
@@ -1585,6 +1593,7 @@ class Fit(object):
         self.notes = []
         self.reason = ''
         self.lines = (0, 0)
+        self.vanilla = False
 
 
 RX_VJASS_OPEN = re.compile(r'[ \t]*(?:(?:private|public)[ \t]+)?'
@@ -1786,15 +1795,34 @@ def _value(v):
     return None if v in (None, 'null') else re.sub(r'\s+', '', v)
 
 
-def _twins(rendering, header, reference):
+RX_FACING = re.compile(
+    r"(\b(?:CreateUnit|BlzCreateUnitWithSkin)\(\s*\w+\s*,\s*'.{4}'\s*,\s*[-\d.]+\s*,\s*[-\d.]+\s*,\s*)"
+    r"(-?[\d.]+)(\s*[,)])"
+)
+FACING_TOLERANCE = 0.0015
+
+
+def same_but_facing(rendered, original, rendered_all=None, original_all=None, name=None):
+    fa = [float(m.group(2)) for m in RX_FACING.finditer(rendered)]
+    fb = [float(m.group(2)) for m in RX_FACING.finditer(original)]
+    if len(fa) != len(fb) or any(abs(x - y) > FACING_TOLERANCE for x, y in zip(fa, fb)):
+        return False
+
+    def flat(text):
+        return RX_FACING.sub(lambda m: m.group(1) + '0' + m.group(3), text)
+    return same_function(flat(rendered), flat(original), rendered_all, original_all, name)
+
+
+def _twins(rendering, header, reference, never=NEVER_TWIN, facing=False):
     devo = set(n[len(DEVO):] for n in header.functions if n.startswith(DEVO))
     back = _renamer(devo)
     theirs = dict((n, back(t)) for n, t in reference.items() if not n.startswith(DEVO))
     theirs.update((n[len(DEVO):], back(t)) for n, t in reference.items() if n.startswith(DEVO))
     out = {}
     for x, text in rendering.functions.items():
-        if x in devo and x not in NEVER_TWIN and x not in ('main', 'config'):
-            out[x] = same_function(text, theirs.get(x, ''), rendering.functions, theirs, x)
+        if x in devo and x not in never and x not in ('main', 'config'):
+            out[x] = same_function(text, theirs.get(x, ''), rendering.functions, theirs, x) or (
+                facing and same_but_facing(text, theirs.get(x, ''), rendering.functions, theirs, x))
     for x in ('main', 'config'):
         if x in rendering.functions and x in theirs:
             out[x] = same_function(rendering.functions[x], theirs[x], rendering.functions, theirs, x)
@@ -1815,6 +1843,21 @@ def _replaceable(equal, header, reference, blocked):
     return keep
 
 
+def _after_header_callers(keep, equal, header, reference, blocked, devo_names):
+    while True:
+        drop = set()
+        for n in header.functions:
+            if n in ('main', 'config') or n[len(DEVO):] in keep:
+                continue
+            for c in function_refs(header.function_text(n), devo_names) - {n}:
+                if c[len(DEVO):] in keep and AFTER_HEADER.match(c[len(DEVO):]):
+                    drop.add(c[len(DEVO):])
+        if not drop:
+            return keep
+        keep = _replaceable(dict((x, same and x not in drop) for x, same in equal.items()), header, reference,
+                            blocked)
+
+
 ORDER_BY_FOLDER = ('InitCustomTriggers', 'RunInitializationTriggers')
 
 
@@ -1825,7 +1868,7 @@ def _same_calls(a, b):
     return calls(a) == calls(b)
 
 
-def runs_original(script, reference, replaced=()):
+def runs_original(script, reference, replaced=(), facing=False):
     mine = gui_render.split_functions(script, 'jass')
     theirs = reference if isinstance(reference, dict) else gui_render.split_functions(reference, 'jass')
     to_ref = dict((x, DEVO + x) for x in replaced)
@@ -1846,7 +1889,9 @@ def runs_original(script, reference, replaced=()):
             compared += 1
             if n in ORDER_BY_FOLDER and _same_calls(mine[n], theirs[n]):
                 pass
-            elif canonical_function(mine[n], mine) != canonical_function(theirs[n], theirs):
+            elif canonical_function(mine[n], mine) != canonical_function(theirs[n], theirs) and not (
+                    facing and (same_function(mine[n], theirs[n], mine, theirs, n.replace(DEVO, '', 1)) or
+                                same_but_facing(mine[n], theirs[n], mine, theirs, n.replace(DEVO, '', 1)))):
                 problems.append('%s differs' % n)
         stack.extend(sorted(function_refs(mine[n], names) - seen))
     detail = '%d functions reached from main and config, %d compared as code' % (len(seen), compared)
@@ -1858,7 +1903,7 @@ def runs_original(script, reference, replaced=()):
 RX_PJASS_WHERE = re.compile(r'^(?:[A-Za-z]:)?[^:]*:\d+:\s*')
 
 
-def pjass_run(scripts):
+def pjass_run(scripts, ref_dir=None):
     import shutil
     import tempfile
     try:
@@ -1874,7 +1919,7 @@ def pjass_run(scripts):
             path = os.path.join(tmp, tag + '.j')
             with open(path, 'wb') as f:
                 f.write(code.encode('utf-8', 'surrogateescape'))
-            ref = pjass.game_scripts_dir(REF_DIR) or REF_DIR
+            ref = pjass.game_scripts_dir(ref_dir or REF_DIR) or ref_dir or REF_DIR
             r = pjass.run_action([(os.path.join(ref, 'common.j'), 'common.j'),
                                   (os.path.join(ref, 'blizzard.j'), 'Blizzard.j'), (path, 'war3map.j')],
                                  tmp=os.path.join(tmp, tag))
@@ -1885,8 +1930,8 @@ def pjass_run(scripts):
     return out
 
 
-def _pjass_proof(scripts, original_errors):
-    runs = pjass_run(scripts)
+def _pjass_proof(scripts, original_errors, ref_dir=None):
+    runs = pjass_run(scripts, ref_dir)
     if runs is None:
         return True, 'skipped: no pjass'
     new = collections.Counter()
@@ -1904,11 +1949,12 @@ def _pjass_proof(scripts, original_errors):
 
 
 def fit(header, files, td, mt=None, texts=None, reference=None, original=None, casc=None, editor=EDITOR_3,
-        triggers=None, log=None):
+        triggers=None, log=None, ref_dir=None, jasshelper=True, sound_labels=None):
     say = log or (lambda *a: None)
     out = Fit()
     try:
-        return _fit(out, header, files, td, mt, texts, reference, original, casc, editor, triggers, say)
+        return _fit(out, header, files, td, mt, texts, reference, original, casc, editor, triggers, say, ref_dir,
+                    jasshelper, sound_labels)
     except Exception as e:
         import traceback
         out.ok = False
@@ -1917,7 +1963,8 @@ def fit(header, files, td, mt=None, texts=None, reference=None, original=None, c
         return out
 
 
-def _fit(out, header_text, files, td, mt, texts, reference, original, casc, editor, triggers, say):
+def _fit(out, header_text, files, td, mt, texts, reference, original, casc, editor, triggers, say, ref_dir=None,
+         jasshelper=True, sound_labels=None):
     import dataclasses
     from doctor.script import jass_ast
     from doctor.triggers import wtg
@@ -1943,7 +1990,10 @@ def _fit(out, header_text, files, td, mt, texts, reference, original, casc, edit
         texts = texts + [None]
     out.triggers, out.texts = mt, texts
     hints = building_hints('\n'.join(reference.values()))
-    renders = [render(files, td, editor, game, mt, texts, hints=hints, header=h) for h in (None, header_text)]
+    old_sounds = sound_labels is not None and not jasshelper
+    durations = script_durations('\n'.join(reference.values())) if old_sounds else None
+    renders = [render(files, td, editor, game, mt, texts, hints=hints, header=h, durations=durations,
+                      sound_labels=sound_labels if old_sounds else None) for h in (None, header_text)]
     if renders[1].functions == renders[0].functions and renders[1].declared() == renders[0].declared():
         renders = renders[:1]
     declared = collections.OrderedDict()
@@ -1964,17 +2014,23 @@ def _fit(out, header_text, files, td, mt, texts, reference, original, casc, edit
     blocked = set(n[len(DEVO):] for n in function_refs(code, devo_names))
     for n in header.functions:
         if n not in ('main', 'config'):
-            blocked.update(c[len(DEVO):] for c in function_refs(header.function_text(n), devo_names)
+            if not jasshelper and AFTER_HEADER.match(n[len(DEVO):]):
+                continue
+            own = {n} if not jasshelper else set()
+            blocked.update(c[len(DEVO):] for c in function_refs(header.function_text(n), devo_names) - own
                            if AFTER_HEADER.match(c[len(DEVO):]))
     equal = {}
     for r in renders:
-        for x, same in _twins(r, header, reference).items():
+        for x, same in _twins(r, header, reference, frozenset() if old_sounds else NEVER_TWIN,
+                              facing=not jasshelper).items():
             equal[x] = equal.get(x, True) and same
     keep = _replaceable(equal, header, reference, blocked)
+    if not jasshelper:
+        keep = _after_header_callers(keep, equal, header, reference, blocked, devo_names)
     ends = all(equal.get(x) for x in ('main', 'config')) and all(
         n[len(DEVO):] in keep for x in ('main', 'config') for n in function_refs(reference.get(x, ''), devo_names))
     plans = []
-    if keep and ends:
+    if ends and (keep or not jasshelper):
         plans.append(('editor main', sorted(keep), False))
     if keep:
         plans.append(('twins', sorted(keep), True))
@@ -1983,7 +2039,7 @@ def _fit(out, header_text, files, td, mt, texts, reference, original, casc, edit
     if isinstance(original, bytes):
         original = original.decode('utf-8', 'surrogateescape')
     if original is not None:
-        runs = pjass_run({'original': mask_vjass(original)})
+        runs = pjass_run({'original': mask_vjass(original)}, ref_dir)
         original_errors = runs['original'][1] if runs else None
     if header.masked != header.text:
         out.notes.append('the custom script has vJass blocks: JassHelper compiles them on save, pjass reads the rest '
@@ -1993,8 +2049,8 @@ def _fit(out, header_text, files, td, mt, texts, reference, original, casc, edit
         scripts = dict(('script%d' % k, editor_script(r, header, out.dropped, replaced, inject, code))
                        for k, r in enumerate(renders))
         proofs = collections.OrderedDict()
-        proofs['editor_save_pjass'] = _pjass_proof(scripts, original_errors)
-        runs = [runs_original(s, reference, replaced) for s in scripts.values()]
+        proofs['editor_save_pjass'] = _pjass_proof(scripts, original_errors, ref_dir)
+        runs = [runs_original(s, reference, replaced, facing=not jasshelper) for s in scripts.values()]
         proofs['editor_save_runs_original'] = (all(ok for ok, _d in runs), next((d for ok, d in runs if not ok),
                                                                                  runs[0][1]))
         if all(ok for ok, _d in proofs.values()):
@@ -2006,6 +2062,8 @@ def _fit(out, header_text, files, td, mt, texts, reference, original, casc, edit
                                               if n in header.functions)
             out.lines = (header_text.count('\n'), out.header.count('\n') - ends_lines)
             out.reason = '; '.join(reasons)
+            left = [n for n in header.decls if n not in set(out.dropped)]
+            out.vanilla = not inject and not left and not header.types and header.masked == header.text
             say('fit: %s, %d globals and %d functions left to the editor, %d objects named' % (
                 level, len(out.dropped), len(replaced), len(out.objects)))
             return out
@@ -2022,6 +2080,7 @@ def outcome(fit_, td=None):
         wtg_bytes = wtg.write_wtg(fit_.triggers, td)
     report = {'level': fit_.level, 'dropped': list(fit_.dropped), 'replaced': list(fit_.replaced),
               'objects': list(fit_.objects), 'inject': fit_.inject, 'lines': list(fit_.lines), 'reason': fit_.reason,
+              'vanilla': fit_.vanilla,
               'proofs': dict((k, d) for k, (_ok, d) in fit_.proofs.items())}
     return (fit_.ok, fit_.level, fit_.header, fit_.inject, wtg_bytes, fit_.script, report,
             dict((k, bool(ok)) for k, (ok, _d) in fit_.proofs.items()))
@@ -2044,6 +2103,15 @@ def building_hints(script):
 
 
 ERAS = ((6105, 'classic'), (6117, '1.32'), (7000, '2.0'), (1 << 30, '3.0'))
+RX_DURATION = re.compile(r'SetSoundDuration\(\s*(gg_snd_\w+)\s*,\s*(\d+)\s*\)')
+
+
 def era(editor):
     return next(name for limit, name in ERAS if editor < limit)
+
+
+def script_durations(script):
+    if isinstance(script, bytes):
+        script = script.decode('utf-8', 'surrogateescape')
+    return dict((m.group(1), int(m.group(2))) for m in RX_DURATION.finditer(script))
 

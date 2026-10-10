@@ -625,11 +625,11 @@ class Inference(object):
         if k in ('var', 'idx'):
             n = e[1]
             if f is not None and ('line', f.fname, n) in self.nodes:
-                return ('node', ('line', f.fname, n))
+                return ('no', ('line', f.fname, n))
             if f is not None and (n in f.local_vars or n in dict((p[1], p[0]) for p in f.params)):
                 return None
             if ('g', n) in self.nodes:
-                return ('node', ('g', n))
+                return ('no', ('g', n))
             if n in self.g_code:
                 return None
             if n in self.ref.globals_block:
@@ -639,18 +639,18 @@ class Inference(object):
         if k == 'call':
             n = e[1]
             if n in self.funcs:
-                return ('node', ('r', n)) if ('r', n) in self.nodes else None
+                return ('no', ('r', n)) if ('r', n) in self.nodes else None
             t = self.ref.signature(n)[1]
             return ('t', t) if self.ref.is_handle(t) else None
         return None
 
     def var_target(self, n, f):
         if f is not None and ('line', f.fname, n) in self.nodes:
-            return ('node', ('line', f.fname, n))
+            return ('no', ('line', f.fname, n))
         if f is not None and (n in f.local_vars or n in dict((p[1], p[0]) for p in f.params)):
             return None
         if ('g', n) in self.nodes:
-            return ('node', ('g', n))
+            return ('no', ('g', n))
         if n in self.g_code:
             return None
         if n in self.ref.globals_block:
@@ -662,13 +662,13 @@ class Inference(object):
         if orig is None or dst is None:
             return
         self.flows.append((orig, dst, where))
-        if dst[0] == 'node':
-            if orig[0] == 'node':
+        if dst[0] == 'no':
+            if orig[0] == 'no':
                 self.orig_n[dst[1]].add(orig[1])
                 self.dst_n[orig[1]].add(dst[1])
             else:
                 self.orig_t[dst[1]].add(orig[1])
-        elif orig[0] == 'node':
+        elif orig[0] == 'no':
             self.dst_t[orig[1]].add(dst[1])
 
     def collect(self, globals_block):
@@ -699,7 +699,7 @@ class Inference(object):
                 elif k == 'return' and c[1] is not None:
                     self.expr(c[1], f)
                     if ('r', f.fname) in self.nodes:
-                        self.flow(self.expr_type(c[1], f), ('node', ('r', f.fname)), f.fname)
+                        self.flow(self.expr_type(c[1], f), ('no', ('r', f.fname)), f.fname)
             walk_cmds(f.body, visit)
 
     def pin_hook_types(self, funcs):
@@ -710,13 +710,13 @@ class Inference(object):
             if len(params) != len(f.params):
                 continue
             for (c, pn), (t, _n) in zip(f.params, params):
-                node = ('line', f.fname, pn)
-                if c == 7 and node in self.nodes and self.ref.is_handle(t):
-                    self.flow(('t', t), ('node', node), 'hook %s' % f.fname)
-                    self.flow(('node', node), ('t', t), 'hook %s' % f.fname)
+                no = ('line', f.fname, pn)
+                if c == 7 and no in self.nodes and self.ref.is_handle(t):
+                    self.flow(('t', t), ('no', no), 'hook %s' % f.fname)
+                    self.flow(('no', no), ('t', t), 'hook %s' % f.fname)
             if ('r', f.fname) in self.nodes and self.ref.is_handle(ret):
-                self.flow(('t', ret), ('node', ('r', f.fname)), 'hook %s' % f.fname)
-                self.flow(('node', ('r', f.fname)), ('t', ret), 'hook %s' % f.fname)
+                self.flow(('t', ret), ('no', ('r', f.fname)), 'hook %s' % f.fname)
+                self.flow(('no', ('r', f.fname)), ('t', ret), 'hook %s' % f.fname)
 
     def expr(self, e, f):
         def visit(x):
@@ -726,7 +726,7 @@ class Inference(object):
                     g = self.funcs[n]
                     for (c, pn), a in zip(g.params, x[2]):
                         if c == 7:
-                            self.flow(self.expr_type(a, f), ('node', ('line', n, pn)), 'arg %s' % n)
+                            self.flow(self.expr_type(a, f), ('no', ('line', n, pn)), 'arg %s' % n)
                 else:
                     params = self.ref.signature(n)[0]
                     for (t, _pn), a in zip(params, x[2]):
@@ -741,50 +741,50 @@ class Inference(object):
             changed = True
             while changed:
                 changed = False
-                for node in self.nodes:
-                    t = kind.get(node)
-                    for x in self.orig_t.get(node, ()):
+                for no in self.nodes:
+                    t = kind.get(no)
+                    for x in self.orig_t.get(no, ()):
                         t = ref.lub(t, x)
-                    for o in self.orig_n.get(node, ()):
+                    for o in self.orig_n.get(no, ()):
                         if o in kind:
                             t = ref.lub(t, kind[o])
-                    if t is not None and t != kind.get(node):
-                        kind[node] = t
+                    if t is not None and t != kind.get(no):
+                        kind[no] = t
                         changed = True
             cand = {}
-            without_type = sorted((node for node in self.nodes if node not in kind), key=repr)
-            for node in without_type:
+            without_type = sorted((no for no in self.nodes if no not in kind), key=repr)
+            for no in without_type:
                 t = None
-                for x in sorted(self.dst_t.get(node, ())):
+                for x in sorted(self.dst_t.get(no, ())):
                     t = x if t is None else (ref.glb(t, x) or t)
                 if t is not None:
-                    cand[node] = t
+                    cand[no] = t
             changed = True
             while changed:
                 changed = False
-                for node in without_type:
-                    t = cand.get(node)
-                    for d in sorted(self.dst_n.get(node, ()), key=repr):
+                for no in without_type:
+                    t = cand.get(no)
+                    for d in sorted(self.dst_n.get(no, ()), key=repr):
                         td = kind.get(d) or cand.get(d)
                         if td is not None:
                             t = td if t is None else (ref.glb(t, td) or t)
-                    if t is not None and t != cand.get(node):
-                        cand[node] = t
+                    if t is not None and t != cand.get(no):
+                        cand[no] = t
                         changed = True
             new_ones = 0
-            for node in without_type:
-                if node in cand:
-                    kind[node] = cand[node]
+            for no in without_type:
+                if no in cand:
+                    kind[no] = cand[no]
                     new_ones += 1
             if not new_ones:
                 break
-        for node in self.nodes:
-            kind.setdefault(node, 'handle')
+        for no in self.nodes:
+            kind.setdefault(no, 'handle')
         self.kind = kind
         bad_ones = []
         for orig, dst, where in self.flows:
-            a = kind[orig[1]] if orig[0] == 'node' else orig[1]
-            b = kind[dst[1]] if dst[0] == 'node' else dst[1]
+            a = kind[orig[1]] if orig[0] == 'no' else orig[1]
+            b = kind[dst[1]] if dst[0] == 'no' else dst[1]
             if not ref.sub(a, b):
                 bad_ones.append((where, orig, dst, a, b))
         self.bad_ones = bad_ones
@@ -881,10 +881,10 @@ class Printer(object):
         self.ref = ref
         self.inf = inference
 
-    def type_name(self, code_part, node):
+    def type_name(self, code_part, no):
         base = code_part - 5 if code_part >= 9 else code_part
         if base == 7:
-            t = self.inf.kind.get(node, 'handle') if node else 'handle'
+            t = self.inf.kind.get(no, 'handle') if no else 'handle'
         else:
             t = BASIC[base]
         return t

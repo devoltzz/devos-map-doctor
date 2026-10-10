@@ -9,9 +9,55 @@ function EXDisplayChat takes player p,integer chat_recipient,string message retu
 endfunction
 
 function DzGetColor takes integer r,integer g,integer b,integer a returns integer
+    //{{KK_SE:KK_DZ_REAL}}
+    return BlzConvertColor(r,g,b,a)
+    //{{KK_FIMSE:KK_DZ_REAL}}
     return BlzConvertColor(a,r,g,b)
 endfunction
 
+//{{KK_SE:KK_XP}}
+constant string DB_xp_tabela="{{KK_XP_TABELA}}"
+constant real DB_XP_A={{KK_XP_A}}
+constant real DB_XP_B={{KK_XP_B}}
+constant real DB_XP_C={{KK_XP_C}}
+
+function DzGetUnitNeededXP takes unit whichUnit,integer level returns integer
+    local integer n=StringLength(DB_xp_tabela)
+    local integer i=0
+    local integer j
+    local integer niv=1
+    local real tot=0.0
+    local real q
+    if level<1 then
+        return 0
+    endif
+    loop
+        exitwhen i>=n or niv>level
+        set j=i
+        loop
+            exitwhen j>=n or SubString(DB_xp_tabela, j, j+1)==","
+            set j=j+1
+        endloop
+        set niv=niv+1
+        set tot=S2R(SubString(DB_xp_tabela, i, j))
+        set i=j+1
+    endloop
+    if niv>level then
+        return R2I(tot)
+    endif
+    if DB_XP_A==1.0 then
+        set q=I2R(level+1-niv)
+        return R2I(tot+DB_XP_B*(I2R((level+1)*(level+2))-I2R((niv)*(niv+1)))/2.0+DB_XP_C*q)
+    endif
+    loop
+        exitwhen niv>level
+        set niv=niv+1
+        set tot=DB_XP_A*tot+DB_XP_B*I2R(niv)+DB_XP_C
+    endloop
+    return R2I(tot)
+endfunction
+
+//{{KK_FIMSE:KK_XP}}
 function DzSetUnitPortrait takes unit whichUnit,string modelFile returns nothing
 endfunction
 

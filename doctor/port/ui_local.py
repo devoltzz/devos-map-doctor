@@ -12,7 +12,9 @@ REGISTROS = {
 PREFIX = 'KK_loc_'
 DEFAULT_MARK = '// [KK framework] step 3n: the body only on the machine of whoever acted (the event runs on all)'
 RX_EX = re.compile(r'\bDzFrameSetUpdateCallbackByCodeEx\s*\(\s*"(\w+)"\s*\)')
-RX_BY_NAME = re.compile(r'\bDzFrameSetScript\s*\(')
+BY_NAME = {'DzFrameSetScript': (4, 2), 'DzTriggerRegisterKeyEvent': (5, 4), 'DzTriggerRegisterMouseEvent': (5, 4),
+           'DzTriggerRegisterMouseMoveEvent': (3, 2), 'DzTriggerRegisterMouseWheelEvent': (3, 2)}
+RX_BY_NAME = re.compile(r'\b(%s)\s*\(' % '|'.join(BY_NAME))
 RX_LITERAL_NAME = re.compile(r'^\s*"([A-Za-z_]\w*)"\s*$')
 RX_INITCT = re.compile(r'(?m)^function InitCustomTriggers takes nothing returns nothing[ \t]*\r?\n')
 RX_MAIN = re.compile(r'(?m)^function main takes nothing returns nothing[ \t]*(?:\r\n|\r|\n)')
@@ -329,14 +331,19 @@ def by_name(body_text, info):
         ln = body_text[start_line:m.start()]
         if re.match(r'\s*(native|function)\b', ln) or '//' in ln:
             continue
+        reg = m.group(1)
+        n_args, i_name = BY_NAME[reg]
         opens = m.end() - 1
         end_pos = on_close(body_text, opens)
         if end_pos < 0:
-            info['failures'].append('unclosed parentheses in DzFrameSetScript (offset %d)' % m.start())
+            info['failures'].append('unclosed parenthesis in %s (offset %d)' % (reg, m.start()))
             continue
         core_part = body_text[opens + 1:end_pos]
         args = arguments(core_part)
-        fname = RX_LITERAL_NAME.match(core_part[args[2][0]:args[2][1]]) if len(args) == 4 else None
+        arg_name = core_part[args[i_name][0]:args[i_name][1]].strip() if len(args) == n_args else ''
+        if reg != 'DzFrameSetScript' and not arg_name.startswith('"'):
+            continue
+        fname = RX_LITERAL_NAME.match(arg_name) if len(args) == n_args else None
         defs = list(re.finditer(r'(?m)^[ \t]*function[ \t]+%s[ \t]+takes[ \t]+nothing\b' % re.escape(fname.group(1)),
                                 body_text)) if fname else []
         if len(defs) != 1:
@@ -347,12 +354,13 @@ def by_name(body_text, info):
             if tgt not in trampolines:
                 trampolines.append(tgt)
             tgt = 'KK_nome_' + tgt
-        a0, a1 = args[2]
-        replacements.append((m.start(), opens + 1 + a0, opens + 1 + a1, tgt))
-    for begin, a0, a1, tgt in reversed(replacements):
+        a0, a1 = args[i_name]
+        replacements.append((m.start(), opens + 1 + a0, opens + 1 + a1, tgt, reg))
+    for begin, a0, a1, tgt, reg in reversed(replacements):
         body_text = (
             body_text[:begin]
-            + 'DzFrameSetScriptByCode('
+            + reg
+            + 'ByCode('
             + body_text[body_text.index('(', begin) + 1 : a0]
             + ' function '
             + tgt

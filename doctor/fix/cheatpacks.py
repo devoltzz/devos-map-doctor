@@ -500,7 +500,17 @@ def _pjass_exe():
     return None
 
 
-def _pjass_check(script, mapa=None):
+def _pjass_erros(script, mapa=None):
+    import collections
+    ok, det, _s = _pjass_check(script, mapa, _cru=True)
+    return collections.Counter(det) if isinstance(det, list) else collections.Counter()
+
+
+def _sem_linha(x):
+    return re.sub(r'^.*?:\d+:\s*', '', x.strip())
+
+
+def _pjass_check(script, mapa=None, original=None, _cru=False, mesclado=None):
     tmp = tempfile.mkdtemp(prefix='cheatpack_pjass_')
     try:
         alvo = os.path.join(tmp, 'script.j')
@@ -517,9 +527,19 @@ def _pjass_check(script, mapa=None):
         r = subprocess.run([exe] + comuns + [alvo], cwd=tmp, capture_output=True, text=True, errors='replace',
                            creationflags=NO_WINDOW)
         out_path = (r.stdout or '') + (r.stderr or '')
+        if _cru:
+            return r.returncode == 0, [_sem_linha(x) for x in out_path.splitlines()
+                                       if x.strip() and 'Parse successful' not in x and re.search(r':\d+:', x)], False
         if r.returncode == 0 and 'error' not in out_path.lower():
             return True, 'pjass: %s' % (out_path.strip().splitlines()[-1] if out_path.strip() else 'ok'), False
         ruins = [x for x in out_path.splitlines() if x.strip() and 'Parse successful' not in x]
+        if original is not None:
+            ja = _pjass_erros(original, mapa)
+            depois = _pjass_erros(mesclado if mesclado is not None else script, mapa)
+            novos = depois - ja
+            n_aqui = len([x for x in ruins if re.search(r':\d+:', x)])
+            if sum(ja.values()) and not novos and n_aqui == sum(depois.values()):
+                return True, 'pjass: %d complaint(s) of the map\'s own script, none new' % sum(ja.values()), 'own'
         from_map = [x for x in ruins if 'mapa_' in x]
         nosso = [x for x in ruins if x not in from_map]
         sintaxe = [
@@ -658,6 +678,7 @@ def _injeta(p, pack, text, name, bruto, opcoes, mapa, out_path, out):
     else:
         new_text = ('-- %s %s%s\n' % (MARK_NAME, MARK_HEAD, pack['id'] + ':' + (usados.get('activator') or ''))) \
             + _lua_obfusca(pack_body) + '\n' + text.replace('\r\n', '\n')
+    mesclado = new_text
     p('Obfuscating the script')
     tmp = tempfile.mkdtemp(prefix='cheatpack_')
     try:
@@ -672,7 +693,7 @@ def _injeta(p, pack, text, name, bruto, opcoes, mapa, out_path, out):
         p('Checking the syntax')
         semantico = False
         if pack['language'] == JASS:
-            ok, det, semantico = _pjass_check(new_text, mapa)
+            ok, det, semantico = _pjass_check(new_text, mapa, original=text, mesclado=mesclado)
         else:
             ok, det = _lua_check(new_text)
         out['syntax'] = {'ok': bool(ok), 'detail': det, 'semantic': bool(semantico)}
@@ -732,7 +753,16 @@ def _report(pack, usados, name, before, after, renames, det, renamed=None, seman
            ('good', 'The script went back into the map with mpqadd: the file was not rebuilt (%s -> %s).'
             % (_kb(len(before)), _kb(len(after)))),
            ('good', 'The syntax check passed (%s).' % det)]
-    if semantico:
+    if semantico == 'own':
+        out.append(
+            (
+                'warn',
+                'The map\'s own script already fails the check against the game scripts (for example the '
+                'return bug of patch 1.23 and older): the pack added no new problem, and the map runs only '
+                'on the game versions it ran on before.',
+            )
+        )
+    elif semantico:
         out.append(('warn', 'The map uses natives the game scripts do not declare (the platform client provides them '
                              'at run time): the check reports those and nothing else, and the pack adds no native. '
                              'Only a syntax error blocks the injection.'))
