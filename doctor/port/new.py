@@ -357,6 +357,62 @@ def ui_portrait(body_text):
     )
 
 
+RX_CARD = re.compile(r'\bJNMemoryGetInteger[ \t]*\([ \t]*\(?[ \t]*\w+[ \t]*\+[ \t]*400[ \t]*\)?[ \t]*\)')
+
+
+def card_gate(body_text):
+    if 'DzFrameGetCommandBarButton' not in body_text or '+400' not in body_text.replace(' ', ''):
+        return 'false'
+    for body in re.findall(r'(?ms)^[ \t]*function\s+\w+.*?^[ \t]*endfunction', body_text):
+        if 'DzFrameGetCommandBarButton' in body and RX_CARD.search(body):
+            return 'true'
+    return 'false'
+
+
+def covered_attack(extract):
+    import contextlib
+    import io
+    from doctor.port import slk_tables
+    if not extract or not slk_tables.has_slk(extract):
+        return None
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            units, abils, _items = slk_tables.build_tables(extract)
+    except Exception:
+        return None
+    button_slot = '3,0'
+    U = os.path.join(extract, 'units')
+    for f in os.listdir(U) if os.path.isdir(U) else ():
+        if f.lower() == 'commandfunc.txt':
+            sec = None
+            for ln in open(os.path.join(U, f), 'rb').read().decode('utf-8', 'replace').splitlines():
+                s = ln.strip()
+                m = re.match(r'^\[(.+)\]$', s)
+                if m:
+                    sec = m.group(1).strip().lower()
+                elif sec == 'cmdattack' and s.split('=', 1)[0].strip().lower() == 'buttonpos' and '=' in s:
+                    button_slot = s.split('=', 1)[1].strip()
+
+    def _norm(p):
+        p = re.sub(r'\s+', '', p or '').strip('"')
+        return p if re.match(r'^-?\d+,-?\d+$', p) else None
+    button_slot = _norm(button_slot)
+    if button_slot is None:
+        return None
+    out = []
+    for uid, fields in units.items():
+        if not uid or len(uid) != 4 or not re.match(r'^[\x21-\x7e]{4}$', uid):
+            continue
+        if (fields.get('weapson') or '0').strip() in ('', '0', '_', '-'):
+            continue
+        listing = ','.join(fields.get(k) or '' for k in ('abillist', 'heroabillist'))
+        for aid in (a.strip().strip('"') for a in listing.split(',')):
+            if aid and aid in abils and _norm(abils[aid].get('buttonpos')) == button_slot:
+                out.append(uid)
+                break
+    return ','.join(sorted(out)) if out else None
+
+
 BIG_LIFE = 10000000
 
 
