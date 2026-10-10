@@ -84,6 +84,42 @@ def load_data():
     return decrypt
 
 
+def _cipher_through_js():
+    j = _js()
+    f = getattr(j[0], 'mpqEncrypt', None) if j else None
+    if f is None:
+        return None
+    to_js = j[1]
+
+    def encrypt(data_bytes, hash_key):
+        return f(to_js(bytes(data_bytes)), hash_key & 0xFFFFFFFF).to_bytes()
+    return encrypt
+
+
+def load_cipher():
+    if _disabled():
+        return None
+    if sys.platform == 'emscripten':
+        return _cipher_through_js()
+    dll = _dll()
+    if not dll:
+        return None
+    try:
+        f = dll.mpq_encrypt
+    except AttributeError:
+        return None
+    f.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_uint32]
+    f.restype = None
+
+    def encrypt(data_bytes, hash_key, _f=f):
+        buf = bytearray(data_bytes)
+        n = len(buf)
+        if n:
+            _f(ctypes.addressof((ctypes.c_char * n).from_buffer(buf)), n, hash_key & 0xFFFFFFFF)
+        return bytes(buf)
+    return encrypt
+
+
 def load_hash():
     if _disabled() or sys.platform == 'emscripten':
         return None
@@ -229,6 +265,63 @@ def load_explode():
         r = fx(data_bytes, len(data_bytes), out, expected_len)
         return None if r < 0 else out.raw[:r]
     return explode
+
+
+def _jpeg_through_js():
+    j = _js()
+    fs, fw = (getattr(j[0], 'jpegScan', None), getattr(j[0], 'jpegWrite', None)) if j else (None, None)
+    if fs is None or fw is None:
+        return None
+    to_js = j[1]
+
+    def scan(d, ent, nmcu, dri, spec, tabs, cap_words):
+        r = fs(to_js(d), ent, nmcu, dri, to_js(spec), to_js(tabs), cap_words)
+        if r is None:
+            return None
+        out = array('I')
+        out.frombytes(r.to_bytes())
+        return out
+
+    def write(recs, codes, action_match, ntab, cap_words):
+        r = fw(to_js(recs.tobytes()), to_js(codes.tobytes()), to_js(bytes(action_match)), ntab, cap_words)
+        return None if r is None else r.to_bytes()
+    return scan, write
+
+
+def load_jpeg():
+    if _disabled():
+        return None
+    if sys.platform == 'emscripten':
+        return _jpeg_through_js()
+    dll = _dll()
+    if not dll:
+        return None
+    try:
+        fs, fw = dll.jpeg_huff_scan, dll.jpeg_huff_write
+    except AttributeError:
+        return None
+    vp, sz = ctypes.c_void_p, ctypes.c_size_t
+    fs.argtypes = [ctypes.c_char_p, sz, sz, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p, sz, ctypes.c_char_p, sz,
+                   vp, sz]
+    fw.argtypes = [vp, sz, vp, ctypes.c_char_p, sz, vp, sz]
+    fs.restype = fw.restype = ctypes.c_int
+
+    def scan(d, ent, nmcu, dri, spec, tabs, cap_words, _f=fs):
+        out = array('I', bytes(4 * cap_words))
+        r = _f(d, len(d), ent, nmcu, dri, spec, len(spec), tabs, len(tabs), out.buffer_info()[0], cap_words)
+        return None if r < 0 else out
+
+    def write(recs, codes, action_match, ntab, cap_words, _f=fw):
+        if not cap_words:
+            return None
+        out = bytearray(cap_words)
+        r = _f(recs.buffer_info()[0], len(recs), codes.buffer_info()[0], bytes(action_match), ntab,
+               ctypes.addressof((ctypes.c_char * cap_words).from_buffer(out)), cap_words)
+        if r < 0:
+            return None
+        del out[r:]
+        return bytes(out)
+    return scan, write
 
 
 def compiles(output):
