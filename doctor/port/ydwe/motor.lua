@@ -1185,7 +1185,13 @@ do
   X.FrameSetModelSize = function(f, s) local h = fh(f) if h then BlzFrameSetScale(h, s or 1.0) end end
   X.FrameSetTextFont = function(f, font, altura, flags) local h = fh(f) if h then BlzFrameSetFont(h, font, altura, flags or 0) end end
   X.FrameSetEditFocus = function(f, v) local h = fh(f) if h and BlzFrameSetFocus then BlzFrameSetFocus(h, v) end end
-  X.DestroySimpleFrame = function(f) local h = fh(f) if h then BlzDestroyFrame(h) end end
+
+
+  X.DestroySimpleFrame = function(f)
+    local d = __JENV and rawget(__JENV, "DzDestroyFrame")
+    if type(d) == "function" and f ~= nil and f ~= 0 then d(f) return end
+    local h = fh(f) if h then BlzDestroyFrame(h) end
+  end
   X.GetTargetObject = function() return BlzGetMouseFocusUnit() end
 
 
