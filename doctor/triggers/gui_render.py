@@ -610,6 +610,18 @@ class _Syntax(object):
         return text
 
 
+_VAR_TYPES = [None, 0, {}]
+
+
+def _var_types(mt):
+    if mt is None:
+        return {}
+    vs = mt.variables
+    if _VAR_TYPES[0] is not vs or _VAR_TYPES[1] != len(vs):
+        _VAR_TYPES[:] = [vs, len(vs), dict((v.name, v.type) for v in vs)]
+    return _VAR_TYPES[2]
+
+
 class _Trigger(_Syntax):
     def __init__(self, trigger, td, mt, lang):
         _Syntax.__init__(self, td, lang)
@@ -617,7 +629,7 @@ class _Trigger(_Syntax):
         self.id = trigger_identifier(trigger.name)
         self.prefix = 'Trig_%s_' % self.id
         self.functions = []
-        self.var_types = dict((v.name, v.type) for v in (mt.variables if mt is not None else ()))
+        self.var_types = _var_types(mt)
 
     def define(self, name, returns, body):
         if self.lua:
@@ -1006,7 +1018,7 @@ def render_init_custom_triggers(mt, lang=JASS, editor=False, texts=None):
                 padrao = (
                     r'\bfunction\s+InitTrig_%s\b' if lang != LUA else r'\bInitTrig_%s\s*=|\bfunction\s+InitTrig_%s\b'
                 )
-                if not re.search(padrao.replace('%s', re.escape(i)), tx):
+                if 'InitTrig_' + i not in tx or not re.search(padrao.replace('%s', re.escape(i)), tx):
                     sem_init.add(id(t))
     if lang == LUA:
         idents = [trigger_identifier(t.name) for t in _enabled_triggers(mt, editor)
