@@ -46,6 +46,25 @@ EXPORT("mpq_decrypt") void mpq_decrypt(uint8_t *data, size_t length, uint32_t ke
     }
 }
 
+EXPORT("mpq_encrypt") void mpq_encrypt(uint8_t *data, size_t length, uint32_t key) {
+    if (!ready)
+        prepare();
+    uint32_t seed = 0xEEEEEEEE;
+    size_t n = length / 4;
+    for (size_t i = 0; i < n; i++) {
+        uint8_t *p = data + 4 * i;
+        uint32_t v = (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+        seed += table[0x400 + (key & 0xFF)];
+        uint32_t c = v ^ (key + seed);
+        key = ((~key << 0x15) + 0x11111111) | (key >> 0x0B);
+        seed = v + seed + (seed << 5) + 3;
+        p[0] = (uint8_t)c;
+        p[1] = (uint8_t)(c >> 8);
+        p[2] = (uint8_t)(c >> 16);
+        p[3] = (uint8_t)(c >> 24);
+    }
+}
+
 static uint32_t hash_one(const uint8_t *s, size_t n, uint32_t type) {
     uint32_t s1 = 0x7FED7FED, s2 = 0xEEEEEEEE;
     for (size_t i = 0; i < n; i++) {
@@ -808,3 +827,233 @@ EXPORT("mpq_buffer") uint8_t *mpq_buffer(size_t n) {
     return (uint8_t *)base;
 }
 #endif
+
+typedef struct {
+    const uint8_t *d;
+    size_t n, p;
+    uint64_t acc;
+    int bits;
+} jpeg_reader;
+
+static int jpeg_bits(jpeg_reader *r, int k, uint32_t *v) {
+    while (r->bits < k) {
+        if (r->p >= r->n)
+            return 0;
+        uint8_t b = r->d[r->p];
+        if (b == 0xFF) {
+            if (r->p + 1 >= r->n)
+                return 0;
+            if (r->d[r->p + 1] == 0x00)
+                r->p += 2;
+        } else {
+            r->p += 1;
+        }
+        r->acc = ((r->acc << 8) | b) & 0xFFFFFFFFFFFFull;
+        r->bits += 8;
+    }
+    r->bits -= k;
+    *v = (uint32_t)((r->acc >> r->bits) & ((1u << k) - 1));
+    return 1;
+}
+
+typedef struct {
+    int64_t maxcode[18], mincode[17];
+    int32_t valptr[17];
+    const uint8_t *syms;
+    int32_t nsyms;
+} jpeg_table;
+
+static int jpeg_decode(jpeg_reader *r, const jpeg_table *t) {
+    uint32_t b;
+    if (!jpeg_bits(r, 1, &b))
+        return -1;
+    int64_t code = b;
+    int L = 1;
+    while (code > t->maxcode[L]) {
+        if (!jpeg_bits(r, 1, &b))
+            return -1;
+        code = (code << 1) | b;
+        L += 1;
+        if (L > 16)
+            return -1;
+    }
+    int64_t i = t->valptr[L] + code - t->mincode[L];
+    if (i < 0 || i >= t->nsyms)
+        return -1;
+    return t->syms[i];
+}
+
+#define JPEG_MAX_TABLES 64
+
+EXPORT("jpeg_huff_scan") int jpeg_huff_scan(const uint8_t *d, size_t n, size_t ent, uint32_t nmcu, uint32_t dri,
+                                            const uint8_t *spec, size_t nspec, const uint8_t *tabs, size_t ntabs_bytes,
+                                            uint32_t *out, size_t cap) {
+    jpeg_table t[JPEG_MAX_TABLES];
+    int ntab = 0;
+    size_t q = 0;
+    while (q < ntabs_bytes) {
+        if (ntab == JPEG_MAX_TABLES || q + 18 > ntabs_bytes)
+            return -1;
+        jpeg_table *x = &t[ntab];
+        const uint8_t *counts = tabs + q;
+        x->nsyms = tabs[q + 16] | (tabs[q + 17] << 8);
+        x->syms = tabs + q + 18;
+        q += 18 + (size_t)x->nsyms;
+        if (q > ntabs_bytes)
+            return -1;
+        int64_t code = 0;
+        int32_t k = 0;
+        for (int L = 0; L < 18; L++)
+            x->maxcode[L] = -1;
+        for (int L = 1; L < 17; L++) {
+            x->valptr[L] = 0;
+            x->mincode[L] = 0;
+            int c = counts[L - 1];
+            if (c) {
+                x->valptr[L] = k;
+                x->mincode[L] = code;
+                code += c;
+                k += c;
+                x->maxcode[L] = code - 1;
+            }
+            code <<= 1;
+        }
+        ntab++;
+    }
+    if (nspec % 3)
+        return -1;
+    for (size_t i = 0; i < nspec; i += 3)
+        if (spec[i] >= ntab || spec[i + 1] >= ntab)
+            return -1;
+    size_t head = 2 + 256 * (size_t)ntab;
+    if (cap < head)
+        return -2;
+    for (size_t i = 0; i < head; i++)
+        out[i] = 0;
+    uint32_t *counts = out + 2;
+    size_t nrec = 0, room = cap - head;
+    uint32_t *rec = out + head;
+    jpeg_reader r = {d, n, ent, 0, 0};
+    for (uint32_t mcu = 0; mcu < nmcu; mcu++) {
+        if (dri && mcu && mcu % dri == 0) {
+            r.bits = 0;
+            r.acc = 0;
+            if (r.p + 1 >= n || d[r.p] != 0xFF || d[r.p + 1] < 0xD0 || d[r.p + 1] > 0xD7)
+                return -1;
+            r.p += 2;
+            if (nrec == room)
+                return -2;
+            rec[nrec++] = 0x80000000u;
+        }
+        for (size_t i = 0; i < nspec; i += 3) {
+            int tdc = spec[i], tac = spec[i + 1], nb = spec[i + 2];
+            for (int b = 0; b < nb; b++) {
+                int s = jpeg_decode(&r, &t[tdc]);
+                if (s < 0 || s > 16)
+                    return -1;
+                uint32_t extra = 0;
+                if (s && !jpeg_bits(&r, s, &extra))
+                    return -1;
+                if (nrec == room)
+                    return -2;
+                rec[nrec++] = ((uint32_t)tdc << 24) | ((uint32_t)s << 16) | extra;
+                counts[256 * tdc + s]++;
+                int k = 1;
+                while (k < 64) {
+                    int rs = jpeg_decode(&r, &t[tac]);
+                    if (rs < 0)
+                        return -1;
+                    s = rs & 15;
+                    extra = 0;
+                    if (s && !jpeg_bits(&r, s, &extra))
+                        return -1;
+                    if (nrec == room)
+                        return -2;
+                    rec[nrec++] = ((uint32_t)tac << 24) | ((uint32_t)rs << 16) | extra;
+                    counts[256 * tac + rs]++;
+                    if (s == 0) {
+                        if (rs == 0xF0) {
+                            k += 16;
+                            continue;
+                        }
+                        break;
+                    }
+                    k += (rs >> 4) + 1;
+                }
+                if (k > 64)
+                    return -1;
+            }
+        }
+    }
+    if ((uint64_t)r.p > 0xFFFFFFFFull || nrec > 0x7FFFFFFF)
+        return -1;
+    out[0] = (uint32_t)r.p;
+    out[1] = (uint32_t)nrec;
+    return (int)nrec;
+}
+
+EXPORT("jpeg_huff_write") int jpeg_huff_write(const uint32_t *rec, size_t nrec, const uint32_t *codes,
+                                              const uint8_t *ac, size_t ntab, uint8_t *out, size_t cap) {
+    uint64_t acc = 0;
+    int nbits = 0, rst = 0;
+    size_t w = 0;
+    for (size_t i = 0; i < nrec; i++) {
+        uint32_t x = rec[i];
+        if (x & 0x80000000u) {
+            if (nbits) {
+                int k = 8 - nbits;
+                uint8_t b = (uint8_t)(((acc << k) | ((1u << k) - 1)) & 0xFF);
+                if (w + 4 > cap)
+                    return -2;
+                out[w++] = b;
+                if (b == 0xFF)
+                    out[w++] = 0;
+                acc = 0;
+                nbits = 0;
+            }
+            if (w + 2 > cap)
+                return -2;
+            out[w++] = 0xFF;
+            out[w++] = (uint8_t)(0xD0 + rst);
+            rst = (rst + 1) & 7;
+            continue;
+        }
+        uint32_t tab = (x >> 24) & 0x7F, s = (x >> 16) & 0xFF, extra = x & 0xFFFF;
+        if (tab >= ntab)
+            return -1;
+        uint32_t c = codes[256 * tab + s];
+        int L = (int)(c >> 16);
+        c &= 0xFFFF;
+        if (L < 1 || L > 16 || c >= (1u << L))
+            return -1;
+        int nb = ac[tab] ? (int)(s & 15) : (int)s;
+        if (nb > 16 || extra >= (1u << nb))
+            return -1;
+        acc = (acc << L) | c;
+        nbits += L;
+        if (nb) {
+            acc = (acc << nb) | extra;
+            nbits += nb;
+        }
+        while (nbits >= 8) {
+            nbits -= 8;
+            uint8_t b = (uint8_t)((acc >> nbits) & 0xFF);
+            if (w + 2 > cap)
+                return -2;
+            out[w++] = b;
+            if (b == 0xFF)
+                out[w++] = 0;
+        }
+        acc &= (1ull << nbits) - 1;
+    }
+    if (nbits) {
+        int k = 8 - nbits;
+        uint8_t b = (uint8_t)(((acc << k) | ((1u << k) - 1)) & 0xFF);
+        if (w + 2 > cap)
+            return -2;
+        out[w++] = b;
+        if (b == 0xFF)
+            out[w++] = 0;
+    }
+    return w > 0x7FFFFFFF ? -1 : (int)w;
+}
