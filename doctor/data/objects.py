@@ -1,4 +1,5 @@
 # Reads and rewrites the object data files of a map (war3map.w3u, .w3t, .w3a...).
+import bisect
 import collections
 import decimal
 import fnmatch
@@ -79,12 +80,159 @@ def uses_levels(file_path):
     raise ObjectError('cannot tell whether %s has levels (extension %r): pass with_levels=' % (file_path, ext))
 
 
+_ST_I = struct.Struct('<I')
+_ST_II = struct.Struct('<II')
+_ST_CT = struct.Struct('<4sI')
+_ST_i = struct.Struct('<i')
+_ST_f = struct.Struct('<f')
+_PK = {(0, True): struct.Struct('<4sIIIi4s').pack, (0, False): struct.Struct('<4sIi4s').pack,
+       (1, True): struct.Struct('<4sIIIf4s').pack, (1, False): struct.Struct('<4sIf4s').pack}
+_PK3 = {True: struct.Struct('<4sIII').pack, False: struct.Struct('<4sI').pack}
+
+
+class _Slow(Exception):
+    pass
+
+
+def _read_fast(d, ver, with_levels, with_end):
+    u32, u32x2, ct, i32, f32 = _ST_I.unpack_from, _ST_II.unpack_from, _ST_CT.unpack_from, _ST_i.unpack_from, \
+        _ST_f.unpack_from
+    idx = d.index
+    pos = 4
+    objects = []
+    sz = len(d)
+    for table in (0, 1):
+        n = u32(d, pos)[0]
+        pos += 4
+        for _ in range(n):
+            orig = d[pos:pos + 4].decode('latin-1')
+            new = d[pos + 4:pos + 8].decode('latin-1')
+            pos += 8
+            if ver >= 3:
+                mods = Mods()
+                mods.item_sets = []
+                nsets = u32(d, pos)[0]
+                pos += 4
+                if nsets > (sz - pos) // 8:
+                    raise _Slow()
+            else:
+                mods = []
+                nsets = 1
+            ap = mods.append
+            for _cset in range(nsets):
+                if ver >= 3:
+                    flag, cnt = u32x2(d, pos)
+                    pos += 8
+                    mods.item_sets.append((flag, cnt))
+                else:
+                    cnt = u32(d, pos)[0]
+                    pos += 4
+                for _ in range(cnt):
+                    field_id, kind = ct(d, pos)
+                    pos += 8
+                    if with_levels:
+                        level, pointer = u32x2(d, pos)
+                        pos += 8
+                    else:
+                        level = pointer = 0
+                    if kind == 0:
+                        val = i32(d, pos)[0]
+                        pos += 4
+                    elif kind == 1 or kind == 2:
+                        val = f32(d, pos)[0]
+                        pos += 4
+                    elif kind == 3:
+                        e = idx(b'\0', pos)
+                        val = d[pos:e]
+                        pos = e + 1
+                    else:
+                        raise _Slow()
+                    if with_end:
+                        end_pos = d[pos:pos + 4]
+                        if len(end_pos) != 4:
+                            raise _Slow()
+                        ap((field_id.decode('latin-1'), kind, level, pointer, val, end_pos))
+                    else:
+                        ap((field_id.decode('latin-1'), kind, level, pointer, val))
+                    pos += 4
+            objects.append((table, orig, new, mods))
+    if pos > sz or (pos != sz and d[pos:].strip(b'\0')):
+        raise _Slow()
+    return ver, objects, pos
+
+
+def _write_fast(ver, objects, with_levels):
+    u32 = _ST_I.pack
+    with_levels = bool(with_levels)
+    pk0, pk1, pk3 = _PK[(0, with_levels)], _PK[(1, with_levels)], _PK3[with_levels]
+    zero = b'\0\0\0\0'
+    out = [u32(ver)]
+    ap = out.append
+    for table in (0, 1):
+        cluster = [o for o in objects if o[0] == table]
+        ap(u32(len(cluster)))
+        for _t, orig, new, mods in cluster:
+            ids = (orig + new).encode('latin-1')
+            if len(ids) != 8:
+                raise _Slow()
+            if ver >= 3:
+                sets_split = _split_in_sets(mods, ver, new.strip('\0') or orig)
+                ap(ids + u32(len(sets_split)))
+                first_pos = {}
+                k = 0
+                for flag, n in sets_split:
+                    first_pos.setdefault(k, []).append(_ST_II.pack(flag, n))
+                    k += n
+            else:
+                ap(ids + u32(len(mods)))
+                first_pos = None
+            for i, m in enumerate(mods):
+                if first_pos and i in first_pos:
+                    out.extend(first_pos.pop(i))
+                field_id, kind, level, pointer, val = m[:5]
+                end_pos = m[5] if len(m) > 5 else zero
+                field_bytes = field_id.encode('latin-1')
+                if len(field_bytes) != 4 or len(end_pos) != 4:
+                    raise _Slow()
+                if kind == 0:
+                    if not isinstance(val, int):
+                        raise _Slow()
+                    ap(
+                        pk0(field_bytes, kind, level, pointer, val, end_pos)
+                        if with_levels
+                        else pk0(field_bytes, kind, val, end_pos)
+                    )
+                elif kind in (1, 2):
+                    v = float(val)
+                    ap(
+                        pk1(field_bytes, kind, level, pointer, v, end_pos)
+                        if with_levels
+                        else pk1(field_bytes, kind, v, end_pos)
+                    )
+                elif kind == 3:
+                    if not isinstance(val, (bytes, bytearray)) or b'\0' in val:
+                        raise _Slow()
+                    ap(pk3(field_bytes, kind, level, pointer) if with_levels else pk3(field_bytes, kind))
+                    ap(bytes(val) + b'\0')
+                    ap(end_pos)
+                else:
+                    raise _Slow()
+            if first_pos:
+                for headers in first_pos.values():
+                    out.extend(headers)
+    return b''.join(out)
+
+
 def read_objects_bytes(d, with_levels, fname='(bytes)', with_end=False):
     if len(d) < 12:
         raise ObjectError('%s: short file (%d bytes)' % (fname, len(d)))
     ver = struct.unpack_from('<I', d, 0)[0]
     if ver not in VERSIONS:
         raise ObjectError('%s: version %d not supported (measured in the collection: %s)' % (fname, ver, VERSIONS))
+    try:
+        return _read_fast(d, ver, with_levels, with_end)
+    except Exception:
+        pass
     pos = 4
     objects = []
     try:
@@ -166,6 +314,11 @@ def read_objects(file_path, with_levels=None, with_end=False):
 def write_objects_bytes(ver, objects, with_levels):
     if ver not in VERSIONS:
         raise ObjectError('write: version %r not supported (%s)' % (ver, VERSIONS))
+    if isinstance(objects, (list, tuple)):
+        try:
+            return _write_fast(ver, objects, with_levels)
+        except Exception:
+            pass
     out = [struct.pack('<I', ver)]
     for table in (0, 1):
         cluster = [o for o in objects if o[0] == table]
@@ -354,6 +507,9 @@ def _unquoted(v):
 
 
 def _raw_ini(raw):
+    nat = slk.native_ini(raw, quoted=False, lowercase_names=True) if hasattr(slk, 'native_ini') else None
+    if nat is not None:
+        return nat
     txt = raw.decode('utf-8', 'surrogateescape')
     out = {}
     cur = None
@@ -419,6 +575,19 @@ def value_levels(raw_data, n_levels):
     return [_unquoted(raw_data)]
 
 
+_SORTED_NAMES = {}
+_TABLES_CACHE = {}
+
+
+def _sorted_names(file_set):
+    e = _SORTED_NAMES.get(id(file_set))
+    if e is None or e[0] is not file_set or e[1] != len(file_set):
+        if len(_SORTED_NAMES) > 8:
+            _SORTED_NAMES.clear()
+        e = _SORTED_NAMES[id(file_set)] = (file_set, len(file_set), sorted(file_set))
+    return e[2]
+
+
 class GameBase(object):
     def __init__(self, casc=None, game=None, balance='custom_v1', locale='enus'):
         casc_wc3 = common_module('casc_wc3')
@@ -460,13 +629,16 @@ class GameBase(object):
             if self.balance:
                 prefixes.append('war3.w3mod:_balance\\%s.w3mod:' % self.balance)
         name_list = set()
+        ks = _sorted_names(self.casc.file_set)
         for pre in prefixes:
             first_pos = pre + literal
-            for k in self.casc.file_set:
-                if k.startswith(first_pos):
-                    rest = k[len(pre):]
-                    if ':' not in rest and fnmatch.fnmatchcase(rest, details):
-                        name_list.add(rest)
+            i = bisect.bisect_left(ks, first_pos)
+            while i < len(ks) and ks[i].startswith(first_pos):
+                k = ks[i]
+                i += 1
+                rest = k[len(pre):]
+                if ':' not in rest and fnmatch.fnmatchcase(rest, details):
+                    name_list.add(rest)
         return sorted(name_list)
 
     def read_data(self, cpath):
@@ -486,6 +658,32 @@ class GameBase(object):
     def table(self, obj_kind):
         if obj_kind in self._tab:
             return self._tab[obj_kind]
+        tree = getattr(self.casc, 'file_set', None)
+        hash_key = (id(tree), self.balance, self.locale, obj_kind)
+        e = _TABLES_CACHE.get(hash_key) if tree is not None else None
+        if e is not None and e[0] is tree and e[1] == len(tree):
+            tab, raw_data, read_count, warnings = e[2:]
+            self.read_count.extend(read_count)
+            self.warnings.extend(warnings)
+            self._tab[obj_kind] = tab
+            self._raw[obj_kind] = raw_data
+            return tab
+        n_read, n_warnings = len(self.read_count), len(self.warnings)
+        tab = self._build_table(obj_kind)
+        if tree is not None:
+            if len(_TABLES_CACHE) >= 12:
+                _TABLES_CACHE.clear()
+            _TABLES_CACHE[hash_key] = (
+                tree,
+                len(tree),
+                tab,
+                self._raw[obj_kind],
+                self.read_count[n_read:],
+                self.warnings[n_warnings:],
+            )
+        return tab
+
+    def _build_table(self, obj_kind):
         cfg = OBJ_KINDS[obj_kind]
         tab = {}
         for details in cfg['slk']:
