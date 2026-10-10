@@ -11,7 +11,7 @@ from doctor.translation import tr_extract as tx
 CJK = re.compile('[぀-ヿ㐀-䶿一-鿿가-힣]')
 
 
-def occurrences(line_list, tem_text=None, protected=None):
+def occurrences(line_list, tem_text=None, protected=None, script_flow=None):
     present = tem_text or CJK.search
     inside = tx.lines_protected(line_list, tx.functions_protected(ta.TR) if protected is None else protected)
     out = []
@@ -22,7 +22,7 @@ def occurrences(line_list, tem_text=None, protected=None):
             if inside and inside[ln]:
                 out.append((ln, lit, 'datum'))
             else:
-                out.append((ln, lit, ta.classifica_occurrence(line, pos, lit, False)))
+                out.append((ln, lit, ta.classifica_occurrence(line, pos, lit, False, script_flow, ln)))
     return out
 
 
