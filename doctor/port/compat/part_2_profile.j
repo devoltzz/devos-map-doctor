@@ -600,6 +600,100 @@ function DB_srv_ns takes integer dataType returns string
     return "pb~"
 endfunction
 
+//{{KK_SE:KK_SRV_BACKEND}}
+timer DB_srv_relogio=null
+timer DB_srv_aviso_tmr=null
+hashtable DB_srv_aviso_ht=null
+integer DB_srv_aviso_n=0
+
+function DB_srv_agora takes nothing returns integer
+    if DB_srv_relogio==null then
+        set DB_srv_relogio=CreateTimer()
+        call TimerStart(DB_srv_relogio, 1000000.0, false, null)
+    endif
+    return 1+R2I(TimerGetElapsed(DB_srv_relogio))
+endfunction
+
+function DB_srv_envia takes string prefixo,string dado returns nothing
+    call BlzSendSyncData(prefixo, dado)
+endfunction
+
+function DB_srv_aviso_passa takes nothing returns nothing
+    local integer i=0
+    loop
+        exitwhen i>=DB_srv_aviso_n
+        if GetLocalPlayer()==Player(LoadInteger(DB_srv_aviso_ht, i, 0)) then
+            call DB_srv_envia(LoadStr(DB_srv_aviso_ht, i, 1), LoadStr(DB_srv_aviso_ht, i, 2))
+        endif
+        set i=i+1
+    endloop
+    set DB_srv_aviso_n=0
+endfunction
+
+function DB_srv_avisa takes player p,string prefixo,string dado returns nothing
+    if DB_srv_aviso_ht==null then
+        set DB_srv_aviso_ht=InitHashtable()
+        set DB_srv_aviso_tmr=CreateTimer()
+    endif
+    call SaveInteger(DB_srv_aviso_ht, DB_srv_aviso_n, 0, GetPlayerId(p))
+    call SaveStr(DB_srv_aviso_ht, DB_srv_aviso_n, 1, prefixo)
+    call SaveStr(DB_srv_aviso_ht, DB_srv_aviso_n, 2, dado)
+    set DB_srv_aviso_n=DB_srv_aviso_n+1
+    call TimerStart(DB_srv_aviso_tmr, 0.50, false, function DB_srv_aviso_passa)
+endfunction
+
+function DB_srv_backend takes integer dataType,player p,string k,string g returns boolean
+    if dataType==1009 then
+        return true
+    endif
+    if p==null or k==null or k=="" then
+        return false
+    endif
+    call DB_perfil_garante()
+    if dataType==84 then
+        return DB_get(p, "bl~"+k)!=""
+    elseif dataType==83 then
+        if DB_get(p, "bl~"+k)!="" then
+            return false
+        endif
+        if g==null then
+            set g=""
+        endif
+        call DB_put(p, "bl~"+k, I2S(GetRandomInt(1, 2147483646)))
+        call DB_put(p, "blt~"+k, I2S(DB_srv_agora()))
+        call DB_put(p, "blg~"+k, g)
+        call DB_srv_avisa(p, "DZBLU", k)
+        return true
+    elseif dataType==89 then
+        if DB_get(p, "bl~"+k)!="" then
+            call DB_put(p, "bl~"+k, "")
+            call DB_put(p, "blt~"+k, "")
+            call DB_put(p, "blg~"+k, "")
+            call DB_srv_avisa(p, "DZBLD", k)
+        endif
+        return true
+    endif
+    return false
+endfunction
+
+function DB_srv_hex8 takes integer v returns string
+    local string s=""
+    local integer i=0
+    loop
+        exitwhen i>=8
+        set s=SubString("0123456789abcdef", BlzBitAnd(v, 15), BlzBitAnd(v, 15)+1)+s
+        set v=BlzBitAnd(BlzBitAnd(v, -16)/16, 0x0FFFFFFF)
+        set i=i+1
+    endloop
+    return s
+endfunction
+
+function DB_srv_guid takes player p returns string
+    local string n=DB_nome_conta(p)
+    return DB_srv_hex8(StringHash("kkguid:"+n))+DB_srv_hex8(StringHash(n+":kkguid"))+DB_srv_hex8(StringHash("kkg2:"+n))+DB_srv_hex8(StringHash(n+":kkg2"))
+endfunction
+//{{KK_FIMSE:KK_SRV_BACKEND}}
+
 function RequestExtraIntegerData takes integer dataType,player whichPlayer,string param1,string param2,boolean param3,integer param4,integer param5,integer param6 returns integer
     if dataType==4 or dataType==5 then
         call DB_perfil_garante()
@@ -618,6 +712,17 @@ function RequestExtraIntegerData takes integer dataType,player whichPlayer,strin
     elseif dataType==82 then
         return 999999
     endif
+    //{{KK_SE:KK_SRV_BACKEND}}
+    if (dataType==85 or dataType==87) and whichPlayer!=null and param1!=null and param1!="" then
+        call DB_perfil_garante()
+        if dataType==85 then
+            return S2I(DB_get(whichPlayer, "bl~"+param1))
+        endif
+        return S2I(DB_get(whichPlayer, "blt~"+param1))
+    elseif dataType==101 then
+        return 999999
+    endif
+    //{{KK_FIMSE:KK_SRV_BACKEND}}
     return 0
 endfunction
 
@@ -644,6 +749,11 @@ function RequestExtraBooleanData takes integer dataType,player whichPlayer,strin
     elseif dataType==10 or dataType==42 or dataType==102 or dataType==104 then
         return true
     endif
+    //{{KK_SE:KK_SRV_BACKEND}}
+    if dataType==83 or dataType==84 or dataType==89 or dataType==1009 then
+        return DB_srv_backend(dataType, whichPlayer, param1, param2)
+    endif
+    //{{KK_FIMSE:KK_SRV_BACKEND}}
     return false
 endfunction
 
@@ -665,6 +775,17 @@ function RequestExtraStringData takes integer dataType,player whichPlayer,string
         call DB_perfil_garante()
         call DB_put(whichPlayer, DB_srv_ns(dataType)+param1, param2)
     endif
+    //{{KK_SE:KK_SRV_BACKEND}}
+    if (dataType==86 or dataType==88) and whichPlayer!=null and param1!=null and param1!="" then
+        call DB_perfil_garante()
+        if dataType==86 then
+            return DB_get(whichPlayer, "bl~"+param1)
+        endif
+        return DB_get(whichPlayer, "blg~"+param1)
+    elseif dataType==93 and whichPlayer!=null then
+        return DB_srv_guid(whichPlayer)
+    endif
+    //{{KK_FIMSE:KK_SRV_BACKEND}}
     return ""
 endfunction
 
