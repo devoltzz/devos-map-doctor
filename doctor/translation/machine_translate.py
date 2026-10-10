@@ -718,6 +718,10 @@ def translate_entries(entries, lang, engine, progress=None, language=''):
             rejected['not translated'] += 1
             continue
         t, _n = translation_io.unglue(e['text'], t, language)
+        t = translation_io.fit_object_text(e, t)
+        if t is None:
+            rejected['too long for the classic game'] += 1
+            continue
         errs = translation_io.check_entry(e, t, language)
         if errs:
             rejected[errs[0].split(' (')[0]] += 1
