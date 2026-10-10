@@ -6,6 +6,7 @@ import json
 import os
 import re
 import shutil
+import struct
 
 from doctor.fix import unprotect
 from doctor.mpq import mpqadd
@@ -111,8 +112,11 @@ def _encode(s):
     return s.encode('utf-8', 'surrogateescape')
 
 
+_RX_BAD_UTF8 = re.compile(r'[\udc80-\udcff]')
+
+
 def _bad_utf8(s):
-    return any(0xDC80 <= ord(c) <= 0xDCFF for c in s)
+    return _RX_BAD_UTF8.search(s) is not None
 
 
 def is_text(s):
@@ -177,6 +181,8 @@ class MapText(object):
         self.name_trigstr = set()
         self.layer_texts = collections.Counter()
         self.archive = None
+        self.w3i_format = None
+        self.longest_object_text = 0
 
     def add(self, **kw):
         self.entries.append(kw)
@@ -192,10 +198,17 @@ def _ref(mt, value, who, name=False):
     return bool(m)
 
 
+OBJECT_TEXT_LIMIT = 1023
+
+
 def _collect_w3i(mt, read):
     b = read('war3map.w3i')
     if not b:
         return
+    try:
+        mt.w3i_format = struct.unpack('<i', b[:4])[0]
+    except struct.error:
+        pass
     try:
         m = w3i.parse(b)
         same = w3i.write(m) == b
@@ -270,6 +283,7 @@ def _collect_objects(mt, read):
                     for mi, (mid, vt, lvl, _dptr, val) in enumerate(mods):
                         if vt != 3:
                             continue
+                        mt.longest_object_text = max(mt.longest_object_text, len(val))
                         s = _decode(val)
                         label = TEXT_FIELDS[ext].get(mid)
                         what = '%s %s %s' % (OBJECT_KIND[ext], ident, label or mid)
@@ -282,6 +296,35 @@ def _collect_objects(mt, read):
                                    label, ' level %d' % lvl if lvl else ''),
                                text=s, _kind='name' if mid in NAME_FIELDS else 'tip', _where=(ti, oi, mi),
                                _levels=levels)
+
+
+def _object_limits(mt):
+    if mt.w3i_format is None or mt.w3i_format > 25 or mt.longest_object_text > OBJECT_TEXT_LIMIT:
+        return
+    for e in mt.entries:
+        if e['source'] == 'object':
+            e['_limit'] = OBJECT_TEXT_LIMIT
+
+
+def fit_object_text(e, translation):
+    limit = e.get('_limit')
+    if not limit or not isinstance(translation, str) or len(_encode(translation)) <= limit:
+        return translation
+    cuts = [m.start() for m in re.finditer(r'\|n|\|N|\r?\n', translation)]
+    for c in reversed(cuts):
+        part = translation[:c].rstrip()
+        if not part or len(_encode(part)) > limit:
+            continue
+        if sorted(RX_FORMAT.findall(part)) != sorted(RX_FORMAT.findall(e['text'])):
+            return None
+        opened = len(re.findall(r'\|[cC][0-9a-fA-F]{8}', part))
+        closed = len(re.findall(r'\|[rR]', part))
+        if opened > closed:
+            part += '|r' * (opened - closed)
+            if len(_encode(part)) > limit:
+                continue
+        return part
+    return None
 
 
 def _sections(lines):
@@ -626,6 +669,7 @@ def collect(a, progress=None):
     p('frame definitions')
     _collect_fdf(mt, a, read)
     _comparison_rules(mt, src, script_entries, wts_texts)
+    _object_limits(mt)
     _wts_contexts(mt)
     m = RX_TRIGSTR.match(mt.map_name)
     if m:
@@ -969,6 +1013,9 @@ def check_entry(e, translation, language=''):
         out.append('a real line break in a profile value')
     if _bad_utf8(translation):
         out.append('not valid UTF-8')
+    if e.get('_limit') and len(_encode(_written(e, translation))) > e['_limit']:
+        out.append('longer than the %d bytes the classic game reads in an object text (it would break the loading of '
+                   'that file)' % e['_limit'])
     return list(dict.fromkeys(out))
 
 
