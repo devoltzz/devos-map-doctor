@@ -333,3 +333,48 @@ function EXSetAbilityString takes integer abilcode,integer level,integer data_ty
     endif
     return true
 endfunction
+//{{KK_SE:KK_CMD_ATAQUE}}
+
+//@GLOBALS
+hashtable DB_cmd_atk=null
+//@ENDGLOBALS
+
+function DB_cmd_atk_esconde takes unit u returns nothing
+    if u!=null and LoadBoolean(DB_cmd_atk, 0, GetUnitTypeId(u)) and not LoadBoolean(DB_cmd_atk, 1, GetHandleId(u)) then
+        call SaveBoolean(DB_cmd_atk, 1, GetHandleId(u), true)
+        call BlzUnitHideAbility(u, 'Aatk', true)
+    endif
+endfunction
+
+function DB_cmd_atk_filtro takes nothing returns boolean
+    call DB_cmd_atk_esconde(GetFilterUnit())
+    return false
+endfunction
+
+function DB_cmd_atk_boot takes nothing returns nothing
+    local string lista="{{KK_CMD_ATAQUE_LISTA}}"
+    local integer n=StringLength(lista)
+    local integer i=0
+    local integer id
+    local region r
+    local group g
+    if DB_cmd_atk!=null then
+        return
+    endif
+    set DB_cmd_atk=InitHashtable()
+    loop
+        exitwhen i+4>n
+        set id=((DB_ord(SubString(lista, i, i+1))*256+DB_ord(SubString(lista, i+1, i+2)))*256+DB_ord(SubString(lista, i+2, i+3)))*256+DB_ord(SubString(lista, i+3, i+4))
+        call SaveBoolean(DB_cmd_atk, 0, id, true)
+        set i=i+5
+    endloop
+    set r=CreateRegion()
+    call RegionAddRect(r, GetWorldBounds())
+    call TriggerRegisterEnterRegion(CreateTrigger(), r, Filter(function DB_cmd_atk_filtro))
+    set g=CreateGroup()
+    call GroupEnumUnitsInRect(g, GetWorldBounds(), Filter(function DB_cmd_atk_filtro))
+    call DestroyGroup(g)
+    set r=null
+    set g=null
+endfunction
+//{{KK_FIMSE:KK_CMD_ATAQUE}}
