@@ -1187,6 +1187,39 @@ function DzCreateFrameByTagName takes string frameType,string name,integer paren
     return nid
 endfunction
 
+function DB_cova_passa takes nothing returns nothing
+    set DB_cova_agora=DB_cova_agora+1
+    loop
+        exitwhen DB_cova_ini==DB_cova_fim
+        exitwhen DB_cova_agora-DB_cova_tique[DB_cova_ini]<DB_COVA_TIQUES
+        if DB_cova[DB_cova_ini]!=null then
+            call BlzDestroyFrame(DB_cova[DB_cova_ini])
+            set DB_cova[DB_cova_ini]=null
+        endif
+        set DB_cova_ini=ModuloInteger(DB_cova_ini+1, DB_COVA_TAM)
+    endloop
+endfunction
+
+function DB_cova_poe takes framehandle f returns nothing
+    local integer prox
+    if DB_cova_relogio==null then
+        call BlzDestroyFrame(f)
+        return
+    endif
+    call BlzFrameSetVisible(f, false)
+    set prox=ModuloInteger(DB_cova_fim+1, DB_COVA_TAM)
+    if prox==DB_cova_ini then
+        if DB_cova[DB_cova_ini]!=null then
+            call BlzDestroyFrame(DB_cova[DB_cova_ini])
+            set DB_cova[DB_cova_ini]=null
+        endif
+        set DB_cova_ini=ModuloInteger(DB_cova_ini+1, DB_COVA_TAM)
+    endif
+    set DB_cova[DB_cova_fim]=f
+    set DB_cova_tique[DB_cova_fim]=DB_cova_agora
+    set DB_cova_fim=prox
+endfunction
+
 function DzDestroyFrame takes integer frame returns nothing
     local framehandle f=DB_fh(frame)
     local integer ev=1
@@ -1219,7 +1252,7 @@ function DzDestroyFrame takes integer frame returns nothing
         set DB_mouse_focus=0
     endif
     call RemoveSavedHandle(DB_frame_ht, frame, 0)
-    call BlzDestroyFrame(f)
+    call DB_cova_poe(f)
     set t=null
 endfunction
 
@@ -1589,6 +1622,8 @@ function DB_ui_boot takes nothing returns nothing
     set DB_mundo_trig=CreateTrigger()
     call TriggerAddAction(DB_mundo_trig, function DB_mouse_mundo)
     call TimerStart(CreateTimer(), 0.00, false, function DB_ui_pos_init)
+    set DB_cova_relogio=CreateTimer()
+    call TimerStart(DB_cova_relogio, 0.25, true, function DB_cova_passa)
 endfunction
 
 function DB_i32 takes integer n returns integer
