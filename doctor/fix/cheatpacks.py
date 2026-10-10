@@ -630,6 +630,11 @@ def inject(mapa, out_path, pack_id, opcoes=None, progresso=None):
         out['lines'] = [('bad', 'The map script is %s: the %s pack is for %s maps.'
                          % (s.get('language') or 'unreadable', pack['title'], pack['language'].upper()))]
         return out
+    from doctor.mpq import mpqadd
+    if _api(mpqadd, 'formato', 'format')(mapa) != 0:
+        out['lines'] = [('bad', 'The cheat pack was not injected: %s' % (
+            'The archive header is not a normal MPQ v1 header (a protected map): unprotect it first.'))]
+        return out
     name = s.get('name')
     try:
         dados = (_read_file(_open_map(mapa), name) if name else None) or b''
