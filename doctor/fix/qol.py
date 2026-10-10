@@ -52,6 +52,16 @@ def _skip(line, i):
     return swap_calls.skip_string(line, i) if line[i] == '"' else swap_calls.skip_rawcode(line, i)
 
 
+_RX_WORD = re.compile(r'\w+')
+
+
+def _sitios(line, names):
+    for w in _RX_WORD.findall(line):
+        if w in names:
+            return swap_calls.sitios(line, names)
+    return []
+
+
 def _args(line, open_at):
     out = []
     depth = 0
@@ -82,7 +92,7 @@ def _args(line, open_at):
 
 def _calls(line, names):
     out = []
-    for ini, fim, name in swap_calls.sitios(line, names):
+    for ini, fim, name in _sitios(line, names):
         k = line.index('(', fim)
         a = _args(line, k)
         if a is None:
@@ -155,7 +165,7 @@ def respawn_sites(text, tree):
     last = {}
     for f in funcs:
         for k in range(f.line, f.end_line):
-            if swap_calls.sitios(lines[k - 1], REVIVE):
+            if _sitios(lines[k - 1], REVIVE):
                 revive.add(f.name)
                 last[f.name] = k
     wrappers = set()
@@ -171,7 +181,7 @@ def respawn_sites(text, tree):
                 continue
             for k in range(f.line, f.end_line):
                 l = lines[k - 1]
-                if any(n in l for n in wnames) and swap_calls.sitios(l, wnames):
+                if _sitios(l, wnames):
                     revive.add(f.name)
                     last[f.name] = k
     via = {}
@@ -181,7 +191,7 @@ def respawn_sites(text, tree):
             continue
         for k in range(f.line + 1, f.end_line):
             l = lines[k - 1]
-            hit = set(n for _i, _j, n in swap_calls.sitios(l, names)) if any(n in l for n in names) else set()
+            hit = set(n for _i, _j, n in _sitios(l, names))
             hit |= set(n for n in re.findall(r'\bfunction\s+(\w+)', l.split('//')[0]) if n in revive)
             if hit and not re.search(r'\b(?:TriggerAddAction|TimerStart|TriggerAddCondition)\s*\(', l):
                 via.setdefault(f.name, set()).update(hit)
@@ -257,10 +267,10 @@ def respawn_sites(text, tree):
             branch, _final = _blocks(lines, k, f.end_line)
             hit = set()
             for j in branch:
-                if swap_calls.sitios(lines[j - 1], REVIVE):
+                if _sitios(lines[j - 1], REVIVE):
                     hit.add(f.name)
-                elif any(n in lines[j - 1] for n in rnames):
-                    hit |= set(n for _i, _j, n in swap_calls.sitios(lines[j - 1], rnames))
+                else:
+                    hit |= set(n for _i, _j, n in _sitios(lines[j - 1], rnames))
             if hit:
                 at = max([f.line] + [d.line for d in f.locals])
                 end = len(lines[at - 1].rstrip('\r\n'))
@@ -622,7 +632,7 @@ def item_typing(lines, funcs, item_vals):
     for c in codes:
         if not any(n in c for n in ITEM_ID_ARG):
             continue
-        for ini, fim, name in swap_calls.sitios(c, ITEM_ID_ARG):
+        for ini, fim, name in _sitios(c, ITEM_ID_ARG):
             a = _args(c, c.index('(', fim))
             if a and len(a[0]) > ITEM_ID_ARG[name]:
                 s, e = a[0][ITEM_ID_ARG[name]]
@@ -661,7 +671,7 @@ def item_typing(lines, funcs, item_vals):
                     if m and typed(m.group(2), f.name):
                         (local[f.name] if m.group(1) in own[f.name] else glob).add(m.group(1))
                 if '(' in c:
-                    for ini, fim, name in swap_calls.sitios(c, names):
+                    for ini, fim, name in _sitios(c, names):
                         g = by[name]
                         if not g.params:
                             continue
@@ -700,11 +710,11 @@ def chance_sites(text, tree, item_vals=None):
     def body(f):
         return lines[f.line - 1:f.end_line]
 
-    makes = set(f.name for f in funcs if any(swap_calls.sitios(l, ITEM_MAKE) for l in body(f)))
+    makes = set(f.name for f in funcs if any(_sitios(l, ITEM_MAKE) for l in body(f)))
     for _round in range(2):
         names = dict((n, n) for n in makes)
         makes |= set(f.name for f in funcs if f.name not in makes and
-                     any(any(n in l for n in names) and swap_calls.sitios(l, names) for l in body(f)))
+                     any(_sitios(l, names) for l in body(f)))
     mk = dict((n, n) for n in makes)
     _literal, _typed, tables = item_typing(lines, funcs, item_vals)
     keeps = set(f.name for f in funcs if f.name not in makes and tables.get(f.name) and
@@ -714,7 +724,7 @@ def chance_sites(text, tree, item_vals=None):
     def creates(line_numbers, f=None):
         for j in line_numbers:
             l = lines[j - 1]
-            if swap_calls.sitios(l, ITEM_MAKE) or (any(n in l for n in mk) and swap_calls.sitios(l, mk)):
+            if _sitios(l, ITEM_MAKE) or _sitios(l, mk):
                 return True
             if f is not None and f.name in keeps and _handles_item(_code_part(l), tables[f.name]):
                 return True
@@ -724,7 +734,7 @@ def chance_sites(text, tree, item_vals=None):
         src = ''.join(body(f))
         if RX_DEATH.search(src):
             return 'drop'
-        if any(swap_calls.sitios(l, ITEM_TAKE) for l in body(f)):
+        if any(_sitios(l, ITEM_TAKE) for l in body(f)):
             return 'craft'
         return 'drop'
 
@@ -819,7 +829,7 @@ def chance_sites(text, tree, item_vals=None):
                 continue
             found = []
             if 'GetRandom' in code:
-                for ini_, fim_, name in swap_calls.sitios(code, RANDOM):
+                for ini_, fim_, name in _sitios(code, RANDOM):
                     a = _args(code, code.index('(', fim_))
                     if a is None or len(a[0]) != 2:
                         continue
@@ -893,7 +903,7 @@ def vip_sites(text):
             continue
         code = _code_part(l)
         spans = []
-        for ini, fim, name in swap_calls.sitios(code, NAME_CALLS):
+        for ini, fim, name in _sitios(code, NAME_CALLS):
             a = _args(code, code.index('(', fim))
             if a is None or not a[0]:
                 continue
@@ -917,7 +927,7 @@ def restore_sites(text):
         if 'S2I' not in l or 'PLAYER_STATE_RESOURCE_' not in l:
             continue
         code = _code_part(l)
-        for ini, fim, name in swap_calls.sitios(code, RESTORE_CALLS):
+        for ini, fim, name in _sitios(code, RESTORE_CALLS):
             a = _args(code, code.index('(', fim))
             if a is None or len(a[0]) != 3:
                 continue
@@ -1001,7 +1011,7 @@ def dist_items(text):
         if 'RandomDistAddItem' not in l:
             continue
         code = _code_part(l)
-        for _i, fim, _n in swap_calls.sitios(code, {'RandomDistAddItem': 1}):
+        for _i, fim, _n in _sitios(code, {'RandomDistAddItem': 1}):
             a = _args(code, code.index('(', fim))
             if a and a[0] and code[a[0][0][0]:a[0][0][1]].strip().replace(' ', '') not in ('-1', '(-1)'):
                 n += 1
@@ -1258,26 +1268,33 @@ end
 RX_LUA_NAME = re.compile(r'GetPlayerName\s*\(([^()]*(?:\([^()]*\)[^()]*)*)\)\s*(==|~=)\s*(["\'])((?:\\.|(?!\3).)*)\3')
 
 
+_LUA_LINES = [None, None]
+
+
 def _lua_code_lines(text):
-    out = []
-    for l in _lines(text):
-        q, i = None, 0
-        while i < len(l):
-            c = l[i]
-            if q:
-                if c == '\\':
-                    i += 2
-                    continue
-                if c == q:
-                    q = None
-            elif c in '"\'':
-                q = c
-            elif l.startswith('--', i):
-                l = l[:i]
-                break
-            i += 1
-        out.append(l)
+    if _LUA_LINES[0] is not None and _LUA_LINES[0] == text:
+        return _LUA_LINES[1]
+    out = [_lua_cut(l) if '--' in l else l for l in _lines(text)]
+    _LUA_LINES[:] = [text, out]
     return out
+
+
+_RX_LUA_OUT = re.compile(r'["\']|--')
+_RX_LUA_STR = {'"': re.compile(r'(?:[^"\\]|\\.)*"', re.S), "'": re.compile(r"(?:[^'\\]|\\.)*'", re.S)}
+
+
+def _lua_cut(l):
+    i = 0
+    while True:
+        m = _RX_LUA_OUT.search(l, i)
+        if m is None:
+            return l
+        if m.group() == '--':
+            return l[:m.start()]
+        e = _RX_LUA_STR[m.group()].match(l, m.end())
+        if e is None:
+            return l
+        i = e.end()
 
 
 def lua_count(text, names):
@@ -1295,6 +1312,26 @@ def lua_vip_sites(text):
     return out
 
 
+_NONE = frozenset()
+_FIELDS = {}
+_SKIP = []
+
+
+def _fields_of(k):
+    f = _FIELDS.get(k)
+    if f is None:
+        f = _FIELDS[k] = tuple(x for x in getattr(k, '__slots__', ()) if x != 'line')
+    return f
+
+
+def _skip_sets():
+    if not _SKIP:
+        from doctor.script import lua_ast
+        plain = frozenset((type(None), str, int, float, bool, lua_ast.Literal))
+        _SKIP.extend((plain | frozenset((lua_ast.Name,)), plain, lua_ast.Name))
+    return _SKIP
+
+
 class _LuaCode:
     def __init__(self, text):
         from doctor.script import lua_ast
@@ -1305,6 +1342,10 @@ class _LuaCode:
         self.funcs = []
         self.named = {}
         self.nodes = {}
+        self._stmt = lua_ast.Stmt
+        self._memo = {}
+        self._memo_cond = {}
+        self._idx = None
         self._walk(self.chunk.body, '(main chunk)', None, [])
 
     def _walk(self, block, name, span, own):
@@ -1357,58 +1398,76 @@ class _LuaCode:
 
     def _funcs_in(self, e, span):
         stack = [e]
+        pop, push, fields_of, skip = stack.pop, stack.append, _fields_of, _skip_sets()[0]
         while stack:
-            x = stack.pop()
-            if x is None or isinstance(x, (str, int, float, bool)):
+            x = pop()
+            k = type(x)
+            if k in skip:
                 continue
-            if isinstance(x, (list, tuple)):
-                stack.extend(x)
+            if k is list or k is tuple or isinstance(x, (list, tuple)):
+                for y in x:
+                    if type(y) not in skip:
+                        push(y)
                 continue
-            t = type(x).__name__
-            if t == 'FunctionExpr':
+            if k.__name__ == 'FunctionExpr':
                 mine = []
                 self.funcs.append(('function at line %d' % x.line, mine, span))
                 self._walk(x.body, None, span, mine)
                 continue
-            for f in getattr(type(x), '__slots__', ()):
-                if f != 'line':
-                    stack.append(getattr(x, f, None))
+            for f in fields_of(k):
+                y = getattr(x, f, None)
+                if type(y) not in skip:
+                    push(y)
 
-    @staticmethod
-    def calls_in(e):
-        out, stack = [], [e]
-        while stack:
-            x = stack.pop()
-            if x is None or isinstance(x, (str, int, float, bool)):
-                continue
-            if isinstance(x, (list, tuple)):
-                stack.extend(x)
-                continue
-            t = type(x).__name__
-            if t == 'FunctionExpr':
-                continue
-            if t == 'Call' and type(x.func).__name__ == 'Name':
-                out.append(x.func.name)
-            for f in getattr(type(x), '__slots__', ()):
-                if f != 'line' and not (t == 'FunctionStmt' and f == 'body'):
-                    stack.append(getattr(x, f, None))
-        return out
+    def calls_in(self, e):
+        return self._found_in(e)[0]
 
     def names_in(self, e):
-        out, stack = [], [e]
+        return self._found_in(e)[1]
+
+    def _found_in(self, e):
+        stmt = self._stmt
+        memo = self._memo
+        own = isinstance(e, stmt)
+        if own:
+            r = memo.get(id(e))
+            if r is not None:
+                return r
+        calls, names, stack = set(), set(), [(e, False)]
+        pop, push, fields_of = stack.pop, stack.append, _fields_of
+        _l, skip, name_t = _skip_sets()
         while stack:
-            x = stack.pop()
-            if x is None or isinstance(x, (str, int, float, bool)):
+            x, inner = pop()
+            k = type(x)
+            if k is name_t:
+                names.add(x.name)
                 continue
-            if isinstance(x, (list, tuple)):
-                stack.extend(x)
+            if k in skip:
                 continue
-            if type(x).__name__ == 'Name':
-                out.append(x.name)
-            for f in getattr(type(x), '__slots__', ()):
-                if f != 'line':
-                    stack.append(getattr(x, f, None))
-        return out
+            if k is list or k is tuple or isinstance(x, (list, tuple)):
+                for y in x:
+                    if type(y) not in skip:
+                        push((y, inner))
+                continue
+            if x is not e and isinstance(x, stmt):
+                c, nm = self._found_in(x)
+                if not inner:
+                    calls |= c
+                names |= nm
+                continue
+            t = k.__name__
+            if t == 'Call' and not inner and type(x.func).__name__ == 'Name':
+                calls.add(x.func.name)
+            sub = inner or t == 'FunctionExpr'
+            body_sub = sub or t == 'FunctionStmt'
+            for f in fields_of(k):
+                y = getattr(x, f, None)
+                if type(y) not in skip:
+                    push((y, body_sub if f == 'body' else sub))
+        r = (frozenset(calls) if calls else _NONE, frozenset(names) if names else _NONE)
+        if own:
+            memo[id(e)] = r
+        return r
 
     def tok_at(self, off):
         import bisect
@@ -1432,33 +1491,70 @@ class _LuaCode:
         return None
 
     def conditions(self, st):
+        k = id(st)
+        if k not in self._memo_cond:
+            self._memo_cond[k] = self._conditions(st)
+        return self._memo_cond[k]
+
+    def _conditions(self, st):
         i = self.tok_at(st.span[0])
-        out, depth, start = [], 0, None
         if self.toks[i] != 'if':
             return None
-        start = i + 1
-        for j in range(i + 1, len(self.toks)):
-            t, k = self.toks[j], self.kinds[j]
-            if k in ('STRING', 'NUMBER', 'NAME'):
-                continue
-            if start is not None:
-                if t == 'then' and depth == 0:
-                    out.append((start, j))
-                    start = None
-                elif t == 'function':
-                    depth += 1
-                elif t == 'end':
-                    depth -= 1
-                continue
-            if t in ('function', 'do', 'if', 'repeat'):
-                depth += 1
-            elif t in ('end', 'until'):
-                if depth == 0:
-                    break
-                depth -= 1
-            elif t == 'elseif' and depth == 0:
+        import bisect
+        toks = self.toks
+        level, then_at, keys, close = self._index()
+        out, start = [], i + 1
+        while True:
+            ts = then_at.get(level[start])
+            p = bisect.bisect_left(ts, start) if ts else 0
+            if not ts or p == len(ts):
+                return out
+            t = ts[p]
+            out.append((start, t))
+            k = bisect.bisect_left(keys, t + 1)
+            while True:
+                if k == len(keys):
+                    return out
+                j = keys[k]
+                w = toks[j]
+                if w in ('function', 'do', 'if', 'repeat'):
+                    c = close.get(j)
+                    if c is None:
+                        return out
+                    k = bisect.bisect_left(keys, c + 1)
+                    continue
+                if w in ('end', 'until'):
+                    return out
                 start = j + 1
-        return out
+                break
+
+    def _index(self):
+        if self._idx is None:
+            n = len(self.toks)
+            level, then_at, keys, close, stack = [0] * (n + 1), {}, [], {}, []
+            p = 0
+            for j, (t, k) in enumerate(zip(self.toks, self.kinds)):
+                level[j] = p
+                if k in ('STRING', 'NUMBER', 'NAME'):
+                    continue
+                if t == 'then':
+                    then_at.setdefault(p, []).append(j)
+                elif t in ('function', 'do', 'if', 'repeat'):
+                    stack.append(j)
+                    keys.append(j)
+                    if t == 'function':
+                        p += 1
+                elif t in ('end', 'until'):
+                    if stack:
+                        close[stack.pop()] = j
+                    keys.append(j)
+                    if t == 'end':
+                        p -= 1
+                elif t == 'elseif':
+                    keys.append(j)
+            level[n] = p
+            self._idx = (level, then_at, keys, close)
+        return self._idx
 
     def args(self, i):
         e = self.match(i)
@@ -1545,6 +1641,8 @@ def _lua_compare(lc, a, b):
 
 
 def lua_chance_sites(lc):
+    if not any(n in lc.text for n in LUA_ITEM_MAKE):
+        return []
     makers = set(LUA_ITEM_MAKE)
     for name, own, _sp in lc.funcs:
         if name in lc.named and any(set(lc.calls_in(st)) & LUA_ITEM_MAKE for st in own):
@@ -1566,8 +1664,13 @@ def lua_chance_sites(lc):
         if cs:
             conds[name] = cs[0]
 
+    made = {}
+
     def creates(block):
-        return any(set(lc.calls_in(st)) & makers for st in _flat(block))
+        k = id(block)
+        if k not in made:
+            made[k] = any(not makers.isdisjoint(lc.calls_in(st)) for st in _flat(block))
+        return made[k]
 
     out, seen = [], {}
     for name, own, span in lc.funcs:
@@ -1663,6 +1766,8 @@ def _flat(block):
 
 
 def lua_respawn_sites(lc):
+    if not any(n in lc.text for n in REVIVE):
+        return [], [], []
     revive = set()
     for name, own, _sp in lc.funcs:
         if any(set(lc.calls_in(st)) & set(REVIVE) for st in own):
