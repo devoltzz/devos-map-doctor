@@ -455,8 +455,13 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
     pair['KK_UI_MOUSE_POS'] = new.ui_mouse_pos(body_text)
     pair['KK_UI_BORDAS'] = new.ui_borders(body_text)
     pair['KK_UI_RETRATO'] = new.ui_portrait(body_text)
+    atk = new.covered_attack(extract)
+    pair['KK_CMD_ATAQUE'] = 'true' if atk else 'false'
+    if atk:
+        pair['KK_CMD_ATAQUE_LISTA'] = atk[:1000].rsplit(',', 1)[0] if len(atk) > 1000 else atk
     pair['KK_EST_VIDA_GRANDE'] = new.big_life(extract)
     pair['KK_DZ_REAL'] = 'true'
+    pair['KK_SRV_BACKEND'] = 'true'
     pair.update(new.hero_xp(extract, body_text))
     key_codes = new.queried_keys(body_text)
     pair['KK_TECLAS'] = 'true' if key_codes else 'false'
@@ -483,6 +488,7 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
             'KK_JN_PLUGIN': 'true' if new.jnplugin_gate(body_text) is not None else 'false',
             'KK_JN_INIT2': 'true' if re.search(r'\bnative\s+JNObjectUserInit2\b', body_text) else 'false',
             'KK_JN_REGEX': new.jnregex_gate(body_text),
+            'KK_JN_CARTAO': new.card_gate(body_text),
         })
         pair.update(dict((k, v) for k, v in new.JN_PARAMETERS.items() if not k.startswith('_')))
         if new.jnplugin_gate(body_text) is not None:
@@ -760,6 +766,35 @@ def speed_cap(r, extract, body_text, log):
     return info
 
 
+def close_toc(r, extract, log):
+    out = []
+    for base, _d, fs in os.walk(extract):
+        for f in sorted(fs):
+            if not f.lower().endswith('.toc'):
+                continue
+            p = os.path.join(base, f)
+            data_bytes = open(p, 'rb').read()
+            if not data_bytes.strip():
+                continue
+            if b'\r\n' in data_bytes:
+                if data_bytes.endswith(b'\r\n'):
+                    continue
+                new_t = data_bytes.rstrip(b'\r\n') + b'\r\n'
+            elif b'\n' in data_bytes:
+                if data_bytes.endswith(b'\n\n'):
+                    continue
+                new_t = data_bytes.rstrip(b'\r\n') + b'\n\n'
+            else:
+                new_t = data_bytes + b'\r\n\r\n'
+            rel_name = os.path.relpath(p, extract)
+            _writes(os.path.join(r.DATA, rel_name), new_t)
+            out.append(rel_name.replace(os.sep, '\\'))
+    if out:
+        log('5. the TOC file(s) end their last line the way Reforged needs (without it the last FDF is skipped): %s'
+            % ', '.join(out))
+    return out
+
+
 def report_text(details):
     L = ['Port to Reforged 3.0 - report', '=' * 30, '',
          'Map: %s' % details['map_path'], 'Result: %s' % details['resultado'], '']
@@ -928,6 +963,15 @@ def memory_warnings(info):
             'by what they do (frames, special effects, unit and ability fields): %s'
             % (len(mh['translated']), ', '.join(mh['translated'][:16]))
         )
+    mu = info.get('memui') or {}
+    if mu.get('translated') or mu.get('readings'):
+        WARNINGS.append(
+            'the memory UI library of the M16 maps (MemUI) now works through the DzAPI of the port layer and '
+            'the Reforged natives: %d function(s) (%s) and %d direct read(s) of the mouse/window address; the '
+            'game console, the buff bar, the textures and the game message frames stay where the game puts '
+            'them (check the custom interface in game)'
+            % (len(mu.get('translated') or []), ', '.join((mu.get('translated') or [])[:12]), mu.get('readings') or 0)
+        )
     if info['conversions']:
         WARNINGS.append(
             '%d typecast function(s) of the patch 1.2x memory hacks (the return bug) now use the Reforged '
@@ -1088,6 +1132,10 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
                          % ('PASS' if g1 else 'FAIL', 'PASS' if g2 else 'FAIL', '; '.join(error_list[:3]) or
                             os.path.join(root, 'port', 'out', 'cadeia.log')))
         details['speed'] = speed_cap(r, extract, body_text, log)
+        details['toc'] = close_toc(r, extract, log)
+        if details['toc']:
+            WARNINGS.append('%d TOC file(s) got the line ending Reforged needs to load the last FDF of the list: %s'
+                            % (len(details['toc']), ', '.join(details['toc'][:6])))
         if balance_numbers:
             from doctor.port import int32_balance
             details['numbers'] = int32_balance.port_step(r, extract, log)
