@@ -1,4 +1,5 @@
 # Puts a script in a normal form and undoes what a map optimizer did to the game functions.
+import itertools
 import re
 
 from doctor.script import jass_ast as existing
@@ -732,6 +733,17 @@ def _replace_names(node, names):
 
 
 def _without_null_sets(body, locals_, after=frozenset(), looped=False, undone=None):
+    n = len(body)
+    ments = [_mentions(s) for s in body]
+    last = {}
+    for k, m in enumerate(ments):
+        for x in m:
+            last[x] = k
+    laters, acc = {}, set()
+    for k in range(n - 1, -1, -1):
+        if type(body[k]) in (existing.IfStmt, existing.LoopStmt):
+            laters[k] = after | acc if k + 1 < n else after
+        acc |= ments[k]
     out = []
     for k, st in enumerate(body):
         t = type(st)
@@ -741,7 +753,7 @@ def _without_null_sets(body, locals_, after=frozenset(), looped=False, undone=No
             nxt = next(
                 (
                     s
-                    for s in body[k + 1 :]
+                    for s in itertools.islice(body, k + 1, None)
                     if not (
                         type(s) is existing.SetStmt
                         and type(bare(s.target)) is existing.Name
@@ -753,11 +765,11 @@ def _without_null_sets(body, locals_, after=frozenset(), looped=False, undone=No
                 None,
             )
             if (type(nxt) is existing.ReturnStmt and (nxt.value is None or x not in _mentions(nxt.value))) or (
-                    not looped and x not in after and not any(x in _mentions(s) for s in body[k + 1:])):
+                    not looped and x not in after and last.get(x, -1) <= k):
                 if undone is not None:
                     undone.append('null')
                 continue
-        later = after | set().union(*[_mentions(s) for s in body[k + 1:]]) if body[k + 1:] else after
+        later = laters.get(k)
         if t is existing.IfStmt:
             st.branches = [(c, _without_null_sets(b, locals_, later, looped, undone)) for c, b in st.branches]
         elif t is existing.LoopStmt:
