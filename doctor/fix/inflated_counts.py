@@ -24,7 +24,14 @@ class FormatError(Exception):
     pass
 
 
+_I32 = struct.Struct('<i').unpack_from
+_U32 = struct.Struct('<I').unpack_from
+_F32 = struct.Struct('<f').unpack_from
+
+
 class Reader(object):
+    __slots__ = ('b', 'o')
+
     def __init__(self, b, o=0):
         self.b, self.o = b, o
 
@@ -38,27 +45,43 @@ class Reader(object):
             raise End('%d B missing' % (n - self.remaining()))
 
     def i32(self):
-        self._require(4)
-        v = struct.unpack_from('<i', self.b, self.o)[0]
-        self.o += 4
+        o = self.o
+        if len(self.b) - o < 4:
+            self._require(4)
+        v = _I32(self.b, o)[0]
+        self.o = o + 4
         return v
 
     def u32(self):
-        self._require(4)
-        v = struct.unpack_from('<I', self.b, self.o)[0]
-        self.o += 4
+        o = self.o
+        if len(self.b) - o < 4:
+            self._require(4)
+        v = _U32(self.b, o)[0]
+        self.o = o + 4
         return v
 
     def f32(self):
-        self._require(4)
-        v = struct.unpack_from('<f', self.b, self.o)[0]
-        self.o += 4
+        o = self.o
+        if len(self.b) - o < 4:
+            self._require(4)
+        v = _F32(self.b, o)[0]
+        self.o = o + 4
         return v
 
+    def f32s(self, n):
+        o = self.o
+        if len(self.b) - o >= 4 * n:
+            v = list(struct.unpack_from('<%df' % n, self.b, o))
+            self.o = o + 4 * n
+            return v
+        return [self.f32() for _ in range(n)]
+
     def bs(self, n):
-        self._require(n)
-        v = self.b[self.o:self.o + n]
-        self.o += n
+        o = self.o
+        if n < 0 or len(self.b) - o < n:
+            self._require(n)
+        v = self.b[o:o + n]
+        self.o = o + n
         return v
 
     def s(self, cap=4096):
@@ -103,7 +126,7 @@ def min_w3r(v):
 def read_region(r, v):
     reg = {}
     if v >= 2:
-        reg['rect'] = [r.f32() for _ in range(4)]
+        reg['rect'] = r.f32s(4)
     else:
         reg['rect'] = [float(r.i32()) for _ in range(4)]
     reg['fname'] = r.s()
@@ -177,12 +200,22 @@ def min_w3c(v, new_ones=True, dof=None):
 
 
 def read_camera(r, v, new_ones, dof=True):
-    cpath = {'tgt': [r.f32() for _ in range(2)], 'z': r.f32(), 'rotation': r.f32(), 'angle': r.f32(),
-             'target_distance': r.f32(), 'roll': r.f32(), 'fov': r.f32(), 'far': r.f32(), 'near': r.f32()}
-    if new_ones:
-        cpath['local'] = [r.f32() for _ in range(3)]
-    if dof and v >= 3:
-        cpath['dof'] = [r.f32() for _ in range(3)]
+    k = 10 + (3 if new_ones else 0) + (3 if (dof and v >= 3) else 0)
+    if r.remaining() >= 4 * k:
+        f = r.f32s(k)
+        cpath = {'tgt': f[0:2], 'z': f[2], 'rotation': f[3], 'angle': f[4], 'target_distance': f[5], 'roll': f[6],
+                 'fov': f[7], 'far': f[8], 'near': f[9]}
+        if new_ones:
+            cpath['local'] = f[10:13]
+        if dof and v >= 3:
+            cpath['dof'] = f[k - 3:k]
+    else:
+        cpath = {'tgt': [r.f32() for _ in range(2)], 'z': r.f32(), 'rotation': r.f32(), 'angle': r.f32(),
+                 'target_distance': r.f32(), 'roll': r.f32(), 'fov': r.f32(), 'far': r.f32(), 'near': r.f32()}
+        if new_ones:
+            cpath['local'] = [r.f32() for _ in range(3)]
+        if dof and v >= 3:
+            cpath['dof'] = [r.f32() for _ in range(3)]
     cpath['fname'] = r.s()
     if dof and v >= 3:
         cpath['kind'] = r.i32()
@@ -1138,6 +1171,150 @@ def fix_from_script(fname, script, reason='was_missing', context=None):
     return _from_script(fname, script, {'reason': reason}, context=context)
 
 
+NEAR = 1.0
+OLD_NEUTRALS = {12: 24, 13: 25, 14: 26, 15: 27}
+
+
+def _units_offsets(r, cluster, skin):
+    owner = 36 + (4 if skin else 0) + (4 if cluster else 0) + 1
+    creation = r['sz'] - 4 - ((12 + 36 * r['lights']) if cluster else 0)
+    return owner, creation
+
+
+def update_units_doo(b, script, context=None):
+    context = context or {}
+    try:
+        d = read_units_doo(b)
+    except (End, FormatError, struct.error):
+        return None
+    if not d['on_close'] or not script:
+        return None
+    version_num, subversion = d['version_num']
+    skin = d['skin']
+    try:
+        _modern, cluster = units_layout_flags(version_num, subversion)
+    except FormatError:
+        return None
+    regs = d['regs']
+    objs = script_units(script, player_count(context.get('w3i')),
+                        regions=_waygate_regions(script, context.get('mpq')))
+    if not objs:
+        return None
+    free_slots = {}
+    for i, r in enumerate(regs):
+        free_slots.setdefault(r['ident'], []).append(i)
+    in_use = set()
+    pairs = []
+    for o in objs:
+        ident = _id4(o['id'])
+        best = None
+        for i in free_slots.get(ident, ()):
+            if i in in_use:
+                continue
+            r = regs[i]
+            dx, dy = abs(r['xyz'][0] - float(o['x'])), abs(r['xyz'][1] - float(o['y']))
+            if dx > NEAR or dy > NEAR:
+                continue
+            if ident == b'sloc' and r['owner'] != o.get('owner'):
+                continue
+            hash_key =(o.get('creation') is not None and r['creation'] != o['creation'], dx + dy)
+            if best is None or hash_key < best[0]:
+                best = (hash_key, i)
+        if best is not None:
+            in_use.add(best[1])
+        pairs.append((o, None if best is None else best[1]))
+    new_ones = [o for o, i in pairs if i is None]
+    if not any(_id4(o['id']) != b'sloc' for o in new_ones):
+        return None
+    removed = {}
+    if context.get('mpq') is not None and context.get('safe_units', True):
+        staying, removed = risky_units(context['mpq'], new_ones, file_set=context.get('file_set'))
+        staying = set(id(o) for o in staying)
+        pairs = [(o, i) for o, i in pairs if i is not None or id(o) in staying]
+    previous = player_count(context.get('w3i')) == 12 and not any(r['owner'] > 15 for r in regs)
+    taken = set(o['creation'] for o, _i in pairs if o.get('creation') is not None)
+    next_steps = max([0] + [o['creation'] for o, _i in pairs if o.get('creation') is not None] +
+                     [regs[i]['creation'] for _o, i in pairs if i is not None]) + 1
+    pieces, kept, rebuilt_count = [], 0, 0
+    for o, i in pairs:
+        u = dict(o)
+        reg = None
+        if i is not None:
+            r = regs[i]
+            reg = bytearray(b[r['p']:r['p'] + r['sz']])
+            off_owner, off_creation = _units_offsets(r, cluster, skin)
+            if previous and r['owner'] in OLD_NEUTRALS:
+                struct.pack_into('<h', reg, off_owner, OLD_NEUTRALS[r['owner']])
+            creation = o['creation'] if o.get('creation') is not None else r['creation']
+            if o.get('creation') is None and creation in taken:
+                creation, next_steps = next_steps, next_steps + 1
+            struct.pack_into('<i', reg, off_creation, creation)
+            taken.add(creation)
+            u['creation'] = creation
+        elif u.get('creation') is None:
+            u['creation'], next_steps = next_steps, next_steps + 1
+        try:
+            written = write_units_doo([u], version_num, subversion, skin)[16:]
+        except _DOES_NOT_FIT:
+            written = None
+        if reg is not None:
+            equal = written is None
+            if not equal:
+                old = read_units_record(bytes(reg), 0, version_num, subversion, skin)
+                new = read_units_record(written, 0, version_num, subversion, skin)
+                equal = True
+                for field_id in SCRIPT_FIELDS:
+                    if field_id == 'angle':
+                        delta = abs(old['angle'] - new['angle']) % 6.283185307179586
+                        equal = min(delta, 6.283185307179586 - delta) < 2e-5
+                    else:
+                        equal = _field(old, field_id, o) == _field(new, field_id, o)
+                    if not equal:
+                        break
+            if equal:
+                pieces.append(bytes(reg))
+                kept += 1
+                continue
+            rebuilt_count += 1
+        if written is not None:
+            pieces.append(written)
+    data_bytes = b[:12] + struct.pack('<I', len(pieces)) + b''.join(pieces)
+    try:
+        reread = read_units_doo(data_bytes)
+    except (End, FormatError, struct.error):
+        return None
+    if not reread['on_close'] or len(reread['regs']) != len(pieces) or \
+            len(set(r['creation'] for r in reread['regs'])) != len(pieces):
+        return None
+    added_count = len(pieces) - kept - rebuilt_count
+    outside = len(regs) - kept - rebuilt_count
+    report = (
+        'war3mapUnits.doo: %d units of the script `CreateAllUnits()` in place of the %d of the file, which fell '
+        'behind (%d kept byte for byte, %d rebuilt from the script, %d added, %d the script does not create '
+        'were removed; layout %d/%d%s)'
+        % (
+            len(pieces),
+            len(regs),
+            kept,
+            rebuilt_count,
+            added_count,
+            outside,
+            version_num,
+            subversion,
+            '+skin' if skin else '',
+        )
+    )
+    if removed:
+        report += '; %d NOT added because they are risky' % sum(removed.values())
+    return data_bytes, {'file_name': 'war3mapUnits.doo', 'declared': None, 'read_count': len(regs), 'new': len(pieces),
+                        'from_script': True, 'reason': 'outdated', 'where': 'CreateAllUnits()', 'singular': 'unit',
+                        'plural': 'units', 'in_file': len(regs), 'kept': kept, 'rebuilt_count': rebuilt_count,
+                        'added_count': added_count, 'outside_script': outside, 'removed_risky': removed or None,
+                        'placed_items': sum(1 for o, _i in pairs if o.get('item')),
+                        'with_abilities': sum(1 for o, _i in pairs if o.get('abilities')),
+                        'layout': '%d/%d%s' % (version_num, subversion, '+skin' if skin else ''), 'report': report}
+
+
 def count_in_file(fname, a):
     try:
         b = a.read(fname)
@@ -1861,4 +2038,32 @@ FROM_SCRIPT = (('war3map.w3r', script_regions, write_w3r, 'region', 'regions', '
                ('war3mapUnits.doo', script_units, write_units_doo, 'unit', 'units',
                 'CreateAllUnits()'),
                ('war3map.w3s', sounds_of_script, write_w3s_file, 'sound', 'sounds', 'InitSounds()'))
+
+
+SCRIPT_FIELDS = ('ident', 'owner', 'skin_id', 'hp', 'mana', 'itp', 'set_items', 'level', 'hero_attributes', 'inventory',
+                 'abilities', 'acq', 'uprooted', 'waygate', 'cluster', 'roll_angle', 'pitch', 'lights', 'angle',
+                 'random_block')
+def _field(r, field_id, o):
+    start_location = r['ident'] == b'sloc'
+    if field_id == 'z':
+        return r['xyz'][2]
+    if field_id == 'abilities':
+        return [h for h in r['abilities'] if h[2] > 0]
+    if field_id == 'set_items':
+        return [c for c in r['set_items'] if any(i != b'\x00' * 4 for i, _chance in c)]
+    if field_id == 'creation':
+        return r['creation'] if 'creation' in o else None
+    if field_id in ('hp', 'mana', 'acq', 'level'):
+        return None if start_location else r[field_id]
+    if field_id == 'start_location':
+        return (r['hp'], r['mana'], r['acq'], r['level']) if start_location else None
+    if field_id == 'waygate':
+        return r['waygate'] if o.get('waygate') is not None else None
+    if field_id == 'waygate_without_line':
+        return None if o.get('waygate') is not None else r['waygate']
+    if field_id == 'random_block':
+        return (r['rnd'], r['block_entry']) if r['ident'] in (RANDOM_CREEP_ID, RANDOM_BUILDING_ID) else None
+    if field_id in ('rnd', 'color', 'flags', 'variation', 'gold'):
+        return None if r['ident'] in (RANDOM_CREEP_ID, RANDOM_BUILDING_ID) and field_id == 'rnd' else r[field_id]
+    return r.get(field_id)
 
