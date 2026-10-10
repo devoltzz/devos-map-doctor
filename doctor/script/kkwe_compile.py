@@ -59,7 +59,64 @@ class Token(object):
         return '%s:%r@%d' % (self.kind, self.field_value, self.ln)
 
 
+_NATIVE_KINDS = ('nl', 'real', 'hex', 'int', 'raw', 'str', 'id', 'op', 'end_pos')
+_LEXER = []
+
+
+def _native_lexer():
+    if not _LEXER:
+        try:
+            try:
+                from doctor.script import jass_native
+            except ImportError:
+                from doctor.script import jass_native
+            _LEXER.append(jass_native.load_lexer())
+        except Exception:
+            _LEXER.append(None)
+    return _LEXER[0]
+
+
 def lex(body_text):
+    native_lex = _native_lexer()
+    q = native_lex(body_text, 1) if native_lex is not None else None
+    if q is None:
+        return lex_regex(body_text)
+    toks = []
+    ap = toks.append
+    types = _NATIVE_KINDS
+    end_pos = len(q) - 4
+    for k in range(0, end_pos, 4):
+        g, a, b, ln = types[q[k]], q[k + 1], q[k + 2], q[k + 3]
+        if g == 'id':
+            v = body_text[a:b]
+            ap(Token('kw' if v in KEYWORDS else 'id', v, ln))
+        elif g == 'op':
+            ap(Token('op', body_text[a:b], ln))
+        elif g == 'nl':
+            ap(Token('nl', None, ln))
+        elif g == 'int':
+            v = body_text[a:b]
+            ap(Token('int', i32(int(v, 8) if len(v) > 1 and v[0] == '0' else int(v)), ln))
+        elif g == 'str':
+            ap(Token('str', unescape(body_text[a + 1:b - 1]), ln))
+        elif g == 'real':
+            ap(Token('real', body_text[a:b], ln))
+        elif g == 'hex':
+            v = body_text[a:b]
+            ap(Token('int', i32(int(v[1:] if v[0] == '$' else v[2:], 16)), ln))
+        else:
+            s = unescape(body_text[a + 1:b - 1])
+            val = 0
+            for ch in s.encode('utf-8', 'surrogateescape'):
+                val = (val << 8) | ch
+            ap(Token('int', i32(val), ln))
+    ln = q[end_pos + 3]
+    ap(Token('nl', None, ln))
+    ap(Token('end_pos', None, ln))
+    return toks
+
+
+def lex_regex(body_text):
     toks = []
     ln = 1
     pos = 0
