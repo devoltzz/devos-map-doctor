@@ -32,6 +32,7 @@ CACHE_CHUNK_MAX = 4 << 20
 def clear_cache():
     _CACHE.clear()
     _CACHE_BYTES[0] = 0
+    _TABLES_CACHE.clear()
 
 
 def _crypt(data, key):
@@ -257,6 +258,9 @@ _READ_CACHE_ITEM_MAX = 8 << 20
 
 
 _HASHES3 = {}
+_TABLES_CACHE = collections.OrderedDict()
+_TABLES_MIN_BLOCKS = 1 << 16
+_TABLES_CAP = 2
 
 
 def _hashes3(name):
@@ -294,14 +298,31 @@ class Archive:
         hm = M.Header()
         hm.__dict__.update(self.h.__dict__)
         hm.hash_n, hm.block_n = self.hash_n, self.block_n
-        self.ht, self.bt = M.read_tables(self.d, hm)
+        bitmask = FLAGS_W3X if getattr(self.h, 'wc3', False) else 0xFFFFFFFF
+        hash_key = None
+        if self.block_n >= _TABLES_MIN_BLOCKS:
+            base = getattr(hm, 'offset', 0)
+            hp = (base + hm.hash_pos) & 0xFFFFFFFF
+            bp = (base + hm.block_pos) & 0xFFFFFFFF
+            hash_key = (self.d[hp:hp + hm.hash_n * 16], self.d[bp:bp + hm.block_n * 16], bitmask)
+        stored_value = _TABLES_CACHE.get(hash_key) if hash_key is not None else None
+        if stored_value is not None:
+            _TABLES_CACHE.move_to_end(hash_key)
+            ht, bt, block_list = stored_value
+            self.ht, self.bt, self.blocks = ht[:], bt[:], list(block_list)
+        else:
+            self.ht, self.bt = M.read_tables(self.d, hm)
+            end_pos = 4 * min(self.block_n, len(self.bt) // 4)
+            bt = self.bt
+            self.blocks = list(
+                zip(bt[0:end_pos:4], bt[1:end_pos:4], bt[2:end_pos:4], [f & bitmask for f in bt[3:end_pos:4]])
+            )
+            if hash_key is not None:
+                _TABLES_CACHE[hash_key] = (self.ht[:], self.bt[:], list(self.blocks))
+                while len(_TABLES_CACHE) > _TABLES_CAP:
+                    _TABLES_CACHE.popitem(last=False)
         self.is_malformed = bool(M.is_malformed(self.h))
         self.hash_n_read = len(self.ht) // 4
-        self.blocks = []
-        bitmask = FLAGS_W3X if getattr(self.h, 'wc3', False) else 0xFFFFFFFF
-        for i in range(min(self.block_n, len(self.bt) // 4)):
-            off, cs, fs, fl = self.bt[i * 4:i * 4 + 4]
-            self.blocks.append((off, cs, fs, fl & bitmask))
         self._idx = None
         self._validated = {}
 
@@ -462,7 +483,6 @@ class Archive:
         if fs == 0:
             return b''
         p = (self.h.offset + off) & 0xFFFFFFFF
-        raw = self.d[p:p + cs]
         key = None
         if fl & FLAG_ENCRYPT:
             key = hash_key if hash_key is not None else key_from_name(name, off, fs, fl)
@@ -472,7 +492,7 @@ class Archive:
         compressed = bool(fl & (FLAG_IMPLODE | FLAG_COMPRESS))
 
         if fl & FLAG_SINGLE:
-            data = raw
+            data = self.d[p:p + cs]
             if key is not None:
                 data = _crypt(data, key)
             if compressed:
