@@ -87,6 +87,7 @@ const state = {
   cheatpacks: null, cheatPack: { id: null, options: {}, result: null },
   qol: null, qolOpt: {}, qolResult: null,
   rawcodes: null,
+  recipes: null,
   editorVersion: 'reforged',
 };
 
@@ -285,6 +286,7 @@ async function openMap(path) {
   state.trGroups = null;
   state.trSkip = new Set();
   state.rawcodes = null;
+  state.recipes = null;
   state.editorVersion = 'reforged';
   TABS.forEach(n => setTabState(n, 'wait'));
   $('#welcome').classList.add('hidden');
@@ -504,7 +506,8 @@ function shellLine(action) {
   for (const box of $$('input[data-key]', card)) {
     if (!box.checked) continue;
     const k = box.dataset.key;
-    const f = /^(dados|data):/.test(k) ? 'data' : FLAGS[k] || k.replace(/^x:/, '').replace(/[:_]/g, '-');
+    let f = /^(dados|data):/.test(k) ? 'data' : FLAGS[k] || k.replace(/^x:/, '').replace(/[:_]/g, '-');
+    if (k === 'x:translation' && state.extras.translation) f += '="' + base(state.extras.translation.file) + '"';
     if (!flags.includes(f)) flags.push(f);
   }
   const name = state.open ? state.open.name : base(state.map);
@@ -1113,7 +1116,7 @@ function renderFiles() {
   };
   filter.addEventListener('input', draw);
   draw();
-  tabBody('files', rawcodesCard(), el('div', { class: 'card' },
+  tabBody('files', rawcodesCard(), recipesCard(), el('div', { class: 'card' },
     el('div', { class: 'row' }, el('h2', { class: 'grow', text: f.files.length + ' files' +
       (f.unnamed && f.unnamed.length ? ', ' + f.unnamed.length + ' without a name' : '') }), filter,
       el('button', { class: 'btn needs-idle', text: 'Extract selected...', disabled: !!state.running,
@@ -1304,6 +1307,75 @@ function drawRawcodes(body, r) {
         if (p) { await api().write_text(p, r.text); toast('Saved ' + base(p) + '.'); }
       } }),
       el('span', { class: 'faint', text: 'One per line: kind, id, name.' })) : null);
+}
+
+const RECIPE_LIMIT = 1500;
+function recipesCard() {
+  const body = el('div', {});
+  if (state.recipes) drawRecipes(body, state.recipes);
+  const btn = el('button', { class: 'btn', text: 'Find recipes', onclick: async () => {
+    if (state.running) return;
+    btn.disabled = true;
+    body.replaceChildren(el('span', { class: 'faint', text: 'Looking for recipes...' }));
+    try {
+      const r = await run('recipes', {}, { quiet: true });
+      state.recipes = r;
+      drawRecipes(body, r);
+    } catch (e) {
+      body.replaceChildren(el('div', { class: 'report' },
+        el('div', { class: 'l bad', text: 'Finding the recipes failed.' }),
+        el('div', { class: 'l info', text: (e && e.message) || String(e) })));
+    }
+    btn.disabled = false;
+  } });
+  return el('div', { class: 'card' },
+    el('div', { class: 'row' }, el('h2', { class: 'grow', text: 'Item recipes' }), btn),
+    el('p', { class: 'lead', text: 'The items the map script combines into another item, with their ids and names.' }),
+    body);
+}
+
+function drawRecipes(body, r) {
+  if (r.error) {
+    body.replaceChildren(el('div', { class: 'report' }, el('div', { class: 'l bad', text: r.error })));
+    return;
+  }
+  const list = r.recipes || [];
+  const tbody = el('tbody', {});
+  const count = el('span', { class: 'faint' });
+  const view = { q: '' };
+  const draw = () => {
+    const q = view.q.toLowerCase();
+    const hit = list.filter(x => !q || (x.line || '').toLowerCase().includes(q));
+    tbody.replaceChildren(...hit.slice(0, RECIPE_LIMIT).map(x => el('tr', {},
+      el('td', { text: x.line || '' }),
+      el('td', { class: 'faint', text: x.where || '' }))));
+    count.textContent = hit.length > RECIPE_LIMIT ? 'showing ' + RECIPE_LIMIT + ' of ' + hit.length :
+      hit.length + (hit.length === 1 ? ' recipe' : ' recipes');
+  };
+  const search = el('input', { class: 'field', type: 'search', placeholder: 'Search an id or a name',
+    oninput: e => { view.q = e.target.value.trim(); draw(); } });
+  draw();
+  body.replaceChildren(
+    list.length ? el('div', {},
+      el('div', { class: 'row rc-tools' }, search, count),
+      el('div', { class: 'scroll', style: 'max-height:440px' }, el('table', { class: 'grid' },
+        el('thead', {}, el('tr', {}, el('th', { text: 'Recipe' }), el('th', { text: 'Where' }))), tbody))) :
+      el('p', { class: 'muted', text: 'No recipe found in the script.' }),
+    r.note ? el('p', { class: 'faint', style: 'margin:8px 0 0', text: r.note }) : null,
+    list.length ? el('div', { class: 'row', style: 'margin-top:12px' },
+      el('button', { class: 'btn', text: 'Copy all', onclick: async () => {
+        await copyText(r.text);
+        toast('The recipes are in the clipboard.');
+      } }),
+      el('button', { class: 'btn', text: 'Save as...', onclick: async () => {
+        const p = await api().pick_save(base(state.map).replace(/\.\w+$/, '') + '_recipes.txt', 'recipes');
+        if (!p) return;
+        const ext = p.toLowerCase().split('.').pop();
+        await api().write_text(p, ext === 'json' ? r.json : ext === 'csv' ? r.csv : r.text);
+        toast('Saved ' + base(p) + '.');
+      } }),
+      el('span', { class: 'faint', text: 'A .txt file has one recipe per line; .json and .csv keep every field.' })) :
+      null);
 }
 
 async function loadScript(gen) {
