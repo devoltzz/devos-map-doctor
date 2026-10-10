@@ -1,6 +1,7 @@
 # Finds and removes the lock that ends the game when a map is played alone.
 import bisect
 import collections
+import gc
 import os
 import re
 import shutil
@@ -68,11 +69,11 @@ class E(object):
 
 
 class S(object):
-    __slots__ = ('op', 'exprs', 'branches', 'body', 'name', 'line', 'node')
+    __slots__ = ('op', 'exprs', 'branches', 'body', 'name', 'line', 'node', 'flat')
 
     def __init__(self, op, exprs=(), branches=None, body=None, name=None, line=0, node=None):
         self.op, self.exprs, self.branches, self.body, self.name = op, list(exprs), branches, body, name
-        self.line, self.node = line, node
+        self.line, self.node, self.flat = line, node, None
 
 
 class F(object):
@@ -220,10 +221,13 @@ def _ls(s):
 
 
 _LUA_STMT_FIELDS = ('values', 'targets', 'call', 'cond', 'exprs', 'start', 'stop', 'step')
+_LUA_FIELDS_OF = {}
 
 
 def _lua_nodes(body):
     stack = list(body)
+    fields_of = _LUA_FIELDS_OF
+    leaves = (lua_ast.Name, lua_ast.Literal)
     while stack:
         s = stack.pop()
         yield s
@@ -233,16 +237,21 @@ def _lua_nodes(body):
                 stack.extend(b)
         elif t in _LUA_LOOPS or t is lua_ast.FunctionStmt:
             stack.extend(s.body)
+        names = fields_of.get(t)
+        if names is None:
+            names = fields_of[t] = tuple(n for n in _LUA_STMT_FIELDS if n in t.__slots__)
         todo = []
-        for n in _LUA_STMT_FIELDS:
-            if n in t.__slots__ and getattr(s, n) is not None:
-                v = getattr(s, n)
+        for n in names:
+            v = getattr(s, n)
+            if v is not None:
                 todo.extend(v if isinstance(v, (list, tuple)) else [v])
         if t is lua_ast.IfStmt:
             todo.extend(c for c, _b in s.branches if c is not None)
         while todo:
             x = todo.pop()
             k = type(x)
+            if k in leaves:
+                continue
             if k is lua_ast.FunctionExpr:
                 yield x
                 stack.extend(x.body)
@@ -262,9 +271,9 @@ def _lua_nodes(body):
                 todo.extend(k2 for k2, _v in x.fields if k2 is not None and not isinstance(k2, str))
 
 
-def _lua_declared(body):
+def _lua_declared(body, nodes=None):
     out = set()
-    for s in _lua_nodes(body):
+    for s in (_lua_nodes(body) if nodes is None else nodes):
         t = type(s)
         if t is lua_ast.LocalStmt or t is lua_ast.GenericForStmt:
             out.update(s.names)
@@ -280,14 +289,23 @@ def _lua_declared(body):
 
 
 def _lua_ir(chunk):
-    declared = _lua_declared(chunk.body)
+    nodes = list(_lua_nodes(chunk.body))
+    declared = _lua_declared(chunk.body, nodes)
+    start = {}
+    top = set(map(id, chunk.body))
+    for k, s in enumerate(nodes):
+        if id(s) in top:
+            start[id(s)] = k
+    ends = dict(zip([id(s) for s in reversed(chunk.body)], [start[id(s)] for s in reversed(chunk.body)][1:] +
+                    [len(nodes)]))
     functions = {}
     for s in chunk.body:
         if type(s) is lua_ast.FunctionStmt and not s.is_local and re.match(r'[A-Za-z_]\w*\Z', s.name):
-            functions[s.name] = F(s.name, list(s.params), _lua_declared(s.body) | set(s.params),
+            own = nodes[start[id(s)] + 1:ends[id(s)]]
+            functions[s.name] = F(s.name, list(s.params), _lua_declared(s.body, own) | set(s.params),
                                   [_ls(x) for x in s.body], True, s.line)
     glob = {}
-    for s in _lua_nodes(chunk.body):
+    for s in nodes:
         if type(s) is lua_ast.AssignStmt:
             for tg in s.targets:
                 if type(tg) is lua_ast.Name and tg.name not in declared:
@@ -315,10 +333,9 @@ def _deep(body, inline=False):
         for b in reversed(_stmt_bodies(s)):
             stack.extend(reversed(b))
         if inline:
-            for e in _stmt_exprs(s):
-                for x in _exprs(e):
-                    if x.op == 'func':
-                        stack.extend(reversed(x.body))
+            for x in _flat(s):
+                if x.op == 'func':
+                    stack.extend(reversed(x.body))
 
 
 def _exprs(e):
@@ -327,6 +344,23 @@ def _exprs(e):
         x = stack.pop()
         yield x
         stack.extend(reversed(x.kids))
+
+
+def _flat(s):
+    out = s.flat
+    if out is None:
+        out = []
+        add = out.append
+        for e in _stmt_exprs(s):
+            stack = [e]
+            pop, extend = stack.pop, stack.extend
+            while stack:
+                x = pop()
+                add(x)
+                if x.kids:
+                    extend(reversed(x.kids))
+        s.flat = out
+    return out
 
 
 def _int(e):
@@ -338,7 +372,7 @@ def _int(e):
 
 
 def _reads_state(stmts):
-    return any(x.op == 'call' and x.name == 'GetPlayerState' for s in stmts for e in _stmt_exprs(s) for x in _exprs(e))
+    return any(x.op == 'call' and x.name == 'GetPlayerState' for s in stmts for x in _flat(s))
 
 
 WAITS = frozenset(('TriggerSleepAction', 'PolledWait', 'TriggerWaitForSound'))
@@ -376,15 +410,22 @@ class _Analysis(object):
         self.inline = language == 'lua'
         self.alias_funcs, self.alias_vars = {}, {}
         self._triggers = None
+        self._units_deep = {}
         self.sets = {}
         for f in self.units:
-            for s in _deep(f.body, inline=self.inline):
+            for s in self._deep_of(f):
                 if s.op in ('set', 'local'):
                     key = (f.name, s.name) if s.name in f.locals else s.name
                     if isinstance(key, tuple) or key in self.globals:
                         self.sets.setdefault(key, []).append((s.exprs[0] if s.exprs else None, f))
         self._counts()
         self._aliases()
+
+    def _deep_of(self, f):
+        out = self._units_deep.get(id(f))
+        if out is None:
+            out = self._units_deep[id(f)] = list(_deep(f.body, inline=self.inline))
+        return out
 
     def _playing(self, e, f):
         for x in _exprs(e):
@@ -406,8 +447,7 @@ class _Analysis(object):
     def _counts(self):
         self.slot_funcs = set()
         for f in self.funcs.values():
-            if any(x.op == 'name' and x.name == PLAYING for s in _deep(f.body) for e in _stmt_exprs(s)
-                   for x in _exprs(e)):
+            if any(x.op == 'name' and x.name == PLAYING for s in _deep(f.body) for x in _flat(s)):
                 self.slot_funcs.add(f.name)
         kinds = {}
 
@@ -433,10 +473,9 @@ class _Analysis(object):
                         kind = 'other'
                     kinds.setdefault(key, set()).add(kind)
                 if self.inline:
-                    for e in _stmt_exprs(s):
-                        for x in _exprs(e):
-                            if x.op == 'func':
-                                walk(f, x.body, [])
+                    for x in _flat(s):
+                        if x.op == 'func':
+                            walk(f, x.body, [])
 
         for f in self.units:
             walk(f, f.body, [])
@@ -614,16 +653,15 @@ class _Analysis(object):
     def _trigger_actions(self):
         out = {}
         for f in self.units:
-            for s in _deep(f.body, inline=self.inline):
-                for e in _stmt_exprs(s):
-                    for x in _exprs(e):
-                        if x.op == 'call' and x.name == 'TriggerAddAction' and len(x.kids) == 2 and \
-                                x.kids[0].op == 'name':
-                            a = x.kids[1]
-                            if a.op in ('ref', 'name') and a.name in self.funcs:
-                                out.setdefault(x.kids[0].name, []).append(a.name)
-                            elif a.op == 'func':
-                                out.setdefault(x.kids[0].name, []).append(a)
+            for s in self._deep_of(f):
+                for x in _flat(s):
+                    if x.op == 'call' and x.name == 'TriggerAddAction' and len(x.kids) == 2 and \
+                            x.kids[0].op == 'name':
+                        a = x.kids[1]
+                        if a.op in ('ref', 'name') and a.name in self.funcs:
+                            out.setdefault(x.kids[0].name, []).append(a.name)
+                        elif a.op == 'func':
+                            out.setdefault(x.kids[0].name, []).append(a)
         return out
 
     def scan(self):
@@ -636,7 +674,7 @@ class _Analysis(object):
 
     def _probes(self, sites):
         for f in self.units:
-            flat = list(_deep(f.body, inline=self.inline))
+            flat = self._deep_of(f)
             for i, s in enumerate(flat):
                 c = s.exprs[0] if s.op == 'call' and s.exprs else None
                 if c is None or c.op != 'call' or c.name != 'Cheat' or len(c.kids) != 1 or c.name in f.locals:
@@ -665,7 +703,7 @@ class _Analysis(object):
                     self._decision(f, s, here, terms, sites, others)
             else:
                 found = [t for e in _stmt_exprs(s) for t in self.terms_in(e, f)]
-                found += [x for e in _stmt_exprs(s) for x in _exprs(e) if x.op in ('ref', 'name') and
+                found += [x for x in _flat(s) if x.op in ('ref', 'name') and
                           x.name in self.alias_funcs and x.name not in f.locals]
                 if found and not self._alias_use(f, s):
                     bare = s.op == 'call' and s.exprs[0].op == 'call' and s.exprs[0].name == R_NATIVE
@@ -675,10 +713,9 @@ class _Analysis(object):
             for b in _stmt_bodies(s):
                 self._scan_body(f, b, here, sites, others)
             if self.inline:
-                for e in _stmt_exprs(s):
-                    for x in _exprs(e):
-                        if x.op == 'func':
-                            self._scan_body(f, x.body, [], sites, others)
+                for x in _flat(s):
+                    if x.op == 'func':
+                        self._scan_body(f, x.body, [], sites, others)
 
     def _alias_use(self, f, s):
         if s.op in ('set', 'local'):
@@ -758,41 +795,40 @@ class _Analysis(object):
                     labels.add(SAVE_FLAG)
                 elif st.op == 'loop' and self.lang == 'jass' and not _leaves(st.body):
                     labels.add(FREEZE)
-                for e in _stmt_exprs(st):
-                    for x in _exprs(e):
-                        if x.op == 'call':
-                            if x.name in ENDS:
-                                labels.add(ENDS[x.name])
-                            elif x.name == 'Player' and len(x.kids) == 1 and (_int(x.kids[0]) or 0) < 0:
-                                labels.add(CRASH)
-                            elif x.name in TRIGGER_OFF and len(x.kids) == 1 and x.kids[0].op == 'name':
-                                off.append(x.kids[0].name)
-                            elif x.name == RENAME:
-                                labels.add('renames the players')
-                            elif x.name in MESSAGES:
-                                for a in x.kids:
-                                    t = self._text(a)
-                                    if t and RX_SAVE_TEXT.search(t):
-                                        save_text.append(t)
-                                    if t and RX_SINGLE.search(t):
-                                        labels.add(SP_MESSAGE)
-                                        self._lock_message = self._lock_message or bool(RX_LOCK_MESSAGE.search(t))
-                            elif x.name in EXECUTORS and x.kids and x.kids[0].op == 'name':
-                                for target in self.triggers.get(x.kids[0].name, ()):
-                                    if isinstance(target, str):
-                                        follow(target, depth)
-                                    else:
-                                        visit(target.body, depth, fn)
-                            elif x.name == 'ExecuteFunc' and x.kids and self._text(x.kids[0]):
-                                follow(self._text(x.kids[0]), depth)
-                            elif x.name in self.funcs and x.name not in fn.locals:
-                                follow(x.name, depth)
-                        elif x.op == 'ref' or (x.op == 'name' and self.lang == 'lua' and x.name not in fn.locals):
-                            follow(x.name, depth)
-                        elif x.op == 'func':
-                            visit(x.body, depth, fn)
-                        elif x.op == 'other' and x.name == '/' and len(x.kids) == 2 and _int(x.kids[1]) == 0:
+                for x in _flat(st):
+                    if x.op == 'call':
+                        if x.name in ENDS:
+                            labels.add(ENDS[x.name])
+                        elif x.name == 'Player' and len(x.kids) == 1 and (_int(x.kids[0]) or 0) < 0:
                             labels.add(CRASH)
+                        elif x.name in TRIGGER_OFF and len(x.kids) == 1 and x.kids[0].op == 'name':
+                            off.append(x.kids[0].name)
+                        elif x.name == RENAME:
+                            labels.add('renames the players')
+                        elif x.name in MESSAGES:
+                            for a in x.kids:
+                                t = self._text(a)
+                                if t and RX_SAVE_TEXT.search(t):
+                                    save_text.append(t)
+                                if t and RX_SINGLE.search(t):
+                                    labels.add(SP_MESSAGE)
+                                    self._lock_message = self._lock_message or bool(RX_LOCK_MESSAGE.search(t))
+                        elif x.name in EXECUTORS and x.kids and x.kids[0].op == 'name':
+                            for target in self.triggers.get(x.kids[0].name, ()):
+                                if isinstance(target, str):
+                                    follow(target, depth)
+                                else:
+                                    visit(target.body, depth, fn)
+                        elif x.name == 'ExecuteFunc' and x.kids and self._text(x.kids[0]):
+                            follow(self._text(x.kids[0]), depth)
+                        elif x.name in self.funcs and x.name not in fn.locals:
+                            follow(x.name, depth)
+                    elif x.op == 'ref' or (x.op == 'name' and self.lang == 'lua' and x.name not in fn.locals):
+                        follow(x.name, depth)
+                    elif x.op == 'func':
+                        visit(x.body, depth, fn)
+                    elif x.op == 'other' and x.name == '/' and len(x.kids) == 2 and _int(x.kids[1]) == 0:
+                        labels.add(CRASH)
 
         for b in regions:
             visit(b, 0, f)
@@ -812,10 +848,9 @@ class _Analysis(object):
                         return False
                 elif st.op != 'call':
                     return False
-                for e in _stmt_exprs(st):
-                    for x in _exprs(e):
-                        if x.op in ('call', 'func', 'ref') and (x.op != 'call' or x.name not in QUIET):
-                            return False
+                for x in _flat(st):
+                    if x.op in ('call', 'func', 'ref') and (x.op != 'call' or x.name not in QUIET):
+                        return False
         return True
 
 
@@ -828,15 +863,21 @@ def _analyze(text, language, strings=None, tree=None):
     res = _result(language)
     if not RX_ANY.search(text):
         return res, [], tree
+    enabled = gc.isenabled()
+    gc.disable()
     try:
-        if tree is None:
-            tree = jass_ast.parse(text) if language == 'jass' else lua_ast.parse(text)
-        ir = _jass_ir(tree) if language == 'jass' else _lua_ir(tree)
-    except (jass_ast.JassSyntaxError, lua_ast.LuaSyntaxError) as e:
-        res['reason'] = 'The script does not parse (%s).' % e
-        return res, [], None
-    an = _Analysis(ir, language, strings)
-    sites, others = an.scan()
+        try:
+            if tree is None:
+                tree = jass_ast.parse(text) if language == 'jass' else lua_ast.parse(text)
+            ir = _jass_ir(tree) if language == 'jass' else _lua_ir(tree)
+        except (jass_ast.JassSyntaxError, lua_ast.LuaSyntaxError) as e:
+            res['reason'] = 'The script does not parse (%s).' % e
+            return res, [], None
+        an = _Analysis(ir, language, strings)
+        sites, others = an.scan()
+    finally:
+        if enabled:
+            gc.enable()
     sites.sort(key=lambda x: x['line'])
     res['sites'] = [dict((k, v) for k, v in x.items() if not k.startswith('_')) for x in sites]
     res['other_uses'] = others
