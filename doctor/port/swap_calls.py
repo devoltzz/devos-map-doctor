@@ -26,34 +26,26 @@ def skip_rawcode(s, i):
     return i + 1
 
 
-def sitios(ln, replacements):
+_RX_SITE = re.compile(r'''"(?:[^"\\]|\\[\s\S])*"?|(//)|'[^']{0,4}'|(?<![\w.])(\w+)(?=[ \t]*\()''')
+_FILTER_CAP = 32
+
+
+def sitios(ln, replacements, _matches=_RX_SITE.finditer):
+    if len(replacements) <= _FILTER_CAP:
+        for k in replacements:
+            if k in ln:
+                break
+        else:
+            return []
     out = []
-    n = len(ln)
-    i = 0
-    while i < n:
-        c = ln[i]
-        if c == '"':
-            i = skip_string(ln, i)
+    for m in _matches(ln):
+        fname = m.group(2)
+        if fname is None:
+            if m.group(1) is not None:
+                break
             continue
-        if c == '/' and ln.startswith('//', i):
-            break
-        if c == "'":
-            i = skip_rawcode(ln, i)
-            continue
-        if (c.isalpha() or c == '_') and (i == 0 or not (ln[i - 1].isalnum() or ln[i - 1] in '_.')):
-            j = i + 1
-            while j < n and (ln[j].isalnum() or ln[j] == '_'):
-                j += 1
-            fname = ln[i:j]
-            if fname in replacements:
-                k = j
-                while k < n and ln[k] in ' \t':
-                    k += 1
-                if k < n and ln[k] == '(':
-                    out.append((i, j, fname))
-            i = j
-            continue
-        i += 1
+        if fname in replacements and (fname[0] == '_' or fname[0].isalpha()):
+            out.append((m.start(), m.end(), fname))
     return out
 
 
