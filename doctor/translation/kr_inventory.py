@@ -9,31 +9,20 @@ CJK = re.compile('[' + chr(0x4E00) + '-' + chr(0x9FFF) + chr(0x3400) + '-' + chr
 JAPANESE = re.compile('[' + chr(0x3040) + '-' + chr(0x30FF) + ']')
 
 
-def literals(line):
+_RX_LITERAL = re.compile(r'"((?:[^"\\]|\\[\s\S]?)*)"?|//')
+
+
+def literals(line, _matches=_RX_LITERAL.finditer):
+    if '"' not in line:
+        return []
+    if '//' not in line:
+        return [(m.start(), m.group(1)) for m in _matches(line)]
     out = []
-    i = 0
-    n = len(line)
-    while i < n:
-        c = line[i]
-        if c == '/' and i + 1 < n and line[i + 1] == '/':
+    for m in _matches(line):
+        s = m.group(1)
+        if s is None:
             break
-        if c == '"':
-            j = i + 1
-            buf = []
-            while j < n:
-                d = line[j]
-                if d == chr(92) and j + 1 < n:
-                    buf.append(d + line[j + 1])
-                    j += 2
-                    continue
-                if d == '"':
-                    break
-                buf.append(d)
-                j += 1
-            out.append((i, ''.join(buf)))
-            i = j + 1
-            continue
-        i += 1
+        out.append((m.start(), s))
     return out
 
 
