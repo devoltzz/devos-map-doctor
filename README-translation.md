@@ -400,6 +400,8 @@ they stay out of the file.
 | Chat commands the script listens to (`-save`) | the player types them and the script compares them. |
 | A name the script reads by position (`SubStringBJ(GetUnitName(u), 11, 19) == "..."`) | a piece of the translated name is not the piece the script expects. |
 | A text both compared and used as a key | the same reason, twice. |
+| A text the script hands to its own function, keeps in a variable or returns, and then compares with a value from outside the script (an object name, the chat, a player name), searches for, or uses as a frame name or platform save key | the same reason, one step away. A text the script only searches (`"Fire;Ice;"` searched for `"Stun;"`) is translated when it does not hold the searched word, and a text compared only with other texts of the script is translated, since the same text always gets the same translation. |
+| The word the script searches for in a text (`JNStringContains(tooltip, "Recovery")`, `JNStringReplace`, `JNStringSplit`) | the text it is searched in may stay in the original. |
 | Paths, models, animations, orders, sounds, effects | they are not text a player reads. |
 | Game string keys (`GetLocalizedString`) | the game has the text. |
 | The debug messages of the Wurst compiler | a player only sees them when the map breaks. |
