@@ -46,12 +46,13 @@ How to translate a map, every way step by step: [README-translation.md](README-t
 </tr>
 </table>
 
-### New in 1.7.5
+### New in 1.7.6
 
-- Item recipes: the "Item recipes" card of the Files tab lists the item combinations the map script makes (its triggers and the recipe libraries: YDWE, ItemCombine, DDItemCombine and others), with the ids and names of the items, and saves them as .txt, .json or .csv. Command line: `doctor recipes map.w3x --out=recipes.csv`.
-- A guide to every way of translating a map, step by step: [README-translation.md](README-translation.md).
-- Faster, with the same output byte for byte: the QoL tab and "Runs on Reforged?" on big Lua maps, "Runs on version X?", opening and fixing big protected maps, shrinking textures, cheat packs and translation. Some hot loops now run in C and Rust, with the Python code kept as the fallback.
-- Fixed: machine translation of a classic map could make an object text longer than the classic game reads, and every item broke (issue 19); a KK map ported to Reforged could close after picking a skill; "Open in World Editor" showed outdated placed units when the map script had been edited by hand; shrink refused the Fix map output of some protected maps; cheat packs failed on maps with non-ASCII object ids; the command line shown under Fix map left out the translation file.
+- Port to Reforged: maps that draw their own interface by reading the 1.28 game memory (the MemUI library, used by M16 maps like Gutsy Geoid Game and Blc1) now show it: the portrait unit, the mouse position, the tooltip frame and the skill bar are answered with Reforged natives (issue 20, checked in game).
+- Port to Reforged: a skill placed on the attack button slot keeps the slot and its hotkey, and the hero still attacks on its own; formula tooltips built with JNStringRegex cost a fraction of what they did.
+- Translation: texts the map script searches for, compares with something from outside (chat, object names, accounts) or uses as a fixed key now stay untranslated, followed through the map's own functions and variables, so translating a map no longer breaks those features.
+- KK maps: the platform server is emulated a step further (the backend logic requests and the player GUID), from the KK CloudScript runner.
+- The Translation tab lists the texts first, and the export waits for the list.
 
 ## Get it
 
