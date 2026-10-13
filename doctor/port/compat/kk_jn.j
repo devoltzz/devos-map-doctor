@@ -110,6 +110,7 @@ integer array KKJN_cb_hab
 unit KKJN_cb_u=null
 real KKJN_cb_t=-1.0
 timer KKJN_cb_relogio=null
+hashtable KKJN_cb_fora=InitHashtable()
 constant integer KKJN_CB_DADO=2126512128
 //{{KK_FIMSE:KK_JN_CARTAO}}
 //@ENDGLOBALS
@@ -3311,6 +3312,34 @@ function JNMemorySetByte takes integer offset,integer value returns nothing
 endfunction
 
 //{{KK_SE:KK_JN_CARTAO}}
+function KKJN_disponivel takes player p,integer id,boolean disponivel returns nothing
+    call SetPlayerAbilityAvailable(p, id, disponivel)
+    if p!=null then
+        if disponivel then
+            call RemoveSavedBoolean(KKJN_cb_fora, GetPlayerId(p), id)
+        else
+            call SaveBoolean(KKJN_cb_fora, GetPlayerId(p), id, true)
+        endif
+        set KKJN_cb_t=-1.0
+    endif
+endfunction
+
+function KKJN_disponivel_bj takes boolean disponivel,integer id,player p returns nothing
+    call KKJN_disponivel(p, id, disponivel)
+endfunction
+
+function KKJN_cb_tecla takes integer id returns boolean
+    local integer v=LoadInteger(KKJN_cb_fora, -1, id)
+    if v==0 then
+        set v=2
+        if EXExecuteScript("(require'jass.slk').ability["+I2S(id)+"].Hotkey")!="" then
+            set v=1
+        endif
+        call SaveInteger(KKJN_cb_fora, -1, id, v)
+    endif
+    return v==1
+endfunction
+
 function KKJN_cb_calcula takes nothing returns nothing
     local unit u=DzGetSelectedLeaderUnit()
     local integer i=0
@@ -3318,6 +3347,10 @@ function KKJN_cb_calcula takes nothing returns nothing
     local integer id
     local integer x
     local integer y
+    local integer dono=0
+    local integer n=0
+    local integer array sobra
+    local integer passo
     local real agora=0.0
     local ability a
     if KKJN_cb_relogio!=null then
@@ -3335,20 +3368,43 @@ function KKJN_cb_calcula takes nothing returns nothing
         set i=i+1
     endloop
     if u!=null then
+        set dono=GetPlayerId(GetOwningPlayer(u))
         loop
             set a=BlzGetUnitAbilityByIndex(u, k)
             exitwhen a==null or k>=200
             set id=BlzGetAbilityId(a)
-            if id!='Amov' and id!='Aatk' and GetUnitAbilityLevel(u, id)>0 then
+            if id!='Amov' and id!='Aatk' and GetUnitAbilityLevel(u, id)>0 and not LoadBoolean(KKJN_cb_fora, dono, id) then
                 set x=BlzGetAbilityPosX(id)
                 set y=BlzGetAbilityPosY(id)
-                if x>=0 and x<4 and y>=0 and y<3 then
-                    if KKJN_cb_hab[y*4+x]==0 then
-                        set KKJN_cb_hab[y*4+x]=id
-                    endif
+                if x>=0 and x<4 and y>=0 and y<3 and KKJN_cb_hab[y*4+x]==0 then
+                    set KKJN_cb_hab[y*4+x]=id
+                elseif n<24 then
+                    set sobra[n]=id
+                    set n=n+1
                 endif
             endif
             set k=k+1
+        endloop
+        set passo=0
+        loop
+            exitwhen passo>1
+            set k=0
+            loop
+                exitwhen k>=n
+                if sobra[k]!=0 and (passo==1 or KKJN_cb_tecla(sobra[k])) then
+                    set i=1
+                    loop
+                        exitwhen i>=11 or KKJN_cb_hab[i]==0
+                        set i=i+1
+                    endloop
+                    if i<11 then
+                        set KKJN_cb_hab[i]=sobra[k]
+                    endif
+                    set sobra[k]=0
+                endif
+                set k=k+1
+            endloop
+            set passo=passo+1
         endloop
     endif
     set a=null
