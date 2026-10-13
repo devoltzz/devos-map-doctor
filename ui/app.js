@@ -312,6 +312,7 @@ async function openMap(path) {
     renderHeader();
     renderActions();
     status('Ready.');
+    if (r.summary.package) { openPackage(gen); return; }
     renderTranslation();
     renderCompare();
     renderPort();
@@ -330,11 +331,30 @@ async function openMap(path) {
   }
 }
 
+function openPackage(gen) {
+  for (const n of TABS) {
+    if (n === 'files') continue;
+    tabBody(n, el('div', { class: 'card muted', text: PACKAGE_NOTE }));
+    setTabState(n, 'ready');
+  }
+  loadFiles(gen).then(() => { if (gen === state.gen && state.tabState.files === 'ready') selectTab('files'); });
+}
+const PACKAGE_NOTE = 'This is an art package, not a map: only its files can be seen and extracted (Inspect, Files).';
+
 function renderHeader() {
   const o = state.open, s = o.summary;
   $('#mapTitle').textContent = o.name;
   $('#mapPath').textContent = o.map + '  (' + mb(o.size) + ')';
   const b = [];
+  if (s.package) {
+    const pk = s.package_info || {};
+    b.push(el('span', { class: 'badge info', text: 'Art package' }));
+    b.push(el('span', { class: 'badge', text: pk.files + ' files, ' + pk.models + ' models, ' + pk.images +
+      ' images' }));
+    $('#badges').replaceChildren(...b);
+    $('#diagLines').replaceChildren(reportLines(o.lines));
+    return;
+  }
   b.push(s.protected ? el('span', { class: 'badge warn', text: 'Protected' }) :
     el('span', { class: 'badge good', text: 'No MPQ protection' }));
   b.push(s.editor_ready ? el('span', { class: 'badge good', text: 'Opens in the World Editor' }) :
@@ -535,6 +555,12 @@ function editorVersionRow() {
 
 function renderAction(action) {
   const a = ACTIONS[action];
+  if (state.open.summary.package) {
+    return el('div', { class: 'card action', 'data-action': action }, el('div', { class: 'head' },
+      el('h2', { text: a.title })), el('p', { class: 'muted', text: 'Nothing to do: this is an art package, not a map.' }),
+    el('div', { class: 'foot' }, el('button', { class: 'btn primary', text: 'Show its files',
+      onclick: () => selectTab('files') })));
+  }
   const picked = choices(action);
   const steps = state.open.steps.filter(x => x.action === action);
   const extras = extraSteps(action);
@@ -1096,54 +1122,99 @@ async function loadFiles(gen) {
 
 function renderFiles() {
   const f = state.files;
+  const all = f.files.map(x => ({ id: x.name, label: x.name, kind: x.kind, size: x.size, about: x.about || '',
+    file: x, named: true })).concat((f.unnamed || []).map(x => {
+    const id = x.name || '#' + x.block;
+    return { id, label: x.path || id, kind: x.kind, size: x.size, about: 'No name: block ' + x.block +
+      ', the kind found by its content', file: Object.assign({}, x, { name: id }), named: false };
+  }));
+  const models = all.filter(x => x.kind === 'model').length;
   const filter = el('input', { class: 'field', type: 'text', placeholder: 'Filter by name or kind',
     style: 'max-width:320px' });
   const rows = el('tbody');
   const preview = el('div', { class: 'preview' }, el('span', { class: 'faint', text: 'Click a file to see it.' }));
   const selected = new Set();
-  const draw = () => {
+  const shown = () => {
     const q = filter.value.toLowerCase();
-    rows.replaceChildren(...f.files.filter(x => !q || x.name.toLowerCase().includes(q) || x.kind.includes(q))
-      .slice(0, 3000).map(x => {
-        const box = el('input', { type: 'checkbox', checked: selected.has(x.name), onclick: e => { e.stopPropagation();
-          if (e.target.checked) selected.add(x.name); else selected.delete(x.name); } });
-        const tr = el('tr', { class: 'click', onclick: () => {
-          $$('tr.sel', rows).forEach(r => r.classList.remove('sel')); tr.classList.add('sel'); showPreview(x, preview);
-        } }, el('td', {}, box), el('td', { class: 'mono', text: x.name, title: x.about || '' },
-          ...lintBadges(x.name)), el('td', { text: x.kind }),
-        el('td', { style: 'text-align:right', text: (x.size / 1024).toFixed(x.size < 10240 ? 1 : 0) + ' KB' }));
-        return tr;
-      }));
+    return all.filter(x => !q || x.label.toLowerCase().includes(q) || x.kind.includes(q));
+  };
+  const allBox = el('input', { type: 'checkbox', title: 'Select all the files the filter shows', onclick: e => {
+    for (const x of shown()) { if (e.target.checked) selected.add(x.id); else selected.delete(x.id); }
+    draw();
+  } });
+  const syncAll = list => {
+    const n = list.filter(x => selected.has(x.id)).length;
+    allBox.checked = !!list.length && n === list.length;
+    allBox.indeterminate = n > 0 && n < list.length;
+  };
+  const draw = () => {
+    const list = shown();
+    rows.replaceChildren(...list.slice(0, 3000).map(x => {
+      const box = el('input', { type: 'checkbox', checked: selected.has(x.id), onclick: e => { e.stopPropagation();
+        if (e.target.checked) selected.add(x.id); else selected.delete(x.id); syncAll(list); } });
+      const tr = el('tr', { class: 'click', onclick: () => {
+        $$('tr.sel', rows).forEach(r => r.classList.remove('sel')); tr.classList.add('sel'); showPreview(x.file, preview);
+      } }, el('td', {}, box), el('td', { class: 'mono' + (x.named ? '' : ' faint'), text: x.label, title: x.about },
+        ...(x.named ? lintBadges(x.id) : [])), el('td', { text: x.kind }),
+      el('td', { style: 'text-align:right', text: (x.size / 1024).toFixed(x.size < 10240 ? 1 : 0) + ' KB' }));
+      return tr;
+    }));
+    syncAll(list);
   };
   filter.addEventListener('input', draw);
   draw();
-  tabBody('files', rawcodesCard(), recipesCard(), el('div', { class: 'card' },
+  const pkg = !!(state.open && state.open.summary.package);
+  tabBody('files', pkg ? null : rawcodesCard(), pkg ? null : recipesCard(), el('div', { class: 'card' },
     el('div', { class: 'row' }, el('h2', { class: 'grow', text: f.files.length + ' files' +
       (f.unnamed && f.unnamed.length ? ', ' + f.unnamed.length + ' without a name' : '') }), filter,
       el('button', { class: 'btn needs-idle', text: 'Extract selected...', disabled: !!state.running,
-        onclick: async () => {
-          if (state.running) return;
+        onclick: () => {
           if (!selected.size) { toast('Tick the files to extract first.'); return; }
-          const dir = await api().pick_folder();
-          if (!dir) return;
-          try {
-            const r = await run('extract', { names: Array.from(selected), folder: dir }, { label: 'Extracting...' });
-            if (r.error) { failed({ message: r.error }, 'Extracting'); return; }
-            const n = (r.written || []).length, bad = r.failed || [], kept = (r.exists || []).length;
-            if (bad.length) toast(bad.length + (bad.length === 1 ? ' file' : ' files') + ' could not be extracted: ' +
-              bad.slice(0, 5).map(x => x.name + (x.reason ? ' (' + x.reason + ')' : '')).join(', ') +
-              (bad.length > 5 ? ', ...' : ''), { bad: true, sticky: true });
-            toast('Extracted ' + n + (n === 1 ? ' file' : ' files') + (kept ? ', ' + kept + ' already there' : '') +
-              '.', { actions: [[showLabel('Show'), () => api().open_folder(dir)]] });
-          } catch (e) { failed(e, 'Extracting'); }
-        } })),
+          extractFiles('extract', { names: Array.from(selected) });
+        } }),
+      el('button', { class: 'btn needs-idle', text: 'Extract all...', disabled: !!state.running || !all.length,
+        'data-off': !all.length, title: 'Every file, at its path; the ones without a name in a folder named unnamed',
+        onclick: () => extractFiles('extract_all', {}) }),
+      el('button', { class: 'btn needs-idle', text: 'Extract models...', disabled: !!state.running || !models,
+        'data-off': !models, title: 'Every model with the textures and emitter models it needs, at the paths the ' +
+          'models cite, so a model viewer opens them',
+        onclick: () => extractFiles('extract_all', { kind: 'models' }) })),
     f.error ? el('div', { class: 'report' }, el('div', { class: 'l bad', text: f.error })) : null,
     (f.notes || []).map(n => el('p', { class: 'muted', text: n })),
     lintSummary(f),
     el('div', { class: 'split', style: 'margin-top:12px' },
-      el('div', { class: 'scroll' }, el('table', { class: 'grid' }, el('thead', {}, el('tr', {}, el('th', {}),
+      el('div', { class: 'scroll' }, el('table', { class: 'grid' }, el('thead', {}, el('tr', {}, el('th', {}, allBox),
         el('th', { text: 'Name' }), el('th', { text: 'Kind' }), el('th', { text: 'Size', style: 'text-align:right' }))),
       rows)), preview)));
+}
+
+async function extractFiles(task, params) {
+  if (state.running) return;
+  const dir = await api().pick_folder();
+  if (!dir) return;
+  const label = task === 'extract' ? 'Extracting...' : params.kind === 'models' ? 'Extracting the models...' :
+    'Extracting every file...';
+  try {
+    const r = await run(task, Object.assign({ folder: dir }, params), { label });
+    if (r.error) { failed({ message: r.error }, 'Extracting'); return; }
+    const n = (r.written || []).length, bad = r.failed || [], kept = (r.exists || []).length,
+      same = (r.same || []).length;
+    if (bad.length) toast(bad.length + (bad.length === 1 ? ' file' : ' files') + ' could not be extracted: ' +
+      bad.slice(0, 5).map(x => x.name + (x.reason ? ' (' + x.reason + ')' : '')).join(', ') +
+      (bad.length > 5 ? ', ...' : ''), { bad: true, sticky: true });
+    const show = { actions: [[showLabel('Show'), () => api().open_folder(dir)]] };
+    if (params.kind === 'models') {
+      const out = (r.outside || []).length;
+      toast('Extracted ' + r.models + (r.models === 1 ? ' model' : ' models') + ' with ' + r.textures +
+        (r.textures === 1 ? ' texture or emitter model' : ' textures and emitter models') +
+        (same ? ', ' + same + ' already there' : '') + '.', show);
+      if (out) toast(out + (out === 1 ? ' file the models use is' : ' files the models use are') +
+        ' not in this file: the game has them, or they are missing.', { ms: 9000 });
+    } else {
+      toast('Extracted ' + n + (n === 1 ? ' file' : ' files') + (same ? ', ' + same + ' already there' : '') +
+        (kept ? ', ' + kept + ' left as they were' : '') + '.', show);
+    }
+  } catch (e) { failed(e, 'Extracting'); }
 }
 
 const LINT_TEXT = {
