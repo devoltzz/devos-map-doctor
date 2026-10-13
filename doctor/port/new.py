@@ -357,6 +357,16 @@ def ui_portrait(body_text):
     )
 
 
+def ui_parent(body_text):
+    if not re.search(r'\bDzFrameHideInterface[ \t]*\(', body_text):
+        return 'false'
+    return (
+        'true'
+        if re.search(r'\bDzFrameGet(?:HeroBarButton|ItemBarButton|MinimapButton)[ \t]*\(', body_text)
+        else 'false'
+    )
+
+
 RX_CARD = re.compile(r'\bJNMemoryGetInteger[ \t]*\([ \t]*\(?[ \t]*\w+[ \t]*\+[ \t]*400[ \t]*\)?[ \t]*\)')
 
 
