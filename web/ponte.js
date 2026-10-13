@@ -123,7 +123,8 @@
     });
   }
 
-  const ACCEPT = { map: '.w3x,.w3m,.w3n', translation: '.json,.html,.htm', package: '.mix,.asi,.dll,.mpq',
+  const ACCEPT = { map: '.w3x,.w3m,.w3n,.mix,.asi,.dll,.mpq,.w3mod', translation: '.json,.html,.htm',
+    package: '.mix,.asi,.dll,.mpq,.w3mod',
     image: '.png,.jpg,.jpeg,.bmp,.tga,.blp' };
 
   function loadSettings() {
@@ -231,7 +232,9 @@
 
   document.addEventListener('drop', e => {
     const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-    if (f && /\.w3[xmn]$/i.test(f.name) && !tooBig(f)) emit({ type: 'dropped', path: addPicked(f, '/maps') });
+    if (f && /\.(w3[xmn]|mix|asi|dll|mpq|w3mod)$/i.test(f.name) && !tooBig(f)) {
+      emit({ type: 'dropped', path: addPicked(f, '/maps') });
+    }
   });
 
   function adapt() {
