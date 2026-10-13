@@ -17,7 +17,9 @@ import webbrowser
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP = "Devo's Map Doctor"
-MAP_TYPES = ('Warcraft III maps and campaigns (*.w3x;*.w3m;*.w3n)', 'All files (*.*)')
+MAP_TYPES = ('Warcraft III maps, campaigns and art packages (*.w3x;*.w3m;*.w3n;*.mix;*.asi;*.dll;*.mpq;*.w3mod)',
+             'Warcraft III maps and campaigns (*.w3x;*.w3m;*.w3n)',
+             'Art packages (*.mix;*.asi;*.dll;*.mpq;*.w3mod)', 'All files (*.*)')
 NO_WINDOW = 0x08000000
 
 
@@ -101,7 +103,8 @@ def _jsonable(x):
 STYLE = {'heading': 'title', 'heading2': 'subtitle', 'ok': 'good', 'warning': 'warn', 'invalid': 'bad', 'info': 'info',
          'file_path': 'path'}
 PAGE_STYLES = frozenset(STYLE.values())
-OUTCOME = {'done': 'ok', 'partial': 'partial', 'nothing_to_do': 'nothing', 'nothing_selected': 'nothing'}
+OUTCOME = {'done': 'ok', 'partial': 'partial', 'nothing_to_do': 'nothing', 'nothing_selected': 'nothing',
+           'is_pack': 'nothing'}
 EDITOR_VERSIONS = ('1.29', '1.28', '1.27', '1.26', '1.25', '1.24')
 VERDICT = {'yes': 'v-yes', 'probably': 'v-probably', 'no': 'v-no', 'unknown': 'v-unknown'}
 SCRIPT_LABEL = {'jass': 'JASS', 'lua': 'Lua', 'kkwe': 'KK compiled (KKWE)', 'j2b': 'KK compiled and encrypted (j2b)',
@@ -191,7 +194,33 @@ def page_summary(D, d):
                              for c in codes),
             'editor_ready': (d.get('editor') or {}).get('status') == 'ready', 'script': d.get('script'),
             'script_label': SCRIPT_LABEL.get(d.get('script')) or (d.get('script') and 'unknown'),
-            'can_fix': d.get('fixable') == 'yes', 'campaign': bool(d.get('campaign_info'))}
+            'can_fix': d.get('fixable') == 'yes', 'campaign': bool(d.get('campaign_info')),
+            'package': d.get('kind') == 'is_pack', 'package_info': page_package(d.get('is_pack'))}
+
+
+def page_package(pk):
+    if not pk:
+        return None
+    return {'format': pk.get('format'), 'extension': pk.get('extension'), 'files': pk.get('file_set') or 0,
+            'named': pk.get('named') or 0, 'models': pk.get('models') or 0, 'images': pk.get('images') or 0,
+            'sounds': pk.get('sounds') or 0}
+
+
+PACKAGE_ONLY = ('This is an art package, not a map: only its files can be seen and extracted (the Files tab, '
+                'Inspect).')
+MAP_ONLY = ('port', 'reforged', 'card', 'card_image', 'gradient', 'script', 'script_checks', 'triggers', 'cheatpacks',
+            'cheatpack_inject', 'qol', 'qol_apply', 'translation_export', 'translation_groups', 'translation_check',
+            'translation_machine', 'translation_images', 'translation_image_preview', 'translation_update',
+            'rawcodes', 'recipes')
+
+
+def is_package(D, path):
+    try:
+        with open(_cache_file(path), 'rb') as f:
+            return pickle.load(f).get('fixable') == 'is_pack'
+    except Exception:
+        pass
+    return D.is_package(path)
 
 
 def page_changes(r, kind, extras=None):
@@ -465,6 +494,9 @@ def run_job(job, emit, G):
                 'summary': page_summary(D, d), 'editor_version': editor_version_guess(path)}
     if task in ('fix', 'editor'):
         return run_action(D, G, job, path, task, progress, emit)
+    if task in MAP_ONLY and path and is_package(D, path):
+        return {'package': True, 'error': PACKAGE_ONLY, 'outcome': 'nothing',
+                'lines': page_lines([('heading', os.path.basename(path)), ('invalid', PACKAGE_ONLY)])}
     if task == 'port':
         return run_port(D, G, path, progress, emit, job.get('packages') or [], job.get('memory', True),
                         job.get('icons', False), job.get('textures', False), job.get('balance', False),
@@ -588,6 +620,11 @@ def _extract(job, progress):
     return map_files.extract(job['map'], job['names'], job['folder'], progress)
 
 
+def _extract_all(job, progress):
+    from doctor.viewers import map_files
+    return map_files.extract_all(job['map'], job['folder'], progress, kind=job.get('kind'))
+
+
 def _script(job, progress):
     from doctor.viewers import map_files
     return map_files.script(job['map'])
@@ -693,14 +730,33 @@ def _compare(job, progress):
     return map_compare.compare(job['map'], job['other'], progress)
 
 
-TOOLS = {'card': _card, 'card_image': _card_image, 'gradient': _gradient, 'reforged': _reforged, 'files': _files,
-         'preview': _preview, 'extract': _extract, 'script': _script, 'script_checks': _script_checks,
-         'triggers': _triggers, 'cheatpacks': _cheatpacks, 'cheatpack_inject': _cheatpack_inject,
-         'rawcodes': _rawcodes, 'recipes': _recipes, 'qol': _qol, 'qol_apply': _qol_apply,
-         'translation_export': _translation_export, 'translation_groups': _translation_groups,
-         'translation_check': _translation_check, 'translation_machine': _translation_machine,
-         'translation_images': _translation_images, 'translation_image_preview': _translation_image_preview,
-         'translation_update': _translation_update, 'compare': _compare}
+TOOLS = {
+    'card': _card,
+    'card_image': _card_image,
+    'gradient': _gradient,
+    'reforged': _reforged,
+    'files': _files,
+    'preview': _preview,
+    'extract': _extract,
+    'extract_all': _extract_all,
+    'script': _script,
+    'script_checks': _script_checks,
+    'triggers': _triggers,
+    'cheatpacks': _cheatpacks,
+    'cheatpack_inject': _cheatpack_inject,
+    'rawcodes': _rawcodes,
+    'recipes': _recipes,
+    'qol': _qol,
+    'qol_apply': _qol_apply,
+    'translation_export': _translation_export,
+    'translation_groups': _translation_groups,
+    'translation_check': _translation_check,
+    'translation_machine': _translation_machine,
+    'translation_images': _translation_images,
+    'translation_image_preview': _translation_image_preview,
+    'translation_update': _translation_update,
+    'compare': _compare,
+}
 
 
 def worker_main(window=None):
@@ -802,7 +858,7 @@ class Api:
     def pick_file(self, kind):
         import webview
         types = {'translation': ('Translation files (*.json;*.html;*.htm)', 'All files (*.*)'),
-                 'package': ('Art packages (*.mix;*.asi;*.dll;*.mpq)', 'All files (*.*)'),
+                 'package': ('Art packages (*.mix;*.asi;*.dll;*.mpq;*.w3mod)', 'All files (*.*)'),
                  'image': ('Images (*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.blp)', 'All files (*.*)'),
                  'map': MAP_TYPES}.get(kind, ('All files (*.*)',))
         return self._dialog(webview.FileDialog.OPEN, file_types=types)
