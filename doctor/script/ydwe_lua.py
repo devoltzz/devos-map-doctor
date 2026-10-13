@@ -2,7 +2,7 @@
 import re
 
 
-RX_EXEC = re.compile(r'\b(?:AbilityId|Cheat)\s*\(\s*"exec-lua:\s*([^"\\]+?)\s*"\s*\)')
+RX_EXEC = re.compile(r'\b(?:AbilityId|Cheat)\s*\(\s*"exec-lua:\s*(?:\\"|\')?([^"\'\\]+?)(?:\\"|\')?\s*"\s*\)')
 RX_LOADER = re.compile(r'StartCampaignAI\s*\([^\n]*"callback"\s*\)')
 RX_TRIGGER = re.compile(r'\b(?:CreateTrigger|TimerStart)\s*\(')
 FOLDERS = ('scripts\\', 'w3x2lni\\plugin\\import\\scripts\\', '')
