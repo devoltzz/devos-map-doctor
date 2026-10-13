@@ -82,14 +82,29 @@ function DzFrameFindByName takes string name,integer id returns integer
 endfunction
 
 function DzSimpleFrameFindByName takes string name,integer id returns integer
+    //{{KK_SE:KK_UI_PAINEL}}
+    local integer f=DzFrameFindByName(name, id)
+    call DB_painel_grava(f, name, id)
+    return f
+    //{{KK_FIMSE:KK_UI_PAINEL}}
     return DzFrameFindByName(name, id)
 endfunction
 
 function DzSimpleFontStringFindByName takes string name,integer id returns integer
+    //{{KK_SE:KK_UI_PAINEL}}
+    local integer f=DzFrameFindByName(name, id)
+    call DB_painel_grava(f, name, id)
+    return f
+    //{{KK_FIMSE:KK_UI_PAINEL}}
     return DzFrameFindByName(name, id)
 endfunction
 
 function DzSimpleTextureFindByName takes string name,integer id returns integer
+    //{{KK_SE:KK_UI_PAINEL}}
+    local integer f=DzFrameFindByName(name, id)
+    call DB_painel_grava(f, name, id)
+    return f
+    //{{KK_FIMSE:KK_UI_PAINEL}}
     return DzFrameFindByName(name, id)
 endfunction
 
