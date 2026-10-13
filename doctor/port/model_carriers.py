@@ -45,6 +45,29 @@ def script_models(body_text):
     return list(dict.fromkeys(out))
 
 
+RX_LUA_MODEL = re.compile(r'''(?m)^\s*model\s*=\s*(?:\[(=*)\[([^\]\r\n]+)\]\1\]|'([^'\r\n]+)'|"([^"\r\n]+)")''')
+RX_LUA_ID = re.compile(r'''(?m)^\s*id\s*=\s*['"][A-Za-z0-9]{4}['"]''')
+
+
+def lua_unit_models(texts, window=20):
+    out = []
+    for t in texts:
+        if not t or 'model' not in t:
+            continue
+        lines = t.split('\n')
+        ids = [i for i, l in enumerate(lines) if RX_LUA_ID.match(l)]
+        if not ids:
+            continue
+        for i, l in enumerate(lines):
+            m = RX_LUA_MODEL.match(l)
+            if not m or not any(abs(i - j) <= window for j in ids):
+                continue
+            p = (m.group(2) or m.group(3) or m.group(4) or '').strip()
+            if p and p.lower().endswith(('.mdx', '.mdl')):
+                out.append(p.replace('\\\\', '\\'))
+    return list(dict.fromkeys(out))
+
+
 def _files(units):
     return dict((f.lower(), os.path.join(units, f)) for f in os.listdir(units) if f.lower() in ID_COLUMNS)
 
@@ -116,12 +139,12 @@ def template_unit(tables):
     return next((u for u in plain if field(u, 'movetp') == 'foot'), None) or next(iter(plain), None)
 
 
-def add(units, body_text, extract=None, write=True):
+def add(units, body_text, extract=None, write=True, extra_models=()):
     info = {'carriers': [], 'models': 0, 'template': None}
     files = _files(units)
     if 'unitui.slk' not in files or 'unitdata.slk' not in files:
         return info
-    models = script_models(body_text)
+    models = list(dict.fromkeys(script_models(body_text) + list(extra_models or ())))
     info['models'] = len(models)
     if not models:
         return info
