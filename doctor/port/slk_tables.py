@@ -181,13 +181,16 @@ def _slk_or_empty(U, fn):
     return slk.parse_slk(p)
 
 
-def build_tables(ext, legacy_key=False):
+def build_tables(ext, legacy_key=False, allowed=None):
+    unit_fields = allowed['unit'] if allowed else UNIT_FIELDS
+    ability_fields = allowed['ability'] if allowed else ABILITY_FIELDS
+    item_fields = allowed['item'] if allowed else ITEM_FIELDS
     U = os.path.join(ext, 'units')
     units = {}
     for fn in ('unitdata.slk', 'unitbalance.slk', 'unitui.slk', 'unitweapons.slk', 'unitabilities.slk'):
         hdr, rows = _slk_or_empty(U, fn)
         for rid, row in rows.items():
-            merge(units.setdefault(rid, {}), row, UNIT_FIELDS)
+            merge(units.setdefault(rid, {}), row, unit_fields)
     mdl = w3u_models(ext, legacy_key=legacy_key)
     for rid, file_path in mdl.items():
         units.setdefault(rid, {})['file'] = file_path
@@ -197,15 +200,15 @@ def build_tables(ext, legacy_key=False):
         if (fn.lower().endswith('unitstrings.txt') or fn.lower().endswith('unitfunc.txt')
                 or fn.lower() == 'unitskin.txt'):
             for rid, row in slk.parse_ini(os.path.join(U, fn)).items():
-                merge(units.setdefault(rid, {}), row, UNIT_FIELDS)
+                merge(units.setdefault(rid, {}), row, unit_fields)
     abils = {}
     hdr, rows = _slk_or_empty(U, 'abilitydata.slk')
     for rid, row in rows.items():
-        merge(abils.setdefault(rid, {}), row, ABILITY_FIELDS)
+        merge(abils.setdefault(rid, {}), row, ability_fields)
     for fn in os.listdir(U):
         if fn.lower().endswith('abilitystrings.txt') or fn.lower().endswith('abilityfunc.txt'):
             for rid, row in slk.parse_ini(os.path.join(U, fn)).items():
-                merge(abils.setdefault(rid, {}), row, ABILITY_FIELDS)
+                merge(abils.setdefault(rid, {}), row, ability_fields)
     w3a = parse_w3x_objects(os.path.join(ext, 'war3map.w3a'), legacy_key=legacy_key)
     W3A_MAP = {'aord': 'order', 'aoro': 'orderoff', 'aoru': 'unorder', 'aorf': 'orderon',
                'anam': 'name', 'aart': 'art', 'atp1': 'tip', 'aub1': 'ubertip', 'aut1': 'untip', 'auu1': 'unubertip',
@@ -228,11 +231,11 @@ def build_tables(ext, legacy_key=False):
     items = {}
     hdr, rows = _slk_or_empty(U, 'itemdata.slk')
     for rid, row in rows.items():
-        merge(items.setdefault(rid, {}), row, ITEM_FIELDS)
+        merge(items.setdefault(rid, {}), row, item_fields)
     for fn in os.listdir(U):
         if fn.lower() in ('itemstrings.txt', 'itemfunc.txt', 'itemskin.txt'):
             for rid, row in slk.parse_ini(os.path.join(U, fn)).items():
-                merge(items.setdefault(rid, {}), row, ITEM_FIELDS)
+                merge(items.setdefault(rid, {}), row, item_fields)
     return units, abils, items
 
 
@@ -247,7 +250,8 @@ def build_auto_tables(ext, method='auto', extras=None, stats=None, legacy_key=Fa
     if method == 'auto':
         method = 'slk' if has_slk(ext) else 'w3u'
     if method == 'slk':
-        u, a, i = build_tables(ext, legacy_key=legacy_key)
+        u, a, i = build_tables(ext, legacy_key=legacy_key,
+                               allowed=allowed_with(extras) if extras else None)
         return 'slk', u, a, i
     if method != 'w3u':
         raise ValueError('unknown mode: %r (slk, w3u or auto)' % method)
