@@ -5,7 +5,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 from doctor.fix import unprotect as D
 
-VERSION = '1.7.7'
+VERSION = '1.7.8'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -244,7 +244,36 @@ def name_of(d):
     return d.get('fname') or os.path.basename(d['file_name'])
 
 
+def package_text(d):
+    pk = d.get('is_pack') or {}
+    ext = pk.get('extension') or ''
+    n, named = pluralize(pk.get('file_set') or 0, 'file', 'files'), num(pk.get('named') or 0)
+    if pk.get('format') == 'pe' and ext in D.PACKAGE_EXTENSIONS:
+        out = [('ok', 'Art package (a DLL with an MPQ inside, %s): %s, %s named.' % (ext, n, named))]
+    elif pk.get('format') == 'pe':
+        out = [('ok', 'Art package (a DLL with an MPQ inside, like a .mix, renamed %s): %s, %s named.'
+                % (ext or 'without an extension', n, named))]
+    elif ext in D.PACKAGE_EXTENSIONS:
+        out = [('ok', 'Art package (an MPQ archive, %s): %s, %s named.' % (ext, n, named))]
+    else:
+        out = [('ok', 'Art package (an MPQ archive with no map inside): %s, %s named.' % (n, named))]
+    out.append(('info', 'Inside: %s, %s, %s.' % (pluralize(pk.get('models') or 0, 'model', 'models'),
+                                                 pluralize(pk.get('images') or 0, 'image', 'images'),
+                                                 pluralize(pk.get('sounds') or 0, 'sound', 'sounds'))))
+    if pk.get('err'):
+        out.append(('warning', 'The file list could not be read: %s.' % pk['err']))
+    out.append(('', ''))
+    out.append(('ok', 'It is not a map: open the Files tab to see and extract them.'))
+    return out
+
+
 def diagnosis_text(d):
+    if d['fixable'] == 'is_pack':
+        return [
+            ('heading', 'Diagnosis: %s' % os.path.basename(d['file_name'])),
+            ('info', 'File: %s  (%s)' % (os.path.basename(d['file_name']), mb(d['byte_size']))),
+            ('', ''),
+        ] + package_text(d)
     out = [('heading', 'Diagnosis: %s' % os.path.basename(d['file_name'])),
            ('info', 'Map: %s  (%s)' % (name_of(d), mb(d['byte_size'])))]
     if d['fixable'] == 'not_a_map':
@@ -388,6 +417,7 @@ def editor_reason(status):
         'script_kk_encrypted': 'the real map is encrypted outside this file (KK platform).',
         'impossible': 'the real map is encrypted outside this file (KK platform).',
         'unreadable': 'the file tables are scrambled and no name resolves.',
+        'is_pack': 'this is an art package, not a map.',
         'w3i_unreadable': 'war3map.w3i is in a format this tool cannot read.',
         'w3i_missing': 'war3map.w3i is missing.',
     }.get(status, status)
@@ -463,6 +493,10 @@ def _common_failures(r, verb):
                 ('info', 'Get a complete copy.')]
     if e == 'unreadable':
         return [('invalid', "This map can't be %s: %s" % (verb, editor_reason('unreadable')))]
+    if e == 'is_pack':
+        return [('invalid', "This file can't be %s: it is an art package, not a map." % verb),
+                ('info', 'No file was written.'),
+                ('info', 'Open the Files tab to see and extract its files: Extract all, Extract models.')]
     if e == 'failed':
         out = [('invalid', 'Something went wrong: nothing was saved, your map is unchanged.')]
         err = r.get('err') or ''
