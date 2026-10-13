@@ -687,11 +687,85 @@ function DzFrameGetTooltip takes nothing returns integer
     return DB_origin(ORIGIN_FRAME_TOOLTIP, 0)
 endfunction
 
+//{{KK_SE:KK_UI_PAI}}
+integer array DB_pai_id
+framehandle array DB_pai_fh
+integer DB_pai_n=0
+
+function DB_pai_marca takes integer id returns integer
+    local integer i=0
+    local framehandle f
+    if id==0 then
+        return 0
+    endif
+    loop
+        exitwhen i>=DB_pai_n
+        if DB_pai_id[i]==id then
+            return id
+        endif
+        set i=i+1
+    endloop
+    set f=DB_fh(id)
+    if f!=null and DB_pai_n<48 then
+        set DB_pai_id[DB_pai_n]=id
+        set DB_pai_fh[DB_pai_n]=BlzFrameGetParent(f)
+        set DB_pai_n=DB_pai_n+1
+    endif
+    set f=null
+    return id
+endfunction
+
+function DB_pai_mostra takes integer id returns nothing
+    local integer i=0
+    if id==0 then
+        return
+    endif
+    loop
+        exitwhen i>=DB_pai_n
+        if DB_pai_id[i]==id then
+            if DB_pai_fh[i]!=null then
+                call BlzFrameSetVisible(DB_pai_fh[i], true)
+            endif
+            return
+        endif
+        set i=i+1
+    endloop
+endfunction
+
+function DB_item_nome takes integer index returns integer
+    local integer i=0
+    local integer chave=-1000-index
+    local framehandle f
+    loop
+        exitwhen i>=DB_origem_n
+        if DB_origem_chave[i]==chave then
+            return DB_origem[i]
+        endif
+        set i=i+1
+    endloop
+    set f=BlzGetFrameByName("InventoryButton_"+I2S(index), 0)
+    if f==null then
+        return DB_origin(ORIGIN_FRAME_ITEM_BUTTON, index)
+    endif
+    set i=DB_fid(f)
+    set f=null
+    if i!=0 and DB_origem_n<DB_MAX then
+        set DB_origem[DB_origem_n]=i
+        set DB_origem_chave[DB_origem_n]=chave
+        set DB_origem_n=DB_origem_n+1
+    endif
+    return i
+endfunction
+
+//{{KK_FIMSE:KK_UI_PAI}}
 function DzFrameGetCommandBarButton takes integer row,integer column returns integer
     return DB_origin(ORIGIN_FRAME_COMMAND_BUTTON, row*4+column)
 endfunction
 
 function DzFrameGetHeroBarButton takes integer buttonId returns integer
+    //{{KK_SE:KK_UI_PAI}}
+    return DB_pai_marca(DB_origin(ORIGIN_FRAME_HERO_BUTTON, buttonId))
+    //{{KK_FIMSE:KK_UI_PAI}}
     return DB_origin(ORIGIN_FRAME_HERO_BUTTON, buttonId)
 endfunction
 
@@ -700,6 +774,9 @@ function DzFrameGetHeroManaBar takes integer buttonId returns integer
 endfunction
 
 function DzFrameGetItemBarButton takes integer buttonId returns integer
+    //{{KK_SE:KK_UI_PAI}}
+    return DB_pai_marca(DB_item_nome(buttonId))
+    //{{KK_FIMSE:KK_UI_PAI}}
     return DB_origin(ORIGIN_FRAME_ITEM_BUTTON, buttonId)
 endfunction
 
@@ -710,6 +787,11 @@ function DzFrameShow takes integer frame,boolean enable returns nothing
             call SetTextTagVisibility(LoadTextTagHandle(DB_ui_ht, frame, DB_MUNDO_TT), enable)
             return
         endif
+        //{{KK_SE:KK_UI_PAI}}
+        if enable then
+            call DB_pai_mostra(frame)
+        endif
+        //{{KK_FIMSE:KK_UI_PAI}}
         call BlzFrameSetVisible(f, enable)
     endif
 endfunction
@@ -816,6 +898,14 @@ function DzFrameSetFont takes integer frame,string fileName,real height,integer 
     endif
     //{{KK_FIMSE:KK_UI_MSG}}
     if f!=null then
+        //{{KK_SE:KK_UI_TEXTO}}
+        if DB_ui_ht!=null and LoadBoolean(DB_ui_ht, frame, DB_TXT_MOLDE) then
+            if height>=0.004 and height<=0.05 then
+                call BlzFrameSetScale(f, height/DB_TXT_ALTURA)
+            endif
+            return
+        endif
+        //{{KK_FIMSE:KK_UI_TEXTO}}
         if fileName==null then
             call BlzFrameSetFont(f, "", height, flag)
         else
@@ -1014,6 +1104,79 @@ function DB_anc_pode takes integer frame,integer relativeFrame returns boolean
 endfunction
 //{{KK_FIMSE:KK_UI_CICLO}}
 
+//{{KK_SE:KK_UI_PAINEL}}
+constant integer DB_SIMPLES_JOGO=311
+constant integer DB_SIMPLES_FORA=312
+constant integer DB_SIMPLES_DONO=313
+
+function DB_painel_dono takes string name,integer id returns string
+    if name!="InfoPanelIconLabel" and name!="InfoPanelIconValue" and name!="InfoPanelIconBackdrop" then
+        return ""
+    endif
+    if id==0 or id==1 then
+        return "SimpleInfoPanelIconDamage"
+    elseif id==2 then
+        return "SimpleInfoPanelIconArmor"
+    elseif id==3 then
+        return "SimpleInfoPanelIconRank"
+    elseif id==4 then
+        return "SimpleInfoPanelIconFood"
+    elseif id==5 then
+        return "SimpleInfoPanelIconGold"
+    elseif id==6 then
+        return "SimpleInfoPanelIconHero"
+    elseif id==7 then
+        return "SimpleInfoPanelIconAlly"
+    endif
+    return ""
+endfunction
+
+function DB_painel_grava takes integer frame,string name,integer id returns nothing
+    local string dono
+    if frame==0 or name==null then
+        return
+    endif
+    call DB_ui_ht_ok()
+    call SaveBoolean(DB_ui_ht, frame, DB_SIMPLES_JOGO, true)
+    set dono=DB_painel_dono(name, id)
+    if dono!="" then
+        call SaveInteger(DB_ui_ht, frame, DB_SIMPLES_DONO, DB_fid(BlzGetFrameByName(dono, id)))
+    endif
+endfunction
+
+function DB_painel_volta takes integer frame,framehandle f returns nothing
+    if DB_ui_ht!=null and LoadBoolean(DB_ui_ht, frame, DB_SIMPLES_FORA) then
+        call RemoveSavedBoolean(DB_ui_ht, frame, DB_SIMPLES_FORA)
+        call BlzFrameClearAllPoints(f)
+    endif
+endfunction
+
+function DzFrameSimpleBindFrame takes integer simple,integer frame returns integer
+    local framehandle f=DB_fh(frame)
+    local framehandle s=DB_fh(simple)
+    local framehandle p=null
+    if f==null or s==null then
+        return 0
+    endif
+    if DB_ui_ht!=null and HaveSavedInteger(DB_ui_ht, simple, DB_SIMPLES_DONO) then
+        set p=DB_fh(LoadInteger(DB_ui_ht, simple, DB_SIMPLES_DONO))
+    endif
+    if p==null then
+        set p=s
+    endif
+    call BlzFrameSetParent(f, p)
+    call BlzFrameSetVisible(f, true)
+    return frame
+endfunction
+
+function DzFrameSimpleUnBindFrame takes integer frame returns nothing
+    local framehandle f=DB_fh(frame)
+    if f!=null then
+        call BlzFrameSetParent(f, BlzGetOriginFrame(ORIGIN_FRAME_GAME_UI, 0))
+    endif
+endfunction
+//{{KK_FIMSE:KK_UI_PAINEL}}
+
 function DzFrameSetPoint takes integer frame,integer point,integer relativeFrame,integer relativePoint,real x,real y returns nothing
     local framehandle f=DB_fh(frame)
     local framehandle r=DB_fh(relativeFrame)
@@ -1026,6 +1189,12 @@ function DzFrameSetPoint takes integer frame,integer point,integer relativeFrame
         return
     endif
     //{{KK_FIMSE:KK_UI_MSG}}
+    //{{KK_SE:KK_UI_PAI}}
+    call DB_pai_mostra(frame)
+    //{{KK_FIMSE:KK_UI_PAI}}
+    //{{KK_SE:KK_UI_PAINEL}}
+    call DB_painel_volta(frame, f)
+    //{{KK_FIMSE:KK_UI_PAINEL}}
     //{{KK_SE:KK_UI_ANCORA}}
     if r==null and relativeFrame>=DB_ANCORA_BASE and relativeFrame<DB_ANCORA_BASE+DB_ancora_n and DB_ancora_tentativas<80 and DB_ancora_fila_n<256 then
         set DB_ancora_fila_f[DB_ancora_fila_n]=frame
@@ -1073,6 +1242,12 @@ function DzFrameSetAbsolutePoint takes integer frame,integer point,real x,real y
     endif
     //{{KK_FIMSE:KK_UI_MSG}}
     if f!=null then
+        //{{KK_SE:KK_UI_PAI}}
+        call DB_pai_mostra(frame)
+        //{{KK_FIMSE:KK_UI_PAI}}
+        //{{KK_SE:KK_UI_PAINEL}}
+        call DB_painel_volta(frame, f)
+        //{{KK_FIMSE:KK_UI_PAINEL}}
         //{{KK_SE:KK_UI_CICLO}}
         call DB_anc_grava(frame, point, 0, point, x, y)
         //{{KK_FIMSE:KK_UI_CICLO}}
@@ -1098,6 +1273,12 @@ function DzFrameClearAllPoints takes integer frame returns nothing
             call BlzFrameSetSize(f, 0.0001, 0.0001)
         endif
         //{{KK_FIMSE:KK_UI_RETRATO}}
+        //{{KK_SE:KK_UI_PAINEL}}
+        if DB_ui_ht!=null and LoadBoolean(DB_ui_ht, frame, DB_SIMPLES_JOGO) then
+            call BlzFrameSetAbsPoint(f, FRAMEPOINT_CENTER, -1.0, -1.0)
+            call SaveBoolean(DB_ui_ht, frame, DB_SIMPLES_FORA, true)
+        endif
+        //{{KK_FIMSE:KK_UI_PAINEL}}
     endif
 endfunction
 
@@ -1112,6 +1293,9 @@ function DzFrameSetAllPoints takes integer frame,integer relativeFrame returns b
         return false
     endif
     //{{KK_FIMSE:KK_UI_MSG}}
+    //{{KK_SE:KK_UI_PAINEL}}
+    call DB_painel_volta(frame, f)
+    //{{KK_FIMSE:KK_UI_PAINEL}}
     //{{KK_SE:KK_UI_CICLO}}
     if not DB_anc_pode(frame, relativeFrame) then
         return false
@@ -1151,6 +1335,12 @@ function DzFrameGetEnable takes integer frame returns boolean
     return false
 endfunction
 
+//{{KK_SE:KK_UI_TEXTO}}
+boolean DB_txt_toc=false
+constant integer DB_TXT_MOLDE=310
+constant real DB_TXT_ALTURA=0.010
+//{{KK_FIMSE:KK_UI_TEXTO}}
+
 function DzCreateFrameByTagName takes string frameType,string name,integer parent,string template,integer id returns integer
     local framehandle p=DB_fh(parent)
     local framehandle f
@@ -1164,6 +1354,27 @@ function DzCreateFrameByTagName takes string frameType,string name,integer paren
     if template==null then
         set template=""
     endif
+    //{{KK_SE:KK_UI_TEXTO}}
+    if frameType=="TEXT" and (template=="" or StringCase(template, false)=="template") then
+        if not DB_txt_toc then
+            set DB_txt_toc=true
+            call BlzLoadTOCFile("devos\\kk_texto.toc")
+        endif
+        set f=BlzCreateFrame("DevoKKTexto", p, 0, id)
+        if f==null then
+            set f=BlzCreateFrameByType(frameType, name, p, "DevoKKTexto", id)
+        endif
+        if f==null then
+            return 0
+        endif
+        set nid=DB_fid(f)
+        call DB_ui_ht_ok()
+        call SaveInteger(DB_ui_ht, nid, DB_MUNDO_PAI, parent)
+        call SaveInteger(DB_ui_ht, parent, DB_MUNDO_FILHO, nid)
+        call SaveBoolean(DB_ui_ht, nid, DB_TXT_MOLDE, true)
+        return nid
+    endif
+    //{{KK_FIMSE:KK_UI_TEXTO}}
     set f=BlzCreateFrameByType(frameType, name, p, template, id)
     if f==null then
         return 0
