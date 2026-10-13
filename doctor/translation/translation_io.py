@@ -1216,6 +1216,14 @@ def _load(translation_file):
     return doc
 
 
+def _id_without_case(ident):
+    if ident.startswith(('txt:', 'obj:')):
+        p = ident.split(':', 2)
+        if len(p) == 3:
+            return '%s:%s:%s' % (p[0], p[1].lower(), p[2])
+    return ident
+
+
 def _plan(mt, doc):
     language = str(doc.get('language') or '')
     current = dict((e['id'], e) for e in mt.entries)
@@ -1229,6 +1237,7 @@ def _plan(mt, doc):
                                                                lambda n: _read(mt.archive, n))
             except ValueError as e:
                 current[ident] = {'id': ident, '_bad': str(e), 'text': t.get('text')}
+    folded = dict((_id_without_case(i), e) for i, e in current.items())
     wanted, rejected, unknown, seen = [], [], [], set()
     empty = 0
     for t in doc['entries']:
@@ -1238,6 +1247,8 @@ def _plan(mt, doc):
             empty += 1
             continue
         e = current.get(ident)
+        if e is None and isinstance(ident, str):
+            e = folded.get(_id_without_case(ident))
         reason = None
         if ident in seen:
             reason = 'repeated id in the file'
