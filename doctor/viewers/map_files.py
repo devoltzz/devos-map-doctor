@@ -245,6 +245,20 @@ def list_files(path, progress=None, dictionary=True, classify=False):
                                      'kind': kind_of(n), 'known_name': False, 'block': bi})
             got = set(extra.values())
             unnamed = [bi for bi in unnamed if bi not in got]
+            if extra and unnamed:
+                with unprotect.quiet():
+                    try:
+                        derived = mpqnames.derived_names(a, [f['name'] for f in out['files']
+                                                             if f['name'] not in SPECIAL])
+                    except Exception:
+                        derived = {}
+                left = set(unnamed)
+                for n, bi in sorted(derived.items(), key=lambda x: (x[0].lower(), x[0])):
+                    if bi in left:
+                        left.discard(bi)
+                        out['files'].append({'name': n, 'size': a.blocks[bi][2], 'stored': _stored(a, bi, n),
+                                             'kind': kind_of(n), 'known_name': False, 'block': bi})
+                unnamed = [bi for bi in unnamed if bi in left]
         say('Looking at the unnamed files')
         verdicts = {}
         if classify and unnamed:
@@ -265,6 +279,8 @@ def list_files(path, progress=None, dictionary=True, classify=False):
                         verdict = 'invalid'
                     item['state'] = {'ok': 'real', 'invalid': 'junk'}.get(verdict, 'unknown')
                 item['kind'], item['ext'] = _sniff(mpqnames.read_unnamed(a, bi, whole=False))
+            item['name'] = '#%d' % bi
+            item['path'] = safe_path(item['name'], item['ext'])
             out['unnamed'].append(item)
         out['files'].sort(key=lambda f: (f['name'].lower(), f['name']))
         out['total'] = len(out['files']) + len(out['unnamed'])
@@ -611,10 +627,38 @@ def safe_path(name, ext='.bin'):
     return os.path.join(*parts) if parts else '_'
 
 
+def _write(root, name, rel, data, overwrite, out, folders):
+    target = os.path.abspath(os.path.join(root, rel))
+    if os.path.commonpath([root, target]) != root:
+        raise ValueError('the name leaves the folder')
+    item = {'name': name, 'path': os.path.relpath(target, root), 'size': len(data)}
+    if os.path.exists(target) and not overwrite:
+        with open(target, 'rb') as f:
+            (out['same'] if f.read() == data else out['exists']).append(item)
+        return
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    part = target + '.part'
+    with open(part, 'wb') as f:
+        f.write(data)
+    os.replace(part, target)
+    with open(target, 'rb') as f:
+        if f.read() != data:
+            raise IOError('the file on disk does not read back the same')
+    out['written'].append(item)
+    folder = os.path.dirname(item['path'])
+    while folder and folder.lower() not in folders:
+        folders[folder.lower()] = folder
+        folder = os.path.dirname(folder)
+
+
+def _new_report(out_dir):
+    return {'out_dir': os.path.abspath(out_dir), 'written': [], 'same': [], 'exists': [], 'failed': [], 'folders': [],
+            'error': None}
+
+
 def extract(path, names, out_dir, progress=None, overwrite=False):
     say = progress or _quiet
-    out = {'out_dir': os.path.abspath(out_dir), 'written': [], 'same': [], 'exists': [], 'failed': [], 'folders': [],
-           'error': None}
+    out = _new_report(out_dir)
     try:
         a, _notes = _open(path)
         root = os.path.abspath(out_dir)
@@ -629,30 +673,125 @@ def extract(path, names, out_dir, progress=None, overwrite=False):
         try:
             data, _bi = _read(a, name)
             ext = _sniff(data)[1] if name.startswith('#') else ''
-            rel = safe_path(name, ext)
-            target = os.path.abspath(os.path.join(root, rel))
-            if os.path.commonpath([root, target]) != root:
-                raise ValueError('the name leaves the folder')
-            item = {'name': name, 'path': os.path.relpath(target, root), 'size': len(data)}
-            if os.path.exists(target) and not overwrite:
-                with open(target, 'rb') as f:
-                    (out['same'] if f.read() == data else out['exists']).append(item)
-                continue
-            os.makedirs(os.path.dirname(target), exist_ok=True)
-            part = target + '.part'
-            with open(part, 'wb') as f:
-                f.write(data)
-            os.replace(part, target)
-            with open(target, 'rb') as f:
-                if f.read() != data:
-                    raise IOError('the file on disk does not read back the same')
-            out['written'].append(item)
-            folder = os.path.dirname(item['path'])
-            while folder and folder.lower() not in folders:
-                folders[folder.lower()] = folder
-                folder = os.path.dirname(folder)
+            _write(root, name, safe_path(name, ext), data, overwrite, out, folders)
         except (Exception, SystemExit) as e:
             out['failed'].append({'name': name, 'reason': _error(e)})
+    out['folders'] = sorted(folders.values(), key=lambda f: (f.lower(), f))
+    return out
+
+
+RX_MDL_IMAGE = re.compile(r'\bImage\s+"([^"]+)"')
+RX_MDL_EMITTED = re.compile(r'\bPath\s+"([^"]+\.md[lx])"', re.I)
+EXTRACT_KINDS = ('image', 'model', 'sound', 'text', 'script', 'map data', 'other')
+
+
+def model_refs(data):
+    if data[:4] == b'MDLX':
+        from doctor.models import art_audit
+        from doctor.models import mdxtex
+        refs = list(mdxtex.mdx_textures(data)) + art_audit.emitters(data)
+    else:
+        text = decode_text(data, len(data))['text']
+        refs = RX_MDL_IMAGE.findall(text) + RX_MDL_EMITTED.findall(text)
+    out = []
+    for r in refs:
+        r = re.sub(r'[\\/]+', r'\\', (r or '').strip().strip('"')).lstrip('\\')
+        if r and r not in out:
+            out.append(r)
+    return out
+
+
+def _resolve(a, ref, model_rel, by_base):
+    cands = [ref]
+    if ref.lower().endswith('.mdl'):
+        cands.append(ref[:-4] + '.mdx')
+    folder = os.path.dirname(model_rel)
+    if folder and '\\' not in ref:
+        cands += [folder.replace('/', '\\') + '\\' + c for c in list(cands)]
+    for c in cands:
+        if _game_block(a, c) is not None:
+            return c, safe_path(c)
+    base_name = ref.rsplit('\\', 1)[-1]
+    hits = by_base.get(base_name.upper()) or []
+    if len(hits) == 1:
+        return hits[0], os.path.join(folder, safe_path(base_name))
+    return None
+
+
+def extract_all(path, out_dir, progress=None, kind=None, overwrite=False):
+    say = progress or _quiet
+    out = _new_report(out_dir)
+    out.update(kind=kind, total=0, models=0, textures=0, outside=[])
+    if kind in ('all', ''):
+        kind = None
+    if kind == 'models':
+        kind = 'model'
+    if kind is not None and kind not in EXTRACT_KINDS:
+        out['error'] = 'unknown kind %r: models, %s' % (kind, ', '.join(EXTRACT_KINDS))
+        return out
+    listing = list_files(path, progress)
+    if listing.get('error'):
+        out['error'] = listing['error']
+        return out
+    try:
+        a, _notes = _open(path)
+        root = os.path.abspath(out_dir)
+        os.makedirs(root, exist_ok=True)
+    except (Exception, SystemExit) as e:
+        out['error'] = _error(e)
+        return out
+    folders = {}
+    items = [(f['name'], f['kind']) for f in listing['files']] + [(u['name'], u['kind']) for u in listing['unnamed']]
+    if kind is not None:
+        items = [x for x in items if x[1] == kind]
+    out['total'] = len(items)
+    by_base = {}
+    for f in listing['files']:
+        by_base.setdefault(f['name'].rsplit('\\', 1)[-1].upper(), []).append(f['name'])
+    done = set()
+    outside = set()
+    queue = [name for name, _k in items]
+    k = 0
+    while queue:
+        name = queue.pop(0)
+        k += 1
+        say('Extracting %d of %d' % (k, k + len(queue)))
+        try:
+            data, _bi = _read(a, name)
+            rel = safe_path(name, _sniff(data)[1] if name.startswith('#') else '')
+            if rel.upper() in done:
+                continue
+            done.add(rel.upper())
+            _write(root, name, rel, data, overwrite, out, folders)
+        except (Exception, SystemExit) as e:
+            out['failed'].append({'name': name, 'reason': _error(e)})
+            continue
+        if kind != 'model' or _content_kind(name, data)[0] != 'model':
+            continue
+        out['models'] += 1
+        try:
+            refs = model_refs(data)
+        except Exception:
+            refs = []
+        for ref in refs:
+            got = _resolve(a, ref, rel, by_base)
+            if got is None:
+                outside.add(ref)
+                continue
+            ref_name, ref_rel = got
+            if ref_rel.upper() in done:
+                continue
+            if os.path.splitext(ref_name)[1].lower() in MODEL_EXT:
+                queue.append(ref_name)
+                continue
+            try:
+                ref_data, _bi = _read(a, ref_name)
+                done.add(ref_rel.upper())
+                _write(root, ref_name, ref_rel, ref_data, overwrite, out, folders)
+                out['textures'] += 1
+            except (Exception, SystemExit) as e:
+                out['failed'].append({'name': ref_name, 'reason': _error(e)})
+    out['outside'] = sorted(outside, key=lambda x: (x.lower(), x))
     out['folders'] = sorted(folders.values(), key=lambda f: (f.lower(), f))
     return out
 
