@@ -316,7 +316,9 @@ def split_script(body_text):
     return globals_block, rest, bodies['main'], bodies['config']
 
 
-RX_LEADING_COMMENT = re.compile(r'(?:[ \t]*(?://[^\n]*|(?:constant[ \t]+)?native[ \t][^\n]*|type[ \t][^\n]*)?\n)*')
+RX_LEADING_COMMENT = re.compile(
+    r'(?:\ufeff|\u00ef\u00bb\u00bf)?(?:[ \t]*(?://[^\n]*|(?:constant[ \t]+)?native[ \t][^\n]*|type[ \t][^\n]*)?\n)*'
+)
 
 
 SKELETON_NAMES = (r'InitGlobals', r'InitCustomTriggers', r'RunInitializationTriggers', r'InitCustomPlayerSlots',
