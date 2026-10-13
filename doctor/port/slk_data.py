@@ -74,7 +74,7 @@ def swap_no_dot(units, listing):
 
 
 def applies(extract, data_bytes, raw_data, segment, tr_dir=None, expected_count=None, no_dot=None, tolerant_mode=False,
-            added_models=()):
+            added_models=(), carrier=False):
     exp_len = dict((k, None) for k in KEY_NAMES)
     exp_len.update(expected_count or {})
     failures = []
@@ -111,6 +111,18 @@ def applies(extract, data_bytes, raw_data, segment, tr_dir=None, expected_count=
     except (ValueError, OSError) as e:
         failures.append('model_carriers: %s' % e)
         info['model_carriers'] = 0
+    if carrier:
+        try:
+            info['carrier'] = model_carriers.add_effect_carrier(
+                units, open(raw_data, 'rb').read().decode('utf-8', 'surrogateescape'), extract=extract)
+        except (ValueError, OSError) as e:
+            info['carrier'] = None
+            failures.append('model_carriers (effect carrier): %s' % e)
+        if info['carrier']:
+            shutil.copyfile(model_carriers.EFFECT_CARRIER_MDX,
+                            os.path.join(data_bytes, model_carriers.EFFECT_CARRIER_MODEL[:-4] + '.mdx'))
+        else:
+            failures.append('model_carriers: the effect carrier did not go into the data')
     from doctor.data import slk2skin
     rc, out = run_action(slk2skin, [units])
     if rc:
