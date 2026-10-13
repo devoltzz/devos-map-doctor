@@ -2067,6 +2067,10 @@ function renderPort() {
         optionItem({ checked: state.portBalance === true, title: 'Balance huge numbers',
           detail: 'Scales life, damage, mana and armor down so the biggest fit the game\'s limit, keeping the proportions.',
           onchange: e => { state.portBalance = e.target.checked; } }),
+        optionItem({ checked: state.portGameFiles === true, title: 'Remove the game\'s own files',
+          detail: 'Icons, textures and interface models the map carries with the game\'s own path. Try it if the ' +
+            'game crashes on the ported map.',
+          onchange: e => { state.portGameFiles = e.target.checked; } }),
         stripIndentItem()),
       el('div', { class: 'foot' }, el('button', { class: 'btn primary needs-idle', text: 'Port to Reforged',
         disabled: !!state.running, onclick: runPort }))),
@@ -2099,7 +2103,7 @@ async function runPort() {
   try {
     const r = await run('port', { packages: state.portPackages || [], memory: state.portMemory !== false,
       icons: state.portIcons !== false, textures: state.portTextures !== false, balance: state.portBalance === true,
-      strip_indent: stripIndentOn() },
+      game_files: state.portGameFiles === true, strip_indent: stripIndentOn() },
       { label: 'Porting the map to Reforged...' });
     state.portResult = r;
     state.results.port = r;
