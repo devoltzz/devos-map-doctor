@@ -1,4 +1,6 @@
 # Runs pjass, the JASS syntax checker, over a script and the game scripts.
+import copy
+import hashlib
 import os
 import re
 import subprocess
@@ -71,14 +73,19 @@ def compiles(paths, pjass=None, tmp=None):
     if tmp:
         paths = [os.path.relpath(c, tmp) if os.path.dirname(os.path.abspath(c)) == os.path.abspath(tmp) else c
                  for c in paths]
+    hash_key = _cache_key(paths, pjass, tmp)
+    if hash_key is not None and hash_key in _CACHE:
+        return copy.deepcopy(_CACHE[hash_key])
     r = subprocess.run([exe(pjass)] + list(paths), capture_output=True, text=True,
                        errors='replace', cwd=tmp, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     out = (r.stdout or '') + (r.stderr or '')
     line_list = [line for line in out.splitlines() if line.strip()]
     warnings = [line for line in line_list if 'warning' in line.lower()]
-    error_list = [line for line in line_list if line not in warnings and
+    seen_warnings = set(warnings)
+    error_list = [line for line in line_list if line not in seen_warnings and
                   (RX_WHERE.match(line) or RX_TOTAL.search(line) or re.search(r'\b(error|Error)\b', line))]
-    others = [line for line in line_list if line not in error_list and line not in warnings]
+    seen_errors = set(error_list)
+    others = [line for line in line_list if line not in seen_errors and line not in seen_warnings]
     totals = [int(m.group(1)) for m in (RX_TOTAL.search(line) for line in line_list) if m]
     for line in line_list:
         m = re.search(r'(\d+) errors? ignored', line)
@@ -87,14 +94,28 @@ def compiles(paths, pjass=None, tmp=None):
                 '%s error(s) IGNORED by the pragma //# +nosemanticerror: the game does not know the pragma and refuses'
                 'the script (step 0d, common/kk/typecast.py, rewrites the functions)' % m.group(1)
             )
-    return {
-        'rc': r.returncode,
-        'line_list': line_list,
-        'error_list': error_list,
-        'warnings': warnings,
-        'others': others,
-        'total': max(totals) if totals else None,
-    }
+    res = {'rc': r.returncode, 'line_list': line_list, 'error_list': error_list, 'warnings': warnings, 'others': others,
+           'total': max(totals) if totals else None}
+    if hash_key is not None:
+        if len(_CACHE) >= 16:
+            _CACHE.pop(next(iter(_CACHE)))
+        _CACHE[hash_key] = copy.deepcopy(res)
+    return res
+
+
+_CACHE = {}
+
+
+def _cache_key(paths, pjass, tmp):
+    pieces = [exe(pjass)]
+    for c in paths:
+        p = c if os.path.isabs(c) or not tmp else os.path.join(tmp, c)
+        try:
+            with open(p, 'rb') as f:
+                pieces.append((c, hashlib.sha1(f.read()).hexdigest()))
+        except OSError:
+            return None
+    return tuple(pieces)
 
 
 def run_action(sources, pjass=None, tmp=None):
