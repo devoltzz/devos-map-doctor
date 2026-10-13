@@ -1,4 +1,6 @@
 # Compresses MPQ sectors with the best available deflate encoder (used by the shrink).
+import hashlib
+import os
 import struct
 import zlib
 
@@ -150,6 +152,53 @@ def pack_file(content, sector_bytes=SECTOR_NEW, encoder='zlib6', margem=8):
     assert sector_bytes == SECTOR_NEW
     code_part = resolve_encoder(encoder)
     return build_block(_slice((content, code_part, margem)))
+
+
+class Cache:
+    def __init__(self, folder):
+        self.folder = folder
+        self.in_use = set()
+
+    def _path_of(self, inv_slot, hash_key):
+        return os.path.join(self.folder, inv_slot, hash_key[:2], hash_key)
+
+    def read_data(self, inv_slot, hash_key):
+        if not self.folder:
+            return None
+        p = self._path_of(inv_slot, hash_key)
+        if os.path.exists(p):
+            self.in_use.add(os.path.normcase(os.path.abspath(p)))
+            with open(p, 'rb') as fh:
+                return fh.read()
+        return None
+
+    def save(self, inv_slot, hash_key, data_bytes):
+        if not self.folder:
+            return
+        p = self._path_of(inv_slot, hash_key)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        tmp = p + '.tmp%d' % os.getpid()
+        with open(tmp, 'wb') as fh:
+            fh.write(data_bytes)
+        os.replace(tmp, p)
+        self.in_use.add(os.path.normcase(os.path.abspath(p)))
+
+    def prune(self):
+        if not self.folder or not os.path.isdir(self.folder):
+            return 0, 0
+        n = sz = 0
+        for root, _, files_ in os.walk(self.folder):
+            for f in files_:
+                p = os.path.normcase(os.path.abspath(os.path.join(root, f)))
+                if p not in self.in_use:
+                    sz += os.path.getsize(p)
+                    os.remove(p)
+                    n += 1
+        return n, sz
+
+
+def _key(data_bytes, enc_signature):
+    return hashlib.sha1(data_bytes + b'\0' + enc_signature.encode('ascii')).hexdigest()
 
 
 def _blp_um(content):
