@@ -1,4 +1,5 @@
 # Diagnoses a map, removes its protection and prepares it for the World Editor.
+import collections
 import contextlib
 import io
 import os
@@ -390,6 +391,64 @@ def _is_campaign(file_path):
         return False
 
 
+PACKAGE_EXTENSIONS = ('.mix', '.asi', '.dll', '.mpq', '.w3mod', '.exe')
+MAP_FILE_NAMES = ('war3map.j', 'scripts\\war3map.j', 'war3map.lua', 'war3map.w3i', 'war3campaign.w3f')
+
+
+def package_of(file_path, a, begin_pos):
+    try:
+        if any(a.find(n) for n in MAP_FILE_NAMES):
+            return None
+    except Exception:
+        return None
+    pe = begin_pos[:2] == b'MZ'
+    if pe or os.path.splitext(file_path)[1].lower() in PACKAGE_EXTENSIONS:
+        return 'pe' if pe else 'mpq'
+    if begin_pos[:4] == b'HM3W':
+        return None
+    try:
+        if mpqdoctor.virtual_tables(a) or mpqdoctor.is_sprotect(a)[0]:
+            return None
+        x = mpqdoctor.analyze_tables(a)
+    except Exception:
+        return None
+    if not x['valid_entries'] or not x['free_slots']:
+        return None
+    probe = carver_probe(file_path)
+    if probe.get('w3i') or probe.get('script'):
+        return None
+    return 'mpq'
+
+
+def is_package(file_path):
+    try:
+        with open(file_path, 'rb') as f:
+            begin_pos = f.read(0x40)
+        if begin_pos[:2] != b'MZ' and os.path.splitext(file_path)[1].lower() not in PACKAGE_EXTENSIONS:
+            return False
+        with quiet():
+            a = mpqread.Archive(file_path)
+            return not any(a.find(n) for n in MAP_FILE_NAMES)
+    except BaseException as e:
+        if isinstance(e, KeyboardInterrupt):
+            raise
+        return False
+
+
+def _diagnose_package(r, file_path, format, p):
+    from doctor.viewers import map_files
+    p('name_list')
+    lf = map_files.list_files(file_path)
+    types = collections.Counter(f.get('kind') for f in (lf.get('files') or []) + (lf.get('unnamed') or []))
+    r.update(protections=[], warnings=[], script=None, listfile=None, kind='is_pack', fixable='is_pack',
+             editor={'status': 'is_pack'})
+    r['is_pack'] = {'format': format, 'extension': os.path.splitext(file_path)[1].lower(),
+                    'file_set': lf.get('total') or 0, 'named': len(lf.get('files') or []),
+                    'unnamed': len(lf.get('unnamed') or []), 'models': types.get('model', 0),
+                    'images': types.get('image', 0), 'sounds': types.get('sound', 0), 'err': lf.get('error')}
+    return r
+
+
 def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
     p = progress or _nothing
     r = {'file_name': os.path.abspath(file_path), 'byte_size': os.path.getsize(file_path), 'mpq': None, 'fname': None,
@@ -442,6 +501,7 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
         prot('sector512')
     if h.archive_size != len(d) - hdr:
         r['warnings'].append({'code': 'declared_size'})
+    begin_pos = d[:0x40]
     del d
     p('tables')
     try:
@@ -452,6 +512,10 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
         r['err'] = str(e) or type(e).__name__
         r['fixable'] = 'cannot_read'
         return r
+    format = package_of(file_path, a, begin_pos)
+    if format:
+        del a
+        return _diagnose_package(r, file_path, format, p)
     virtual = mpqdoctor.virtual_tables(a)
     if virtual:
         prot('virtual_tables', hash_entries=a.h.hash_n)
@@ -1277,7 +1341,7 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
     if _same_file(file_path, output):
         res['status'], res['err'] = 'failed', 'the output is the input map itself: the original is never written'
         return res
-    if diag['fixable'] in ('not_a_map', 'cannot_read', 'impossible', 'unreadable', 'incomplete'):
+    if diag['fixable'] in ('not_a_map', 'cannot_read', 'impossible', 'unreadable', 'incomplete', 'is_pack'):
         res['status'] = diag['fixable']
         return res
     status = diag['editor'].get('status')
