@@ -9,7 +9,10 @@ USAGE = '''Devo's Map Doctor {version}, command line
 
 usage: doctor <command> <map> [options]
 
-  diag <map>                      what protects the map and what the World Editor needs
+<map> is a map (.w3x, .w3m), a campaign (.w3n) or an art package (a .mix, .asi or .dll with an MPQ inside, a .mpq):
+a package is read as data, never run; diag, files and extract work on it.
+
+  diag <map>                      what protects the map and what the World Editor needs (a package: what it carries)
   fix <map> [steps] [extras]      Fix map: saves <map>_fixed.w3x
   editor <map> [steps] [extras] [--editor-version=<v>]
                                   Open in World Editor: saves <map>_editor.w3x; --editor-version: the World
@@ -36,8 +39,13 @@ usage: doctor <command> <map> [options]
                                   translates the texts into English on this computer (an open translation model,
                                   downloaded the first time) and checks the file against the map
   --images (export, machine): the text drawn in the map's images too (read by OCR; the import redraws them)
-  files <map>                     the files inside the map
+  files <map>                     the files inside the map (an unnamed one as #<block>)
   extract <map> <name>... [--to=<folder>]
+  extract <map> --all [--to=<folder>]
+                                  every file, at its path (the unnamed ones in a folder named unnamed)
+  extract <map> --models [--to=<folder>]
+                                  every model with the textures and emitter models it needs, at the paths the
+                                  models cite (a viewer opens them); what only the game has is listed
   script <map> [--to=<file>]      the map script (printed, or saved)
   rawcodes <map>                  the object ids with their names
   recipes <map> [--out=<file>] [--all]
@@ -230,8 +238,8 @@ def show(command, r):
         for f in r.get('files') or []:
             print('%10d  %-8s  %s' % (f.get('size') or 0, f.get('kind') or '', f.get('name')))
         for f in r.get('unnamed') or []:
-            print('%10d  %-8s  (block %s, no name%s)' % (f.get('size') or 0, f.get('kind') or '', f.get('block'),
-                                                        ', ' + f['ext'] if f.get('ext') else ''))
+            print('%10d  %-8s  #%s  (no name%s)' % (f.get('size') or 0, f.get('kind') or '', f.get('block'),
+                                                   ', ' + f['ext'] if f.get('ext') else ''))
         print('%d files' % (r.get('total') or 0))
         return
     if command == 'rawcodes':
@@ -296,6 +304,30 @@ def show(command, r):
                 print('%s: %d differences' % (part, n))
         if r.get('objects'):
             print('objects: %d kinds differ (--json has them)' % len(r['objects']))
+        return
+    if command == 'extract all':
+        for f in r.get('failed') or []:
+            print('not written: %s (%s)' % (f.get('name'), f.get('reason')))
+        for f in r.get('exists') or []:
+            print('%s: a different file is already there, left as it was' % f.get('name'))
+        if r.get('error'):
+            print(r['error'])
+            return
+        print('Extracted %d of %d files to %s (%d already there, %d left as they were, %d failed).' % (
+            len(r.get('written') or []), len(r.get('written') or []) + len(r.get('same') or []) +
+            len(r.get('exists') or []) + len(r.get('failed') or []), r.get('out_dir'), len(r.get('same') or []),
+            len(r.get('exists') or []), len(r.get('failed') or [])))
+        if r.get('kind') in ('models', 'model'):
+            print('%d models with %d textures and other files they need.' % (r.get('models') or 0,
+                                                                             r.get('textures') or 0))
+            outside = r.get('outside') or []
+            if outside:
+                print('%d paths the models cite are not in the file (the game has them, or they are missing):'
+                      % len(outside))
+                for x in outside[:40]:
+                    print('  ' + x)
+                if len(outside) > 40:
+                    print('  ... (--json lists them all)')
         return
     if command == 'extract':
         for w in r.get('written') or []:
@@ -439,9 +471,15 @@ def build_job(command, pos, opts, run):
         need(pos, 2, '<map>')
         return 'files', {'task': 'files', 'map': pos[1]}
     if command == 'extract':
-        need(pos, 3, '<map> <name>')
+        every = opts.get('all') is True or opts.get('models') is True
+        need(pos, 2 if every else 3, '<map>' if every else '<map> <name> (or --all, --models)')
         folder = os.path.abspath(opts['to']) if isinstance(opts.get('to'), str) else \
-            os.path.splitext(os.path.abspath(pos[1]))[0] + '_files'
+            os.path.splitext(os.path.abspath(pos[1]))[0] + ('_models' if opts.get('models') is True else '_files')
+        if every:
+            if len(pos) > 2:
+                raise UsageError('--all and --models take no file names')
+            return 'extract all', {'task': 'extract_all', 'map': pos[1], 'folder': folder,
+                                   'kind': 'models' if opts.get('models') is True else None}
         return 'extract', {'task': 'extract', 'map': pos[1], 'names': pos[2:], 'folder': folder}
     if command == 'script':
         need(pos, 2, '<map>')
@@ -521,6 +559,8 @@ def main(argv, window, version=''):
         return 1
     if opts.get('json'):
         print(json.dumps(doctor_app._jsonable(r), ensure_ascii=False, indent=1))
+    elif (r or {}).get('package'):
+        print(r.get('error'))
     elif command == 'recipes' and isinstance(opts.get('out'), str):
         out_file = opts['out']
         low = out_file.lower()
