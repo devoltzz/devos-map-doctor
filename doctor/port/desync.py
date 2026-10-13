@@ -198,6 +198,13 @@ def block_grid(ext, extract=None):
     return w, h, ox, oy, q, n_platforms, n_tilepoints, len(platforms), sha
 
 
+def terrain_spans(ext, extract=None):
+    q = block_grid(ext, extract)[4]
+    n = len(segments(q)[0])
+    OUT_OF_RANGE[0] = 0
+    return n
+
+
 def table_text(w, h, ox, oy, runs, idx, mark=DEFAULT_MARK):
     L = [
         mark + ' (KK_z)',
@@ -314,8 +321,10 @@ def applies(body_text, cfg, to_report=False):
             exp_len.get('platform_tilepoints') is not None and n_tilepoints != exp_len['platform_tilepoints']):
         failures.append('platforms: %d above the ground rising %d tilepoints, measured is %s / %s'
                         % (n_platforms, n_tilepoints, exp_len.get('platforms'), exp_len.get('platform_tilepoints')))
-    if len(runs) > 131072:
-        failures.append('table: %d runs do not fit in four arrays' % len(runs))
+    if len(runs) > 262144:
+        failures.append('table: %d runs do not fit in eight arrays' % len(runs))
+    elif len(runs) > 131072:
+        info['vectors'] = 8
     elif len(runs) > 65536:
         info['vectors'] = 4
     info['wrong_ones'] = verify(runs, idx, w, h, ox, oy, q, failures)
