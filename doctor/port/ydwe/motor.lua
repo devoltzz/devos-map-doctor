@@ -402,6 +402,43 @@ do
       def(n, function(f) return function(u, v, p) return f(u, int((tonumber(v) or 0) / T), p) end end)
     end
   end
+
+
+
+
+
+  local id_nativo = (__rawnat and __rawnat.GetHandleId) or GetHandleId
+  local function id_estado(s)
+    if type(s) == "number" then return s end
+    local ok, i = pcall(id_nativo, s)
+    return ok and i or -1
+  end
+  local function da_camada(n)
+    local f = __JENV and rawget(__JENV, n)
+    if type(f) == "function" then return f end
+    return nil
+  end
+  local g0 = i32_conv.GetUnitState or rawget(G, "GetUnitState")
+  local s0 = i32_conv.SetUnitState or rawget(G, "SetUnitState")
+  if type(g0) == "function" and type(s0) == "function" then
+    i32_conv.GetUnitState = function(u, s)
+      local id = id_estado(s)
+      local f = id >= 0x10 and da_camada("DB_estado_le")
+      if f then return f(u, id) end
+      return g0(u, s)
+    end
+    i32_conv.SetUnitState = function(u, s, v)
+      local id = id_estado(s)
+      if id >= 0x10 then
+        local f = da_camada("DB_estado_set")
+        if f then return f(u, id, tonumber(v) or 0.0) end
+      elseif id == 1 or id == 3 then
+        local f = da_camada(id == 1 and "DB_estado_max_vida" or "DB_estado_max_mana")
+        if f then return f(u, baixa(v, C, false)) end
+      end
+      return s0(u, s, v)
+    end
+  end
 end
 __ydwe_i32_conv = i32_conv
 
@@ -455,7 +492,12 @@ local function inerte_japi(nome)
 end
 
 
-local CRIA_QUADRO = { DzCreateFrameByTagName = 3, DzCreateFrame = 2, DzCreateSimpleFrame = 2 }
+
+
+local CRIA_QUADRO = { DzCreateFrameByTagName = 3, DzCreateFrame = 2, DzCreateSimpleFrame = 2, CreateFrameByTagName = 3 }
+
+
+__ydwe_sprites = __ydwe_sprites or {}
 local function pai_padrao(nome, f)
   local pos = CRIA_QUADRO[nome]
   if not pos or type(f) ~= "function" then return f end
@@ -465,10 +507,17 @@ local function pai_padrao(nome, f)
       local ui = do_jass("DzGetGameUI")
       if type(ui) == "function" then a[pos] = ui() end
     end
-    return f(table.unpack(a, 1, math.max(a.n, pos)))
+    local r = f(table.unpack(a, 1, math.max(a.n, pos)))
+    if (nome == "DzCreateFrameByTagName" or nome == "CreateFrameByTagName") and a[1] == "SPRITE" and r and r ~= 0 then
+      __ydwe_sprites[r] = true
+    end
+    return r
   end
 end
+
+local SOBREPOE = { FrameSetAlpha = true, FrameShow = true }
 local function do_japi(nome)
+  if SOBREPOE[nome] and __ydwe_japi_extra and __ydwe_japi_extra[nome] then return __ydwe_japi_extra[nome], nome end
   local v = do_jass(nome)
 
 
@@ -513,7 +562,19 @@ local function nativa_comum(n)
   if v == nil and __ydwe_plataforma[n] and __JENV then v = rawget(__JENV, n) end
   return v
 end
-local comum = tabela_de_funcoes(nativa_comum, "common")
+
+
+
+local globais_jass
+local function comum_ou_global(n)
+  local v = nativa_comum(n)
+  if v == nil and __JENV and type(n) == "string" then
+    local g = rawget(__JENV, n)
+    if g ~= nil and type(g) ~= "function" then return globais_jass[n] end
+  end
+  return v
+end
+local comum = tabela_de_funcoes(comum_ou_global, "common")
 
 
 getmetatable(comum).__pairs = function(t)
@@ -551,12 +612,42 @@ local code = setmetatable({}, {
 
 
 local gl_arr_cache = {}
+
+
+
+
+
+
+
+local MARCA_NUM = {}
+local function para_handle(v, de_handle)
+  if type(v) ~= "number" then return v end
+  if v == 0 then return nil end
+  local h = de_handle and i2h(v) or nil
+  if h == nil and (not de_handle or (v > 0 and v < 0x100000)) then h = setmetatable({ n = v }, MARCA_NUM) end
+  return h
+end
+local function marcado(v)
+  if type(v) == "table" and getmetatable(v) == MARCA_NUM then return v.n end
+  return nil
+end
+
+
+local runtime_ref
+local function nulo_handle()
+  if runtime_ref and (tonumber(runtime_ref.handle_level) or 0) >= 1 then return nil end
+  return 0
+end
 local function arr_handle(nome, arr)
   local c = gl_arr_cache[nome]
   if c and c.arr == arr then return c.proxy end
   local proxy = setmetatable({}, {
-    __index = function(_, i) return h2i(arr[i]) end,
-    __newindex = function(_, i, v) if type(v) == "number" then v = i2h(v) end arr[i] = v end,
+    __index = function(_, i)
+      local x = arr[i]
+      if x == nil then return nulo_handle() end
+      return marcado(x) or h2i(x)
+    end,
+    __newindex = function(_, i, v) arr[i] = para_handle(v, true) end,
   })
   gl_arr_cache[nome] = { arr = arr, proxy = proxy }
   return proxy
@@ -566,19 +657,27 @@ local globals = setmetatable({}, {
     local env = __JENV
     if env == nil then return nil end
     local v = env[k]
+    local n = marcado(v)
+    if n then return n end
     if __enum_globais and __enum_globais[k] then return enum_id(v) end
     if __handle_globals[k] then
 
       if v ~= nil and type(v) ~= "number" then return h2i(v) end
-      return v or 0
+      if v == nil then return nulo_handle() end
+      return v
     end
+    if __code_globals and __code_globals[k] then return v or 0 end
     if __handle_arrays and __handle_arrays[k] and type(v) == "table" then return arr_handle(k, v) end
     return v
   end,
   __newindex = function(t, k, v)
     local env = __JENV
     if env == nil then return end
-    if __handle_globals[k] and type(v) == "number" then v = i2h(v) end
+    if __handle_globals[k] then
+      v = para_handle(v, true)
+    elseif __code_globals and __code_globals[k] then
+      v = para_handle(v, false)
+    end
     env[k] = v
   end,
 
@@ -601,6 +700,13 @@ local globals = setmetatable({}, {
     end
     junta(__JENV, true)
     junta(G, false)
+
+    for k in pairs(__code_globals or {}) do
+      if not vistos[k] and (__JENV == nil or rawget(__JENV, k) == nil) then
+        vistos[k] = true
+        nomes[#nomes + 1] = k
+      end
+    end
     table.sort(nomes)
     return function()
       i = i + 1
@@ -610,6 +716,7 @@ local globals = setmetatable({}, {
     end, t, nil
   end,
 })
+globais_jass = globals
 
 
 local function slk_view(raw)
@@ -685,7 +792,12 @@ local storm = {
 
 
     local lk = string.lower(k)
-    if type(dado) == "string" and (ssub(lk, -4) == ".fdf" or ssub(lk, -4) == ".toc") then
+
+
+
+
+    local ext = ssub(lk, -4)
+    if type(dado) == "string" and (ext == ".fdf" or ext == ".toc") then
       local h = __ydwe_salvos_hist[k]
       if h == nil then h = {} __ydwe_salvos_hist[k] = h end
       h[#h + 1] = dado
@@ -756,21 +868,27 @@ local function camera_local()
   return { ex = ex, ey = ey, ez = ez, fx = fx, fy = fy, fz = fz, rx = rx, ry = ry, ux = ux, uy = uy, uz = uz, t = t,
            dist = nf }
 end
+
+
+
 message.world_to_screen = function(x, y, z)
   local c = camera_local()
-  if c == nil then return nil end
+  if c == nil then return -1.0, -1.0, 0.0 end
   local vx, vy, vz = (x or 0) - c.ex, (y or 0) - c.ey, (z or 0) - c.ez
   local d = vx * c.fx + vy * c.fy + vz * c.fz
-  if d <= 1e-3 then return nil end
+  if d <= 1e-3 then return -1.0, -1.0, 0.0 end
   local sx = (vx * c.rx + vy * c.ry) / (d * c.t)
   local sy = (vx * c.ux + vy * c.uy + vz * c.uz) / (d * c.t)
-  return 0.4 + sx * 0.4, 0.3 + sy * 0.4, c.dist / d
+
+
+
+  return 0.4 + sx * 0.4, 0.3 - sy * 0.4, c.dist / d
 end
 
 message.screen_to_world = function(sx, sy)
   local c = camera_local()
   if c == nil then return nil end
-  local a, b = ((sx or 0.4) - 0.4) / 0.4 * c.t, ((sy or 0.3) - 0.3) / 0.4 * c.t
+  local a, b = ((sx or 0.4) - 0.4) / 0.4 * c.t, (0.3 - (sy or 0.3)) / 0.4 * c.t
   local dx, dy, dz = c.fx + a * c.rx + b * c.ux, c.fy + a * c.ry + b * c.uy, c.fz + b * c.uz
   if dz >= -1e-6 then return nil end
   local k = -c.ez / dz
@@ -795,6 +913,7 @@ dbg.handle_type = function() return nil end
 
 local runtime = __rt_runtime or { handle_level = 0, sleep = false, console = false, version = 2 }
 runtime.handle_level = runtime.handle_level or 0
+runtime_ref = runtime
 local console = { write = function(...) end, read = function() return nil end, enable = false }
 local log = { path = "log\\ydwe.log", level = "error" }
 for _, n in ipairs({ "trace", "debug", "info", "warn", "error", "fatal" }) do
@@ -1176,6 +1295,22 @@ do
   X.FrameGetHeight = function(f) local h = fh(f) if h then return BlzFrameGetHeight(h) end return 0.0 end
 
 
+
+
+  X.FrameSimpleBindFrame = function(simples, f)
+    local hs, hf = fh(simples), fh(f)
+    if hs == nil or hf == nil then return 0 end
+    local pai = BlzFrameGetParent(hs) or hs
+    BlzFrameSetParent(hf, pai)
+    BlzFrameSetVisible(hf, true)
+    return f
+  end
+  X.FrameSimpleUnBindFrame = function(f)
+    local hf = fh(f)
+    if hf then BlzFrameSetParent(hf, BlzGetOriginFrame(ORIGIN_FRAME_GAME_UI, 0)) end
+  end
+
+
   X.FrameGetUnitButton = function()
     local o = __JENV and rawget(__JENV, "DB_origin")
     if o and ORIGIN_FRAME_PORTRAIT then return o(ORIGIN_FRAME_PORTRAIT, 0) end
@@ -1233,6 +1368,153 @@ do
     return true
   end
   X.FrameGetModelAnimationName = function() return "" end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  __ydwe_modelos_quadro = __ydwe_modelos_quadro or {}
+  __ydwe_modelo_ui = __ydwe_modelo_ui or {}
+  local interno, multiplica, cam_o, cam_a, pedido, aplicado = {}, {}, {}, {}, {}, {}
+  local ALTURA_UNIDADE = 240.0
+  local VISTA_POR_DISTANCIA = 1.2
+  local function modelo_de(f) return interno[f] or f end
+  local function chave_modelo(m)
+    local k = string.lower(m)
+    k = (string.gsub(k, "/", "\\"))
+    k = (string.gsub(k, "\\+", "\\"))
+    k = (string.gsub(k, "%.mdl$", ".mdx"))
+    return k
+  end
+  local function copia_ui(m)
+    local t = __ydwe_modelo_ui
+    if type(t) ~= "table" or type(m) ~= "string" or m == "" then return nil end
+    return t[chave_modelo(m)]
+  end
+  local function refaz(f)
+    local i = interno[f]
+    local hf, hi = fh(f), i and fh(i)
+    if not (hf and hi) then return end
+    local alt = BlzFrameGetHeight(hf)
+    if alt <= 0.005 then alt = 0.15 end
+    local o, a = cam_o[f], cam_a[f]
+    local esc, dx, dy, ponto = alt / ALTURA_UNIDADE, 0.0, 0.0, FRAMEPOINT_BOTTOM
+    local p = pedido[f]
+    local usa = p and p[1]
+    if o and a then
+      local vx, vy, vz = o[1] - a[1], o[2] - a[2], o[3] - a[3]
+      local d = math.sqrt(vx * vx + vy * vy + vz * vz)
+      if d > 1 then
+        local m = multiplica[i] or 1.0
+        esc = alt / (d * VISTA_POR_DISTANCIA)
+        ponto = FRAMEPOINT_CENTER
+        local copia = p and copia_ui(p[1])
+        if copia and math.abs(vz) < math.sqrt(vx * vx + vy * vy) then
+          usa = copia
+          dx, dy = -(a[2] or 0) * esc * m, -(a[3] or 0) * esc * m
+        else
+          dx, dy = -(a[1] or 0) * esc * m, -(a[2] or 0) * esc * m
+        end
+      end
+    end
+    if p and usa ~= aplicado[f] then
+      local set = __JENV and rawget(__JENV, "DzFrameSetModel")
+      if type(set) == "function" then set(i, usa, p[2] or 0, p[3] or 0) end
+      aplicado[f] = usa
+    end
+    esc = esc * (multiplica[i] or 1.0)
+    BlzFrameClearAllPoints(hi)
+    BlzFrameSetPoint(hi, ponto, hf, ponto, dx, dy)
+    BlzFrameSetScale(hi, esc)
+  end
+  X.FrameSetModel2 = function(f, m, t, fl)
+    local d = __JENV and rawget(__JENV, "DzFrameSetModel")
+    if type(d) ~= "function" then return end
+    if type(m) == "string" and m ~= "" then __ydwe_modelos_quadro[m] = true end
+    if not interno[f] then d(f, m, t or 0, fl or 0) return end
+    pedido[f] = { m, t or 0, fl or 0 }
+    aplicado[f] = nil
+    refaz(f)
+  end
+  X.FrameSetModelSize = function(f, s)
+    local i = modelo_de(f)
+    local h = fh(i)
+    if not h then return end
+    if i == f then BlzFrameSetScale(h, s or 1.0) return end
+    multiplica[i] = s or 1.0
+    refaz(f)
+  end
+  X.FrameSetModelScale = function(f, a) X.FrameSetModelSize(f, a) end
+  X.FrameSetModelCameraSource = function(f, x, y, z) if interno[f] then cam_o[f] = { x or 0, y or 0, z or 0 } refaz(f) end end
+  X.FrameSetModelCameraTarget = function(f, x, y, z) if interno[f] then cam_a[f] = { x or 0, y or 0, z or 0 } refaz(f) end end
+
+
+
+  local apagado = {}
+  local function sprite_de(f)
+    if interno[f] then return interno[f] end
+    if __ydwe_sprites[f] then return f end
+    return nil
+  end
+  X.FrameSetAlpha = function(f, a)
+
+    a = math.tointeger(math.floor(tonumber(a) or 255)) or 255
+    local d = __JENV and rawget(__JENV, "DzFrameSetAlpha")
+    if type(d) == "function" then d(f, a) end
+    local s = sprite_de(f)
+    local h = s and fh(s)
+    if not h then return end
+    if (tonumber(a) or 255) < 26 then
+      apagado[s] = true
+      BlzFrameSetVisible(h, false)
+    elseif apagado[s] then
+      apagado[s] = nil
+      BlzFrameSetVisible(h, true)
+    end
+  end
+  X.FrameShow = function(f, v)
+    local d = __JENV and rawget(__JENV, "DzFrameShow")
+    if type(d) == "function" then d(f, v) end
+    local s = sprite_de(f)
+    local h = s and apagado[s] and fh(s)
+    if h then BlzFrameSetVisible(h, false) end
+  end
+  for _, n in ipairs({ "FrameSetModelZ", "FramePlayAnimation" }) do
+    X[n] = function() end
+  end
+
+
+
+  local capas, capa_textura = {}, {}
+  X.FrameSetOriginButtonTexture = function(f, path)
+    local h = fh(f)
+    if not h then return end
+    local c = capas[f]
+    if c == nil then
+      c = BlzCreateFrameByType("BACKDROP", "ydwe_capa", BlzGetOriginFrame(ORIGIN_FRAME_GAME_UI, 0), "", 0)
+      if c == nil then return end
+      BlzFrameSetAllPoints(c, h)
+      capas[f] = c
+    end
+    capa_textura[f] = path
+    if type(path) == "string" and path ~= "" then
+      BlzFrameSetTexture(c, path, 0, true)
+      BlzFrameSetVisible(c, true)
+    else
+      BlzFrameSetVisible(c, false)
+    end
+  end
+  X.FrameGetOriginButtonTexture = function(f) return capa_textura[f] or "" end
   for _, n in ipairs({ "FrameSetModelRotateX", "FrameSetModelRotateY", "FrameSetModelRotateZ", "FrameSetModelXY",
       "FrameSetModelColor", "FrameSetModelTexture", "FrameSetModelSpeed", "FrameSetAnimationByIndex",
       "FrameSetButtonCooldownModelSize", "FrameSetTextFontSpacing", "FrameSetSimpleFrameParent" }) do
@@ -1245,7 +1527,16 @@ do
     local criar = __JENV and rawget(__JENV, "DzCreateFrameByTagName")
     if not criar then return 0 end
     n_modelo = n_modelo + 1
-    return criar("SPRITE", "ydwe_model_" .. n_modelo, pai or 0, "", 0)
+    local moldura = criar("FRAME", "ydwe_model_" .. n_modelo, pai or 0, "", 0)
+    if not moldura or moldura == 0 then return 0 end
+    local spr = criar("SPRITE", "ydwe_model_s" .. n_modelo, moldura, "", 0)
+    local hm, hs = fh(moldura), fh(spr)
+    if hm and hs then
+      BlzFrameSetSize(hs, 0.001, 0.001)
+      BlzFrameSetPoint(hs, FRAMEPOINT_BOTTOM, hm, FRAMEPOINT_BOTTOM, 0.0, 0.0)
+      interno[moldura] = spr
+    end
+    return moldura
   end
 
   X.GetUnitAddress = function(u) if type(u) == "number" then return u end return u and GetHandleId(u) or 0 end
@@ -1282,6 +1573,134 @@ do
     local h = (ok and type(nome) == "string") and StringHash(nome) or 0
     return 10000000 + ((h & 0x3FFFFFFF) % 89999999)
   end
+
+
+  X.GetUserIdEx = function() return tostring(X.GetUserId()) end
+
+
+
+  X.DzAPI_Map_GetMallItemCount = function() return 1 end
+  X.DzAPI_Map_ConsumeMallItem = function() return true end
+  X.DzAPI_Map_GetPlayerUserName = function(p)
+    local ok, n = pcall(GetPlayerName, p or GetLocalPlayer())
+    return ok and n or ""
+  end
+
+
+
+
+
+  local function em_todos(t, ev)
+    if t == nil or ev == nil then return end
+    for i = 0, bj_MAX_PLAYER_SLOTS - 1 do TriggerRegisterPlayerUnitEvent(t, Player(i), ev, nil) end
+  end
+  X.MHGameStartEvent_Register = function(t) if t then TriggerRegisterTimerEvent(t, 0.0, false) end end
+  X.MHUITickEvent_Register = function(t) if t then TriggerRegisterTimerEvent(t, 0.03, true) end end
+  X.MHGameTickEvent_Register = X.MHUITickEvent_Register
+  X.MHDamagingEvent_Register = function(t) em_todos(t, EVENT_PLAYER_UNIT_DAMAGING) end
+  X.MHDamageEvent_Register = function(t) em_todos(t, EVENT_PLAYER_UNIT_DAMAGED) end
+  X.MHUnitAttackLaunchEvent_Register = function(t) em_todos(t, EVENT_PLAYER_UNIT_ATTACKED) end
+  for _, p in ipairs({ "MHDamagingEvent_", "MHDamageEvent_", "MHNativeDamageEvent_" }) do
+    X[p .. "GetDamage"] = function() return GetEventDamage() end
+    X[p .. "SetDamage"] = function(v) BlzSetEventDamage(v or 0.0) end
+    X[p .. "GetSource"] = function() return GetEventDamageSource() end
+    X[p .. "IsPhysical"] = function() return BlzGetEventIsAttack() end
+    X[p .. "GetAtkType"] = function() return BlzGetEventAttackType() end
+    X[p .. "GetDmgType"] = function() return BlzGetEventDamageType() end
+    X[p .. "GetWeapType"] = function() return BlzGetEventWeaponType() end
+    X[p .. "GetAtkTypeInt"] = function() return GetHandleId(BlzGetEventAttackType()) end
+    X[p .. "GetDmgTypeInt"] = function() return GetHandleId(BlzGetEventDamageType()) end
+    X[p .. "GetWeapTypeInt"] = function() return GetHandleId(BlzGetEventWeaponType()) end
+    X[p .. "SetAtkType"] = function(h) if h then BlzSetEventAttackType(h) end end
+    X[p .. "SetDmgType"] = function(h) if h then BlzSetEventDamageType(h) end end
+    X[p .. "SetWeapType"] = function(h) if h then BlzSetEventWeaponType(h) end end
+  end
+  X.MHUnitAttackLaunchEvent_GetTargetUnit = function() return GetTriggerUnit() end
+  X.MHEvent_GetUnit = function()
+    local ev = GetTriggerEventId()
+    if ev == EVENT_PLAYER_UNIT_DAMAGING or ev == EVENT_PLAYER_UNIT_DAMAGED then return BlzGetEventDamageTarget() end
+    if ev == EVENT_PLAYER_UNIT_ATTACKED then return GetAttacker() end
+    return GetTriggerUnit()
+  end
+  X.MHEvent_GetPlayer = function() return GetTriggerPlayer() end
+  X.MHEvent_GetItem = function() return GetManipulatedItem() end
+
+
+
+
+
+  local function campo_real(n)
+    return ({ [2] = ABILITY_RLF_CASTING_TIME, [3] = ABILITY_RLF_DURATION_NORMAL, [4] = ABILITY_RLF_DURATION_HERO,
+      [6] = ABILITY_RLF_COOLDOWN, [7] = ABILITY_RLF_AREA_OF_EFFECT, [8] = ABILITY_RLF_CAST_RANGE })[n]
+  end
+  local function campo_int(n) return ({ [5] = ABILITY_ILF_MANA_COST })[n] end
+  local function hab(u, aid) return u and aid and aid ~= 0 and BlzGetUnitAbility(u, aid) or nil end
+
+
+  local pendentes, relogio_p = {}, nil
+  local aplica_real
+  local function pendura(u, aid, nivel, campo, v)
+    pendentes[#pendentes + 1] = { u = u, aid = aid, nivel = nivel, campo = campo, v = v }
+    if relogio_p == nil and CreateTimer then
+      relogio_p = CreateTimer()
+      TimerStart(relogio_p, 1.0, true, function()
+        local resto = {}
+        for _, p in ipairs(pendentes) do
+          if GetUnitTypeId(p.u) ~= 0 then
+            if GetUnitAbilityLevel(p.u, p.aid) > 0 then aplica_real(p.u, p.aid, p.nivel, p.campo, p.v)
+            else resto[#resto + 1] = p end
+          end
+        end
+        pendentes = resto
+        if #pendentes == 0 then DestroyTimer(relogio_p) relogio_p = nil end
+      end)
+    end
+  end
+  aplica_real = function(u, aid, nivel, campo, v)
+    local n0 = math.max((nivel or 1) - 1, 0)
+
+    if campo == 6 then BlzSetUnitAbilityCooldown(u, aid, n0, v or 0.0) return end
+    local a, c = hab(u, aid), campo_real(campo)
+    if a and c then BlzSetAbilityRealLevelField(a, c, n0, v or 0.0) end
+  end
+  X.MHAbility_SetCustomLevelDataReal = function(u, aid, nivel, campo, v)
+    if not (u and aid and campo_real(campo)) then return end
+    if GetUnitAbilityLevel(u, aid) > 0 then aplica_real(u, aid, nivel, campo, v)
+    else pendura(u, aid, nivel, campo, v) end
+  end
+  X.MHAbility_GetCustomLevelDataReal = function(u, aid, nivel, campo)
+    if campo == 6 and u and aid then return BlzGetUnitAbilityCooldown(u, aid, math.max((nivel or 1) - 1, 0)) end
+    local a, c = hab(u, aid), campo_real(campo)
+    if a and c then return BlzGetAbilityRealLevelField(a, c, math.max((nivel or 1) - 1, 0)) end
+    return 0.0
+  end
+  X.MHAbility_SetCustomLevelDataInt = function(u, aid, nivel, campo, v)
+    if campo == 5 and u and aid then BlzSetUnitAbilityManaCost(u, aid, math.max((nivel or 1) - 1, 0), v or 0) return end
+    local a, c = hab(u, aid), campo_int(campo)
+    if a and c then BlzSetAbilityIntegerLevelField(a, c, math.max((nivel or 1) - 1, 0), v or 0) end
+  end
+  X.MHAbility_GetCustomLevelDataInt = function(u, aid, nivel, campo)
+    local a, c = hab(u, aid), campo_int(campo)
+    if a and c then return BlzGetAbilityIntegerLevelField(a, c, math.max((nivel or 1) - 1, 0)) end
+    return 0
+  end
+  X.MHAbility_GetCooldown = function(u, aid)
+    if u and aid then return BlzGetUnitAbilityCooldownRemaining(u, aid) end
+    return 0.0
+  end
+  X.MHAbility_SetCooldown = function(u, aid, s)
+    if not (u and aid) then return end
+    if (s or 0) <= 0 then BlzEndUnitAbilityCooldown(u, aid) else BlzStartUnitAbilityCooldown(u, aid, s) end
+  end
+  X.MHAbility_IsOnCooldown = function(u, aid)
+    return u ~= nil and aid ~= nil and BlzGetUnitAbilityCooldownRemaining(u, aid) > 0
+  end
+
+
+
+
+  X.GetMouseVectorX = function() return BlzPixelToFrameX(BlzGetMouseScreenPosX()) / 0.8 * 1024.0 end
+  X.GetMouseVectorY = function() return BlzPixelToFrameY(BlzGetMouseScreenPosY()) / 0.6 * 768.0 end
 
 
   for _, n in ipairs({ "EXDclareButtonIcon", "EXBlpRect", "EXBlpSector", "EXPolygon", "EXClear",
@@ -1403,11 +1822,37 @@ do
     end
   end
   local id_do
+
+
+
+
+
+  local function foco_do_framework()
+    local cls = rawget(LENV, "class")
+    local mapa = type(cls) == "table" and type(cls.button) == "table" and cls.button.button_map
+    if type(mapa) ~= "table" then return nil end
+    local melhor, area = nil, nil
+    for id, b in pairs(mapa) do
+      if type(b) == "table" and b.is_enter then
+        local ok, vis = pcall(function() return b:get_is_show() end)
+        if not ok or vis ~= false then
+          local a = (tonumber(b.w) or 0) * (tonumber(b.h) or 0)
+          if area == nil or a < area then melhor, area = id, a end
+        end
+      end
+    end
+    return melhor
+  end
+  local function poe_foco()
+    local ok, fid = pcall(foco_do_framework)
+    if ok and fid and __JENV then rawset(__JENV, "DB_mouse_focus", fid) end
+  end
   local function quadro_clicado()
     if GetTriggerPlayer() ~= GetLocalPlayer() then return end
     local f = BlzGetTriggerFrame()
 
     if __JENV and f then rawset(__JENV, "DB_mouse_focus", id_do(f)) end
+    poe_foco()
 
     if os.clock() - mundo_em >= 0.05 then
       __ydwe_clique_de = "frame"
@@ -1507,6 +1952,7 @@ do
       mundo_em = os.clock()
       local desce = GetTriggerEventId() == EVENT_PLAYER_MOUSE_DOWN
       local dir = BlzGetTriggerPlayerMouseButton() == MOUSE_BUTTON_TYPE_RIGHT
+      poe_foco()
       wcb(dir and (desce and 3 or 4) or (desce and 1 or 2))
     end)
 
@@ -1601,6 +2047,8 @@ __ydwe_execs = {}
 function __ydwe_exec(nome)
   nome = sgsub(nome, "^[ \t\r\n]+", "")
   nome = sgsub(nome, "[ \t\r\n]+$", "")
+
+  nome = sgsub(nome, '^(["\'])(.*)%1$', "%2")
   __ydwe_execs[#__ydwe_execs + 1] = nome
   local ok, e = xpcall(require, errh, nome)
   if not ok then __logerr("exec-lua " .. nome .. ": " .. tostring(e)) end
