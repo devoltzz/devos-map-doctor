@@ -296,6 +296,26 @@ def strip_indent_step(out, progress):
             os.remove(tmp)
 
 
+def game_files_step(out, progress, remove):
+    from doctor.port import game_files
+    try:
+        progress('Looking for files that replace the game\'s own...')
+        names = game_files.shadowed(out)
+    except Exception as e:
+        return [['info', 'The game\'s own files were not checked: %s: %s' % (type(e).__name__, e)]]
+    if not names:
+        return []
+    folders = ', '.join('%s %d' % (f, n) for f, n in game_files.count_by_folder(names)[:4])
+    if not remove:
+        return [['warn', '%d file(s) of the map replace the game\'s own (%s). If the game crashes on this map, port it '
+                         'again with "Remove the game\'s own files".' % (len(names), folders)]]
+    try:
+        n = game_files.remove(out, names)
+    except Exception as e:
+        return [['warn', 'The game\'s own files were not removed: %s: %s' % (type(e).__name__, e)]]
+    return [['good', 'Removed %d file(s) that replaced the game\'s own (%s).' % (n, folders)]]
+
+
 def run_action(D, G, job, path, task, progress, emit):
     d = cached_diagnosis(D, path, progress)
     options = job.get('options') or None
@@ -364,7 +384,7 @@ def page_stub(s):
 
 
 def run_port(D, G, path, progress, emit, packages=(), memory=True, icons=False, textures=False, balance=False,
-             strip_indent=False):
+             strip_indent=False, game_files=False):
     from doctor.port import map_port
     out = D.free_output(path, '_reforged')
     emit({'type': 'output', 'path': out})
@@ -392,6 +412,8 @@ def run_port(D, G, path, progress, emit, packages=(), memory=True, icons=False, 
         lines += port_step(r['output'], progress, 'kk_textures', None)
     if ported and icons:
         lines += port_step(r['output'], progress, 'disabled_icons', 'Every imported icon already has its disabled art.')
+    if ported:
+        lines += game_files_step(r['output'], progress, game_files)
     if ported and strip_indent:
         lines += strip_indent_step(r['output'], progress)
     return {'lines': lines, 'file': r.get('output') if ported else None, 'report': report,
@@ -446,7 +468,7 @@ def run_job(job, emit, G):
     if task == 'port':
         return run_port(D, G, path, progress, emit, job.get('packages') or [], job.get('memory', True),
                         job.get('icons', False), job.get('textures', False), job.get('balance', False),
-                        job.get('strip_indent', False))
+                        job.get('strip_indent', False), job.get('game_files', False))
     if task == 'cheatpack_inject':
         return _cheatpack_inject(job, progress, emit)
     if task == 'qol_apply':
