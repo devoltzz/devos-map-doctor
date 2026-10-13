@@ -35,8 +35,10 @@ def read_data(b, skin=None):
             for _i in range(n):
                 begin = p
                 ident = b[p:p + 4]
+                id_positions = [begin]
                 p += 4 + 4 + 12 + 4 + 12
                 if attempt:
+                    id_positions.append(p)
                     p += 4
                 if ver >= 12:
                     p += 4
@@ -52,6 +54,7 @@ def read_data(b, skin=None):
                         k = struct.unpack_from('<I', b, p)[0]
                         if k > 64:
                             raise FormatError('record %d: %d items' % (_i, k))
+                        id_positions.extend(p + 4 + 8 * j for j in range(k))
                         p += 4 + 8 * k
                 if ver >= 13:
                     p += 4
@@ -68,7 +71,9 @@ def read_data(b, skin=None):
                     p += 36 * lights
                 if p > len(b):
                     raise FormatError('record %d runs past the end of the file' % _i)
-                regs.append({'id': ident, 'begin': begin, 'sz': p - begin, 'editor_id': editor_id})
+                regs.append(
+                    {'id': ident, 'begin': begin, 'sz': p - begin, 'editor_id': editor_id, 'id_positions': id_positions}
+                )
             tail = b[p:]
             d = {'version_num': ver, 'subversion': sub, 'skin': attempt, 'regs': regs, 'tail': tail,
                  'on_close': _tail_ok(tail)}
