@@ -49,18 +49,18 @@ def object_name(mods):
     return ''
 
 
-def load_data(a):
+def load_data(a, prefix='war3map.'):
     files_ = {}
     for ext, level, _t in TYPES:
         try:
-            d = a.read('war3map.' + ext)
+            d = a.read(prefix + ext)
         except Exception:
             d = None
         if not d:
             continue
-        ver, objs, pos = objects.read_objects_bytes(d, level, 'war3map.' + ext, with_end=True)
+        ver, objs, pos = objects.read_objects_bytes(d, level, prefix + ext, with_end=True)
         if objects.write_objects_bytes(ver, objs, level) != d[:pos]:
-            raise ValueError('war3map.%s: the round trip without changes does not match -- not rewriting' % ext)
+            raise ValueError('%s%s: the unchanged round trip does not match -- not rewritten' % (prefix, ext))
         files_[ext] = (ver, objs, level, d, pos)
     return files_
 
