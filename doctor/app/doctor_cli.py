@@ -16,7 +16,9 @@ usage: doctor <command> <map> [options]
                                   Editor to open it in, reforged (the default), 1.24 to 1.29 (keeps the map's
                                   version), or auto (the version the map was saved for)
   port <map> [--package=<name>] [--icons] [--textures] [--keep-memory] [--balance-numbers] [--strip-indent]
-                                  Port to Reforged (KK and M16 maps): saves <map>_reforged.w3x and the report
+       [--remove-game-files]      Port to Reforged (KK and M16 maps): saves <map>_reforged.w3x and the report;
+                                  --remove-game-files: the map's images and models with the path of a game file
+                                  (they replace the game's own; counted in the report either way) come out
   check <map> [--game=<version>]  Runs on Reforged? (what crashes or misses on 3.0); --game=1.27 (or --version=1.27)
                                   checks an older game instead: 1.24a to 1.28.5 and 1.29.2
   cheatpacks <map>                the cheat packs the map takes, with their options
@@ -361,7 +363,8 @@ def build_job(command, pos, opts, run):
         return 'port', {'task': 'port', 'map': pos[1], 'packages': packages,
                         'memory': not opts.get('keep-memory'), 'icons': bool(opts.get('icons')),
                         'textures': bool(opts.get('textures')), 'balance': bool(opts.get('balance-numbers')),
-                        'strip_indent': opts.get('strip-indent') is True}
+                        'strip_indent': opts.get('strip-indent') is True,
+                        'game_files': bool(opts.get('remove-game-files'))}
     if command == 'check':
         need(pos, 2, '<map>')
         job = {'task': 'reforged', 'map': pos[1]}
