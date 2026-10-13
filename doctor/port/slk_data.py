@@ -73,7 +73,8 @@ def swap_no_dot(units, listing):
     return sum(by.values()), by
 
 
-def applies(extract, data_bytes, raw_data, segment, tr_dir=None, expected_count=None, no_dot=None, tolerant_mode=False):
+def applies(extract, data_bytes, raw_data, segment, tr_dir=None, expected_count=None, no_dot=None, tolerant_mode=False,
+            added_models=()):
     exp_len = dict((k, None) for k in KEY_NAMES)
     exp_len.update(expected_count or {})
     failures = []
@@ -103,7 +104,8 @@ def applies(extract, data_bytes, raw_data, segment, tr_dir=None, expected_count=
     info['slk'], info['fake_b'] = n_slk, n_b
     from doctor.port import model_carriers
     try:
-        mc = model_carriers.add(units, open(raw_data, 'rb').read().decode('utf-8', 'surrogateescape'), extract=extract)
+        mc = model_carriers.add(units, open(raw_data, 'rb').read().decode('utf-8', 'surrogateescape'), extract=extract,
+                                extra_models=added_models)
         info['model_carriers'] = len(mc['carriers'])
         info['model_carriers_template'] = mc['template']
     except (ValueError, OSError) as e:
