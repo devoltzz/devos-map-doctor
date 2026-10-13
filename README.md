@@ -46,20 +46,13 @@ How to translate a map, every way step by step: [README-translation.md](README-t
 </tr>
 </table>
 
-### New in 1.7.7
+### New in 1.7.8
 
-- Port to Reforged: a new option, "Remove the game's own files" (off by default). Some maps carry old copies of the game's icons, textures and interface models under the game's own paths, and on Reforged they replace the game's files (the ported Naruto Castle Defense crashed on 1,486 of them). The port report always says how many the map has.
-- Port to Reforged, KK maps on the Lua route (YDWE): many more maps start and play (the main module named in quotes, the MH* platform API, clicks, the stats no longer -0.00, the data files loaded through escaped paths, large RLE textures, floating bars, the shop "bait" items) (issues 23, 24, 26).
-- Port to Reforged: maps that hide the default interface and move the hero, item and minimap buttons into their own HUD now show those buttons (issue 21); the terrain height table of very large maps no longer stops the port (issue 27).
-- Open in World Editor: a script that starts with a UTF-8 byte order mark is accepted (issue 22); it no longer compiles the same script several times, so a cut-off script went from 12 minutes to 13 seconds. Shrinking a map again reuses what was already compressed.
-
-### New in 1.7.6
-
-- Port to Reforged: maps that draw their own interface by reading the 1.28 game memory (the MemUI library, used by M16 maps like Gutsy Geoid Game and Blc1) now show it: the portrait unit, the mouse position, the tooltip frame and the skill bar are answered with Reforged natives (issue 20, checked in game).
-- Port to Reforged: a skill placed on the attack button slot keeps the slot and its hotkey, and the hero still attacks on its own; formula tooltips built with JNStringRegex cost a fraction of what they did.
-- Translation: texts the map script searches for, compares with something from outside (chat, object names, accounts) or uses as a fixed key now stay untranslated, followed through the map's own functions and variables, so translating a map no longer breaks those features.
-- KK maps: the platform server is emulated a step further (the backend logic requests and the player GUID), from the KK CloudScript runner.
-- The Translation tab lists the texts first, and the export waits for the list.
+- Art packages: `.mix`, `.asi`, `.dll`, `.mpq` and `.w3mod` files (any file with an MPQ inside that is not a map) open as art packages instead of being taken for a protected map. The Files tab has a select-all box, Extract all and Extract models (each model with the textures and particle models it uses, at the paths it expects); from the command line, `doctor extract <file> --all` or `--models` (issue 29).
+- Port to Reforged: the hero selection screen of Gutsy Geoid Game builds again. Its start-up ran past the game's per-thread instruction limit because of the port's own frame checks, which are now constant-time; the screen closes, the countdown runs and heroes are picked from the interface (issue 28).
+- Port to Reforged: the map's own skill bar shows every skill (the E and Z icons), the attack slot and the attack value, the skill that replaces another one (Raiden's RR, Iori's versions of R) with its cooldown, and the items (issue 28).
+- Port to Reforged: effects that turn around their axis point where the skill goes (Reforged 3.0 does not turn many effect models; the port turns a helper unit instead).
+- Translation: a translation file still applies after the map is ported again, even when the port stores a data file with other upper and lower case.
 
 ## Get it
 
