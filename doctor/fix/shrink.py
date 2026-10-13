@@ -247,13 +247,39 @@ def _pool(n):
         return None
 
 
+def _cache():
+    pasta = os.environ.get('DOCTOR_SHRINK_CACHE')
+    if not pasta:
+        from doctor.data import memo
+        base = memo.folder()
+        pasta = os.path.join(base, 'shrink') if base else None
+    return mpq_recompress.Cache(pasta) if pasta else None
+
+
+def _fora_do_cache(items, sector, cod):
+    cache = _cache()
+    if cache is None:
+        return sum(map(len, items.values()))
+    assin = '%s|setor=%d' % (mpq_recompress.signature(cod, 8), sector)
+    return sum(len(c) for c in items.values() if c and cache.read_data('shrink', mpq_recompress._key(c, assin)) is None)
+
+
 def _pack(items, sector, cod, pool, progress):
     out, jobs, owner = {}, [], []
     step = mpq_recompress.SLICE * sector
+    cache = _cache()
+    assin = '%s|setor=%d' % (mpq_recompress.signature(cod, 8), sector)
+    chaves = {}
     for k, c in items.items():
         if not c:
             out[k] = (b'', F_EXISTS)
             continue
+        if cache is not None:
+            chaves[k] = mpq_recompress._key(c, assin)
+            achado = cache.read_data('shrink', chaves[k])
+            if achado is not None:
+                out[k] = (achado, F_EXISTS | F_COMPRESS)
+                continue
         for s in range(0, len(c), step):
             jobs.append((c[s:s + step], cod, 8, sector))
             owner.append(k)
@@ -265,6 +291,11 @@ def _pack(items, sector, cod, pool, progress):
         parts[k].extend(r)
     for k, ps in parts.items():
         out[k] = (mpq_recompress.build_block(ps), F_EXISTS | F_COMPRESS)
+        if k in chaves:
+            try:
+                cache.save('shrink', chaves[k], out[k][0])
+            except OSError:
+                pass
     return out
 
 
@@ -321,7 +352,7 @@ def _plan(a, kept, data, opts, sector, cod, progress, sha):
                 pack[('old', h)] = by_sha[h]
             if h in new:
                 pack[('new', h)] = new[h]
-        if pool is None and workers > 1 and sum(map(len, pack.values())) > POOL_PACK.get(cod, POOL_PACK_OTHER):
+        if pool is None and workers > 1 and _fora_do_cache(pack, sector, cod) > POOL_PACK.get(cod, POOL_PACK_OTHER):
             pool = _pool(workers)
         packed = _pack(pack, sector, cod, pool, progress)
     finally:
