@@ -6,6 +6,7 @@ import re
 from doctor.data import slk_cols as C
 from doctor.port import morph_chaos
 
+AQUI = os.path.dirname(os.path.abspath(__file__))
 
 RX_SET_MODEL = re.compile(r'\bDzSetUnitModel\s*\(')
 RX_LITERAL = re.compile(r'"((?:[^"\\]|\\.)*)"')
@@ -200,3 +201,117 @@ def add(units, body_text, extract=None, write=True, extra_models=()):
         line_list[bi[0]] = 'B;X%d;Y%d;D0' % (mx, y)
         io.open(path, 'wb').write(C.join_lines(line_list, crlf))
     return info
+
+
+EFFECT_CARRIER = 'eLqP'
+EFFECT_CARRIER_MODEL = 'KK_Portador.mdl'
+EFFECT_CARRIER_MDX = os.path.join(AQUI, 'compat', 'kk_portador.mdx')
+EFFECT_CARRIER_FIELDS = {
+    'unitui.slk': {
+        'file': '"%s"' % EFFECT_CARRIER_MODEL,
+        'unitShadow': '"_"',
+        'shadowOnWater': '0',
+        'hideOnMinimap': '1',
+        'modelScale': '1',
+        'scale': '1',
+        'red': '255',
+        'green': '255',
+        'blue': '255',
+        'uberSplat': '"_"',
+        'buildingShadow': '"_"',
+        'portrait': '"_"',
+    },
+    'unitdata.slk': {
+        'movetp': '"fly"',
+        'moveHeight': '0',
+        'moveFloor': '0',
+        'collision': '0',
+        'pathTex': '"_"',
+        'targType': '"_"',
+        'death': '0',
+        'canFlee': '0',
+        'canSleep': '0',
+        'points': '0',
+        'fused': '0',
+        'prio': '0',
+        'cargoSize': '0',
+        'fmade': '0',
+        'fmade1': '0',
+        'fused1': '0',
+    },
+    'unitbalance.slk': {
+        'isbldg': '0',
+        'sight': '0',
+        'nsight': '0',
+        'goldcost': '0',
+        'lumbercost': '0',
+        'bountydice': '0',
+        'bountybase': '0',
+        'bountysides': '0',
+        'HP': '1000',
+        'regenHP': '0',
+        'mana0': '0',
+        'regenMana': '0',
+        'def': '0',
+        'upgrades': '"_"',
+        'Builds': '"_"',
+        'Sellunits': '"_"',
+        'Sellitems': '"_"',
+        'Trains': '"_"',
+        'Upgrade': '"_"',
+    },
+    'unitabilities.slk': {'abilList': '"Aloc,Avul"', 'heroAbilList': '"_"', 'auto': '"_"'},
+    'unitweapons.slk': {'weapsOn': '0', 'targs1': '"_"', 'targs2': '"_"'},
+}
+
+
+def _tables(units):
+    tables = {}
+    for name, path in _files(units).items():
+        line_list, crlf = C.read_data(path)
+        tables[name] = (path, line_list, crlf) + _rows(line_list, ID_COLUMNS[name])
+    return tables
+
+
+def effect_carrier_check(units, body_text, extract=None):
+    files = _files(units)
+    if 'unitui.slk' not in files or 'unitdata.slk' not in files:
+        return 'the map has no UnitUI.slk/UnitData.slk'
+    if not os.path.isfile(EFFECT_CARRIER_MDX):
+        return 'the carrier model is missing (%s)' % EFFECT_CARRIER_MDX
+    tables = _tables(units)
+    for t in tables.values():
+        if EFFECT_CARRIER in t[5]:
+            return 'the map already has a unit %s' % EFFECT_CARRIER
+    if re.search(r"'%s'" % EFFECT_CARRIER, body_text or ''):
+        return 'the script already uses the id %s' % EFFECT_CARRIER
+    if template_unit(tables) is None:
+        return 'no plain unit to copy'
+    return None
+
+
+def add_effect_carrier(units, body_text, extract=None):
+    if effect_carrier_check(units, body_text, extract) is not None:
+        return None
+    tables = _tables(units)
+    template = template_unit(tables)
+    for name, (path, line_list, crlf, col, x_id, row_ids, cells) in tables.items():
+        if x_id is None or template not in row_ids:
+            continue
+        by_name = dict((n.lower(), x) for x, n in col.items())
+        over = dict((by_name[c.lower()], v) for c, v in EFFECT_CARRIER_FIELDS.get(name, {}).items()
+                    if c.lower() in by_name)
+        bi = [i for i, line in enumerate(line_list) if line.startswith('B;')]
+        if len(bi) != 1:
+            raise ValueError('%s with %d B records (normalize it first)' % (name, len(bi)))
+        mx = int(re.search(r'X(\d+)', line_list[bi[0]]).group(1))
+        y = max(int(re.search(r'Y(\d+)', line_list[bi[0]]).group(1)), max(cells) if cells else 1) + 1
+        end_pos = max(i for i, line in enumerate(line_list) if line.strip() == 'E')
+        row = dict(cells.get(row_ids[template], []))
+        row[x_id] = '"%s"' % EFFECT_CARRIER
+        row.update(over)
+        extra = ['C;X%d;Y%d;K%s' % (x, y, row[x]) for x in sorted(row)]
+        line_list = line_list[:end_pos] + extra + line_list[end_pos:]
+        line_list[bi[0]] = 'B;X%d;Y%d;D0' % (mx, y)
+        io.open(path, 'wb').write(C.join_lines(line_list, crlf))
+    return EFFECT_CARRIER
