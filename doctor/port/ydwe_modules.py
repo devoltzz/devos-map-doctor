@@ -212,8 +212,23 @@ def _compile_lua(d):
         return False
 
 
+_LUA_ESCAPES = {b'n': b'\n', b't': b'\t', b'r': b'\r', b'a': b'\a', b'b': b'\b', b'f': b'\f', b'v': b'\v'}
+
+
+def _unescape_2(s):
+    if b'\\' not in s:
+        return s
+
+    def singular(m):
+        e = m.group(1)
+        if e[:1].isdigit():
+            return bytes([int(e) & 0xFF])
+        return _LUA_ESCAPES.get(e, e)
+    return re.sub(rb'\\(\d{1,3}|.)', singular, s)
+
+
 def _text_strings(d):
-    return [m.group(2) for m in re.finditer(rb'(["\'])((?:(?!\1)[^\\\r\n]|\\.){1,120})\1', d)]
+    return [_unescape_2(m.group(2)) for m in re.finditer(rb'(["\'])((?:(?!\1)[^\\\r\n]|\\.){1,120})\1', d)]
 
 
 def collect(a, hash_entries=(), log=None):
@@ -446,10 +461,17 @@ def _storm_data(a, cited, block_list, paths=(), templates=ENGINE_TEMPLATES):
         batch = sorted(set(work_queue) - visited)
         work_queue = []
         visited.update(batch)
-        matches = take_batch(None, existing_product(a, batch, sorted(name_list), ['.ini', '.config']))
+        matches = take_batch(None, existing_product(a, batch, sorted(name_list), ['.ini', '.config', '.iniconfig']))
         while matches:
             new_ones = []
             for c, g in matches:
+                if g.lower().endswith('.iniconfig') and g in out:
+                    p = g[:g.rfind('\\') + 1]
+                    for ln in out[g].decode('utf-8', 'surrogateescape').splitlines():
+                        ln = ln.strip().replace('/', '\\').strip('\\')
+                        if ln:
+                            work_queue.append(p + ln + '\\')
+                    continue
                 if not g.lower().endswith('.config'):
                     continue
                 p = c[:c.rfind('\\') + 1]
