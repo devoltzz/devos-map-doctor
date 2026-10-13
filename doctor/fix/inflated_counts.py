@@ -577,6 +577,7 @@ def read_units_record(b, p, ver, sub, skin=False):
     d['xyz'] = struct.unpack_from('<3f', b, p + 8)
     d['angle'] = struct.unpack_from('<f', b, p + 20)[0]
     d['skin_id'] = b[p + 36:p + 40] if skin else None
+    d['id_positions'] = [(p, 'kind')] + ([(p + 36, 'skin')] if skin else [])
     d['cluster'] = struct.unpack_from('<i', b, o - 4)[0] if cluster else None
     d['uprooted'] = struct.unpack_from('<i', b, o + 3)[0]
     o += 7
@@ -605,6 +606,7 @@ def read_units_record(b, p, ver, sub, skin=False):
             raise End('ended in an item set (byte %d)' % p)
         d['set_items'].append([(b[o + 4 + 8 * j:o + 8 + 8 * j], struct.unpack_from('<i', b, o + 8 + 8 * j)[0])
                                for j in range(k)])
+        d['id_positions'].extend((o + 4 + 8 * j, 'dropped item') for j in range(k))
         item_entries += k
         o += 4 + 8 * k
     d['item_entries'] = item_entries
@@ -627,6 +629,7 @@ def read_units_record(b, p, ver, sub, skin=False):
         raise End('ended before the abilities (byte %d)' % p)
     d['inventory'] = [(struct.unpack_from('<i', b, o + 4 + 8 * j)[0], b[o + 8 + 8 * j:o + 12 + 8 * j])
                       for j in range(d['inv'])]
+    d['id_positions'].extend((o + 8 + 8 * j, 'inventory') for j in range(d['inv']))
     o += 4 + 8 * d['inv']
     if o + 4 > len(b):
         raise End('ended before the abilities (byte %d)' % p)
@@ -637,6 +640,7 @@ def read_units_record(b, p, ver, sub, skin=False):
         raise End('ended before is_random (byte %d)' % p)
     d['abilities'] = [(b[o + 4 + 12 * j:o + 8 + 12 * j],) + struct.unpack_from('<2i', b, o + 8 + 12 * j)
                       for j in range(d['habs'])]
+    d['id_positions'].extend((o + 4 + 12 * j, 'ability') for j in range(d['habs']))
     o += 4 + 12 * d['habs']
     if o + 4 > len(b):
         raise End('ended before is_random (byte %d)' % p)
@@ -663,6 +667,7 @@ def read_units_record(b, p, ver, sub, skin=False):
             raise End('ended in the random table (byte %d)' % p)
         d['block_entry'] = [(b[o + 4 + 8 * j:o + 8 + 8 * j], struct.unpack_from('<i', b, o + 8 + 8 * j)[0])
                             for j in range(k)]
+        d['id_positions'].extend((o + 4 + 8 * j, 'random_creep') for j in range(k))
         o += 4 + 8 * k
     elif d['rnd'] != -1:
         raise End('is_random %d' % d['rnd'])
