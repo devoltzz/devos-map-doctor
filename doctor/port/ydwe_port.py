@@ -152,9 +152,11 @@ RX_FUNCTION = re.compile(
     r'(?m)^[ \t]*(?:constant[ \t]+)?function[ \t]+(\w+)[ \t]+takes[^\n]*\n((?:(?![ \t]*endfunction\b)'
     r'[^\n]*\n)*?)[ \t]*endfunction'
 )
-RX_MARK_LINE = re.compile(r'^(?:call\s+GetTriggeringTrigger\s*\(\s*\)|return\b.*)$')
+RX_MARK_LINE = re.compile(r'^(?:call\s+GetTriggeringTrigger\s*\(\s*\)|call\s+ConvertRace\s*\(\s*0\s*\)|return\b.*)$')
+RX_FIRST_MARK = re.compile(r'^call\s+(?:GetTriggeringTrigger\s*\(\s*\)|ConvertRace\s*\(\s*0\s*\))$')
 RX_NEUTRAL_RETURN = re.compile(r'^return(?:\s+(?:0|0\.0*|\.0+|null|false|""))?$')
 RX_JAPI_FAMILY = re.compile(r'^(?:Frame|EX|Get(?:Game|Glue)UI|CreateFrame|CreateSimpleFrame|DestroyFrame)')
+RX_DEBUG_MSG = re.compile(r'^call\s+BJDebugMsg\s*\(\s*"[^"\\\n]*"\s*\)$')
 
 
 def markers(final_j):
@@ -164,9 +166,12 @@ def markers(final_j):
         body = [line.strip() for line in m.group(2).split('\n') if line.strip() and not line.strip().startswith('//')]
         n = m.group(1)
         tgt = next((a for a in ('kkc_' + n, 'Dz' + n) if a in defs), None)
-        if body and re.match(r'^call\s+GetTriggeringTrigger\s*\(\s*\)$', body[0]):
+        debug_lines = [line for line in body if RX_DEBUG_MSG.match(line)]
+        if debug_lines:
+            body = [line for line in body if not RX_DEBUG_MSG.match(line)]
+        if body and RX_FIRST_MARK.match(body[0]):
             if all(RX_MARK_LINE.match(line) for line in body):
-                out[n] = tgt
+                out[n] = tgt if (tgt or not debug_lines) else ''
         elif all(RX_NEUTRAL_RETURN.match(line) for line in body) and (tgt or RX_JAPI_FAMILY.match(n)):
             out[n] = tgt
     return out
@@ -174,13 +179,23 @@ def markers(final_j):
 
 def link_markers(mark_map):
     line_list = ['__ydwe_marcadores = {']
-    line_list += ['[%s]=%s,' % (_lua_str(n), _lua_str(a) if a else 'false') for n, a in sorted(mark_map.items())]
+    line_list += ['[%s]=%s,' % (_lua_str(n), _lua_str(a) if a else ('"__neutro"' if a == '' else 'false'))
+                  for n, a in sorted(mark_map.items())]
     line_list += ['}', '''for n, alvo in pairs(__ydwe_marcadores) do
   local f = rawget(JENV, n)
-  if alvo and type(rawget(JENV, alvo)) == "function" then
+  if alvo and alvo ~= "__neutro" and type(rawget(JENV, alvo)) == "function" then
     rawset(JENV, n, rawget(JENV, alvo))
   elseif __ydwe_japi_extra[n] then
     rawset(JENV, n, __ydwe_japi_extra[n])
+  elseif alvo == "__neutro" then
+    local r = string.sub(__sig[n] or "V", 1, 1)
+    local v = nil
+    if r == "I" or r == "R" then v = 0 elseif r == "S" then v = "" elseif r == "B" then v = false end
+    rawset(JENV, n, function()
+      local k = "marcador." .. n
+      __ydwe_ausente[k] = (__ydwe_ausente[k] or 0) + 1
+      return v
+    end)
   elseif type(f) == "function" then
     rawset(JENV, n, function(...)
       local k = "marcador." .. n
@@ -235,6 +250,67 @@ def _non_ascii_ids(body_text):
     return out
 
 
+RX_LONG_T = re.compile(r'\[(=*)\[')
+RX_PRODUCT = re.compile(r'(?<![\w.])(\d+)((?:[ \t]*\*[ \t]*\d+)+)(?![\w.])')
+INT32_MIN, INT32_MAX = -(1 << 31), (1 << 31) - 1
+
+
+def _code_spans(body_text):
+    out, i, begin, n = [], 0, 0, len(body_text)
+    while i < n:
+        c = body_text[i]
+        if c == '-' and body_text[i + 1:i + 2] == '-':
+            out.append((begin, i))
+            m = RX_LONG_T.match(body_text, i + 2)
+            if m:
+                end_pos = body_text.find(']' + m.group(1) + ']', m.end())
+                i = n if end_pos < 0 else end_pos + len(m.group(1)) + 2
+            else:
+                end_pos = body_text.find('\n', i)
+                i = n if end_pos < 0 else end_pos
+            begin = i
+        elif c in ('"', "'"):
+            out.append((begin, i))
+            j = i + 1
+            while j < n and body_text[j] != c and body_text[j] != '\n':
+                j += 2 if body_text[j] == '\\' else 1
+            i = begin = j + 1
+        elif c == '[' and RX_LONG_T.match(body_text, i):
+            out.append((begin, i))
+            m = RX_LONG_T.match(body_text, i)
+            end_pos = body_text.find(']' + m.group(1) + ']', m.end())
+            i = begin = n if end_pos < 0 else end_pos + len(m.group(1)) + 2
+        else:
+            i += 1
+    out.append((begin, n))
+    return [(a, b) for a, b in out if b > a]
+
+
+def int32_products(body_text):
+    if '*' not in body_text:
+        return body_text, 0
+    pieces, end_pos, n = [], 0, [0]
+    for a, b in _code_spans(body_text):
+        seg = body_text[a:b]
+
+        def swap(m, seg=seg):
+            field_value = 1
+            for d in re.findall(r'\d+', m.group(0)):
+                field_value *= int(d)
+            if INT32_MIN <= field_value <= INT32_MAX:
+                return m.group(0)
+            before = seg[:m.start()].rstrip()
+            after_diag = seg[m.end():].lstrip()
+            if before.endswith(('/', '%', '^')) or after_diag.startswith('^'):
+                return m.group(0)
+            n[0] += 1
+            return repr(float(field_value))
+        pieces += [body_text[end_pos:a], RX_PRODUCT.sub(swap, seg)]
+        end_pos = b
+    pieces.append(body_text[end_pos:])
+    return ''.join(pieces), n[0]
+
+
 def utf8_text_to_source(data_bytes, fname):
     from doctor.script import lua53_translate
     body_text = data_bytes[3:] if data_bytes[:3] == b'\xef\xbb\xbf' else data_bytes
@@ -286,9 +362,20 @@ def translate_modules(lua_modules, log=None):
                 out.append((k, 'b', src))
             else:
                 out.append((k, 't', m['data_bytes'].decode('utf-8', 'surrogateescape').lstrip('﻿')))
+    replacements = 0
+    for i, (k, f, s) in enumerate(out):
+        s2, t = int32_products(s)
+        if t:
+            out[i] = (k, f, s2)
+            replacements += t
     if log:
         log('   %d module(s) translated to Lua source (%.1f MB), %d failed'
             % (len(out), sum(len(s) for _c, _f, s in out) / 1048576.0, len(error_list)))
+        if replacements:
+            log(
+                '   %d integer product(s) that overflow the 32-bit Lua of the game written as real numbers'
+                % replacements
+            )
     return out, error_list
 
 
@@ -368,6 +455,8 @@ def build_lua(final_j, collect, slk_lua='', log=None, extract=None, scale_factor
                                      for k, v in sorted(res['handle_globals'].items())] + ['}']
     arrays = sorted(g.name for g in tr.prog.globals if g.is_array and g.type not in jass2lua.PRIMITIVES)
     ha = ['__handle_arrays = {'] + ['[%s]=true,' % _lua_str(n) for n in arrays] + ['}']
+    codes = sorted(g.name for g in tr.prog.globals if g.type == 'code' and not g.is_array)
+    ha += ['__code_globals = {%s}' % ', '.join('[%s]=true' % _lua_str(n) for n in codes)]
     translated, error_list = translate_modules(collect['lua_modules'], log)
     sources = ['__ydwe_fonte, __ydwe_forma, __ydwe_dados = {}, {}, {}']
     for k, forma, src in translated:
@@ -522,6 +611,9 @@ m:close()
 local t = io.open(dir .. "/texturas.txt", "wb")
 for k in pairs(__ydwe_texturas_usadas or {}) do t:write(k, "\n") end
 t:close()
+local q = io.open(dir .. "/modelos_quadro.txt", "wb")
+for k in pairs(__ydwe_modelos_quadro or {}) do q:write(k, "\n") end
+q:close()
 return n
 '''
 
@@ -560,7 +652,7 @@ def join_versions(versions):
     return b''.join(out)
 
 
-def generated_files(lua_p, seconds=15.0, log=None, extract=None, textures=None):
+def generated_files(lua_p, seconds=15.0, log=None, extract=None, textures=None, frame_model_names=None):
     import shutil
     import tempfile
     from doctor.port import simulate
@@ -579,7 +671,8 @@ def generated_files(lua_p, seconds=15.0, log=None, extract=None, textures=None):
                 versions.append(open(os.path.join(folder, '%s.%d.v' % (n, i)), 'rb').read())
                 i += 1
             if versions:
-                out[fname] = join_versions(versions)
+                body_text = fname.lower().endswith(('.fdf', '.toc'))
+                out[fname] = join_versions(versions) if body_text else versions[-1]
         in_use = []
         if os.path.isfile(os.path.join(folder, 'modelos.txt')):
             in_use = [
@@ -592,6 +685,9 @@ def generated_files(lua_p, seconds=15.0, log=None, extract=None, textures=None):
         if textures is not None and os.path.isfile(os.path.join(folder, 'texturas.txt')):
             textures.extend(line for line in open(os.path.join(folder, 'texturas.txt'), 'rb').read()
                             .decode('utf-8', 'surrogateescape').splitlines() if line)
+        if frame_model_names is not None and os.path.isfile(os.path.join(folder, 'modelos_quadro.txt')):
+            frame_model_names.extend(line for line in open(os.path.join(folder, 'modelos_quadro.txt'), 'rb').read()
+                                     .decode('utf-8', 'surrogateescape').splitlines() if line)
         fdfs = [v.decode('utf-8', 'replace') for k, v in out.items() if k.lower().endswith('.fdf')]
         if extract and os.path.isdir(extract):
             for root, _d, files_ in os.walk(extract):
@@ -659,6 +755,47 @@ def missing_textures(used_entries, extract=None, generated=(), casc=None, log=No
 def missing_table(missing_ones):
     return ('\nrawset(__G, "__ydwe_transparente", %s)\nrawset(__G, "__ydwe_textura_ausente", {%s})\n'
             % (_lua_str(TRANSPARENT), ', '.join('[%s]=true' % _lua_str(p.lower()) for p in missing_ones)))
+
+
+UI_FOLDER = 'devos\\ui\\'
+
+
+def model_key(m):
+    k = re.sub(r'\\+', r'\\', m.lower().replace('/', '\\'))
+    return k[:-4] + '.mdx' if k.endswith('.mdl') else k
+
+
+def interface_copies(models, ler, log=None):
+    import zlib
+    from doctor.models import mdx_ui
+    file_set, table, failures = {}, {}, []
+    for m in sorted(set(model_key(x) for x in models if x and x.strip())):
+        if not m.endswith('.mdx') or m in table:
+            continue
+        data_bytes = ler(m)
+        if not data_bytes or data_bytes[:4] != b'MDLX' or not mdx_ui.is_world_model(data_bytes):
+            continue
+        try:
+            copy = mdx_ui.facing_screen(data_bytes)
+        except ValueError as e:
+            failures.append('%s (%s)' % (m, e))
+            continue
+        copy, n_time = mdx_ui.without_glow(copy, transparent=TRANSPARENT)
+        if n_time:
+            file_set[TRANSPARENT] = transparent_tga()
+        fname = '%sm%08x.mdx' % (UI_FOLDER, zlib.crc32(m.encode('utf-8', 'surrogateescape')) & 0xffffffff)
+        file_set[fname] = copy
+        table[m] = fname
+    if log and table:
+        log('   %d model(s) the map shows in its model frames turned to face the screen (a SPRITE draws the model '
+            'seen from above): %s' % (len(table), ', '.join(sorted(table)[:8])))
+    if log and failures:
+        log('   %d model frame model(s) not turned: %s' % (len(failures), '; '.join(failures[:4])))
+    segment = ''
+    if table:
+        segment = '\nrawset(__G, "__ydwe_modelo_ui", {%s})\n' % ', '.join(
+            '[%s]=%s' % (_lua_str(k), _lua_str(v)) for k, v in sorted(table.items()))
+    return file_set, segment
 
 
 def w3i_lua(data_bytes):
