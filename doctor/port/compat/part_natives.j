@@ -639,6 +639,7 @@ endfunction
 //{{KK_SE:KK_UI_MSG}}
 integer array DB_msg_id
 integer DB_msg_n=0
+hashtable DB_msg_ht=InitHashtable()
 
 function DB_msg_marca takes integer id returns integer
     local integer i=0
@@ -655,23 +656,13 @@ function DB_msg_marca takes integer id returns integer
     if DB_msg_n<8 then
         set DB_msg_id[DB_msg_n]=id
         set DB_msg_n=DB_msg_n+1
+        call SaveBoolean(DB_msg_ht, id, 0, true)
     endif
     return id
 endfunction
 
 function DB_eh_msg takes integer id returns boolean
-    local integer i=0
-    if id==0 then
-        return false
-    endif
-    loop
-        exitwhen i>=DB_msg_n
-        if DB_msg_id[i]==id then
-            return true
-        endif
-        set i=i+1
-    endloop
-    return false
+    return id!=0 and LoadBoolean(DB_msg_ht, id, 0)
 endfunction
 
 //{{KK_FIMSE:KK_UI_MSG}}
@@ -691,24 +682,29 @@ endfunction
 integer array DB_pai_id
 framehandle array DB_pai_fh
 integer DB_pai_n=0
+hashtable DB_pai_ht=InitHashtable()
 
 function DB_pai_marca takes integer id returns integer
     local integer i=0
+    local integer k
     local framehandle f
     if id==0 then
         return 0
     endif
-    loop
-        exitwhen i>=DB_pai_n
-        if DB_pai_id[i]==id then
-            return id
-        endif
-        set i=i+1
-    endloop
+    if LoadInteger(DB_pai_ht, id, 0)>0 then
+        return id
+    endif
     set f=DB_fh(id)
     if f!=null and DB_pai_n<48 then
         set DB_pai_id[DB_pai_n]=id
-        set DB_pai_fh[DB_pai_n]=BlzFrameGetParent(f)
+        call SaveInteger(DB_pai_ht, id, 0, DB_pai_n+1)
+        set k=0
+        loop
+            set f=BlzFrameGetParent(f)
+            exitwhen f==null or k>=3 or f==BlzGetOriginFrame(ORIGIN_FRAME_GAME_UI, 0) or f==BlzGetFrameByName("ConsoleUI", 0)
+            set DB_pai_fh[DB_pai_n*3+k]=f
+            set k=k+1
+        endloop
         set DB_pai_n=DB_pai_n+1
     endif
     set f=null
@@ -716,19 +712,19 @@ function DB_pai_marca takes integer id returns integer
 endfunction
 
 function DB_pai_mostra takes integer id returns nothing
-    local integer i=0
+    local integer i
+    local integer k=0
     if id==0 then
         return
     endif
+    set i=LoadInteger(DB_pai_ht, id, 0)-1
+    if i<0 then
+        return
+    endif
     loop
-        exitwhen i>=DB_pai_n
-        if DB_pai_id[i]==id then
-            if DB_pai_fh[i]!=null then
-                call BlzFrameSetVisible(DB_pai_fh[i], true)
-            endif
-            return
-        endif
-        set i=i+1
+        exitwhen k>=3 or DB_pai_fh[i*3+k]==null
+        call BlzFrameSetVisible(DB_pai_fh[i*3+k], true)
+        set k=k+1
     endloop
 endfunction
 
@@ -1013,10 +1009,23 @@ integer DB_anc_marca=0
 integer DB_anc_desfeitos=0
 
 function DB_anc_grava takes integer f,integer p,integer r,integer rp,real x,real y returns nothing
+    local integer n
+    local integer k=0
     if DB_anc_ht==null then
         set DB_anc_ht=InitHashtable()
     endif
     call SaveBoolean(DB_anc_ht, f, 340+p, true)
+    if r!=0 then
+        set n=LoadInteger(DB_anc_ht, f, 397)
+        loop
+            exitwhen k>=n or LoadInteger(DB_anc_ht, f, 380+k)==p
+            set k=k+1
+        endloop
+        if k>=n then
+            call SaveInteger(DB_anc_ht, f, 380+n, p)
+            call SaveInteger(DB_anc_ht, f, 397, n+1)
+        endif
+    endif
     call SaveInteger(DB_anc_ht, f, 300+p, r)
     call SaveInteger(DB_anc_ht, f, 310+p, rp)
     call SaveReal(DB_anc_ht, f, 320+p, x)
@@ -1033,14 +1042,21 @@ function DB_anc_limpa takes integer f returns nothing
         call RemoveSavedBoolean(DB_anc_ht, f, 340+p)
         set p=p+1
     endloop
+    call RemoveSavedInteger(DB_anc_ht, f, 397)
 endfunction
 
 function DB_anc_alcanca takes integer de,integer alvo,integer prof returns boolean
-    local integer p=0
+    local integer p
+    local integer k=0
+    local integer n
     if de==alvo then
         return true
     endif
     if de==0 or prof>24 or DB_anc_ht==null then
+        return false
+    endif
+    set n=LoadInteger(DB_anc_ht, de, 397)
+    if n==0 then
         return false
     endif
     if LoadInteger(DB_anc_ht, de, 399)==DB_anc_marca then
@@ -1048,13 +1064,14 @@ function DB_anc_alcanca takes integer de,integer alvo,integer prof returns boole
     endif
     call SaveInteger(DB_anc_ht, de, 399, DB_anc_marca)
     loop
-        exitwhen p>8
+        exitwhen k>=n
+        set p=LoadInteger(DB_anc_ht, de, 380+k)
         if LoadBoolean(DB_anc_ht, de, 340+p) then
             if DB_anc_alcanca(LoadInteger(DB_anc_ht, de, 300+p), alvo, prof+1) then
                 return true
             endif
         endif
-        set p=p+1
+        set k=k+1
     endloop
     return false
 endfunction
