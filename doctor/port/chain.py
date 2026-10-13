@@ -19,6 +19,7 @@ from doctor.port import shadowed
 from doctor.port import dead_type
 from doctor.port import save_wiring
 from doctor.port import return_fixes
+from doctor.port import swap_calls
 from doctor.port import inject
 from doctor.port import engine
 from doctor.port import natives
@@ -240,6 +241,14 @@ def assemble(r, argv=None):
                                        neutralize=(memory_level == 'neutralize'))
         memory_hacks.report_data(info)
         r.MEMORY_INFO = info
+
+    if getattr(r, 'COMMAND_CARD', False):
+        t, info = swap_calls.applies(t, {'SetPlayerAbilityAvailable': 'KKJN_disponivel',
+                                         'SetPlayerAbilityAvailableBJ': 'KKJN_disponivel_bj'})
+        if info['failures']:
+            aborts('0i (available ability)', info['failures'])
+        print('0i: %d SetPlayerAbilityAvailable(BJ) call(s) -> KKJN_disponivel(_bj)'
+              % sum(info['by_native'].values()))
 
     failures, _info, _pixel_data = field_table.run_action(r.TABLE_SOURCE, table, r.LEVEL_FIELDS,
                                                           controle=getattr(r, 'CONTROL_TABLE', True),
