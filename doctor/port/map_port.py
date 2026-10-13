@@ -221,9 +221,10 @@ def build_lua_route(r, lua, original, extract, log, details):
     log('5b. war3map.lua: %d JASS function(s), %d Lua module(s), %.1f MB; checked (compiles, the main chunk loads)'
         % (info['functions'], info['lua_modules'], info['bytes'] / 1048576.0))
     output = [('war3map.lua', lua_p), ('war3map.w3i', w3i_p)]
-    textures = []
+    textures, frame_model_names = [], []
     try:
-        generated = ydwe_port.generated_files(lua_p, log=log, extract=extract, textures=textures)
+        generated = ydwe_port.generated_files(lua_p, log=log, extract=extract, textures=textures,
+                                              frame_model_names=frame_model_names)
     except Exception as e:
         generated = {}
         WARNINGS.append('the frame definitions the map writes at run time could not be collected (%s: %s): its custom '
@@ -240,6 +241,49 @@ def build_lua_route(r, lua, original, extract, log, details):
         log('   %d texture path(s) the map puts on its frames exist neither in the map nor in the game: drawn '
             'transparent (%s)' % (len(missing_ones), ', '.join(missing_ones[:8])))
         details['lua']['missing_textures'] = missing_ones
+    if 'FrameSetModel2' in body_text:
+        try:
+            from doctor.port import model_carriers
+            models = list(frame_model_names) + model_carriers.lua_unit_models(
+                [
+                    m['data_bytes'].decode('utf-8', 'surrogateescape')
+                    for m in lua.get('collect', {}).get('lua_modules', {}).values()
+                    if m.get('forma') != 'bytecode' and m.get('data_bytes')
+                ]
+            )
+            map_file = mpqread.Archive(original)
+            try:
+                from doctor.data import casc_wc3
+                game = casc_wc3.CascWC3()
+            except Exception:
+                game = None
+
+            def ler(file_path):
+                d = map_file.read(file_path)
+                if d is None and game is not None:
+                    try:
+                        d = game.read_wc3(file_path)
+                    except Exception:
+                        d = None
+                return d
+            copies, segment = ydwe_port.interface_copies(models, ler, log=log)
+            if copies:
+                generated.update(copies)
+                body_text += segment
+                _writes(lua_p, body_text.encode('utf-8', 'surrogateescape'))
+                details['lua']['frame_models'] = len(copies)
+        except Exception as e:
+            WARNINGS.append('the models of the model frames could not be turned to face the screen (%s: %s): they show '
+                            'seen from above' % (type(e).__name__, e))
+    try:
+        from doctor.models import reforged_texture
+        cited_names_2 = list(textures) + re.findall(r'''[\['"]([^'"\[\]\r\n]{3,200}?\.tga)''', body_text, re.I)
+        cited_names_2 = [re.sub(r'\\\\+', r'\\', c) for c in cited_names_2]
+        generated.update(reforged_texture.map_own(cited_names_2, mpqread.Archive(original).read, log=log))
+    except Exception as e:
+        WARNINGS.append(
+            'the large RLE textures could not be checked (%s: %s): one may show white' % (type(e).__name__, e)
+        )
     if generated:
         folder = os.path.join(r.OUT, 'generated')
         os.makedirs(folder, exist_ok=True)
@@ -247,7 +291,7 @@ def build_lua_route(r, lua, original, extract, log, details):
             p = os.path.join(folder, fname.replace('\\', '__').replace('/', '__'))
             _writes(p, data_bytes)
             output.append((fname, p))
-        log('   %d file(s) the map writes at run time (frame definitions) put in the map: %s'
+        log('   %d file(s) the map writes at run time (frame definitions) or the port derives put in the map: %s'
             % (len(generated), ', '.join(sorted(generated))))
         details['lua']['generated'] = sorted(generated)
     return output
@@ -391,7 +435,24 @@ def diagnostico(body_text, extract):
     }
 
 
-def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, memory_hacks=None):
+RX_SHOP_QUERY = re.compile(r'''HasMallItem\s*\(\s*[^,()]+(?:\([^()]*\))?\s*,\s*["']([^"'\\\r\n]{1,40})["']\s*\)''')
+RX_PUNISHMENT = re.compile(r'set_cheater|\bEndGame\s*\(|CustomDefeat|RemovePlayer\s*\(|作弊|外挂|[Cc]heat')
+
+
+def shop_baits(texts, line_list=4):
+    out = set()
+    for t in texts:
+        if not t or 'HasMallItem' not in t:
+            continue
+        ls = t.split('\n')
+        for i, line in enumerate(ls):
+            for m in RX_SHOP_QUERY.finditer(line):
+                if RX_PUNISHMENT.search('\n'.join(ls[i:i + 1 + line_list])):
+                    out.add(m.group(1))
+    return sorted(out)
+
+
+def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, memory_hacks=None, lua_modules=None):
     for p in new.inclusion_points():
         _writes(os.path.join(compat, 'kk_%s.j' % p), b'')
     value_list = {'NOME': heading, 'DATA': time.strftime('%d/%m/%Y'),
@@ -450,11 +511,28 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
         'KK_UI_ALFA': new.ui_alpha(body_text),
         'KK_SYNC_VAZIO': new.empty_sync(body_text),
     }
+    pair['KK_Z_8'] = 'false'
+    from doctor.port import desync
+    try:
+        if desync.terrain_spans(extract) > 131072:
+            pair['KK_Z_8'] = 'true'
+    except (OSError, ValueError, desync.struct.error):
+        pass
+    pair['KK_UI_TEXTO'] = 'true'
+    pair['KK_UI_PAINEL'] = 'true'
+    lua_texts = [m['data_bytes'].decode('utf-8', 'surrogateescape') for m in (lua_modules or {}).values()
+                 if m.get('forma') != 'bytecode' and m.get('data_bytes')]
+    decoys = shop_baits([body_text] + lua_texts)
+    pair['KK_LOJA_ISCAS'] = 'true' if decoys else 'false'
+    if decoys:
+        pair['KK_LOJA_ISCAS_LISTA'] = ('|' + '|'.join(decoys) + '|')[:1000]
+        log('4. the shop keys the map asks only to catch a cheat client (answered "not owned"): %s' % ', '.join(decoys))
     pair['KK_UI_SISTEMA'] = 'true'
     pair['KK_UI_CICLO'] = 'true'
     pair['KK_UI_MOUSE_POS'] = new.ui_mouse_pos(body_text)
     pair['KK_UI_BORDAS'] = new.ui_borders(body_text)
     pair['KK_UI_RETRATO'] = new.ui_portrait(body_text)
+    pair['KK_UI_PAI'] = new.ui_parent(body_text)
     atk = new.covered_attack(extract)
     pair['KK_CMD_ATAQUE'] = 'true' if atk else 'false'
     if atk:
@@ -500,7 +578,7 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
     return blz, pair
 
 
-def recipe(root, raw_data, diag, blz, no_dot_name_list, heading):
+def recipe(root, raw_data, diag, blz, no_dot_name_list, heading, added_models=()):
     extract = os.path.join(root, 'port', 'extract')
     out = os.path.join(root, 'port', 'out', 'kk')
     data_bytes = os.path.join(out, 'data_bytes')
@@ -546,6 +624,7 @@ def recipe(root, raw_data, diag, blz, no_dot_name_list, heading):
                 expected_count={'slk': None, 'fake_b': None, 'models': None, 'chaos': None},
                 no_dot=no_dot_name_list,
                 tolerant_mode=True,
+                added_models=added_models,
             )
         r.data_report = slk_data.report_data
     else:
@@ -766,6 +845,60 @@ def speed_cap(r, extract, body_text, log):
     return info
 
 
+def level_cap(r, extract, log):
+    from doctor.port import int32_balance
+    from doctor.data import slk as _slk
+    p = None
+    for folder in (r.DATA, os.path.join(r.ROOT, 'port', 'out', 'extract_en'), extract):
+        p = int32_balance._find_ci(folder, ['Units', 'UnitBalance.slk']) if os.path.isdir(folder) else None
+        if p:
+            break
+    if not p:
+        return None
+    _cols, line_list = _slk.parse_slk_bytes(open(p, 'rb').read())
+    above_cap = {}
+    for uid, row in line_list.items():
+        if not uid or uid[0].isupper():
+            continue
+        try:
+            level = int(float(row.get('level') or 0))
+        except ValueError:
+            continue
+        above_cap[uid] = level
+    larger = max(above_cap.values()) if above_cap else 0
+    txt, origin = _current_misc(r, extract)
+    before = 20
+    sec = None
+    for ln in txt.split('\n'):
+        s = ln.strip()
+        m = re.match(r'^\[(.+)\]$', s)
+        if m:
+            sec = m.group(1).strip().lower()
+        elif sec == 'misc' and s.split('=', 1)[0].strip() == 'MaxUnitLevel' and '=' in s:
+            try:
+                before = int(float(s.split('=', 1)[1].strip()))
+            except ValueError:
+                pass
+    if larger <= before:
+        return None
+    info = {'larger': larger, 'before': before, 'saved': True,
+            'units': sorted(u for u, n in above_cap.items() if n > before)}
+    dest = origin if origin and os.path.dirname(origin) == r.DATA else os.path.join(r.DATA, 'war3mapMisc.txt')
+    _writes(dest, int32_balance._misc_text(txt, {'MaxUnitLevel': larger}).encode('utf-8', 'surrogateescape'))
+    log('5. the unit level cap: MaxUnitLevel %d -> %d (%d unit type(s) above it: %s)'
+        % (before, larger, len(info['units']), ', '.join(info['units'][:8])))
+    return info
+
+
+def _current_misc(r, extract):
+    from doctor.port import int32_balance
+    for folder in (r.DATA, os.path.join(r.ROOT, 'port', 'out', 'extract_en'), extract):
+        p = int32_balance._find_ci(folder, ['war3mapMisc.txt']) if os.path.isdir(folder) else None
+        if p and os.path.getsize(p):
+            return open(p, 'rb').read().decode('utf-8', 'surrogateescape'), p
+    return '', None
+
+
 def close_toc(r, extract, log):
     out = []
     for base, _d, fs in os.walk(extract):
@@ -793,6 +926,111 @@ def close_toc(r, extract, log):
         log('5. the TOC file(s) end their last line the way Reforged needs (without it the last FDF is skipped): %s'
             % ', '.join(out))
     return out
+
+
+FDF_TEXT = 'devos\\kk_texto.fdf'
+TOC_TEXT = 'devos\\kk_texto.toc'
+TEXT_FONT = 'Fonts\\\\blizzardglobal-v5_4.ttf'
+
+
+RX_MAP_FONT = re.compile(r'\bDzFrameSetFont\s*\([^,()]+,\s*"((?:[^"\\\n]|\\.)+)"')
+
+
+def map_font(body_text, extract):
+    if not body_text or not extract or not os.path.isdir(extract):
+        return None
+    count = collections.Counter(m.group(1).replace('\\\\', '\\') for m in RX_MAP_FONT.finditer(body_text))
+    if not count:
+        return None
+    existing_names = {}
+    for base, _d, fs in os.walk(extract):
+        for f in fs:
+            details = os.path.relpath(os.path.join(base, f), extract).replace(os.sep, '\\')
+            existing_names[details.lower()] = details
+    for fname, _n in count.most_common():
+        if fname.lower() in existing_names and fname.lower().endswith(('.ttf', '.otf', '.ttc')):
+            return existing_names[fname.lower()]
+    return None
+
+
+def text_template(r, log, body_text='', extract=None):
+    own_font = map_font(body_text, extract)
+    source = own_font.replace('\\', '\\\\') if own_font else TEXT_FONT
+    _writes(os.path.join(r.DATA, *FDF_TEXT.split('\\')),
+            ('Frame "TEXT" "DevoKKTexto" {\r\n    FrameFont "%s", 0.010, "",\r\n}\r\n' % source)
+            .encode('utf-8', 'surrogateescape'))
+    _writes(os.path.join(r.DATA, *TOC_TEXT.split('\\')), (FDF_TEXT + '\r\n\r\n').encode('ascii'))
+    log('5. the TEXT frame template (%s), with the font %s' % (FDF_TEXT, own_font or "of the game that has the Chinese "
+                                                                "and Korean characters"))
+    return own_font or TEXT_FONT.replace('\\\\', '\\')
+
+
+FONT_PROPERTIES = ('MasterFont', 'MasterFontBold', 'MessageFont', 'ChatFont', 'EscMenuTextFont', 'InfoPanelTextFont',
+                   'TextTagFont')
+GAME_LANGUAGES = (
+    'csCZ',
+    'deDE',
+    'enUS',
+    'esES',
+    'esMX',
+    'frFR',
+    'itIT',
+    'jaJP',
+    'koKR',
+    'plPL',
+    'ptBR',
+    'ruRU',
+    'zhCN',
+    'zhTW',
+)
+
+
+def skin_with_font(body_text, source):
+    nl = '\r\n'
+    keys = set(p.lower() for p in FONT_PROPERTIES)
+    added_lines = ['%s=%s' % (p, source) for p in FONT_PROPERTIES]
+    added_lines += ['%s:%s=%s' % (p, i, source) for i in GAME_LANGUAGES for p in FONT_PROPERTIES]
+    line_list = body_text.splitlines() if body_text else []
+    out, sec, placed_at = [], None, False
+    for line in line_list:
+        m = re.match(r'^\s*\[([^\]]+)\]', line)
+        if m:
+            sec = m.group(1).strip().lower()
+            out.append(line)
+            if sec == 'customskin':
+                out.extend(added_lines)
+                placed_at = True
+            continue
+        if sec == 'customskin' and line.split('=', 1)[0].split(':', 1)[0].strip().lower() in keys:
+            continue
+        out.append(line)
+    if not placed_at:
+        out += ['[CustomSkin]'] + added_lines
+    return nl.join(out) + nl
+
+
+def skin_font(body_text):
+    sec = None
+    for line in (body_text or '').splitlines():
+        m = re.match(r'^\s*\[([^\]]+)\]', line)
+        if m:
+            sec = m.group(1).strip().lower()
+        elif sec == 'customskin' and '=' in line and line.split('=', 1)[0].strip().lower() == 'masterfont':
+            return line.split('=', 1)[1].strip() or None
+    return None
+
+
+def interface_font(r, extract, source, log):
+    p = next((c for c in (os.path.join(r.DATA, 'war3mapSkin.txt'), extract and os.path.join(extract, 'war3mapSkin.txt'))
+              if c and os.path.isfile(c)), None)
+    original = open(p, 'rb').read().decode('utf-8', 'surrogateescape').lstrip('\ufeff') if p else ''
+    own_font = skin_font(original)
+    if own_font:
+        log("5. the game interface fonts: the map's own (%s)" % own_font)
+        return
+    _writes(os.path.join(r.DATA, 'war3mapSkin.txt'),
+            skin_with_font(original, source).encode('utf-8', 'surrogateescape'))
+    log('5. the game interface fonts (war3mapSkin.txt) set to %s' % source)
 
 
 def report_text(details):
@@ -1081,10 +1319,21 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
             % (len(diag['plataforma']), len(diag['implemented_count']), 'M16/JN' if diag['jn'] else
                'UjAPI' if diag.get('ujapi') else 'KK',
                'SLK' if diag['slk'] else 'w3u'))
-        blz, _pair = map_part(root, compat, extract, raw_data, body_text, diag, heading, log, memory_hacks=memory_hacks)
+        blz, _pair = map_part(root, compat, extract, raw_data, body_text, diag, heading, log, memory_hacks=memory_hacks,
+                              lua_modules=(lua or {}).get('collect', {}).get('lua_modules'))
         from doctor.port import name_without_dot
         listing = name_without_dot.map_models(set(name_list))
-        r = recipe(root, raw_data, diag, blz, listing, heading)
+        from doctor.port import model_carriers
+        lua_models = model_carriers.lua_unit_models(
+            [
+                m['data_bytes'].decode('utf-8', 'surrogateescape')
+                for m in (lua or {}).get('collect', {}).get('lua_modules', {}).values()
+                if m.get('forma') != 'bytecode' and m.get('data_bytes')
+            ]
+        )
+        if lua_models:
+            log('4. %d unit model(s) the Lua tables set at run time get a carrier unit type' % len(lua_models))
+        r = recipe(root, raw_data, diag, blz, listing, heading, added_models=lua_models)
         r.MEMORY_LEVEL = memory_hacks
         from doctor.port import shadowed
         r.MAP_VERSION = shadowed.RANGE_CAP.get((details.get('made_for') or {}).get('range'))
@@ -1132,7 +1381,9 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
                          % ('PASS' if g1 else 'FAIL', 'PASS' if g2 else 'FAIL', '; '.join(error_list[:3]) or
                             os.path.join(root, 'port', 'out', 'cadeia.log')))
         details['speed'] = speed_cap(r, extract, body_text, log)
+        details['level'] = level_cap(r, extract, log)
         details['toc'] = close_toc(r, extract, log)
+        interface_font(r, extract, text_template(r, log, body_text, extract), log)
         if details['toc']:
             WARNINGS.append('%d TOC file(s) got the line ending Reforged needs to load the last FDF of the list: %s'
                             % (len(details['toc']), ', '.join(details['toc'][:6])))
