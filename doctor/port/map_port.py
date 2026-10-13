@@ -511,6 +511,20 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
         'KK_UI_ALFA': new.ui_alpha(body_text),
         'KK_SYNC_VAZIO': new.empty_sync(body_text),
     }
+    from doctor.port import model_carriers
+    units_folder = next((os.path.join(extract, d) for d in os.listdir(extract) if d.lower() == 'units'
+                         and os.path.isdir(os.path.join(extract, d))), None)
+    no_carrier = (
+        model_carriers.effect_carrier_check(units_folder, body_text, extract) if units_folder else 'no Units folder'
+    )
+    no_carrier = (no_carrier
+                  if diag.get('slk') else 'the map keeps its objects in war3map.w3u (no SLK tables)')
+    pair['KK_CAR_LIGADO'] = 'false' if no_carrier else 'true'
+    if no_carrier:
+        log('4. effects turned around Z stay on the game (Reforged does not turn many models): %s' % no_carrier)
+    else:
+        log('4. effects turned around Z are drawn on a carrier unit (%s), which Reforged turns'
+            % model_carriers.EFFECT_CARRIER)
     pair['KK_Z_8'] = 'false'
     from doctor.port import desync
     try:
@@ -518,10 +532,10 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
             pair['KK_Z_8'] = 'true'
     except (OSError, ValueError, desync.struct.error):
         pass
-    pair['KK_UI_TEXTO'] = 'true'
-    pair['KK_UI_PAINEL'] = 'true'
     lua_texts = [m['data_bytes'].decode('utf-8', 'surrogateescape') for m in (lua_modules or {}).values()
                  if m.get('forma') != 'bytecode' and m.get('data_bytes')]
+    pair['KK_UI_TEXTO'] = 'true' if writes_ideographs('\n'.join([body_text] + lua_texts), extract) else 'false'
+    pair['KK_UI_PAINEL'] = 'true'
     decoys = shop_baits([body_text] + lua_texts)
     pair['KK_LOJA_ISCAS'] = 'true' if decoys else 'false'
     if decoys:
@@ -578,7 +592,7 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
     return blz, pair
 
 
-def recipe(root, raw_data, diag, blz, no_dot_name_list, heading, added_models=()):
+def recipe(root, raw_data, diag, blz, no_dot_name_list, heading, added_models=(), carrier=False):
     extract = os.path.join(root, 'port', 'extract')
     out = os.path.join(root, 'port', 'out', 'kk')
     data_bytes = os.path.join(out, 'data_bytes')
@@ -625,6 +639,7 @@ def recipe(root, raw_data, diag, blz, no_dot_name_list, heading, added_models=()
                 no_dot=no_dot_name_list,
                 tolerant_mode=True,
                 added_models=added_models,
+                carrier=carrier,
             )
         r.data_report = slk_data.report_data
     else:
@@ -951,6 +966,21 @@ def map_font(body_text, extract):
         if fname.lower() in existing_names and fname.lower().endswith(('.ttf', '.otf', '.ttc')):
             return existing_names[fname.lower()]
     return None
+
+
+RX_IDEOGRAPH = re.compile('[぀-ヿ㐀-䶿一-鿿豈-﫿]')
+
+
+def writes_ideographs(body_text, extract=None):
+    for m in re.finditer(r'"((?:[^"\\\n]|\\.)*)"', body_text or ''):
+        if RX_IDEOGRAPH.search(m.group(1)):
+            return True
+    if extract:
+        p = os.path.join(extract, 'war3map.wts')
+        if os.path.isfile(p):
+            if RX_IDEOGRAPH.search(open(p, 'rb').read().decode('utf-8', 'replace')):
+                return True
+    return False
 
 
 def text_template(r, log, body_text='', extract=None):
@@ -1333,8 +1363,10 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
         )
         if lua_models:
             log('4. %d unit model(s) the Lua tables set at run time get a carrier unit type' % len(lua_models))
-        r = recipe(root, raw_data, diag, blz, listing, heading, added_models=lua_models)
+        r = recipe(root, raw_data, diag, blz, listing, heading, added_models=lua_models,
+                   carrier=_pair.get('KK_CAR_LIGADO') == 'true')
         r.MEMORY_LEVEL = memory_hacks
+        r.COMMAND_CARD = _pair.get('KK_JN_CARTAO') == 'true'
         from doctor.port import shadowed
         r.MAP_VERSION = shadowed.RANGE_CAP.get((details.get('made_for') or {}).get('range'))
         log('5. the script chain (this is the long step)')
@@ -1383,7 +1415,8 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
         details['speed'] = speed_cap(r, extract, body_text, log)
         details['level'] = level_cap(r, extract, log)
         details['toc'] = close_toc(r, extract, log)
-        interface_font(r, extract, text_template(r, log, body_text, extract), log)
+        if _pair.get('KK_UI_TEXTO') == 'true':
+            interface_font(r, extract, text_template(r, log, body_text, extract), log)
         if details['toc']:
             WARNINGS.append('%d TOC file(s) got the line ending Reforged needs to load the last FDF of the list: %s'
                             % (len(details['toc']), ', '.join(details['toc'][:6])))
