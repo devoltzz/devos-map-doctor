@@ -133,5 +133,8 @@ function DzFrameGetMinimap takes nothing returns integer
 endfunction
 
 function DzFrameGetMinimapButton takes integer buttonId returns integer
+    //{{KK_SE:KK_UI_PAI}}
+    return DB_pai_marca(DB_origin(ORIGIN_FRAME_MINIMAP_BUTTON, buttonId))
+    //{{KK_FIMSE:KK_UI_PAI}}
     return DB_origin(ORIGIN_FRAME_MINIMAP_BUTTON, buttonId)
 endfunction
