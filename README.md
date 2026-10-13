@@ -46,6 +46,13 @@ How to translate a map, every way step by step: [README-translation.md](README-t
 </tr>
 </table>
 
+### New in 1.7.7
+
+- Port to Reforged: a new option, "Remove the game's own files" (off by default). Some maps carry old copies of the game's icons, textures and interface models under the game's own paths, and on Reforged they replace the game's files (the ported Naruto Castle Defense crashed on 1,486 of them). The port report always says how many the map has.
+- Port to Reforged, KK maps on the Lua route (YDWE): many more maps start and play (the main module named in quotes, the MH* platform API, clicks, the stats no longer -0.00, the data files loaded through escaped paths, large RLE textures, floating bars, the shop "bait" items) (issues 23, 24, 26).
+- Port to Reforged: maps that hide the default interface and move the hero, item and minimap buttons into their own HUD now show those buttons (issue 21); the terrain height table of very large maps no longer stops the port (issue 27).
+- Open in World Editor: a script that starts with a UTF-8 byte order mark is accepted (issue 22); it no longer compiles the same script several times, so a cut-off script went from 12 minutes to 13 seconds. Shrinking a map again reuses what was already compressed.
+
 ### New in 1.7.6
 
 - Port to Reforged: maps that draw their own interface by reading the 1.28 game memory (the MemUI library, used by M16 maps like Gutsy Geoid Game and Blc1) now show it: the portrait unit, the mouse position, the tooltip frame and the skill bar are answered with Reforged natives (issue 20, checked in game).
