@@ -24,6 +24,7 @@ from doctor.port import inject
 from doctor.port import engine
 from doctor.port import natives
 from doctor.script import pjass
+from doctor.app import job_progress
 from doctor.port import field_table
 from doctor.port import char_table
 from doctor.port import ui_local
@@ -176,6 +177,7 @@ def assemble(r, argv=None):
     medidas = collections.OrderedDict()
     raw_data = open(r.CRU, 'rb').read().decode('latin-1')
     print('raw: %s (%d B, %d lines, sha %s)' % (r.CRU, len(raw_data), raw_data.count('\n'), sha(raw_data)))
+    job_progress.step_size('0a', 'Building the script: line endings')
     raw_data, n_rc = control_rawcodes(raw_data)
     if n_rc:
         print('0a: %d rawcode(s) with a control byte became a number' % n_rc)
@@ -188,6 +190,7 @@ def assemble(r, argv=None):
         print('0a: %d lone CR line ending(s) became LF' % loose_ones)
     t = raw_data
 
+    job_progress.step_size('0b', 'Building the script: object data')
     if hasattr(r, 'data_bytes'):
         failures, info = r.data_bytes()
         if failures:
@@ -197,6 +200,7 @@ def assemble(r, argv=None):
         if isinstance(info, dict) and 'medidas' in info:
             medidas['data_bytes'] = info['medidas']
 
+    job_progress.step_size('0c', 'Building the script: the LBKKAPI block')
     t, info = lbkkapi.applies(t)
     if info['failures']:
         aborts('0c (LBKKAPI x common.j 3.0)', info['failures'])
@@ -204,6 +208,7 @@ def assemble(r, argv=None):
     verify('0c lbkkapi', exp_len.get('lbkkapi'), info['removed_ones'])
     medidas['lbkkapi'] = info['removed_ones']
 
+    job_progress.step_size('0d', 'Building the script: the return bug')
     t, info = typecast.applies(t)
     if info['failures']:
         aborts('0d (typecast)', info['failures'])
@@ -211,6 +216,7 @@ def assemble(r, argv=None):
     verify('0d typecast', exp_len.get('typecast'), info['rewrites'])
     medidas['typecast'] = info['rewrites']
 
+    job_progress.step_size('0e', 'Building the script: globals')
     t, info = shadowed.applies(t, version_num=getattr(r, 'MAP_VERSION', None))
     r.SHADOWED_INFO = info
     if info['failures']:
@@ -219,6 +225,7 @@ def assemble(r, argv=None):
     verify('0e shadowed', exp_len.get('shadowed'), len(info['removed_ones']))
     medidas['shadowed'] = len(info['removed_ones'])
 
+    job_progress.step_size('0f', 'Building the script: dead types')
     t, info = dead_type.applies(t, dead_type.engine_types(
         open(os.path.join(layer.REF_30, 'common.j'), 'rb').read().decode('latin-1')))
     if info['failures']:
@@ -229,12 +236,14 @@ def assemble(r, argv=None):
         verify('0f dead type', exp_len.get('dead_type'), len(info['functions']))
         medidas['dead_type'] = len(info['functions'])
 
+    job_progress.step_size('0g', 'Building the script: returns')
     t, info = return_fixes.applies(t)
     return_fixes.report_data(info)
     if 'return_fixes' in exp_len or info['real_blocks'] or info['codes'] or info['shadows']:
         verify('0g returns', exp_len.get('return_fixes'), info['real_blocks'] + info['codes'] + info['shadows'])
         medidas['return_fixes'] = info['real_blocks'] + info['codes'] + info['shadows']
 
+    job_progress.step_size('0h', 'Building the script: memory hacks')
     memory_level = getattr(r, 'MEMORY_LEVEL', None)
     if memory_level:
         t, info = memory_hacks.applies(t, lbkkapi.read_reference(), equivalents=True,
@@ -242,6 +251,7 @@ def assemble(r, argv=None):
         memory_hacks.report_data(info)
         r.MEMORY_INFO = info
 
+    job_progress.step_size('0i', 'Building the script: available abilities')
     if getattr(r, 'COMMAND_CARD', False):
         t, info = swap_calls.applies(t, {'SetPlayerAbilityAvailable': 'KKJN_disponivel',
                                          'SetPlayerAbilityAvailableBJ': 'KKJN_disponivel_bj'})
@@ -250,12 +260,14 @@ def assemble(r, argv=None):
         print('0i: %d SetPlayerAbilityAvailable(BJ) call(s) -> KKJN_disponivel(_bj)'
               % sum(info['by_native'].values()))
 
+    job_progress.step_size('1', 'Building the script: the field table')
     failures, _info, _pixel_data = field_table.run_action(r.TABLE_SOURCE, table, r.LEVEL_FIELDS,
                                                           controle=getattr(r, 'CONTROL_TABLE', True),
                                                           by_name=getattr(r, 'SLK_BY_NAME', False))
     if failures:
         aborts('1 (3d table)', failures)
 
+    job_progress.step_size('2', 'Building the script: SLK reads')
     t, info = class1.applies(t, table=table, expected_count=exp_len['class1'],
                              tolerant_mode=getattr(r, 'CLASS1_TOLERANT', False))
     if info['by_class'].get('class 1 in game'):
@@ -268,10 +280,12 @@ def assemble(r, argv=None):
     print('3d: %d EXExecuteScript -> DB_slk_get' % info['swapped'])
     medidas['class1'] = info['swapped']
 
+    job_progress.step_size('3', 'Building the script: Lua hooks')
     t, n = r.traduz(t, raw_data) if hasattr(r, 'traduz') else traduz(r, t, raw_data)
     verify('3h swaps', exp_len.get('translation'), n)
     medidas['translation'] = n
 
+    job_progress.step_size('4a', 'Building the script: dotted model names')
     listing = getattr(r, 'NO_DOT', None)
     if listing:
         from doctor.port import name_without_dot
@@ -286,10 +300,12 @@ def assemble(r, argv=None):
         verify('4a no_dot', exp_len.get('no_dot'), n)
         medidas['no_dot'] = n
 
+    job_progress.step_size('4', 'Building the script: map fixes')
     if hasattr(r, 'decisoes'):
         t, details = r.decisoes(t)
         print('user decisions and fixes of the original map: %s' % details)
 
+    job_progress.step_size('4c', 'Building the script: chat commands')
     if getattr(r, 'CHAT_NORMAL', False):
         n = t.count('GetEventPlayerChatString()')
         t = t.replace('GetEventPlayerChatString()', 'KK_chat()')
@@ -297,6 +313,7 @@ def assemble(r, argv=None):
         verify('4c chat', exp_len.get('chat'), n)
         medidas['chat'] = n
 
+    job_progress.step_size('5', 'Building the script: effects and unit states')
     t, info = effects.applies(t, expected_count=exp_len['effects'])
     if info['failures']:
         aborts('5 (3f)', info['failures'])
@@ -308,17 +325,20 @@ def assemble(r, argv=None):
     print('3g: %s' % {k: v for k, v in info.items() if k not in ('failures',)})
     medidas['statuses'] = dict(info['by_category'])
 
+    job_progress.step_size('7', 'Building the script: save wiring')
     if hasattr(r, 'wiring'):
         t, info = r.wiring(t)
         if info['failures']:
             aborts('7 (wiring)', info['failures'])
 
+    job_progress.step_size('7c', 'Building the script: save wiring')
     if getattr(r, 'SAVE_WIRING', False):
         t, info = save_wiring.applies(t)
         if info['failures']:
             aborts('7c (save wiring)', info['failures'])
         save_wiring.report_data(info)
 
+    job_progress.step_size('7b', 'Building the script: engine differences')
     t, info = engine.applies(t, expected_count=exp_len['engine'])
     if info['failures']:
         aborts('7b (engine)', info['failures'])
@@ -326,6 +346,7 @@ def assemble(r, argv=None):
     medidas['engine'] = dict((k, info[k]) for k in ('destroy_timer', 'dead_unit', 'damage_target', 'target_damage_bj',
                                                   'damage_dealt'))
 
+    job_progress.step_size('8', 'Building the script: local interface code')
     t, info = ui_local.applies(t, exp_len['ui_local'], fixed_ones=getattr(r, 'UI_FIXED', False),
                                tolerant_mode=getattr(r, 'UI_TOLERANT', False))
     if info.get('outside'):
@@ -340,6 +361,7 @@ def assemble(r, argv=None):
         (k, info[k]) for k in ('local_vars', 'functions', 'synchronous_ones', 'quadro', 'boot_info')
     )
 
+    job_progress.step_size('9', 'Building the script: terrain and desync')
     cfg = {'ext': r.DESYNC_EXT, 'extract': r.EXTRACT, 'raw_data': r.CRU, 'copy': os.path.join(r.OUT, 'mapa_terreno.j'),
            'expected_count': exp_len['desync']}
     t, info = desync.applies(t, cfg)
@@ -355,6 +377,7 @@ def assemble(r, argv=None):
         'platform_tilepoints': info['platform_tilepoints'],
     }
 
+    job_progress.step_size('10-12', 'Building the script: the port layer')
     source = ['--source=' + r.NATIVES_SOURCE] if getattr(r, 'NATIVES_SOURCE', None) else []
     layer.configure_layer(r.ROOT, r.PARTS, compat=r.COMPAT, out=r.OUT, output=blizzard, analise=r.OUT,
                           map_natives=map_natives, generator=r.GENERATOR, no_stub=no_stub)
@@ -390,8 +413,10 @@ def assemble(r, argv=None):
     if '--no-pjass' not in argv:
         tmp = os.path.join(r.OUT, '_pjass')
         print('\n### GATE G1 (the blizzard.j of the layer and the war3map.j PRE-injection)')
+        job_progress.step_size('g1', 'Checking the script: compiler gate 1')
         g1 = pjass.main(['--conjunto', '--j=' + pre, '--blizzard=' + blizzard], root=r.ROOT, tmp=tmp)
         print('\n### GATE G2 (the blizzard.j OF THE GAME + the war3map.j WITH the layer)')
+        job_progress.step_size('g2', 'Checking the script: compiler gate 2')
         g2 = pjass.main(['--j=' + final], root=r.ROOT, tmp=tmp)
         print('\nG1 %s | G2 %s' % ('PASS' if g1 == 0 else 'FAIL', 'PASS' if g2 == 0 else 'FAIL'))
         if g1 or g2:
