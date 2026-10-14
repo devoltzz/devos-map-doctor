@@ -1,4 +1,5 @@
 # Finds the handle leaks of a JASS script, weighed by how often they run, and its unset globals.
+import re
 
 from doctor.script import jass_ast
 
@@ -21,7 +22,10 @@ for _n in ('AddSpecialEffect', 'AddSpecialEffectLoc', 'AddSpecialEffectTarget', 
            'AddSpellEffectLoc', 'AddSpellEffectById', 'AddSpellEffectByIdLoc', 'AddSpellEffectTarget',
            'AddSpellEffectTargetById'):
     CREATORS[_n] = ('effect', 'DestroyEffect')
-CREATORS.pop('MoveLocation_never', None)
+NEW_CREATORS = {'AddLightning': ('lightning', 'DestroyLightning'), 'AddLightningEx': ('lightning', 'DestroyLightning'),
+                'CreateTimer': ('timer', 'DestroyTimer'), 'CreateTextTag': ('texttag', 'DestroyTextTag')}
+NEW_DESTROYERS = frozenset(d for _k, d in NEW_CREATORS.values())
+HANDS_OVER = frozenset(('TimerStart', 'SetTextTagLifespan', 'SetTextTagPermanent', 'DestroyLightningBJ'))
 DESTROYERS = frozenset(d for _k, d in CREATORS.values())
 INLINE_KINDS = ('location', 'group', 'force')
 SYNC_CALLBACKS = frozenset(('ForGroup', 'ForGroupBJ', 'ForForce', 'EnumDestructablesInRect', 'EnumItemsInRect',
@@ -63,8 +67,33 @@ def _trigger_key(e, f, own):
     return (f.name, text) if type(base) is jass_ast.Name and base.name in own else text
 
 
-def heat_of(tree):
+def code_aliases(tree):
+    out = {}
+    for g in tree.globals:
+        if type(g.initializer) is jass_ast.FuncRef:
+            out.setdefault(g.name, set()).add(g.initializer.name)
+    for f in tree.functions:
+        for st in jass_ast.walk(f):
+            if type(st) is jass_ast.SetStmt and type(st.value) is jass_ast.FuncRef:
+                t = st.target.base if type(st.target) is jass_ast.Index else st.target
+                if type(t) is jass_ast.Name:
+                    out.setdefault(t.name, set()).add(st.value.name)
+    return out
+
+
+def _refs_via(e, aliases):
+    out = _refs(e)
+    base = e
+    while type(base) is jass_ast.Index or type(base) is jass_ast.Paren:
+        base = base.base if type(base) is jass_ast.Index else base.inner
+    if type(base) is jass_ast.Name and base.name in aliases:
+        out = out + sorted(aliases[base.name])
+    return out
+
+
+def heat_of(tree, code_vars=True):
     funcs = dict((f.name, f) for f in tree.functions)
+    aliases = code_aliases(tree) if code_vars else {}
     edges = dict((n, set()) for n in funcs)
     hot_roots, cb_roots = set(), set()
     trig_actions, periodic = {}, set()
@@ -79,20 +108,26 @@ def heat_of(tree):
                 if target in funcs:
                     edges[f.name].add(target)
             if c.name in ('TriggerAddAction', 'TriggerAddCondition') and len(c.args) == 2:
-                trig_actions.setdefault(_trigger_key(c.args[0], f, own), set()).update(_refs(c.args[1]))
+                trig_actions.setdefault(_trigger_key(c.args[0], f, own), set()).update(_refs_via(c.args[1], aliases))
             elif c.name == 'TriggerRegisterTimerEvent' and len(c.args) == 3 and _is_true(c.args[2]):
                 periodic.add(_trigger_key(c.args[0], f, own))
             elif c.name == 'TriggerRegisterTimerEventPeriodic' and c.args:
                 periodic.add(_trigger_key(c.args[0], f, own))
             elif c.name == 'TimerStart' and len(c.args) == 4 and _is_true(c.args[2]):
-                hot_roots.update(_refs(c.args[3]))
+                hot_roots.update(_refs_via(c.args[3], aliases))
             if c.name in SYNC_CALLBACKS:
                 for a in c.args:
                     edges[f.name].update(r for r in _refs(a) if r in funcs)
             else:
                 for a in c.args:
-                    if type(a) is jass_ast.FuncRef or type(a) is jass_ast.Call and a.name in ('Condition', 'Filter'):
-                        cb_roots.update(r for r in _refs(a) if r in funcs)
+                    if (
+                        type(a) is jass_ast.FuncRef
+                        or type(a) is jass_ast.Call
+                        and a.name in ('Condition', 'Filter')
+                        or type(a) is jass_ast.Name
+                        and a.name in aliases
+                    ):
+                        cb_roots.update(r for r in _refs_via(a, aliases) if r in funcs)
         for st in jass_ast.walk(f):
             if type(st) is jass_ast.SetStmt:
                 cb_roots.update(r for r in _refs(st.value) if r in funcs)
@@ -118,7 +153,9 @@ def heat_of(tree):
                 for n in funcs)
 
 
-def _leaks(f, map_funcs, globals_):
+def _leaks(f, map_funcs, globals_, creators=None, destroyers=None):
+    creators = CREATORS if creators is None else creators
+    destroyers = DESTROYERS if destroyers is None else destroyers
     out = []
     want_destroy = any(type(s) is jass_ast.SetStmt and _text(s.target) == 'bj_wantDestroyGroup' and _is_true(s.value)
                        for s in jass_ast.walk(f))
@@ -127,14 +164,14 @@ def _leaks(f, map_funcs, globals_):
     escaped = set()
     for st in jass_ast.walk(f):
         t = type(st)
-        if t is jass_ast.CallStmt and st.call.name in CREATORS:
+        if t is jass_ast.CallStmt and st.call.name in creators:
             out.append({'rule': 'discarded', 'creator': st.call.name, 'line': st.line})
         if t is jass_ast.LocalDecl and st.initializer is not None and type(st.initializer) is jass_ast.Call and \
-                st.initializer.name in CREATORS:
+                st.initializer.name in creators:
             created[st.name] = (st.initializer.name, st.line)
         if t is jass_ast.SetStmt:
             tgt = _text(st.target)
-            if type(st.value) is jass_ast.Call and st.value.name in CREATORS and tgt in locals_:
+            if type(st.value) is jass_ast.Call and st.value.name in creators and tgt in locals_:
                 created.setdefault(tgt, (st.value.name, st.line))
             if type(st.value) is jass_ast.Name and st.value.name in locals_ and tgt not in locals_:
                 escaped.add(st.value.name)
@@ -142,13 +179,13 @@ def _leaks(f, map_funcs, globals_):
             escaped.update(n.name for n in jass_ast.walk(st.value) if type(n) is jass_ast.Name)
         if t is jass_ast.Call:
             for a in st.args:
-                if type(a) is jass_ast.Call and a.name in CREATORS:
-                    kind, destroyer = CREATORS[a.name]
-                    if kind in INLINE_KINDS and st.name != destroyer and st.name not in CREATORS and \
+                if type(a) is jass_ast.Call and a.name in creators:
+                    kind, destroyer = creators[a.name]
+                    if kind in INLINE_KINDS and st.name != destroyer and st.name not in creators and \
                             not (kind == 'group' and want_destroy):
                         out.append({'rule': 'inline', 'creator': a.name, 'line': a.line or st.line, 'into': st.name})
             names = [a.name for a in st.args if type(a) is jass_ast.Name and a.name in locals_]
-            if st.name in DESTROYERS or st.name in map_funcs or st.name.startswith('Save') or \
+            if st.name in destroyers or st.name in map_funcs or st.name.startswith('Save') or \
                     st.name in ('ExecuteFunc',):
                 escaped.update(names)
     for name, (creator, line) in created.items():
@@ -170,7 +207,15 @@ def _native():
     return _NATIVE[0]
 
 
-def check_text(text, native=True):
+def check_text(text, native=True, extended=False):
+    out = _base(text, native)
+    if extended and 'error' not in out and RX_EXTENDED.search(text):
+        _supplement(out, text)
+        out['lines'] = summary(out)
+    return out
+
+
+def _base(text, native):
     f = _native() if native else False
     if f:
         r = f(text)
@@ -182,7 +227,7 @@ def check_text(text, native=True):
         tree = jass_ast.parse(text)
     except jass_ast.JassSyntaxError as e:
         return {'language': 'jass', 'error': 'The script does not parse (%s).' % e}
-    heat = heat_of(tree)
+    heat = heat_of(tree, code_vars=False)
     map_funcs = set(heat)
     globals_ = dict((g.name, g) for g in tree.globals)
     leaks = []
@@ -223,6 +268,66 @@ def check_text(text, native=True):
            'heat': dict((h, sum(1 for v in heat.values() if v == h)) for h in HEATS), 'counts': counts}
     out['lines'] = summary(out)
     return out
+
+
+RX_EXTENDED = re.compile(r'\bCreateTimer\b|\bCreateTextTag\b|\bAddLightning|'
+                         r'\bset[ \t]+\w+(?:\[[^\]\r\n]*\])?[ \t]*=[ \t]*function\b')
+
+
+RX_NEW_CREATORS = re.compile(r'\bCreateTimer\b|\bCreateTextTag\b|\bAddLightning\w*')
+ALL_CREATORS = dict(CREATORS, **NEW_CREATORS)
+ALL_DESTROYERS = DESTROYERS | NEW_DESTROYERS | HANDS_OVER
+
+
+def _functions_at(tree, text, rx):
+    import bisect
+    breaks = [m.end() for m in jass_ast._LINE_BREAK_RE.finditer(text)]
+    starts = sorted((f.line, f.end_line, f.name) for f in tree.functions)
+    heads = [x[0] for x in starts]
+    out = set()
+    for m in rx.finditer(text):
+        line = bisect.bisect_right(breaks, m.start()) + 1
+        i = bisect.bisect_right(heads, line) - 1
+        if i >= 0 and starts[i][0] <= line <= starts[i][1]:
+            out.add(starts[i][2])
+    return out
+
+
+def _supplement(out, text):
+    try:
+        tree = jass_ast.parse(text)
+    except jass_ast.JassSyntaxError:
+        return
+    aliases = code_aliases(tree)
+    heat = heat_of(tree)
+    old = heat_of(tree, code_vars=False) if aliases else heat
+    changed = set(n for n in heat if heat[n] != old[n])
+    new_only = _functions_at(tree, text, RX_NEW_CREATORS) - changed
+    by_name = dict((f.name, f) for f in tree.functions)
+    map_funcs = set(heat)
+    globals_ = dict((g.name, g) for g in tree.globals)
+    c = out.setdefault('counts', {})
+    leaks = [x for x in out.get('leaks', ()) if x['function'] not in changed]
+    for name in changed:
+        f = by_name[name]
+        for _x in _leaks(f, map_funcs, globals_):
+            c['leaks'] -= 1
+            c['leaks_' + old[name]] -= 1
+    for name in sorted(changed | new_only):
+        f = by_name[name]
+        if name in changed:
+            found = _leaks(f, map_funcs, globals_, ALL_CREATORS, ALL_DESTROYERS)
+        else:
+            found = _leaks(f, map_funcs, globals_, NEW_CREATORS, NEW_DESTROYERS | HANDS_OVER)
+        for x in found:
+            x['function'] = name
+            x['heat'] = heat[name]
+            leaks.append(x)
+            c['leaks'] += 1
+            c['leaks_' + heat[name]] += 1
+    leaks.sort(key=lambda x: (HEATS.index(x['heat']), x['line']))
+    out['leaks'] = leaks[:LIST_MAX * 5]
+    out['heat'] = dict((h, sum(1 for v in heat.values() if v == h)) for h in HEATS)
 
 
 RULE_TEXT = {'discarded': 'created and thrown away', 'inline': 'created inside a call and never destroyed',
@@ -272,4 +377,4 @@ def check(path):
         text = sc['bytes'].decode('utf-8', 'surrogateescape')
     if lang != 'jass':
         return {'language': lang, 'lines': ['The script checks read JASS; this script is %s.' % lang]}
-    return check_text(text)
+    return check_text(text, extended=True)
