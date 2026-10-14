@@ -2631,5 +2631,9 @@
  "{0} textures only the game has are not drawn.": "게임에만 있는 텍스처 {0}개가 그려지지 않습니다.",
  "{0} unbalanced braces": "짝이 맞지 않는 중괄호 {0}개",
  "{0} unit types get their {1} normal abilities from the script as each unit is created ({2} unit types keep theirs in the object data, {3} abilities stay on the others). Test the map before sharing it.": "유닛 유형 {0}개는 유닛이 생성될 때마다 스크립트에서 일반 능력 {1}개를 받습니다 (유닛 유형 {2}개는 오브젝트 데이터에 능력을 유지하며, 나머지에는 능력 {3}개가 남습니다). 공유하기 전에 맵을 테스트하세요.",
- "{0}=Game.dll+0x{1}": "{0}=Game.dll+0x{1}"
+ "{0}=Game.dll+0x{1}": "{0}=Game.dll+0x{1}",
+ "A folder of loose art files (the ones a map reads from the game folder with \"Allow Local Files\")": "낱개 아트 파일이 들어 있는 폴더 (맵이 \"Allow Local Files\"로 게임 폴더에서 읽는 파일들)",
+ "Add a folder...": "폴더 추가...",
+ "the folder next to the ported map": "포팅된 맵 옆의 폴더",
+ "{0} file(s) ({1} MB) from a folder of loose files stay OUT of the map, as the map used them: they are in {2}. Copy its war3mapImported folder into the game folder (\"Warcraft III\\_retail_\") and turn on \"Allow Local Files\" (see the README.txt there; every player needs the same files)": "낱개 파일 폴더의 파일 {0}개({1} MB)는 맵이 사용하던 방식 그대로 맵 안에 넣지 않고 맵 밖에 둡니다. 파일은 {2}에 있습니다. 그 안의 war3mapImported 폴더를 게임 폴더(\"Warcraft III\\_retail_\")로 복사하고 \"Allow Local Files\"를 켜세요(그곳의 README.txt 참고, 모든 플레이어에게 같은 파일이 필요합니다)"
 }
