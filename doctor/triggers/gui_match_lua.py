@@ -1121,6 +1121,28 @@ def initialization_event(td=None):
     return wtg.Function(EVENT, 'MapInitializationEvent', 1, [])
 
 
+def run_initialization(chunk):
+    functions = chunk if isinstance(chunk, dict) else script_functions(chunk)
+    f = functions.get('RunInitializationTriggers')
+    out = set()
+    for s in (f.body if f is not None else ()):
+        if type(s) is lua_ast.CallStmt and _callee(s.call) == 'ConditionalTriggerExecute' and s.call.args:
+            n = _name(s.call.args[0])
+            if n:
+                out.add(n)
+    return out
+
+
+def add_map_initialization(trigger, functions, init_name, run_init):
+    body = functions[init_name].body if init_name in functions else ()
+    first = body[0] if body and type(body[0]) is lua_ast.AssignStmt and len(body[0].targets) == 1 else None
+    target = first.targets[0].name if first is not None and type(first.targets[0]) is lua_ast.Name else None
+    if (target in run_init and not trigger.initially_off and
+            not any(f.kind == EVENT and f.name == 'MapInitializationEvent' for f in trigger.functions)):
+        trigger.functions.insert(0, initialization_event())
+    return trigger
+
+
 def match_trigger(functions, init_name, td, globals_types=None, name=None, source=None):
     init = functions.get(init_name)
     if init is None or type(init) is not lua_ast.FunctionStmt:
@@ -1444,6 +1466,41 @@ def _norm_param(p, t, td, var_types):
     return ('t', _param_text(p, t, td), index)
 
 
+def _norm_trigger(t, td, var_types):
+    fs = sorted(_lua_view(t, td), key=lambda f: f.kind)
+    runs = not t.initially_off and (bool(t.run_on_init) or any(f.name == 'MapInitializationEvent' for f in fs))
+    return (bool(t.initially_off), runs, tuple(_norm_function(f, td, var_types) for f in fs
+                                               if f.name != 'MapInitializationEvent'))
+
+
+def _form_text(r):
+    return r[1] if r[0] == 't' else r[1][1] if r[0] == 'f' else r[0]
+
+
+def _norm_difference(a, b):
+    for x, y in zip(a, b):
+        if x == y:
+            continue
+        if x[:2] != y[:2]:
+            return 'function %s vs %s' % (x[1], y[1]), ''
+        for p, q in zip(x[2], y[2]):
+            if p == q:
+                continue
+            if p[0] == 'f' and q[0] == 'f':
+                return _norm_difference([p[1]], [q[1]])
+            return 'a parameter of %s' % x[1], '%s / %s' % (_form_text(p), _form_text(q))
+        if [g[0] for g in x[3]] != [g[0] for g in y[3]]:
+            return 'the branches of %s' % x[1], ''
+        for (_bx, cx), (_by, cy) in zip(x[3], y[3]):
+            if cx != cy:
+                return _norm_difference(cx, cy)
+    return ('function count', '%d / %d' % (len(a), len(b))) if len(a) != len(b) else ('flags', '')
+
+
+def _lua_view(t, td):
+    return [f for f in _visible(t.functions) if not (t.initially_off and f.name == 'MapInitializationEvent')]
+
+
 def _as_shown(fs, top=True, td=None):
     out = []
     for f in sorted(fs, key=(lambda f: f.kind) if top else (lambda f: f.branch or 0)):
@@ -1525,4 +1582,108 @@ def _param_difference(p, q, td, at):
 def _read(path):
     with open(path, 'rb') as f:
         return f.read()
+
+
+def _init_order(functions):
+    f = functions.get('InitCustomTriggers')
+    return [_callee(s.call) for s in (f.body if f is not None else ())
+            if type(s) is lua_ast.CallStmt and _callee(s.call)]
+
+
+def _compare_globals(variables, sources, real, counts, examples):
+    mine = dict((v.name, v) for v in variables)
+    counts['variables'] += len(real)
+    counts['order'] += [v.name for v in variables] == [v.name for v in real]
+    for v in real:
+        w = mine.get(v.name)
+        if w is None:
+            counts['missing'] += 1
+            continue
+        how = sources.get('udg_' + v.name, '?').split(' ')[0]
+        counts['decided ' + how] += 1
+        fields = (('type', w.type == v.type), ('is_array', w.is_array == v.is_array),
+                  ('array_size', not v.is_array or w.array_size == v.array_size),
+                  ('initial value', (w.initialized and w.initial_value) == (v.initialized and v.initial_value)))
+        bad = [f for f, ok in fields if not ok]
+        counts['type ok'] += fields[0][1]
+        counts['type ok by ' + how] += fields[0][1]
+        counts['all fields ok'] += not bad
+        for f in bad:
+            key = '%s: %s' % (f, how if f == 'type' else '')
+            counts['differs ' + key] += 1
+            examples.setdefault(key, '%s %s[%d] init %r / wtg %s %s[%d] init %r' % (
+                v.name, w.type, w.array_size, w.initial_value if w.initialized else None, v.type, v.type,
+                v.array_size, v.initial_value if v.initialized else None))
+
+
+def _check_map(name, text, mt, texts, td, stats, classes):
+    from doctor.triggers import gui_render
+    chunk = lua_ast.parse(text)
+    functions = script_functions(chunk)
+    variables, types, sources = _derive_globals(chunk, td)
+    _compare_globals(variables, sources, mt.variables, stats['globals'], classes['globals'])
+    model_types = dict((v.name, v.type) for v in variables)
+    real_types = dict((v.name, v.type) for v in mt.variables)
+    mt_model = wtg.MapTriggers(variables=variables)
+    split = gui_render.split_functions(text, 'lua')
+    run = run_initialization(functions)
+    c = stats['triggers']
+    triggers = [(t, x) for t, x in zip(mt.triggers, texts) if t.enabled and not t.is_comment]
+    order = _init_order(functions)
+    c['paired'] += sum(1 for (t, _x), init in zip(triggers, order) if init == 'InitTrig_' + _identifier(t.name))
+    for (t, _x), init in zip(triggers, order):
+        if t.is_text:
+            c['text'] += 1
+            continue
+        c['gui'] += 1
+        m = match_trigger(functions, init, td, types, t.name, text)
+        if m.trigger is None:
+            classes['no model'][m.reason.split(':')[0]] += 1
+            classes['no model examples'].setdefault(m.reason.split(':')[0], '%s %r: %s' % (name, t.name, m.reason))
+            continue
+        c['matched'] += 1
+        c['custom lines'] += m.custom_lines
+        c['with custom lines'] += m.custom_lines > 0
+        model = add_map_initialization(m.trigger, functions, init, run)
+        mine, real = _as_shown(model.functions), _as_shown(t.functions)
+        flags = model.initially_off == t.initially_off and model.run_on_init == t.run_on_init
+        strict = mine == real and flags
+        c['strict'] += strict
+        c['strict in file order'] += strict and model.functions == t.functions
+        if not strict:
+            d = _first_difference(mine, real, td) or ('trigger flags', '')
+            classes['strict'][d[0]] += 1
+            classes['strict examples'].setdefault(d[0], '%s %r %s' % (name, t.name, d[1]))
+        mine_shown, real_shown = _as_shown(model.functions, True, td), _as_shown(_lua_view(t, td), True, td)
+        shown = mine_shown == real_shown and flags
+        c['strict visible'] += shown
+        if not shown:
+            d = _first_difference(mine_shown, real_shown, td) or ('trigger flags', '')
+            classes['visible'][d[0]] += 1
+            classes['visible examples'].setdefault(d[0], '%s %r %s' % (name, t.name, d[1]))
+        x, y = _norm_trigger(model, td, model_types), _norm_trigger(t, td, real_types)
+        equivalent = x == y
+        c['equivalent'] += equivalent
+        if not equivalent:
+            d = _norm_difference(x[2], y[2]) if x[:2] == y[:2] else ('flags', '')
+            classes['equivalent'][d[0]] += 1
+            classes['equivalent examples'].setdefault(d[0], '%s %r %s' % (name, t.name, d[1]))
+        ok, a, b = gui_render.compare_trigger(model, td, mt_model, text, 'lua', functions=split)
+        c['round trip'] += ok
+        c['round trip of the equivalent'] += ok and equivalent
+        if not ok:
+            classes['round trip'][name] += 1
+            classes['round trip examples'].setdefault(name, '%r: %s' % (t.name, _text_difference(a, b)))
+        c['partition'] += set(m.helpers) | set(m.external) == set(gui_render.closure(split, init))
+
+
+def _identifier(name):
+    from doctor.triggers import gui_render
+    return gui_render.trigger_identifier(name)
+
+
+def _text_difference(a, b):
+    x, y = a.split('\n'), b.split('\n')
+    k = next((i for i in range(min(len(x), len(y))) if x[i] != y[i]), min(len(x), len(y)))
+    return 'rendered %r / script %r' % (x[k][:120] if k < len(x) else '<end>', y[k][:120] if k < len(y) else '<end>')
 
