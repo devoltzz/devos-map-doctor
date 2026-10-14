@@ -24,9 +24,12 @@
   <main class="about">
     <div class="card">
       <h2 style="margin-top:0">What this is</h2>
-      <p>The Devo's Map Doctor in your browser: the same program as the Windows download, run here. It opens protected
-        Warcraft III maps, fixes what stops them on Reforged 3.0, prepares them for the World Editor and ports the maps
-        of the KK and M16 platforms.</p>
+      <p>The Devo's Map Doctor in your browser: the same program as the download for Windows and Linux, run here. It
+        opens protected Warcraft III maps, fixes what stops them on Reforged 3.0, prepares them for the World Editor and
+        ports the maps of the KK and M16 platforms. It also checks whether a map runs on Reforged or on an older game,
+        adds cheat packs and quality of life edits, exports and imports translations, shows the files of a map (with a
+        3D preview of its models) and its script, and helps find out why a map fails in the game (Diagnose). The page
+        is in English and 16 other languages.</p>
 
       <h2>Privacy</h2>
       <ul>
@@ -44,19 +47,25 @@
         <li>The program itself: the Doctor's engine, Python (Pyodide) with numpy and Pillow, and pjass (the JASS checker),
           about 20 MB, once.</li>
         <li>The game data the engine reads (Warcraft III's object tables, TriggerData and the game scripts), about 3 MB:
-          the Windows program reads them from your installed game.</li>
+          the program for Windows and Linux reads them from your installed game.</li>
         <li>The file name index (62 MB), only if you accept it: it recovers the names of files in protected maps.</li>
       </ul>
 
       <h2>Limits</h2>
       <ul>
         <li>Chrome, Edge and Firefox on a computer. Safari and phones may work, slowly or not at all.</li>
-        <li>Very big maps (above 450 MB) need more memory than a browser gives a page: use the Windows program.</li>
-        <li>The browser is slower than the Windows program (about 1.5 times).</li>
+        <li>Very big maps (above 450 MB) need more memory than a browser gives a page: use the program for Windows or
+          Linux.</li>
+        <li>The browser is slower than the program (about 1.5 times).</li>
+        <li>Only in the program for Windows and Linux: the local machine translation and the text in the images (OCR).</li>
+        <li>The checks that need the game's own file list (map files at the game's own paths, model paths that
+          resolve to nothing) run only in the program with the game installed.</li>
+        <li>Diagnose cannot see the folders the game writes to: choose the log or the crash report file yourself
+          (Documents\Warcraft III\CustomMapData\DevosMapDoctor and Documents\Warcraft III\Errors).</li>
       </ul>
 
-      <h2>Source and the Windows program</h2>
-      <p id="repo">The source code and the Windows program are on GitHub.</p>
+      <h2>Source and the program</h2>
+      <p id="repo">The source code and the program for Windows and Linux are on GitHub.</p>
     </div>
   </main>
 </div>
