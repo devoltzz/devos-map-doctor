@@ -6,6 +6,7 @@ import zlib
 
 from doctor.mpq import mpqlib as M
 from doctor.mpq import mpqread
+from doctor.app import job_progress
 
 
 FREE = 0xFFFFFFFF
@@ -114,24 +115,26 @@ def rebuild(
     if missing_items:
         log('warning: names to remove that the map does not have: %s' % missing_items)
     content = {}
-    for slot, fname in keep.items():
-        if fname is not None and fname in replacements:
-            content[slot] = replacements[fname]
-            continue
-        bi = ht[slot][3] & mpqread.BLOCK_MASK
-        fl = a.blocks[bi][3]
-        hash_key = None
-        if fl & mpqread.FLAG_ENCRYPT and fname is None:
-            hash_key = a.unnamed_key(bi)
-            if hash_key is None:
-                raise RebuildError(
-                    'slot %d: block %d is ENCRYPTED and has no known name (the key is the hash of the name)'
-                    % (slot, bi)
-                )
-        d = a.read(fname if fname is not None else '__unnamed__', bi=bi, hash_key=hash_key)
-        if d is None:
-            raise RebuildError('slot %d (%s): block %d could not be read' % (slot, fname, bi))
-        content[slot] = d
+    with job_progress.stage('read_data'):
+        for n_done_read, (slot, fname) in enumerate(keep.items()):
+            job_progress.avanca(n_done_read, len(keep))
+            if fname is not None and fname in replacements:
+                content[slot] = replacements[fname]
+                continue
+            bi = ht[slot][3] & mpqread.BLOCK_MASK
+            fl = a.blocks[bi][3]
+            hash_key = None
+            if fl & mpqread.FLAG_ENCRYPT and fname is None:
+                hash_key = a.unnamed_key(bi)
+                if hash_key is None:
+                    raise RebuildError(
+                        'slot %d: block %d is ENCRYPTED and has no known name (the key is the hash of the name)'
+                        % (slot, bi)
+                    )
+            d = a.read(fname if fname is not None else '__unnamed__', bi=bi, hash_key=hash_key)
+            if d is None:
+                raise RebuildError('slot %d (%s): block %d could not be read' % (slot, fname, bi))
+            content[slot] = d
     already_present = sorted(n for n in new_ones if n in keep.values())
     if already_present:
         raise RebuildError('new file(s) that the map already has (use trocar): %s' % already_present)
@@ -188,13 +191,18 @@ def rebuild(
     data_bytes = bytearray()
     order = sorted([(s, ('v', s)) for s in keep] + [(j, ('n', n)) for n, j in new_slots.items()])
     new_bi = {}
-    for _slot, hash_key in order:
-        d = content[hash_key[1]] if hash_key[0] == 'v' else new_content[hash_key[1]]
-        body, fl = pack_file(d, sector_bytes, level)
-        pos = 32 + len(data_bytes)
-        new_bi[hash_key] = len(block_list)
-        block_list.append((pos, len(body), len(d), fl if body else F_EXISTS))
-        data_bytes += body
+    weight = sum(len(content[c[1]] if c[0] == 'v' else new_content[c[1]]) for _s, c in order) // 1024 or 1
+    done = 0
+    with job_progress.stage('compress_scope'):
+        for _slot, hash_key in order:
+            d = content[hash_key[1]] if hash_key[0] == 'v' else new_content[hash_key[1]]
+            body, fl = pack_file(d, sector_bytes, level)
+            pos = 32 + len(data_bytes)
+            new_bi[hash_key] = len(block_list)
+            block_list.append((pos, len(body), len(d), fl if body else F_EXISTS))
+            data_bytes += body
+            done += len(d)
+            job_progress.avanca(done // 1024, weight)
     hash_vals = []
     for t in tab:
         if t == 'free':
@@ -236,17 +244,21 @@ def rebuild(
     }
     b = mpqread.Archive(output)
     error_list = []
-    for _slot, hash_key in order:
-        fname = keep[hash_key[1]] if hash_key[0] == 'v' else hash_key[1]
-        expected_len = content[hash_key[1]] if hash_key[0] == 'v' else new_content[hash_key[1]]
-        bi = new_bi[hash_key]
-        d = b.read(fname if fname else '__unnamed__', bi=bi)
-        if d is None or hashlib.sha256(d).digest() != hashlib.sha256(expected_len).digest():
-            error_list.append('%s (%s): differs when read back' % (fname, hash_key))
-        if fname:
-            r = b.find(fname)
-            if r is None or r[1] != bi:
-                error_list.append('%s: the probe does not find block %d' % (fname, bi))
+    done = 0
+    with job_progress.stage('reread_scope'):
+        for _slot, hash_key in order:
+            fname = keep[hash_key[1]] if hash_key[0] == 'v' else hash_key[1]
+            expected_len = content[hash_key[1]] if hash_key[0] == 'v' else new_content[hash_key[1]]
+            bi = new_bi[hash_key]
+            d = b.read(fname if fname else '__unnamed__', bi=bi)
+            if d is None or hashlib.sha256(d).digest() != hashlib.sha256(expected_len).digest():
+                error_list.append('%s (%s): differs when read back' % (fname, hash_key))
+            if fname:
+                r = b.find(fname)
+                if r is None or r[1] != bi:
+                    error_list.append('%s: the probe does not find block %d' % (fname, bi))
+            done += len(expected_len)
+            job_progress.avanca(done // 1024, weight)
     for i in range(b.h.hash_n):
         hA, hB, bl, bi = b.ht[i * 4:i * 4 + 4]
         if bi < len(b.blocks) and bl != 0:
