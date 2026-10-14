@@ -6,6 +6,7 @@ import json
 import os
 import re
 import hashlib
+import shutil
 import time
 
 from doctor.mpq import mpqread
@@ -1113,6 +1114,17 @@ def report_text(details):
               'packages)' % (ar['imported'], ar['bytes'] / 1e6, ', '.join('%s: %d' % kv for kv in
                                                                            sorted(ar['by_pack'].items())) or '-',
                               ar['missing_items'])]
+        if ar.get('local_vars'):
+            L.append(
+                '- %d file(s) (%.1f MB) from a folder of loose files stay OUT of the map, as the map used them: '
+                'they are in %s. Copy its war3mapImported folder into the game folder ("Warcraft III\\_retail_") '
+                'and turn on "Allow Local Files" (see the README.txt there; every player needs the same files)'
+                % (
+                    ar['local_vars'],
+                    ar.get('local_bytes', 0) / 1e6,
+                    ar.get('local_folder') or 'the folder next to the ported map',
+                )
+            )
     tm = details.get('dead_type')
     if tm and tm.get('types'):
         L += ['', 'Removed (dead platform code)', '-' * 28,
@@ -1302,6 +1314,32 @@ def stable_title(fname):
     return n
 
 
+LOCAL_ART_README = '''These are the art files the ported map reads from the game folder, outside the map (the map is
+too big to carry them: the game opens maps up to 512 MiB).
+
+1. Copy what is in this folder (the war3mapImported folder) into the folder of the game, "Warcraft III\\_retail_".
+2. Turn on "Allow Local Files": the DWORD value "Allow Local Files" = 1 in the registry key
+   HKEY_CURRENT_USER\\Software\\Blizzard Entertainment\\Warcraft III (the .reg file of the map's art pack does this).
+
+Every player of the map needs the same files.
+'''
+
+
+def write_local_art(folder, output, log=print):
+    import shutil
+    base = os.path.splitext(output)[0]
+    if base.endswith('.part'):
+        base = base[:-5]
+    tgt = base + '_local_files'
+    if os.path.isdir(tgt):
+        shutil.rmtree(tgt)
+    shutil.copytree(folder, tgt)
+    with open(os.path.join(tgt, 'README.txt'), 'w', encoding='utf-8', newline='\r\n') as f:
+        f.write(LOCAL_ART_README)
+    log('6. the art left out of the map: %s' % tgt)
+    return tgt
+
+
 def map_port(map_path, work, output=None, stats=None, heading=None, log=print, packages=(), shrink_large=True,
              memory_hacks='neutralize', balance_numbers=False, lua_translation=None, shrink_with_loss=False):
     t0 = time.time()
@@ -1452,8 +1490,10 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
             job_progress.topo('arte', 'Importing the art of the packages')
             from doctor.port import art_packs
             script = open(os.path.join(r.OUT, 'war3map_pre_injecao.j'), 'rb').read().decode('utf-8', 'surrogateescape')
+            local_art = os.path.join(r.OUT, 'local_art')
             arte, _s = _muted(art_packs.import_it, original, list(packages), script, os.path.join(r.OUT, 'arte'),
-                              data_bytes=os.path.join(r.DATA, 'Units'), extract=extract, log=lambda s: None)
+                              data_bytes=os.path.join(r.DATA, 'Units'), extract=extract, log=lambda s: None,
+                              local=local_art)
             if isinstance(arte, SystemExit):
                 WARNINGS.append('the art packages could not be read: %s' % arte)
             else:
@@ -1463,10 +1503,12 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
                     'bytes': arte['bytes'],
                     'missing_items': len(arte['missing_items']),
                     'by_pack': arte['by_pack'],
+                    'local_vars': arte['local_vars'],
+                    'local_bytes': arte['local_bytes'],
                 }
                 WARNINGS.extend(arte['warnings'][:20])
-                log('6. art from %d package(s): %d file(s) imported, %d still missing'
-                    % (len(packages), arte['imported'], len(arte['missing_items'])))
+                log('6. art from %d package(s): %d file(s) imported, %d left out of the map as loose files, %d still '
+                    'missing' % (len(packages), arte['imported'], arte['local_vars'], len(arte['missing_items'])))
         to_remove = ['kkmap.jc'] if forma == 'kkwe' else (['war3map.bin'] if forma == 'j2b' else [])
         scripts_folder = scripts_folder_files(original, name_list)
         if scripts_folder:
@@ -1481,6 +1523,8 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
             ]
         job_progress.topo('assemble', 'Assembling the ported map')
         sz, slack, entrou = build_w3x(original, output, r, to_remove, listing, log, name_list=name_list, script=script)
+        if (details.get('arte') or {}).get('local_vars'):
+            details['arte']['local_folder'] = write_local_art(os.path.join(r.OUT, 'local_art'), output, log)
         if slack < 0 and shrink_large:
             job_progress.topo('shrinks', 'Making the map smaller')
             sz, slack = shrinks(output, sz, log, shrink_with_loss)
