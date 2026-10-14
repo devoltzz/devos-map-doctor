@@ -2630,5 +2630,9 @@
  "{0} textures only the game has are not drawn.": "Tekstury tylko z gry nie są rysowane: {0}.",
  "{0} unbalanced braces": "Niezrównoważone nawiasy klamrowe: {0}",
  "{0} unit types get their {1} normal abilities from the script as each unit is created ({2} unit types keep theirs in the object data, {3} abilities stay on the others). Test the map before sharing it.": "Typy jednostek ({0}) dostają swoje zwykłe zdolności ({1}) ze skryptu przy tworzeniu każdej jednostki (typów, które trzymają je w danych obiektów: {2}, zdolności zostających na pozostałych: {3}). Przetestuj mapę przed udostępnieniem.",
- "{0}=Game.dll+0x{1}": "{0}=Game.dll+0x{1}"
+ "{0}=Game.dll+0x{1}": "{0}=Game.dll+0x{1}",
+ "A folder of loose art files (the ones a map reads from the game folder with \"Allow Local Files\")": "Folder z luźnymi plikami grafik (tymi, które mapa czyta z folderu gry przez \"Allow Local Files\")",
+ "Add a folder...": "Dodaj folder...",
+ "the folder next to the ported map": "folder obok przeportowanej mapy",
+ "{0} file(s) ({1} MB) from a folder of loose files stay OUT of the map, as the map used them: they are in {2}. Copy its war3mapImported folder into the game folder (\"Warcraft III\\_retail_\") and turn on \"Allow Local Files\" (see the README.txt there; every player needs the same files)": "Plików: {0} ({1} MB) z folderu z luźnymi plikami zostaje POZA mapą, tak jak używała ich mapa: są w {2}. Skopiuj jego folder war3mapImported do folderu gry (\"Warcraft III\\_retail_\") i włącz \"Allow Local Files\" (zobacz README.txt w tym folderze; każdy gracz potrzebuje tych samych plików)"
 }
