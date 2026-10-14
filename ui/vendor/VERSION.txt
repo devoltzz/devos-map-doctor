@@ -1,0 +1,4 @@
+war3-model 4.0.1 (npm war3-model@4.0.1, https://github.com/4eb0da/war3-model, MIT, (c) 2017-2023 4eb0da)
+file: dist/war3-model.browser.js, unchanged. sha256 bea4f1f34ff3f18af63f41a13a65c882ceeb69ae8e24e9ae3490e7758717a3ba
+It bundles gl-matrix 3.3.0 (MIT, (c) 2015-2020 Brandon Jones, Colin MacKenzie IV): LICENSE-gl-matrix.txt.
+Loaded by model3d.js on the first 3D preview; nothing else in the page uses it.
