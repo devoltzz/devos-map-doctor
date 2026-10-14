@@ -125,7 +125,8 @@
 
   const ACCEPT = { map: '.w3x,.w3m,.w3n,.mix,.asi,.dll,.mpq,.w3mod', translation: '.json,.html,.htm',
     package: '.mix,.asi,.dll,.mpq,.w3mod',
-    image: '.png,.jpg,.jpeg,.bmp,.tga,.blp' };
+    image: '.png,.jpg,.jpeg,.bmp,.tga,.blp',
+    log: '.pld', crash: '.txt', replay: '.w3g' };
 
   function loadSettings() {
     try { return JSON.parse(localStorage.getItem(SETTINGS) || '{}'); } catch (e) { return {}; }
