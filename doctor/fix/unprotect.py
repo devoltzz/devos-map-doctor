@@ -13,6 +13,7 @@ from doctor.mpq import mpqread
 from doctor.mpq import mpqdoctor
 from doctor.mpq import mpqnames
 from doctor.mpq import mpqadd
+from doctor.app import job_progress
 from doctor.mpq import mpq_rebuild
 from doctor.fix import editor_prep
 from doctor.fix import object_ids
@@ -102,6 +103,9 @@ def steps(diag):
 
 
 EXTRAS = (
+    'slk_objects',
+    'attributes',
+    'game_overrides',
     'models',
     'model_names',
     'portraits',
@@ -113,8 +117,14 @@ EXTRAS = (
     'single_player',
     'card',
     'translation',
+    'requirements',
+    'fdf',
+    'null_handles',
+    'minify',
     'strip_indent',
+    'shrink_models',
     'shrink',
+    'lobby_image',
 )
 
 
@@ -134,31 +144,59 @@ def apply_extras(entry, output, extras, progress=None):
             p('extra_' + extra)
             t = os.path.join(tmp, '%d_%s%s' % (i, extra, os.path.splitext(entry)[1] or '.w3x'))
             try:
-                with quiet():
-                    if extra == 'models':
+                with quiet(), job_progress.stage(extra):
+                    if extra == 'attributes':
+                        from doctor.fix import attributes_check
+                        details = attributes_check.fix(src, t, p)
+                    elif extra == 'game_overrides':
+                        from doctor.port import game_files
+                        details = game_files.fix(src, t, p)
+                    elif extra == 'requirements':
+                        from doctor.fix import requirement_check
+                        details = requirement_check.fix(src, t, p)
+                    elif extra == 'fdf':
+                        from doctor.fix import fdf_lint
+                        details = fdf_lint.fix(src, t, p)
+                    elif extra == 'slk_objects':
+                        from doctor.fix import slk_objects
+                        details = slk_objects.fix(src, t, p)
+                    elif extra == 'lobby_image':
+                        from doctor.fix import lobby_image
+                        details = lobby_image.fix(src, t, p, image=param if isinstance(param, str) else None)
+                    elif extra == 'shrink_models':
+                        from doctor.fix import mdx_optimize
+                        details = mdx_optimize.optimize_map(src, t, dict(param if isinstance(param, dict) else {},
+                                                                         compact=not (extras or {}).get('shrink')), p)
+                    elif extra == 'null_handles':
+                        from doctor.fix import handle_nulls
+                        details = handle_nulls.fix(src, t, p)
+                    elif extra == 'minify':
+                        from doctor.fix import jass_minify
+                        details = jass_minify.fix(src, t, p)
+                    elif extra == 'models':
                         from doctor.models import model_check
-                        details = model_check.fix(src, t)
+                        details = model_check.fix(src, t, None, p)
                     elif extra == 'model_names':
                         from doctor.fix import model_names
-                        details = model_names.fix(src, t)
+                        details = model_names.fix(src, t, p)
                     elif extra == 'portraits':
                         from doctor.models import model_check
-                        details = model_check.fix(src, t, what=('portrait_camera',))
+                        details = model_check.fix(src, t, None, p, model_check.portrait_what(param))
                     elif extra == 'data_pointers':
                         from doctor.fix import data_pointers
-                        details = data_pointers.fix(src, t)
+                        details = data_pointers.fix(src, t, p)
                     elif extra == 'kk_textures':
                         from doctor.fix import kk_textures
-                        details = kk_textures.fix(src, t)
+                        details = kk_textures.fix(src, t, p)
                     elif extra == 'disabled_icons':
                         from doctor.fix import disabled_icons
-                        details = disabled_icons.fix(src, t)
+                        details = disabled_icons.fix(src, t, p)
                     elif extra == 'uabi':
                         from doctor.fix import uabi_runtime
                         details = uabi_runtime.fix(src, t)
                     elif extra == 'preload':
                         from doctor.fix import early_preload
-                        details = early_preload.fix(src, t)
+                        details = early_preload.fix(src, t, p)
                     elif extra == 'single_player':
                         from doctor.fix import single_player
                         details = single_player.unlock(src, t)
@@ -171,12 +209,12 @@ def apply_extras(entry, output, extras, progress=None):
                     elif extra == 'strip_indent':
                         from doctor.fix import script_indent
                         details = script_indent.fix(src, t, compact=not (extras or {}).get('shrink'))
-                        if details.get('state') == 'nothing_to_do':
-                            out['reports'][extra] = details
-                            continue
                     else:
                         from doctor.fix import shrink
-                        details = shrink.shrink(src, t, param if isinstance(param, dict) else None)
+                        details = shrink.shrink(src, t, param if isinstance(param, dict) else None, p)
+                if (details or {}).get('state') == 'nothing_to_do' and not os.path.isfile(t):
+                    out['reports'][extra] = details
+                    continue
                 if not os.path.isfile(t):
                     raise RuntimeError(
                         (details or {}).get('error') or (details or {}).get('reason') or 'nothing was written'
@@ -858,8 +896,35 @@ def map_names(a):
     return name_list
 
 
+def _unnamed_left(a, name_list):
+    live = set()
+    for i in range(a.hash_n_read):
+        bi = a.ht[i * 4 + 3]
+        if bi < len(a.blocks):
+            live.add(bi)
+    matches = set()
+    for n in name_list:
+        r = a.find(n)
+        if r is not None:
+            matches.add(r[1])
+    return bool(live - matches)
+
+
+def _running_names(a):
+    from doctor.fix import runtime_names
+    body_text = None
+    for n in ('war3map.j', 'scripts\\war3map.j'):
+        d = _read(a, n)
+        if d:
+            body_text = d.decode('latin-1')
+            break
+    if not body_text:
+        return []
+    return runtime_names.names_of(runtime_names.file_names(body_text))
+
+
 def _map_names(a):
-    with quiet():
+    with quiet(), job_progress.stage('closure', 'Following the file references'):
         closure = mpqnames.referenced_closure(a)
     canon = dict((n.upper(), n) for n in tuple(mpqnames.BASE_NAMES) + EDITOR_FILES)
     name_list = {}
@@ -867,23 +932,34 @@ def _map_names(a):
         name_list.setdefault(n.upper(), canon.get(n.upper(), n))
     lf = _read(a, '(listfile)')
     if lf:
-        for line in lf.decode('utf-8', 'surrogateescape').splitlines():
-            n = line.strip().replace('/', '\\')
-            if not n or n.upper() in name_list:
-                continue
-            try:
-                with quiet():
-                    if _valid_for_game(a, n) is not None:
-                        name_list[n.upper()] = n
-            except Exception:
-                pass
+        listfile_lines = lf.decode('utf-8', 'surrogateescape').splitlines()
+        with job_progress.stage('listfile', 'Checking the file list'):
+            for k, line in enumerate(listfile_lines):
+                job_progress.avanca(k + 1, len(listfile_lines))
+                n = line.strip().replace('/', '\\')
+                if not n or n.upper() in name_list:
+                    continue
+                try:
+                    with quiet():
+                        if _valid_for_game(a, n) is not None:
+                            name_list[n.upper()] = n
+                except Exception:
+                    pass
     try:
-        with quiet():
+        with quiet(), job_progress.stage('derived', 'Finding names by rule'):
             derived = mpqnames.derived_names(a, sorted(name_list.values()))
     except Exception:
         derived = {}
     for n in sorted(derived):
         name_list.setdefault(n.upper(), n)
+    try:
+        if _unnamed_left(a, name_list.values()):
+            with quiet(), job_progress.stage('running_scope', 'Running the script for the names it builds'):
+                for n in _running_names(a):
+                    if n.upper() not in name_list and _valid_for_game(a, n) is not None:
+                        name_list[n.upper()] = n
+    except Exception:
+        pass
     return sorted((n.replace('/', '\\') for n in name_list.values() if n.lower() not in SPECIAL_FILES),
                   key=lambda n: (n.lower(), n))
 
@@ -958,8 +1034,10 @@ def check_content(original, output, exclude=()):
 
     outside = set(_key(x) for x in exclude) | set(SPECIAL_FILES)
     out = {'identical': 0, 'different': [], 'missing_items': [], 'empty_files': [], 'unreadable_items': 0}
-    with quiet():
-        for n in dict.fromkeys(name_list):
+    unique_names = list(dict.fromkeys(name_list))
+    with quiet(), job_progress.stage('compare', 'Comparing the files'):
+        for k, n in enumerate(unique_names):
+            job_progress.avanca(k + 1, len(unique_names))
             if _key(n) in outside:
                 continue
             try:
