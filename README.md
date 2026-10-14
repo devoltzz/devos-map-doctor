@@ -23,13 +23,14 @@ Open, fix and port Warcraft III maps for Reforged.
 
 The Doctor opens protected maps, repairs what stops them on Reforged 3.0, rebuilds the World Editor files and ports
 the maps of the Chinese KK and Korean M16 platforms. It shows what a map carries before anything is written, and it
-never runs the game.
+never runs the game. The window is in English and 16 other languages.
 
 | Action | What it does |
 |---|---|
 | **Fix map** | Removes the protection and repairs the map: fake file tables, scrambled ids, data the 3.0 engine refuses, broken SLK tables, models that crash the game, portrait cameras, data pointers, ability lists, single player. Extras for the map card, the translation and the size. |
 | **Open in World Editor** | Writes a copy the editor opens, with the GUI triggers rebuilt from the script when the round trip proves them. |
 | **Port to Reforged** | KK, KKWE, DzAPI, YDWE and j2b maps get their natives implemented and their scripts back in JASS. Maps whose game runs on the YDWE Lua engine become Reforged Lua maps (their Lua 5.3 bytecode translated to source). |
+| **Diagnose** | Finds out why a map fails in the game without a test per guess: a diagnostic copy that logs what the map started and never finished (and the Lua errors) while you play it, the reader of that log, and the readers of the game's own crash report and log and of replays. |
 | **QoL** | A quality of life version of the map: more experience, gold, lumber, item drops and craft success, a faster hero revive and monster respawn, a -noshake command, the map revealed, VIP for everyone. |
 | **Tabs** | Map card, "Runs on Reforged?", files (previews, raw codes), script and its checks, triggers, translation export and import, local machine translation into English, compare two versions, cheat packs. |
 
@@ -46,13 +47,13 @@ How to translate a map, every way step by step: [README-translation.md](README-t
 </tr>
 </table>
 
-### New in 1.7.8
+### New in 1.7.9
 
-- Art packages: `.mix`, `.asi`, `.dll`, `.mpq` and `.w3mod` files (any file with an MPQ inside that is not a map) open as art packages instead of being taken for a protected map. The Files tab has a select-all box, Extract all and Extract models (each model with the textures and particle models it uses, at the paths it expects); from the command line, `doctor extract <file> --all` or `--models` (issue 29).
-- Port to Reforged: the hero selection screen of Gutsy Geoid Game builds again. Its start-up ran past the game's per-thread instruction limit because of the port's own frame checks, which are now constant-time; the screen closes, the countdown runs and heroes are picked from the interface (issue 28).
-- Port to Reforged: the map's own skill bar shows every skill (the E and Z icons), the attack slot and the attack value, the skill that replaces another one (Raiden's RR, Iori's versions of R) with its cooldown, and the items (issue 28).
-- Port to Reforged: effects that turn around their axis point where the skill goes (Reforged 3.0 does not turn many effect models; the port turns a helper unit instead).
-- Translation: a translation file still applies after the map is ported again, even when the port stores a data file with other upper and lower case.
+- **Diagnose**, a new section, to find out why a map fails in the game: a diagnostic copy that logs, once a second while you play it, the functions the game started and never finished, the Lua errors and the last events (and, with "Load markers", every step of a load that hangs); the reader of that log; the reader of the game's crash report and log (the module it closed in, the models it could not create, the frames it refused, the classic Crash.txt of 1.24-1.31, the desync files); and a replay reader (who left and when, the chat, sync and frame events, the first turn two replays disagree). From the command line: `doctor diagnose`, `log`, `crash`, `replay`, `replay-compare`.
+- **Runs on Reforged?** checks much more: the start of a JASS script run in the Doctor's interpreter (a thread over the game's work limit), frame files (.fdf/.toc), map files at the game's own paths, abilities locked by a requirement the map lacks, model paths that resolve to nothing, the lobby against the script's player setup, stale (attributes) checksums, handle locals never set to null, the natives renamed in 1.29, signs of grafted code, model and texture sanity (the 3.0 model format, version 1800, included). For an older game: the media it does not load.
+- **Fix map** extras: redo the file checksums, remove map files that replace the game's own, unlock abilities that require a tech the map lacks, fix frame file lists, null handle locals, minify the script, shrink models (lossless or lossy), make the editor object files from the SLK tables of an optimized map, your own lobby image, two test variants of the black portrait fix, and, for maps still above 512 MiB, smaller art (textures at half size, WAV sounds mono at 22 kHz).
+- **Files tab:** a 3D preview of models (versions 800 to 1100). **Map card:** the World Editor that saved the map. **Runs on version X?:** write the map info in that version's format. **Cheat packs:** a readable copy in the map's triggers, so the pack can survive a save in the World Editor (not tried in the editor).
+- The progress bar follows the real work, jobs start at once (two workers are kept ready), and the window has an About.
 
 ## Get it
 
@@ -60,7 +61,7 @@ How to translate a map, every way step by step: [README-translation.md](README-t
 
 [doctor.devoltz.party](https://doctor.devoltz.party) is the same program, run in your browser. Your map never leaves
 your computer, and the page works offline after the first visit. Chrome, Edge and Firefox on a computer; maps up to
-450 MB.
+450 MB. The local machine translation and the text in the images are only in the program for Windows and Linux.
 
 ### Windows
 
@@ -102,12 +103,15 @@ doctor check map.w3x --game=1.27
 doctor cheatpacks map.w3x
 doctor cheat map.w3x --pack=nzcp --set activator=-cheat
 doctor qol map.w3x --xp=2 --gold=2 --drop=2 --respawn=0.5
-doctor translation export map.w3x texts.txt
+doctor translation export map.w3x texts.json
 doctor translation machine map.w3x english.json
-doctor fix map.w3x --translation=texts.txt
+doctor fix map.w3x --translation=texts.json
 doctor files map.w3x
 doctor recipes map.w3x --out=recipes.csv
 doctor extract map.w3x war3map.j --to=out
+doctor diagnose map.w3x
+doctor log
+doctor crash
 doctor --help
 ```
 
@@ -153,6 +157,17 @@ Use "Report a problem" in the window: it opens an issue here with the report fil
   porter recognize the interface memory hacks, and [WFE](https://github.com/UnryzeC/WFE-Release).
 - [garden-hose](https://github.com/garden-hose), whose [DzAPIConverter](https://github.com/garden-hose/DzAPIConverter)
   gave the base of the `EX*` data natives of the port layer (MIT).
+
+- For the 1.7.9 checks and tools, these projects, whose code, data or measurements the Doctor uses (credited in
+  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)): GodMephisto's
+  [wc3ctl](https://github.com/GodMephisto/wc3ctl), sumneko's [5211MapCheck](https://github.com/sumneko/5211MapCheck),
+  [w3champions](https://github.com/w3champions/map-updater-scripts) (the minimap override measurement), Tasyen's
+  [FDF](https://github.com/Tasyen/FDF), Drake53's [War3Net](https://github.com/Drake53/War3Net) and War3App, speige's
+  [WC3MapDeprotector](https://github.com/speige/WC3MapDeprotector), PBug90's [w3gjs](https://github.com/PBug90/w3gjs),
+  scopatz's [w3g](https://github.com/scopatz/w3g) notes, UnrealKaraulov's
+  [WC3CrashAnalyzer](https://github.com/UnrealKaraulov/WC3CrashAnalyzer), 4eb0da's
+  [war3-model](https://github.com/4eb0da/war3-model), flowtsohg (Chananya Freiman), Darithos, Retera, Dr Super Good
+  (the BLP specification), WarRaft, Vexorian's jasshelper, Son-Guhun, YElwiddi and inwc3.
 
 ## License
 
