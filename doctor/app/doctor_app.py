@@ -179,8 +179,9 @@ def editor_version_guess(path):
         out['available'] = [v for v in EDITOR_VERSIONS if editor_version.available(v)]
         from doctor.mpq import mpqread
         a = mpqread.Archive(path)
-        out['guess'], out['why'] = editor_version.made_for(path, a.read('war3map.w3i') if a.find('war3map.w3i')
-                                                           else None)
+        w3i_b = a.read('war3map.w3i') if a.find('war3map.w3i') else None
+        out['guess'], out['why'] = editor_version.made_for(path, w3i_b)
+        out['saved_by'] = editor_version.saved_by(w3i_b) if w3i_b else None
     except Exception as e:
         out['why'] = '%s: %s' % (type(e).__name__, e)
     return out
@@ -211,7 +212,7 @@ PACKAGE_ONLY = ('This is an art package, not a map: only its files can be seen a
 MAP_ONLY = ('port', 'reforged', 'card', 'card_image', 'gradient', 'script', 'script_checks', 'triggers', 'cheatpacks',
             'cheatpack_inject', 'qol', 'qol_apply', 'translation_export', 'translation_groups', 'translation_check',
             'translation_machine', 'translation_images', 'translation_image_preview', 'translation_update',
-            'rawcodes', 'recipes')
+            'rawcodes', 'recipes', 'diag_make', 'downgrade_w3i')
 
 
 def is_package(D, path):
@@ -271,6 +272,15 @@ EXTRA_DONE = {
     'translation': 'Applied the translation.',
     'strip_indent': 'Removed the indentation of the script.',
     'shrink': 'Made the map smaller.',
+    'attributes': 'Rewrote the file checksums that no longer matched.',
+    'game_overrides': 'Removed the map files that replaced the game\'s own.',
+    'requirements': 'Unlocked the abilities that required a tech the map lacks.',
+    'fdf': 'Fixed the frame file lists.',
+    'null_handles': 'Wrote the missing null lines of the handle locals.',
+    'slk_objects': 'Made the editor object files from the SLK tables.',
+    'shrink_models': 'Made the models smaller.',
+    'lobby_image': 'Put your own picture in the lobby.',
+    'minify': 'Minified the script.',
 }
 EXTRA_NAME = {
     'models': 'the model fixes',
@@ -286,6 +296,15 @@ EXTRA_NAME = {
     'translation': 'the translation',
     'strip_indent': 'the script indentation',
     'shrink': 'the shrink',
+    'attributes': 'the file checksums',
+    'game_overrides': 'the game files',
+    'requirements': 'the requirements',
+    'fdf': 'the frame file lists',
+    'null_handles': 'the null lines',
+    'minify': 'the minified script',
+    'slk_objects': 'the editor object files',
+    'lobby_image': 'the lobby image',
+    'shrink_models': 'the model shrink',
 }
 BEFORE_EDITOR = ('models', 'single_player', 'card', 'translation')
 
@@ -413,16 +432,22 @@ def page_stub(s):
 
 
 def run_port(D, G, path, progress, emit, packages=(), memory=True, icons=False, textures=False, balance=False,
-             strip_indent=False, game_files=False):
+             strip_indent=False, game_files=False, lossy=False):
     from doctor.port import map_port
+    from doctor.app import job_progress
     out = D.free_output(path, '_reforged')
     emit({'type': 'output', 'path': out})
+
+    def port_log(msg):
+        job_progress.legacy(str(msg), is_stage=False, fase=False)
+
     report = os.path.splitext(out)[0] + '.report.txt'
     work = tempfile.mkdtemp(prefix='devos_map_doctor_port_')
     try:
         try:
-            r = map_port.map_port(path, os.path.join(work, 'port'), out, report, log=progress, packages=list(packages),
-                                  memory_hacks='neutralize' if memory else 'equivalents', balance_numbers=bool(balance))
+            r = map_port.map_port(path, os.path.join(work, 'port'), out, report, log=port_log, packages=list(packages),
+                                  memory_hacks='neutralize' if memory else 'equivalents', balance_numbers=bool(balance),
+                                  shrink_with_loss=bool(lossy))
         except BaseException as e:
             import traceback
             write_port_failure(report, '%s: %s' % (type(e).__name__, e), traceback.format_exc()[-3000:])
@@ -482,11 +507,26 @@ def port_step(out, progress, module, nothing):
 def run_job(job, emit, G):
     from doctor.fix import unprotect as D
 
+    from doctor.app import job_progress
     task, path = job['task'], job.get('map')
 
-    def progress(code):
-        emit({'type': 'progress', 'label': G.STAGES.get(code, code) if isinstance(code, str) else str(code)})
+    job_progress.step_on(emit)
 
+    def progress(code, total=None):
+        if isinstance(code, int) and isinstance(total, int):
+            job_progress.avanca(code, total)
+        elif isinstance(code, str) and code in G.STAGES:
+            job_progress.topo(code, G.STAGES[code])
+        else:
+            job_progress.legacy(str(code))
+
+    try:
+        return _run_job(job, emit, G, D, task, path, progress)
+    finally:
+        job_progress.unbind()
+
+
+def _run_job(job, emit, G, D, task, path, progress):
     if task == 'open':
         d = cached_diagnosis(D, path, progress)
         return {'map': os.path.abspath(path), 'name': os.path.basename(path), 'size': os.path.getsize(path),
@@ -500,11 +540,15 @@ def run_job(job, emit, G):
     if task == 'port':
         return run_port(D, G, path, progress, emit, job.get('packages') or [], job.get('memory', True),
                         job.get('icons', False), job.get('textures', False), job.get('balance', False),
-                        job.get('strip_indent', False), job.get('game_files', False))
+                        job.get('strip_indent', False), job.get('game_files', False), job.get('lossy', False))
     if task == 'cheatpack_inject':
         return _cheatpack_inject(job, progress, emit)
     if task == 'qol_apply':
         return _qol_apply(job, progress, emit)
+    if task == 'diag_make':
+        return _diag_make(job, progress, emit, G)
+    if task == 'downgrade_w3i':
+        return _downgrade_w3i(job, progress, emit)
     tool = TOOLS.get(task)
     if tool is None:
         raise ValueError('unknown task %r' % task)
@@ -573,6 +617,31 @@ def _reforged(job, progress):
     r['disabled_icons'] = {'fixable': (icons.get('data') or {}).get('count', 0) if icons and writable else 0}
     r['uabi'] = {'distinct': (uabi.get('data') or {}).get('distinct', 0) if uabi and uabi.get('fix') == 'doctor' and
                  runs else 0}
+    def _n(code, key):
+        x = items.get(code)
+        return ((x.get('data') or {}).get(key) or 0) if x and x.get('fix') == 'doctor' and writable else 0
+    r['attributes'] = {'fixable': _n('attributes_stale', 'fixable')}
+    r['game_overrides'] = {'count': _n('game_file_override', 'count')}
+    r['requirements'] = {'fixable': _n('inherited_requirement', 'fixable')}
+    _fdf = items.get('fdf_lint')
+    r['fdf'] = {'fixable': 1 if _fdf and _fdf.get('fix') == 'doctor' and writable else 0}
+    r['slk_objects'] = {'fixable': 0}
+    r['lobby_image'] = {'ready': False}
+    if writable:
+        try:
+            from doctor.mpq import mpqread
+            a = mpqread.Archive(job['map'])
+            has = lambda n: a.find(n) is not None
+            if (has('Units\\UnitData.slk') or has('Units\\ItemData.slk')) and not (has('war3map.w3u') or
+                                                                                     has('war3map.w3t')):
+                r['slk_objects'] = {'fixable': 1}
+        except Exception:
+            pass
+        try:
+            from doctor.fix import lobby_image
+            r['lobby_image'] = {'ready': lobby_image.scan(job['map']).get('state') == 'ready'}
+        except Exception:
+            pass
     r['preload'] = {'units': 0, 'abilities': 0}
     if r.get('script') == 'jass' and runs:
         from doctor.fix import early_preload
@@ -652,7 +721,8 @@ def _cheatpack_inject(job, progress, emit=lambda event: None):
     from doctor.fix import unprotect as D
     out = D.free_output(job['map'], '_' + str(job.get('pack') or 'cheat'))
     emit({'type': 'output', 'path': out})
-    r = cheatpacks.inject(job['map'], out, job.get('pack'), job.get('options') or {}, progress)
+    r = cheatpacks.inject(job['map'], out, job.get('pack'), job.get('options') or {}, progress,
+                          durable=bool(job.get('durable')))
     if job.get('strip_indent') and r.get('file') and os.path.isfile(r['file']):
         r['lines'] = list(r.get('lines') or []) + strip_indent_step(r['file'], progress)
     return {'lines': page_lines(r.get('lines') or []), 'file': r.get('file'), 'pack': r.get('pack'),
@@ -730,6 +800,111 @@ def _compare(job, progress):
     return map_compare.compare(job['map'], job['other'], progress)
 
 
+def _downgrade_w3i(job, progress, emit=lambda event: None):
+    from doctor.fix import downgrade
+    from doctor.fix import unprotect as D
+    version = str(job.get('version') or '1.29.2')
+    out = D.free_output(job['map'], '_' + version.replace('.', '_'))
+    emit({'type': 'output', 'path': out})
+    r = downgrade.fix_w3i(job['map'], out, version, progress)
+    done = r.get('state') == 'done'
+    return {'lines': page_lines(r.get('lines') or []), 'file': out if done and os.path.isfile(out) else None,
+            'outcome': 'ok' if done else ('nothing' if r.get('state') == 'nothing_to_do' else 'failed')}
+
+
+def _model3d(job, progress):
+    from doctor.fix import model_3d
+    return model_3d.payload(job['map'], job['name'])
+
+
+def _diag_make(job, progress, emit, G):
+    from doctor.fix import diagnose
+    from doctor.fix import unprotect as D
+    out = D.free_output(job['map'], '_diag')
+    emit({'type': 'output', 'path': out})
+    version = getattr(G, 'VERSION', None) or getattr(G, 'VERSION', None) or ''
+    mode = job.get('mode') if job.get('mode') in ('all', 'init') else 'entry'
+    r = diagnose.make(job['map'], out, mode, doctor=version, progress=progress)
+    if r['state'] != 'done':
+        return {'lines': [['bad', r['error'] or 'The diagnostic copy was not made.']], 'file': None,
+                'outcome': 'failed'}
+    log = os.path.join(diagnose.game_folder(), 'CustomMapData', r['log'])
+    if r['language'] == 'jass':
+        what = ('%d function(s) marked (%s), of %d in the script.' % (
+            r['marked'], 'every function' if r['mode'] == 'all' else 'the ones the game starts', r['functions']))
+        if r.get('init_folder'):
+            what += (' The load is marked too: one file per step, written at once, in %s (a load that hangs still '
+                     'leaves them).' % os.path.join(diagnose.game_folder(), 'CustomMapData', r['init_folder']))
+    else:
+        what = 'The callbacks the game runs, and main and config, run inside pcall: each Lua error is logged.'
+    lines = [['good', 'The diagnostic copy is written. ' + what],
+             ['info', 'Play this copy until the problem happens (or until the game closes). While it runs it writes '
+                      'its log once a second to:'],
+             ['info', log],
+             ['info', 'Then read it here: Read a diagnostic log. Attach the log to a problem report as well.']]
+    return {'lines': lines, 'file': out, 'outcome': 'ok', 'log': log, 'language': r['language'],
+            'marked': r['marked']}
+
+
+def _diag_logs(job, progress):
+    from doctor.fix import diagnose
+    return {'folder': diagnose.log_folder(), 'logs': diagnose.logs()}
+
+
+def _diag_read(job, progress):
+    from doctor.fix import diagnose
+    r = diagnose.read_log(job['file'])
+    r['text'] = diagnose.text(r)
+    r['findings'] = page_lines(r.get('findings') or [])
+    return r
+
+
+def _crash_list(job, progress):
+    from doctor.fix import crash_report
+    log = crash_report.current_log()
+    return {'folder': crash_report.errors_folder(), 'reports': crash_report.folders(),
+            'log': log if os.path.isfile(log) else None}
+
+
+def _crash_read(job, progress):
+    from doctor.fix import crash_report
+    progress('Reading the report')
+    r = crash_report.read(job['file'], job.get('map') if job.get('check_map') else None)
+    r['text'] = crash_report.text(r)
+    r['findings'] = page_lines(r.get('findings') or [])
+    if isinstance(r.get('replay'), dict):
+        rp = r['replay']
+        r['replay'] = dict((k, rp.get(k)) for k in ('path', 'turns', 'stats', 'source_kind', 'truncated'))
+    return r
+
+
+def _replay_list(job, progress):
+    from doctor.fix import replay_read
+    return {'replays': replay_read.folders()}
+
+
+def _replay_read(job, progress):
+    from doctor.fix import replay_read
+    progress('Reading the replay')
+    r = replay_read.read(job['file'])
+    out = dict((k, r.get(k)) for k in ('path', 'error', 'header', 'game', 'players', 'chat', 'leaves', 'syncs',
+                                       'format', 'turns', 'stats', 'truncated', 'source_kind'))
+    out['frames'] = (r.get('frames') or [])[-50:]
+    out['text'] = replay_read.text(r)
+    out['findings'] = page_lines(r.get('findings') or [])
+    return out
+
+
+def _replay_compare(job, progress):
+    from doctor.fix import replay_read
+    return replay_read.compare(job['a'], job['b'])
+
+
+def _desync_compare(job, progress):
+    from doctor.fix import crash_report
+    return crash_report.compare_desync(job['a'], job['b'])
+
+
 TOOLS = {
     'card': _card,
     'card_image': _card_image,
@@ -756,7 +931,24 @@ TOOLS = {
     'translation_image_preview': _translation_image_preview,
     'translation_update': _translation_update,
     'compare': _compare,
+    'diag_logs': _diag_logs,
+    'diag_read': _diag_read,
+    'crash_list': _crash_list,
+    'crash_read': _crash_read,
+    'model3d': _model3d,
+    'replay_list': _replay_list,
+    'replay_read': _replay_read,
+    'replay_compare': _replay_compare,
+    'desync_compare': _desync_compare,
 }
+
+
+def _warm_up():
+    try:
+        from doctor.viewers import map_files
+        from doctor.app import job_progress
+    except Exception:
+        pass
 
 
 def worker_main(window=None):
@@ -773,6 +965,7 @@ def worker_main(window=None):
             out.flush()
 
     try:
+        _warm_up()
         job = json.loads(sys.stdin.buffer.read().decode('utf-8'))
         t0 = time.time()
         result = run_job(job, emit, window)
@@ -815,11 +1008,14 @@ def part_of(output):
     return base + '.part' + (ext or '.w3x')
 
 
+WARM = 2
+
+
 class Job:
-    def __init__(self, ident, task):
+    def __init__(self, ident, task, tmp=None):
         self.ident, self.task = ident, task
         self.proc = None
-        self.tmp = tempfile.mkdtemp(prefix='devos_map_doctor_job_')
+        self.tmp = tmp or tempfile.mkdtemp(prefix='devos_map_doctor_job_')
         self.output = None
         self.cancelled = False
         self.started = time.time()
@@ -835,6 +1031,9 @@ class Api:
         self._jobs = {}
         self._next = 0
         self._lock = threading.Lock()
+        self._warm = []
+        self._warm_lock = threading.Lock()
+        self._closed = False
 
     def hello(self):
         repo = getattr(self._updater, 'REPOSITORY', None)
@@ -860,8 +1059,18 @@ class Api:
         types = {'translation': ('Translation files (*.json;*.html;*.htm)', 'All files (*.*)'),
                  'package': ('Art packages (*.mix;*.asi;*.dll;*.mpq;*.w3mod)', 'All files (*.*)'),
                  'image': ('Images (*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.blp)', 'All files (*.*)'),
+                 'log': ('Diagnostic logs (*.pld)', 'All files (*.*)'),
+                 'crash': ('Crash reports and game logs (*.txt)', 'All files (*.*)'),
+                 'replay': ('Warcraft III replays (*.w3g)', 'All files (*.*)'),
                  'map': MAP_TYPES}.get(kind, ('All files (*.*)',))
-        return self._dialog(webview.FileDialog.OPEN, file_types=types)
+        kw = {}
+        if kind in ('log', 'crash'):
+            from doctor.fix import diagnose
+            from doctor.fix import crash_report
+            start = diagnose.log_folder() if kind == 'log' else crash_report.errors_folder()
+            if os.path.isdir(start):
+                kw['directory'] = start
+        return self._dialog(webview.FileDialog.OPEN, file_types=types, **kw)
 
     def pick_save(self, suggested, kind):
         import webview
@@ -915,17 +1124,67 @@ class Api:
         with self._lock:
             self._next += 1
             ident = 'job%d' % self._next
-        job = Job(ident, task)
+        warm = self._take_warm()
+        if warm:
+            proc, log, tmp = warm
+            job = Job(ident, task, tmp)
+            job.proc = proc
+        else:
+            job = Job(ident, task)
+            job.proc, log = self._spawn(job.tmp)
         self._jobs[ident] = job
-        env = dict(os.environ, TEMP=job.tmp, TMP=job.tmp, DOCTOR_CACHE=self._cache, PYTHONIOENCODING='utf-8',
-                   PYTHONUTF8='1')
-        log = open(os.path.join(job.tmp, 'worker.log'), 'wb')
-        job.proc = subprocess.Popen(worker_command(), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log,
-                                    env=env, creationflags=NO_WINDOW if os.name == 'nt' else 0)
-        job.proc.stdin.write(json.dumps(dict(params or {}, task=task)).encode('utf-8'))
-        job.proc.stdin.close()
+        try:
+            job.proc.stdin.write(json.dumps(dict(params or {}, task=task)).encode('utf-8'))
+            job.proc.stdin.close()
+        except OSError:
+            pass
         threading.Thread(target=self._read, args=(job, log), daemon=True).start()
+        self._refill()
         return ident
+
+    def _spawn(self, tmp):
+        env = dict(os.environ, TEMP=tmp, TMP=tmp, DOCTOR_CACHE=self._cache, PYTHONIOENCODING='utf-8',
+                   PYTHONUTF8='1')
+        log = open(os.path.join(tmp, 'worker.log'), 'wb')
+        proc = subprocess.Popen(worker_command(), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log,
+                                env=env, creationflags=NO_WINDOW if os.name == 'nt' else 0)
+        return proc, log
+
+    def _take_warm(self):
+        with self._warm_lock:
+            while self._warm:
+                proc, log, tmp = self._warm.pop(0)
+                if proc.poll() is None:
+                    return proc, log, tmp
+                log.close()
+                shutil.rmtree(tmp, ignore_errors=True)
+        return None
+
+    def _refill(self):
+        def work():
+            with self._warm_lock:
+                while not self._closed and len(self._warm) < WARM:
+                    tmp = tempfile.mkdtemp(prefix='devos_map_doctor_job_')
+                    try:
+                        proc, log = self._spawn(tmp)
+                    except OSError:
+                        shutil.rmtree(tmp, ignore_errors=True)
+                        return
+                    self._warm.append((proc, log, tmp))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _close_warm(self):
+        self._closed = True
+        with self._warm_lock:
+            for proc, log, tmp in self._warm:
+                try:
+                    proc.kill()
+                    proc.wait(5)
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
+                log.close()
+                shutil.rmtree(tmp, ignore_errors=True)
+            del self._warm[:]
 
     def _read(self, job, log):
         final = None
@@ -1049,8 +1308,10 @@ def run(version, initial_map=None, updater=None, icon=None):
     window = webview.create_window(APP, url=os.path.join(ui_folder(), 'index.html'), js_api=api, width=1200,
                                    height=840, min_size=(940, 620), background_color='#121418', text_select=True)
     api._window = window
+    api._refill()
 
     def closing():
+        api._close_warm()
         for ident in list(api._jobs):
             api.cancel(ident)
 
