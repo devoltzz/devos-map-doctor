@@ -269,6 +269,9 @@ pre.code { margin: 0; padding: 12px; font: 12.5px/1.45 var(--mono); white-space:
 .dialog { width: min(640px, 92vw); max-height: 86vh; overflow: auto; background: var(--card);
   border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; }
 .dialog h2 { margin: 0 0 10px; font-size: 16px; }
+.dialog .about h3 { margin: 14px 0 4px; font-size: 13.5px; }
+.dialog .about p, .dialog .about li { line-height: 1.5; margin: 4px 0; }
+.dialog .about ul { padding-left: 18px; margin: 4px 0; }
 .dialog .buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
 .dialog textarea { width: 100%; min-height: 200px; background: #12151a; border: 1px solid var(--line);
   border-radius: var(--radius); padding: 8px; font: 12.5px var(--mono); }
