@@ -617,7 +617,86 @@ def _lua_check(text):
     return True, 'lua_ast: ok'
 
 
-def inject(mapa, out_path, pack_id, opcoes=None, progresso=None):
+WCT = 'war3map.wct'
+DURABLE_ENTRY = 'Cp_%s_Entry'
+
+
+def _durable_label(pack):
+    return 'cheatpack:' + pack['id']
+
+
+def _durable_jass(script, pack, pack_body, mark_line):
+    globais, funcoes, principal = _jass_parts(pack_body)
+    code = ''
+    names = ([mark_line] if mark_line else []) + ([globais] if globais.strip() else [])
+    if names:
+        code += 'globals\n' + '\n'.join(names) + '\nendglobals\n'
+    code += funcoes
+    entry = None
+    if principal.strip():
+        taken = _declara(script) | _declara(pack_body)
+        fn = DURABLE_ENTRY % re.sub(r'\W', '_', pack['id'])
+        while fn in taken:
+            fn = 'Cp_' + fn
+        code += '\nfunction %s takes nothing returns nothing\n%s\nendfunction\n' % (fn, principal)
+        entry = 'call %s()' % fn
+    return code, entry
+
+
+def _durable_wct(mapa, pack, durable_code):
+    from doctor.fix import durable_wct
+    lua = pack['language'] == LUA
+    code, entry = durable_code
+    info = {'wct': False, 'header': False, 'entry': None, 'reason': None, 'readable': True}
+    try:
+        wct = _read_file(_open_map(mapa), WCT)
+    except BaseException as e:
+        if isinstance(e, KeyboardInterrupt):
+            raise
+        wct = None
+    if not wct:
+        info['reason'] = ('the map has no war3map.wct (no triggers saved by the World Editor): the pack stays in the '
+                          'script only')
+        return None, info
+    try:
+        new, w = durable_wct.write(wct, code, _durable_label(pack), entry, lua)
+    except ValueError as e:
+        info['reason'] = 'the war3map.wct was not changed (%s)' % e
+        return None, info
+    info.update(wct=True, header=w['header'], entry=w['entry'], reason=w['entry_reason'])
+    return new, info
+
+
+def _durable_check(wct, pack, durable_code):
+    from doctor.fix import durable_wct
+    got = durable_wct.read(wct or b'', _durable_label(pack), pack['language'] == LUA)
+    code, entry = durable_code
+    if (got['header'] or '').replace('\r\n', '\n').strip() != code.replace('\r\n', '\n').strip():
+        raise RuntimeError('the durable copy did not come back from the map as it was written')
+    if entry and (got['entry'] or '') != entry:
+        if got['trigger'] is not None:
+            raise RuntimeError('the durable entry call did not come back from the map as it was written')
+
+
+def _durable_report(d):
+    if not d:
+        return []
+    if not d.get('wct'):
+        return [('warn', 'Durable copy not written: %s.' % d.get('reason'))]
+    out = [('good', 'A copy of the pack is kept in war3map.wct (custom script header), between "DOCTOR-DURABLE" '
+                    'comments, so it survives the next save in the World Editor.'),
+           ('warn', 'That copy is readable and NOT obfuscated: the editor shows it, and anyone who opens the map in '
+                    'the editor reads the pack.')]
+    if d.get('entry'):
+        out.append(('good', 'Its start-up call sits in the custom text %s (InitTrig_ function).' % d['entry']))
+    elif d.get('reason'):
+        out.append(
+            ('warn', 'After a save in the editor the pack is kept but not called: %s.' % d['reason'].split(': ', 1)[-1])
+        )
+    return out
+
+
+def inject(mapa, out_path, pack_id, opcoes=None, progresso=None, durable=False):
     p = progresso or (lambda *_a: None)
     pack = _pack(pack_id)
     out = {'lines': [], 'file': None, 'pack': pack['id'], 'options': {}, 'syntax': None, 'script': None}
@@ -649,7 +728,7 @@ def inject(mapa, out_path, pack_id, opcoes=None, progresso=None):
     p('Reading the cheat pack')
     bruto = open(_path(pack), 'r', encoding='utf-8', newline='').read()
     try:
-        return _injeta(p, pack, text, name, bruto, opcoes, mapa, out_path, out)
+        return _injeta(p, pack, text, name, bruto, opcoes, mapa, out_path, out, durable)
     except BaseException as e:
         if isinstance(e, KeyboardInterrupt):
             raise
@@ -664,7 +743,7 @@ def inject(mapa, out_path, pack_id, opcoes=None, progresso=None):
         return out
 
 
-def _injeta(p, pack, text, name, bruto, opcoes, mapa, out_path, out):
+def _injeta(p, pack, text, name, bruto, opcoes, mapa, out_path, out, durable=False):
     pack_body, usados = _apply_options(pack, bruto, opcoes)
     out['options'] = usados
     out['script'] = name
@@ -680,9 +759,13 @@ def _injeta(p, pack, text, name, bruto, opcoes, mapa, out_path, out):
         if renamed:
             out['renamed_names'] = renamed
         new_text = _jass_merge(text, pack_body, mark_line)
+        durable_code = _durable_jass(text, pack, pack_body, mark_line) if durable else None
     else:
         new_text = ('-- %s %s%s\n' % (MARK_NAME, MARK_HEAD, pack['id'] + ':' + (usados.get('activator') or ''))) \
             + _lua_obfusca(pack_body) + '\n' + text.replace('\r\n', '\n')
+        durable_code = (
+            (new_text[: len(new_text) - len(text.replace('\r\n', '\n'))].rstrip('\n'), None) if durable else None
+        )
     mesclado = new_text
     p('Obfuscating the script')
     tmp = tempfile.mkdtemp(prefix='cheatpack_')
@@ -712,18 +795,25 @@ def _injeta(p, pack, text, name, bruto, opcoes, mapa, out_path, out):
         parte = _parte(out_path)
         shutil.copyfile(mapa, parte)
         from doctor.mpq import mpqadd
+        files = [(name, new_text.encode('utf-8', 'surrogateescape'))]
+        if durable_code is not None:
+            wct_new, out['durable'] = _durable_wct(mapa, pack, durable_code)
+            if wct_new is not None:
+                files.append((WCT, wct_new))
         with _calado():
-            _adiciona(parte, [(name, new_text.encode('utf-8', 'surrogateescape'))], [])
+            _adiciona(parte, files, [])
         p('Checking the result')
         b = _open_map(parte)
         lido = _read_file(b, name)
         if lido != new_text.encode('utf-8', 'surrogateescape'):
             raise RuntimeError('the script did not come back from the map as it was written')
-        conf = _check_map(mapa, parte, [name])
+        conf = _check_map(mapa, parte, [f[0] for f in files])
         dif = conf.get('diferentes') or conf.get('different') or conf.get('differs') or []
         missing = conf.get('faltam') or conf.get('missing') or []
         if dif or missing:
             raise RuntimeError('the check: %d file(s) different, %d missing' % (len(dif), len(missing)))
+        if len(files) > 1:
+            _durable_check(_read_file(b, WCT), pack, durable_code)
         del b
         os.replace(parte, out_path)
         out['file'] = out_path
@@ -731,6 +821,8 @@ def _injeta(p, pack, text, name, bruto, opcoes, mapa, out_path, out):
         out['size_after'] = len(lido)
         out['lines'] = _report(pack, usados, name, before, lido, out.get('renames'), det,
                                out.get('renamed_names'), semantico)
+        if durable:
+            out['lines'] += _durable_report(out.get('durable'))
         return out
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
