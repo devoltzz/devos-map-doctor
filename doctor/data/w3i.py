@@ -80,7 +80,7 @@ def _header(r):
     v = m['version'] = r.i32()
     m['saves'] = r.i32()
     m['editor_version'] = r.i32()
-    if v >= 28:
+    if v >= 27:
         m['game_version'] = [r.i32(), r.i32(), r.i32(), r.i32()]
     m['name'] = r.s()
     m['author'] = r.s()
@@ -208,6 +208,8 @@ def _sections(r, m, v):
             t['sets'] = sets
             rit.append(t)
         m['random_item_tables'] = rit
+    if v in (26, 27):
+        m['legacy_script_language'] = r.i32()
 
 
 PLAYER_TYPES = (0, 1, 2, 3, 4)
@@ -444,7 +446,7 @@ def write(m, version=None):
     w.i32(v)
     w.i32(m['saves'])
     w.i32(m['editor_version'])
-    if v >= 28:
+    if v >= 27:
         w.i32(*[m.get('game_version', [1, 31, 1, 12173])[0]])
         for x in m.get('game_version', [1, 31, 1, 12173])[1:]:
             w.i32(x)
@@ -568,6 +570,8 @@ def write(m, version=None):
                 for chance, iid in items:
                     w.i32(chance)
                     w.raw(iid)
+    if v in (26, 27):
+        w.i32(m.get('legacy_script_language', 0))
     w.raw(m.get('_tail', b''))
     return w.bytes()
 
