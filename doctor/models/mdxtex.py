@@ -1,4 +1,13 @@
 # Reads the texture chunk of an MDX model, in both formats.
+def mdx_version(data):
+    if data[:4] != b'MDLX':
+        return 0
+    i = data.find(b'VERS')
+    if i < 0 or i + 12 > len(data):
+        return 0
+    return int.from_bytes(data[i + 8:i + 12], 'little')
+
+
 def mdx_textures(data):
     out = []
     if data[:4] != b'MDLX':
