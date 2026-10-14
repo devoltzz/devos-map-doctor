@@ -156,7 +156,12 @@ def read_w3r(b):
     return _res(regs, n, r, min_w3r(v), 8, 4, version_num=v)
 
 
-def write_w3r(regions, v=5):
+RX_BLOCKER = re.compile(r'\bAddCameraBlocker\s*\(\s*(\w+)\s*\)')
+
+
+def write_w3r(regions, v=None):
+    if v is None:
+        v = 7 if any(x.get('block_reason') for x in regions) else 5
     out = [struct.pack('<ii', v, len(regions))]
     for x in regions:
         out.append(struct.pack('<4f', *[float(c) for c in x['rect']]))
@@ -167,6 +172,8 @@ def write_w3r(regions, v=5):
         sound = x.get('sound') or b''
         out.append((sound.encode('utf-8', 'replace') if isinstance(sound, str) else sound) + b'\x00')
         out.append(x.get('color') or bytes((0xFF, 0x80, 0x80, 0xFF)))
+        if v >= 7:
+            out.append(struct.pack('<ii', *((1, 1) if x.get('block_reason') else (0, 0))))
     return b''.join(out)
 
 
@@ -1532,6 +1539,10 @@ def script_regions(body_text):
             if abs((r[2] - r[0]) - width) < 0.5 and abs((r[3] - r[1]) - height) < 0.5:
                 reg['sound'] = m.group(1).encode('latin-1')
                 break
+    for m in RX_BLOCKER.finditer(body_text):
+        for reg in hits.values():
+            if reg.get('var') == m.group(1):
+                reg['block_reason'] = True
     return [hits[n] for n in order]
 
 
