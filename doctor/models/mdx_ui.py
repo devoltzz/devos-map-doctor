@@ -22,7 +22,7 @@ def cameras(data):
             continue
         q, end = off, off + size
         while q + CAMERA_SIZE <= end:
-            sz = struct.unpack_from('<I', data, q)[0]
+            sz = struct.unpack_from('<I', data, q)[0] & 0xFFFFFF
             if sz < CAMERA_SIZE or q + sz > end:
                 break
             name = data[q + 4:q + 84].split(b'\0', 1)[0].decode('latin-1')
