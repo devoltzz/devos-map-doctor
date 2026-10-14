@@ -2631,5 +2631,9 @@
  "{0} textures only the game has are not drawn.": "ゲームにしかないテクスチャ{0}個は描画されません。",
  "{0} unbalanced braces": "対応のない波括弧が{0}件",
  "{0} unit types get their {1} normal abilities from the script as each unit is created ({2} unit types keep theirs in the object data, {3} abilities stay on the others). Test the map before sharing it.": "{0}個のユニットタイプが、通常アビリティ{1}個を、ユニット作成のたびにスクリプトから受け取ります(オブジェクトデータに保持するユニットタイプは{2}個、その他のユニットタイプにはアビリティ{3}個が残ります)。共有する前にマップをテストしてください。",
- "{0}=Game.dll+0x{1}": "{0}=Game.dll+0x{1}"
+ "{0}=Game.dll+0x{1}": "{0}=Game.dll+0x{1}",
+ "A folder of loose art files (the ones a map reads from the game folder with \"Allow Local Files\")": "バラのアートファイルが入ったフォルダー（マップが \"Allow Local Files\" でゲームフォルダーから読み込むファイル）",
+ "Add a folder...": "フォルダーを追加...",
+ "the folder next to the ported map": "移植したマップの隣のフォルダー",
+ "{0} file(s) ({1} MB) from a folder of loose files stay OUT of the map, as the map used them: they are in {2}. Copy its war3mapImported folder into the game folder (\"Warcraft III\\_retail_\") and turn on \"Allow Local Files\" (see the README.txt there; every player needs the same files)": "バラのファイルのフォルダーにある {0} 個のファイル（{1} MB）は、マップが使っていたとおりマップの外に置かれます。ファイルは {2} にあります。その war3mapImported フォルダーをゲームフォルダー（\"Warcraft III\\_retail_\"）にコピーし、\"Allow Local Files\" をオンにしてください（そこにある README.txt を参照。全プレイヤーが同じファイルを必要とします）"
 }
