@@ -7,6 +7,7 @@ from doctor.fix import unprotect
 from doctor.models import mdxcheck
 from doctor.models import mdxdeep
 from doctor.models import mdxgroups
+from doctor.fix import mdx_struct
 from doctor.models import mdxnodes
 from doctor.mpq import mpqadd
 
@@ -16,8 +17,7 @@ MAGICS = mdxcheck.MAGICS
 TETO = 512 << 20
 FIXES = ('matrix_groups',)
 PORTRAIT_VERSION = 900
-
-
+PORTRAIT_STAMP = 1800
 def _nothing(*_a, **_k):
     pass
 
@@ -128,6 +128,83 @@ def drop_cameras(data):
     return new
 
 
+def portrait_what(param):
+    key = {'stamp': 'portrait_stamp', 'upgrade': 'portrait_upgrade'}.get(param if isinstance(param, str) else '',
+                                                                             'portrait_camera')
+    return (key,)
+
+
+def _portrait_mode(what):
+    for key, mode in (('portrait_upgrade', 'upgrade'), ('portrait_stamp', 'stamp'), ('portrait_camera', 'camera')):
+        if key in what:
+            return mode
+    return None
+
+
+def stamp_version(data, version=PORTRAIT_STAMP):
+    data = bytes(data)
+    chunks, err = mdxcheck.walk_path(data)
+    if err:
+        raise ValueError(err)
+    for tag, size, off in chunks:
+        if tag == b'VERS' and size >= 4:
+            return data[:off] + struct.pack('<I', version) + data[off + 4:]
+    raise ValueError('no VERS chunk')
+
+
+def _layer_widening(texture):
+    return struct.pack('<f3f2f2I2I', 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0, 1, max(texture, 0), 0)
+
+
+_LIGHT_SHADOW = struct.pack('<6f', 0.4, 0.0, 0.0, 0.0005, 0.0, 0.00001)
+
+
+def _signature(m):
+    d = m.data
+    return ([bytes(d[t.start:t.end]) for t in m.tracks],
+            [bytes(d[g['off'] + 4:g['mats_end']]) for g in m.geos if 'mats_end' in g],
+            [(t['replaceable'], t['path'], t['flags']) for t in m.texs],
+            [(s['name'], s['start'], s['end'], s['bounds']) for s in m.seqs],
+            [(len(mat['layers']), [(x['filter'], x['shading'], x['texture'], x['texanim'], x['coord'], x['alpha'])
+                                   for x in mat['layers']]) for mat in m.mats],
+            [(n['kind'], n['name'], n['id'], n['parent'], n['flags']) for n in m.nodes])
+
+
+def upgrade_layout(data):
+    data = bytes(data)
+    m = mdx_struct.read(data)
+    if m.version >= PORTRAIT_VERSION:
+        raise ValueError('version %d is not an 800 layout' % m.version)
+    if m.notes:
+        raise ValueError('the model does not read cleanly (%s)' % m.notes[0])
+    edits = []
+    for n in m.nodes:
+        if n['kind'] == b'LITE':
+            at = n['end']
+            if n.get('type') not in (0, 1, 2) or n['entry_end'] - at < 44:
+                raise ValueError('a light does not read as the 800 layout')
+            edits.append((at + 4, at + 4, struct.pack('<I', 0)))
+            edits.append((at + 44, at + 44, _LIGHT_SHADOW))
+    for g in m.geos:
+        if g.get('uvas') is None or g.get('lod'):
+            raise ValueError('a geoset does not read as the 800 layout')
+        edits.append((g['lod_at'], g['lod_at'], bytes(84)))
+    for mat in m.mats:
+        for lay in mat['layers']:
+            if lay['end'] - lay['off'] < 28 or any(t.start < lay['off'] + 28 for t in lay['tracks']):
+                raise ValueError('a layer does not read as the 800 layout')
+            edits.append((lay['off'] + 28, lay['off'] + 28, _layer_widening(lay['texture'])))
+    vers = next(off for tag, _s, off in m.chunks if tag == b'VERS')
+    edits.append((vers, vers + 4, struct.pack('<I', PORTRAIT_STAMP)))
+    new = mdx_struct.edit(data, m, edits)
+    back = mdx_struct.read(new)
+    if back.version != PORTRAIT_STAMP or back.notes or _signature(back) != _signature(m):
+        raise ValueError('the widened model does not read back as the original')
+    if any(g.get('lod') is not True for g in back.geos) or len(back.geos) != len(m.geos):
+        raise ValueError('the widened geosets do not read back')
+    return new
+
+
 def portrait_models(a):
     from doctor.fix import inflated_counts
     out = {}
@@ -156,8 +233,27 @@ def check_model(data):
     return _check(data)[0]
 
 
-def fix_model(data, what=FIXES):
-    if 'portrait_camera' in what:
+def portrait_variant_at_risk(data, name=None):
+    v = model_version(bytes(data))
+    if v is None or v >= PORTRAIT_VERSION:
+        return False
+    stem = os.path.splitext(str(name or '').replace('/', '\\').rsplit('\\', 1)[-1].lower())[0]
+    return camera_at_risk(data) or stem.endswith('_portrait')
+
+
+def portrait_left(data, mode):
+    data = bytes(data)
+    chunks, err = mdxcheck.walk_path(data)
+    if err or any(t == b'CAMS' for t, _s, _o in chunks):
+        return True
+    return mode != 'camera' and model_version(data) != PORTRAIT_STAMP
+
+
+def fix_model(data, what=FIXES, name=None):
+    mode = _portrait_mode(what)
+    if mode in ('stamp', 'upgrade'):
+        return _fix_variant(data, mode, name)
+    if mode:
         if not camera_at_risk(data):
             return None, {'problems': [], 'fixed': []}
         new = drop_cameras(data)
@@ -187,6 +283,27 @@ def fix_model(data, what=FIXES):
     if info['method'] == 'nodes_merged':
         details.update(nodes_before=info['nodes_before'], nodes_after=info['nodes_after'])
     return out, details
+
+
+def _fix_variant(data, mode, name=None):
+    data = bytes(data)
+    if not portrait_variant_at_risk(data, name):
+        return None, {'problems': [], 'fixed': []}
+    key = 'portrait_' + mode
+    cam = camera_at_risk(data)
+    problems = ['portrait_camera' if cam else 'portrait_version']
+    try:
+        new = drop_cameras(data) if cam else data
+        if new is None:
+            raise ValueError('the camera could not be removed')
+        new = upgrade_layout(new) if mode == 'upgrade' else stamp_version(new)
+    except ValueError as e:
+        return None, {'problems': problems, 'fixed': [], 'error': str(e)}
+    if portrait_left(new, mode) or _structure(new):
+        return None, {'problems': problems, 'fixed': [], 'error': 'the model did not read back fixed'}
+    return new, {'problems': problems, 'fixed': [key], 'method': {'stamp': 'camera_removed_stamped',
+                                                                   'upgrade': 'camera_removed_upgraded'}[mode],
+                 'version': model_version(data), 'size_before': len(data), 'size_after': len(new)}
 
 
 def _names(a):
@@ -222,9 +339,12 @@ def _open(path):
         return None, 'The map does not open (%s).' % (str(e) or type(e).__name__)
 
 
-def scan(path, progress=None):
+def scan(path, progress=None, sanity=False, version=None):
     p = progress or _nothing
     out = {'models': [], 'checked': 0, 'skipped': []}
+    if sanity:
+        from doctor.fix import mdx_sanity
+        out['sanity'] = {'checked': 0, 'models': [], 'by_code': {}, 'skipped': []}
     p('Reading the map')
     a, err = _open(path)
     if a is None:
@@ -247,6 +367,17 @@ def scan(path, progress=None):
             out['models'].append({'file': name, 'problems': problems})
         if name.lower() in portraits and camera_at_risk(data):
             out['portraits'].append(name)
+        if sanity:
+            try:
+                issues = mdx_sanity.check(data, version)
+            except (ValueError, struct.error, IndexError) as e:
+                out['sanity']['skipped'].append({'file': name, 'reason': str(e)[:80]})
+                continue
+            out['sanity']['checked'] += 1
+            if issues:
+                out['sanity']['models'].append({'file': name, 'issues': issues})
+                for code in sorted(set(i['code'] for i in issues)):
+                    out['sanity']['by_code'].setdefault(code, []).append(name)
     p('Done')
     return out
 
@@ -276,7 +407,7 @@ def _same_except(a, b, blocks, slots):
     return ''
 
 
-def fix(path_in, path_out, files=None, progress=None, what=FIXES):
+def fix(path_in, path_out, files=None, progress=None, what=FIXES, transform=None):
     p = progress or _nothing
     res = {'state': 'failed', 'fixed': [], 'not_fixed': [], 'checked': 0}
     if os.path.abspath(path_in) == os.path.abspath(path_out):
@@ -290,7 +421,8 @@ def fix(path_in, path_out, files=None, progress=None, what=FIXES):
     p('Finding the file names')
     names = _names(a)
     wanted = None if files is None else dict((f.replace('/', '\\').lower(), f) for f in files)
-    if 'portrait_camera' in what:
+    mode = _portrait_mode(what)
+    if mode:
         pm = portrait_models(a)
         names = sorted(set(names) | set(pm))
         if wanted is None:
@@ -308,13 +440,13 @@ def fix(path_in, path_out, files=None, progress=None, what=FIXES):
                 res['not_fixed'].append({'file': name, 'reason': 'cannot be read'})
             continue
         try:
-            new, details = fix_model(data, what)
+            new, details = transform(name, data) if transform else fix_model(data, what, name)
         except ValueError as e:
             if wanted is not None:
                 res['not_fixed'].append({'file': name, 'reason': str(e)})
             continue
         if new is None:
-            if 'portrait_camera' in what and files is None and not details['problems']:
+            if mode and files is None and not details['problems']:
                 continue
             if details['problems'] or wanted is not None:
                 res['not_fixed'].append({'file': name, 'reason': details.get('error') or (
@@ -347,7 +479,7 @@ def fix(path_in, path_out, files=None, progress=None, what=FIXES):
         if b is None:
             raise RuntimeError(err)
         for name, new in repl:
-            left = camera_at_risk(new) if 'portrait_camera' in what else check_model(new)
+            left = False if transform else portrait_left(new, mode) if mode else check_model(new)
             if unprotect._read(b, name) != new or left:
                 raise RuntimeError('%s was not read back fixed' % name)
         why = _same_except(a, b, blocks, slots)
