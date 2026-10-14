@@ -157,12 +157,67 @@ def _coerce(type_, v):
     return v
 
 
+def _expr_ops(e):
+    if e is None:
+        return 0
+    if isinstance(e, (jass_ast.Literal, jass_ast.Name, jass_ast.FuncRef)):
+        return 1
+    if isinstance(e, jass_ast.Index):
+        return 1 + _expr_ops(e.index)
+    if isinstance(e, jass_ast.Call):
+        return sum(_expr_ops(a) for a in e.args)
+    if isinstance(e, jass_ast.Paren):
+        return _expr_ops(e.inner)
+    if isinstance(e, jass_ast.Unary):
+        return 1 + _expr_ops(e.operand)
+    if isinstance(e, jass_ast.Binary):
+        return 1 + _expr_ops(e.left) + _expr_ops(e.right)
+    return 1
+
+
+def _stmt_ops(s):
+    if isinstance(s, jass_ast.SetStmt):
+        t = s.target
+        return 1 + _expr_ops(s.value) + (0 if isinstance(t, jass_ast.Name) else _expr_ops(t.index))
+    if isinstance(s, jass_ast.CallStmt):
+        return _expr_ops(s.call)
+    if isinstance(s, jass_ast.ExitWhenStmt):
+        return 1 + _expr_ops(s.cond)
+    if isinstance(s, jass_ast.ReturnStmt):
+        return 1 + _expr_ops(s.value)
+    return 0
+
+
+OP_LIMIT_LOW = 1200000
+OP_LIMIT_HIGH = 2400000
+
+
+def thread_limits(script, libraries=(), seconds=20.0, early=5.0, budget=40000000):
+    it = Interpreter(script, libraries, budget=budget, seconds=seconds)
+    it.early = early
+    complete = True
+    try:
+        it.start()
+        it.run_early()
+    except Budget:
+        complete = False
+    over = sorted(((n, c) for n, c in it.thread_costs.items() if c > OP_LIMIT_LOW), key=lambda x: -x[1])
+    return {'over': [(n, c, 'stops' if c > OP_LIMIT_HIGH else 'may stop') for n, c in over], 'complete': complete,
+            'stopped': sorted(it.thread_budget)}
+
+
 class Interpreter(object):
     def __init__(self, script, libraries=(), budget=3000000, seconds=30.0, seed=0):
         self.budget = budget
         self.deadline = None
         self.seconds = seconds
         self.steps = 0
+        self.ops = 0
+        self.thread_costs = {}
+        self.thread_budget = set()
+        self._frames = []
+        self.early = 0.0
+        self.early_timers = []
         self.unknown = {}
         self.inert_calls = 0
         self.last_inert = None
@@ -219,6 +274,33 @@ class Interpreter(object):
                     self.crashes.append('global %s: %s' % (g.name, e))
 
     def thread(self, name, args=()):
+        frame = [self.ops, 0, name]
+        self._frames.append(frame)
+        try:
+            return self._thread(name, args)
+        except Budget:
+            self.thread_budget.add(name)
+            raise
+        finally:
+            self._frames.pop()
+            spent = self.ops - frame[0]
+            if name not in self.thread_budget:
+                self._close(frame)
+            if self._frames:
+                self._frames[-1][1] += spent
+
+    def _close(self, frame):
+        own = self.ops - frame[0] - frame[1]
+        if own > self.thread_costs.get(frame[2], -1):
+            self.thread_costs[frame[2]] = own
+
+    def sleep(self):
+        if self._frames:
+            frame = self._frames[-1]
+            self._close(frame)
+            frame[0], frame[1] = self.ops, 0
+
+    def _thread(self, name, args=()):
         try:
             return self.call(name, list(args))
         except Budget:
@@ -251,6 +333,24 @@ class Interpreter(object):
                 elif _trigger_evaluate(self, x):
                     _trigger_execute(self, x)
 
+    def run_early(self):
+        pending = sorted(self.early_timers)
+        self.early_timers = []
+        for _t, _n, x in pending:
+            if isinstance(x, Code):
+                self.thread(x.name)
+            elif _trigger_evaluate(self, x):
+                _trigger_execute(self, x)
+        for _round in range(4):
+            now, self.timers = self.timers, []
+            if not now:
+                break
+            for x in now:
+                if isinstance(x, Code):
+                    self.thread(x.name)
+                elif _trigger_evaluate(self, x):
+                    _trigger_execute(self, x)
+
     def call(self, name, args):
         f = self.functions.get(name)
         if f is None:
@@ -267,6 +367,7 @@ class Interpreter(object):
         if body is None:
             body = self._compiled[name] = self._function(f)
         self.tick()
+        self.ops += 2 + len(args)
         return body(args)
 
     def _function(self, f):
@@ -299,11 +400,14 @@ class Interpreter(object):
         return run
 
     def _block(self, stmts, local_names):
-        fs = [self._stmt(s, local_names) for s in stmts if not isinstance(s, jass_ast.CommentStmt)]
-        fs = [f for f in fs if f is not None]
+        pairs = [(self._stmt(s, local_names), _stmt_ops(s)) for s in stmts
+                 if not isinstance(s, jass_ast.CommentStmt)]
+        pairs = [(f, w) for f, w in pairs if f is not None]
+        it = self
 
         def run(env):
-            for f in fs:
+            for f, w in pairs:
+                it.ops += w
                 r = f(env)
                 if r:
                     return r
@@ -323,11 +427,13 @@ class Interpreter(object):
                 return 0
             return run_call
         if isinstance(s, jass_ast.IfStmt):
-            branches = [(None if c is None else self._expr(c, local_names), self._block(b, local_names))
-                        for c, b in s.branches]
+            branches = [(None if c is None else self._expr(c, local_names), self._block(b, local_names),
+                         0 if c is None else _expr_ops(c) + 1) for c, b in s.branches]
+            it = self
 
             def run_if(env):
-                for cond, body in branches:
+                for cond, body, w in branches:
+                    it.ops += w
                     if cond is None or _truthy(cond(env)):
                         return body(env)
                 return 0
@@ -335,10 +441,12 @@ class Interpreter(object):
         if isinstance(s, jass_ast.LoopStmt):
             body = self._block(s.body, local_names)
             tick = self.tick
+            it = self
 
             def run_loop(env):
                 while True:
                     tick()
+                    it.ops += 1
                     r = body(env)
                     if r == EXIT:
                         return 0
@@ -668,11 +776,15 @@ def _chat_event(it, t, p, s, exact):
 def _timer_start(it, timer, timeout, periodic, code):
     if isinstance(code, Code) and (timeout or 0) <= 0.0 and not periodic:
         it.timers.append(code)
+    elif isinstance(code, Code) and 0.0 < (timeout or 0) <= it.early:
+        it.early_timers.append((timeout, len(it.early_timers), code))
 
 
 def _register_timer_event(it, t, timeout, periodic):
     if t is not None and (timeout or 0) <= 0.0 and not periodic:
         it.timers.append(t)
+    elif t is not None and 0.0 < (timeout or 0) <= it.early:
+        it.early_timers.append((timeout, len(it.early_timers), t))
     return Handle('event')
 
 
@@ -731,6 +843,10 @@ NATIVES = {
     'ForceClear': lambda it, f: f.data.clear() if f is not None else None,
     'IsPlayerInForce': lambda it, p, f: f is not None and p in f.data,
     'ForForce': _for_force,
+    'GetBJMaxPlayers': lambda it: 24, 'GetBJPlayerNeutralVictim': lambda it: 25,
+    'GetBJPlayerNeutralExtra': lambda it: 26, 'GetBJMaxPlayerSlots': lambda it: 28,
+    'GetPlayerNeutralPassive': lambda it: 27, 'GetPlayerNeutralAggressive': lambda it: 24,
+    'TriggerSleepAction': lambda it, s: it.sleep(),
     'CountPlayersInForceBJ': None,
     'InitHashtable': lambda it: Handle('hashtable', {}),
     'FlushChildHashtable': _flush_child,
