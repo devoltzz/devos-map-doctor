@@ -98,6 +98,7 @@ def encrypt(vals, key):
 
 
 MPQ_UPPERCASE = bytes(c - 32 if 0x61 <= c <= 0x7A else (0x5C if c == 0x2F else c) for c in range(256))
+UPPER_SLASH = bytes(c - 32 if 0x61 <= c <= 0x7A else c for c in range(256))
 
 
 _NATIVE_HASH = [None]
@@ -113,26 +114,26 @@ def _native_hash():
     return _NATIVE_HASH[0]
 
 
-def hashstr(s, ht):
+def hashstr(s, ht, bar=False):
     b = s if isinstance(s, (bytes, bytearray)) else s.encode('utf-8', 'surrogateescape')
-    native_hash_pair = _NATIVE_HASH[0] if _NATIVE_HASH[0] is not None else _native_hash()
+    native_hash_pair = None if bar else (_NATIVE_HASH[0] if _NATIVE_HASH[0] is not None else _native_hash())
     if native_hash_pair:
         return native_hash_pair[0](bytes(b), ht)
     s1, s2 = 0x7FED7FED, 0xEEEEEEEE
-    for c in b.translate(MPQ_UPPERCASE):
+    for c in b.translate(UPPER_SLASH if bar else MPQ_UPPERCASE):
         s1 = CRYPT[(ht << 8) + c] ^ ((s1 + s2) & 0xFFFFFFFF)
         s2 = (c + s1 + s2 + (s2 << 5) + 3) & 0xFFFFFFFF
     return s1
 
 
-def hashstr_batch(name_list, ht):
-    native_hash_pair = _NATIVE_HASH[0] if _NATIVE_HASH[0] is not None else _native_hash()
+def hashstr_batch(name_list, ht, bar=False):
+    native_hash_pair = None if bar else (_NATIVE_HASH[0] if _NATIVE_HASH[0] is not None else _native_hash())
     try:
         import numpy as np
     except ImportError:
         if native_hash_pair:
             return list(native_hash_pair[1]([bytes(n) for n in name_list], ht))
-        return [hashstr(n, ht) for n in name_list]
+        return [hashstr(n, ht, bar) for n in name_list]
     if native_hash_pair:
         return np.frombuffer(native_hash_pair[1]([bytes(n) for n in name_list], ht), dtype=np.uint32)
     out = np.zeros(len(name_list), dtype=np.uint32)
@@ -140,7 +141,7 @@ def hashstr_batch(name_list, ht):
     for i, b in enumerate(name_list):
         by_size.setdefault(len(b), []).append(i)
     crypt = np.array(CRYPT, dtype=np.uint32)
-    uppercase = np.frombuffer(MPQ_UPPERCASE, dtype=np.uint8)
+    uppercase = np.frombuffer(UPPER_SLASH if bar else MPQ_UPPERCASE, dtype=np.uint8)
     base = np.uint32(ht << 8)
     for sz, idx in by_size.items():
         m = len(idx)
