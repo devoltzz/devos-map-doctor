@@ -12,6 +12,9 @@ HASH_FREE = 0xFFFFFFFF
 HASH_DELETED = 0xFFFFFFFE
 
 
+VXOP = 0x504F7856
+
+
 def u32(buf, off):
     return struct.unpack_from('<I', buf, off)[0]
 
@@ -50,6 +53,25 @@ def malformed(d, hdr):
         h.hash_n,
         h.block_n,
     )
+
+
+def check_tables(d, hdr, hp, bp, hn, bn):
+    habs = (hdr + hp) & 0xFFFFFFFF
+    babs = (hdr + bp) & 0xFFFFFFFF
+    if habs + hn * 16 > len(d) or babs + bn * 16 > len(d):
+        return None
+    ht = M.decrypt(d[habs:habs + hn * 16], M.HASH_TABLE_KEY)
+    bt = M.decrypt(d[babs:babs + bn * 16], M.BLOCK_TABLE_KEY)
+    used = 0
+    for i in range(hn):
+        if ht[i * 4 + 3] < HASH_DELETED:
+            used += 1
+    okb = 0
+    for i in range(bn):
+        off, cs, fs, fl = bt[i * 4:i * 4 + 4]
+        if (fl & 0x80000000) and fs > 0 and ((hdr + off) & 0xFFFFFFFF) + cs <= len(d):
+            okb += 1
+    return used, hn, okb, bn
 
 
 def is_sprotect(a):
@@ -210,6 +232,144 @@ def classify_blocks(a, name_list=(), copies=False):
                     if b not in block_name:
                         status[b] = ('junk', 'identical copy of %s' % block_name[with_name[0]])
     return status, block_name
+
+
+def hm3w_name(d):
+    if d[:4] != b'HM3W':
+        return None
+    name = d[8:d.find(b'\0', 8)]
+    return name.decode('utf-8', 'replace').encode('ascii', 'backslashreplace').decode()
+
+
+def what_is_at_start(d, hdr):
+    if d[:4] == b'HM3W':
+        return 'HM3W'
+    if hdr == 0:
+        return 'the MPQ starts at offset 0 (no room for the HM3W)'
+    if d[:4] == b'MPQ\x1b':
+        return 'a user data MPQ\\x1b (from StarCraft II; Warcraft III does not read it) in place of the HM3W'
+    return 'bytes %s in place of the HM3W' % d[:8].hex(' ')
+
+
+def diagnose(path):
+    d = open(path, 'rb').read()
+    print('file    : %s' % path)
+    print('size    : %d bytes (0x%X)' % (len(d), len(d)))
+    hdr, decoys = scan_header(d, path)
+    if d[:4] == b'HM3W':
+        print('map header: HM3W, name=%r' % hm3w_name(d))
+    else:
+        print('map header: NO HM3W -- %s: the World Editor and the game map list read the HM3W'
+              % what_is_at_start(d, hdr))
+    if hdr is None:
+        print('MPQ header NOT FOUND ("MPQ\\x1a" with dwHeaderSize >= 0x20 and the tables inside the file).')
+        for o, why in decoys[:10]:
+            print('   decoy @0x%X: %s' % (o, why))
+        return None
+    print('header  : @0x%X  (chosen by the scan, as StormLib and the game do)' % hdr)
+    for o, why in decoys[:10]:
+        print('   ignored @0x%X: %s' % (o, why))
+    issues, f = malformed(d, hdr)
+    hs, asz, ver, ss, hp, bp, hn, bn = f
+    print('fields  : hsize=0x%08X ver=%d sector=%d hashPos=0x%08X(%d) blockPos=0x%08X(%d)'
+          % (hs, ver, ss, hp, hn, bp, bn))
+    print('          archiveSize=0x%08X  (size - header = 0x%08X)' % (asz, len(d) - hdr))
+    if (ss & 0xFF) >= 10:
+        print(
+            '          %d MB sector (512 << %d): each file is a single sector' % ((512 << (ss & 0xFF)) >> 20, ss & 0xFF)
+        )
+    if issues:
+        print('MALFORMED: %s' % ' | '.join(issues))
+        print('          -> the MPQ Editor opens it READ-ONLY')
+        if hs == VXOP:
+            print(
+                "          the dwHeaderSize is VxOP (0x504F7856): the signature of Vexorian's map optimizer (the game "
+                "ignores the field and opens the map; the script comes with CR and LF mixed at the line ends)"
+            )
+    else:
+        print('MALFORMED: no  -> the MPQ Editor opens it in edit mode')
+    t = check_tables(d, hdr, hp, bp, hn, bn)
+    if t is None:
+        if (hdr + hp) & 0xFFFFFFFF < len(d) and (hdr + bp) & 0xFFFFFFFF < len(d):
+            print(
+                'tables  : the declared hash table (%d entries from 0x%X) GOES PAST THE END of the file: Storm reads what'
+                ' little there is and fills the rest with zeros' % (hn, (hdr + hp) & 0xFFFFFFFF)
+            )
+        else:
+            print('tables  : outside the file, could not validate')
+            return hdr, issues, f
+    else:
+        used, hn_, okb, bn_ = t
+        print('tables  : hash %d/%d in use, block %d/%d valid (standard keys)' % (used, hn_, okb, bn_))
+    try:
+        a = R.Archive(path)
+    except BaseException as e:
+        print('          (the reader could not open it: %s)' % e)
+        return hdr, issues, f
+    if virtual_tables(a):
+        copies = collections.Counter()
+        for n in PROBES + ['scripts\\war3map.j', 'war3map.w3i', 'war3map.w3e', 'war3map.wts']:
+            copies[n] = len(a.hash_entries(n))
+        multi = dict((n, c) for n, c in copies.items() if c > 1)
+        print(
+            'VIRTUAL TABLES: hash table at 0x%X (%s), block table at 0x%X (%s); %d of %d entries in the file. Names'
+            ' of standard files in COPIES: %s -- the game opens the LAST one in the probe sequence (`mpqread` reads the same). There is no good table'
+            ' for the header to point to: the --fix writes NEW tables at the end of the file and the data stays where it is, byte'
+            ' for byte (the names = the closure of what the map cites, each one validated; --leftovers --names=<listfile> also adds the'
+            ' dictionary art that passes the check). The repack without the junk: `mpq_rebuild.py <map> <output>'
+            ' --names-only`'
+            % (
+                (hdr + hp) & 0xFFFFFFFF,
+                'the header ITSELF' if hp == 0 else 'relative %#x' % hp,
+                (hdr + bp) & 0xFFFFFFFF,
+                'the header ITSELF' if bp == 0 else 'relative %#x' % bp,
+                a.hash_n_read,
+                a.h.hash_n,
+                multi or 'none',
+            )
+        )
+        return hdr, issues, f
+    sp, marked, used_entries = is_sprotect(a)
+    if sp:
+        print('SPROTECT: %d of %d live entries with 0x40000000 in the block index: the SProtect family. The game and'
+              ' `mpqread` read it (with the WC3 index mask and flags mask); for the MPQ Editor to edit it, run'
+              ' `python common/scripts/sprotect_fix.py <map>`' % (marked, used_entries))
+        return hdr, issues, f
+    outside, segments = outside_tables(a, len(d))
+    if segments:
+        print(
+            'OUTSIDE : %.1f MB (%d%% of the file) that no MPQ table reaches, in %d span(s) of 1 MB or more'
+            ' (the largest: 0x%X to 0x%X): the game does not read these bytes through the MPQ (the ENCRYPTED KK map, the r8, keeps them'
+            ' this way)' % (outside / 1e6, 100 * outside // len(d), len(segments), segments[0][0], segments[0][1])
+        )
+    x = analyze_tables(a)
+    if x['free_slots'] == 0 and x['deleted'] == 0:
+        print('FULL HASH TABLE: no free or deleted entry -> the MPQ Editor cannot ADD a file, and every'
+              ' search for a name that does not exist scans the whole table')
+    elif x['free_slots'] == 0:
+        print('hash    : no free entry, %d deleted: StormLib reuses a deleted one when adding (the MPQ Editor'
+              ' can add); a search for a name that does not exist still scans the whole table' % x['deleted'])
+    if x['alias']:
+        print(
+            'ALIAS   : %d block(s) with more than one entry in the hash table (up to %d per block): fake-name entries that'
+            ' the MPQ Editor lists one by one (--clean-alias --names=<listfile> deletes them in the blocks with a known name)'
+            % (x['alias'], x['alias_max'])
+        )
+    if x['overlapping']:
+        print('JUNK    : %d block(s) overlap others; the %d blocks add up to %.1f GB decompressed ("extract all" reads'
+              ' this)' % (x['overlapping'], x['live'], x['fs_sum'] / 1e9))
+        st, _nb = classify_blocks(a)
+        c = collections.Counter(e for e, _m in st.values())
+        print(
+            '          unnamed: %d real, %d junk (the game does not read it), %d uncertain -- --fix --hide-junk'
+            ' [--names=<listfile>] removes the junk from the MPQ Editor list' % (c['real'], c['junk'], c['uncertain'])
+        )
+    if a.find('war3map.j') and a.find('scripts\\war3map.j'):
+        try:
+            a.read('scripts\\war3map.j')
+        except Exception as e:
+            print('DECOY   : unreadable scripts\\war3map.j next to war3map.j (the game reads war3map.j): %s' % e)
+    return hdr, issues, f
 
 
 def _wts(body_text):
