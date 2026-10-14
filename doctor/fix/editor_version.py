@@ -257,6 +257,12 @@ def guess(w3i_bytes):
     return None, 'war3map.w3i version %d, editor %d: 1.30, which has no game files here' % (fmt, editor)
 
 
+def saved_by(w3i_bytes):
+    from doctor.fix import game_builds
+    d = game_builds.describe_w3i(w3i_bytes)
+    return d['text'] if d else None
+
+
 RANGE_EDITOR = {'1.24-1.28': None, '1.29': '1.29'}
 
 
