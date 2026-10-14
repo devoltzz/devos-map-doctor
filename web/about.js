@@ -9,7 +9,7 @@
     a.href = 'https://github.com/' + c.repository;
     a.textContent = 'github.com/' + c.repository;
     a.rel = 'noopener';
-    p.textContent = 'The source code and the Windows program: ';
+    p.textContent = 'The source code and the program for Windows and Linux: ';
     p.appendChild(a);
     p.appendChild(document.createTextNode('.'));
   }
