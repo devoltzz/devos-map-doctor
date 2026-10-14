@@ -926,6 +926,26 @@ def divergent_inheritance(objects, obj_kind, codes, current, classic):
     return listing, no_classic
 
 
+def inherited_requirements(objects, current, defined_one, classic=None):
+    current_tab = current.table('ability')
+    classic_tab = classic.table('ability') if classic is not None else None
+    matches = []
+    for _table, orig, new, mods in objects:
+        if any(mm[0] == 'areq' for mm in mods):
+            continue
+        hash_key = new if new.strip('\0') else orig
+        field_value = str(current_tab.get(orig, {}).get('requires') or '').strip()
+        missing_ones = [
+            x.strip() for x in field_value.split(',') if x.strip() not in ('', '_', '-') and not defined_one(x.strip())
+        ]
+        if missing_ones:
+            in_classic_data = (
+                None if classic_tab is None else bool(str(classic_tab.get(orig, {}).get('requires') or '').strip())
+            )
+            matches.append((hash_key, orig, field_value, missing_ones, in_classic_data))
+    return matches
+
+
 def add_modifications(objects, listing, meta=None):
     by_id = collections.defaultdict(list)
     for hash_key, _orig, code_part, kind, field_value, _current_val in listing:
