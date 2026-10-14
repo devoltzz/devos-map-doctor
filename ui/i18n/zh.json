@@ -2631,5 +2631,9 @@
  "{0} textures only the game has are not drawn.": "有 {0} 个纹理只有游戏才有，不会被绘制。",
  "{0} unbalanced braces": "大括号不平衡：{0} 处",
  "{0} unit types get their {1} normal abilities from the script as each unit is created ({2} unit types keep theirs in the object data, {3} abilities stay on the others). Test the map before sharing it.": "有 {0} 个单位类型的 {1} 个普通技能在每个单位创建时由脚本提供（{2} 个单位类型的技能保留在对象数据中，其余的有 {3} 个技能保留）。分享地图之前请先测试。",
- "{0}=Game.dll+0x{1}": "{0}=Game.dll+0x{1}"
+ "{0}=Game.dll+0x{1}": "{0}=Game.dll+0x{1}",
+ "A folder of loose art files (the ones a map reads from the game folder with \"Allow Local Files\")": "一个存放零散美术文件的文件夹（地图通过 \"Allow Local Files\" 从游戏文件夹读取的那些文件）",
+ "Add a folder...": "添加文件夹...",
+ "the folder next to the ported map": "移植后地图旁边的文件夹",
+ "{0} file(s) ({1} MB) from a folder of loose files stay OUT of the map, as the map used them: they are in {2}. Copy its war3mapImported folder into the game folder (\"Warcraft III\\_retail_\") and turn on \"Allow Local Files\" (see the README.txt there; every player needs the same files)": "来自零散文件夹的 {0} 个文件（{1} MB）不会放进地图内部，与原地图的用法一致：它们位于 {2}。请把其中的 war3mapImported 文件夹复制到游戏文件夹（\"Warcraft III\\_retail_\"），并开启 \"Allow Local Files\"（参见那里的 README.txt；所有玩家都需要相同的文件）"
 }
