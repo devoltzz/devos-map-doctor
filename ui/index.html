@@ -30,6 +30,8 @@
         <span class="hint">export and import</span></button>
       <button data-mode="inspect"><span class="code">07</span><span class="name">INSPECT</span>
         <span class="hint">files, script and compare</span></button>
+      <button data-mode="diagnose" data-tab="diagnose"><span class="code">08</span><span class="name">DIAGNOSE</span>
+        <span class="hint">why it fails in game</span></button>
     </nav>
     <div class="cat" id="cat" aria-hidden="true">
       <div class="zz"><span>z</span><span>z</span><span>Z</span></div>
@@ -50,6 +52,7 @@
       <span id="update" class="hidden"></span>
       <div class="grow"></div>
       <button class="btn hidden" id="btnOpen">Open another map...</button>
+      <button class="btn ghost" id="btnAbout" title="What this program is, its version and its licenses">About</button>
       <button class="btn ghost" id="btnReport" title="Open a GitHub issue with this report">Report a problem</button>
     </header>
 
@@ -59,7 +62,7 @@
           <div class="code">$ doctor open <span class="cursor"></span></div>
           <h2>Drop a Warcraft III map here</h2>
           <p>Or open one: .w3x, .w3m and .w3n. The map is checked as soon as it opens.</p>
-          <p class="faint">Art packages (.mix, .asi, .dll, .mpq) open too: their files can be seen and extracted.</p>
+          <p class="faint">Art packages (.mix, .asi, .dll, .mpq, .w3mod) open too: their files can be seen and extracted.</p>
           <button class="btn primary" id="btnOpen2">Open map...</button>
           <p class="faint" style="margin-top:22px">Your map is never changed: results are saved as new files next to it.</p>
         </div>
@@ -120,6 +123,10 @@
           <div class="tab hidden" id="tab-script"></div>
           <div class="tab hidden" id="tab-compare"></div>
         </section>
+        <section class="mode hidden" id="mode-diagnose">
+          <div class="modehead"><div class="code">08 / DIAGNOSE</div><h2>Diagnose</h2></div>
+          <div class="tab" id="tab-diagnose"></div>
+        </section>
       </section>
     </main>
 
@@ -128,6 +135,7 @@
 <div id="toasts"></div>
 <script src="i18n_data.js"></script>
 <script src="i18n.js"></script>
+<script src="model3d.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
