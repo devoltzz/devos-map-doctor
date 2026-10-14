@@ -9,6 +9,7 @@ import hashlib
 import time
 
 from doctor.mpq import mpqread
+from doctor.app import job_progress
 from doctor.port import new
 from doctor.port import dead_type
 
@@ -54,7 +55,8 @@ HEADER_ONLY_PROTECTIONS = ('read_only',)
 
 def unprotected_result(map_path, root, log):
     from doctor.fix import unprotect
-    d, _s = _muted(unprotect.diagnose, map_path)
+    p = job_progress.call_expr()
+    d, _s = _muted(unprotect.diagnose, map_path, p)
     if isinstance(d, SystemExit) or not isinstance(d, dict):
         return map_path
     code_part = set(p['code'] for p in d.get('protections') or [])
@@ -71,7 +73,7 @@ def unprotected_result(map_path, root, log):
                    x['hash_key'].startswith('dados:'))
     if not mpq - set(HARMLESS_PROTECTIONS) - set(HEADER_ONLY_PROTECTIONS):
         options = dict((x['hash_key'], x['hash_key'] == 'mpq') for x in unprotect.steps(d) if x['action_code'] == 'fix')
-    r, _s = _muted(unprotect.unprotect, map_path, output, None, diag=d, options=options)
+    r, _s = _muted(unprotect.unprotect, map_path, output, p, diag=d, options=options)
     if isinstance(r, dict) and r.get('status') in ('done', 'partial') and os.path.isfile(output):
         log('0. the map protection removed first (%s)' % ', '.join(sorted(mpq)))
         WARNINGS.append(
@@ -301,12 +303,15 @@ def names_and_extraction(map_path, extract, log):
     from doctor.fix import unprotect
     from doctor.port import new_port
     a = mpqread.Archive(map_path)
-    name_list = set(unprotect.map_names(a))
+    with job_progress.stage('name_list', 'Recovering file names'):
+        name_list = set(unprotect.map_names(a))
     for n in list(new.ALWAYS_NAMES) + list(new_port.KNOWN_NAMES):
         if a.find(n):
             name_list.add(n)
     done = []
-    for n in sorted(name_list, key=str.lower):
+    order = sorted(name_list, key=str.lower)
+    for k, n in enumerate(order):
+        job_progress.avanca(k + 1, len(order))
         try:
             d = a.read(n)
         except Exception:
@@ -748,9 +753,11 @@ def build_w3x(original, output, r, to_remove, no_dot_list, log, name_list=(), sc
     if os.path.exists(part):
         os.remove(part)
     try:
-        v, _s = _muted(map_path.attach, original, part, entra, to_delete=to_remove, log=lambda s: None)
-        failures = ['the appender stopped: %s' % v] if isinstance(v, SystemExit) else \
-            map_path.verify(part, entra, missing_ones=to_remove)
+        with job_progress.stage('attach'):
+            v, _s = _muted(map_path.attach, original, part, entra, to_delete=to_remove, log=lambda s: None)
+        with job_progress.stage('verify'):
+            failures = ['the appender stopped: %s' % v] if isinstance(v, SystemExit) else \
+                map_path.verify(part, entra, missing_ones=to_remove)
     except Exception as e:
         failures = ['the appender stopped: %s: %s' % (type(e).__name__, e)]
     if failures:
@@ -760,17 +767,18 @@ def build_w3x(original, output, r, to_remove, no_dot_list, log, name_list=(), sc
         data_bytes = dict((n, map_path.content(v)) for n, v in entra)
         replacements = dict((n, d) for n, d in data_bytes.items() if a.find(n))
         new_ones = dict((n, d) for n, d in data_bytes.items() if not a.find(n))
-        details, _s = _muted(
-            map_path.rebuild,
-            original,
-            part,
-            list(name_list) + list(data_bytes),
-            replacements=replacements,
-            new_ones=new_ones,
-            to_remove=to_remove,
-            hash_factor=2,
-            log=lambda s: None,
-        )
+        with job_progress.stage('rebuild'):
+            details, _s = _muted(
+                map_path.rebuild,
+                original,
+                part,
+                list(name_list) + list(data_bytes),
+                replacements=replacements,
+                new_ones=new_ones,
+                to_remove=to_remove,
+                hash_factor=2,
+                log=lambda s: None,
+            )
         if isinstance(details, SystemExit) or details.get('error_list'):
             raise Aborts('the ported map does not read back: %s' % '; '.join(
                 (failures + (details.get('error_list') or []) if isinstance(details, dict) else failures)[:5]))
@@ -781,15 +789,21 @@ def build_w3x(original, output, r, to_remove, no_dot_list, log, name_list=(), sc
     return sz, slack, [n for n, _v in entra]
 
 
-def shrinks(output, sz, log):
+def shrinks(output, sz, log, with_loss=False):
     from doctor.fix import shrink
     smaller = os.path.splitext(output)[0] + '.small' + os.path.splitext(output)[1]
     log('6. the map is above 512 MiB: making it smaller, losing nothing (this is slow)')
-    r, _s = _muted(shrink.shrink, output, smaller)
+    r, _s = _muted(shrink.shrink, output, smaller, {'lossy': bool(with_loss)})
     if isinstance(r, dict) and r.get('state') == 'done' and os.path.isfile(smaller):
         os.replace(smaller, output)
         sz = os.path.getsize(output)
-        WARNINGS.append('the map was above 512 MiB and was made smaller without loss: %.1f MiB' % (sz / 1048576.0))
+        lo = r.get('lossy') or {}
+        if lo.get('state') == 'done' and not lo.get('error'):
+            WARNINGS.append('the map was above 512 MiB and was made smaller WITH LOSS: %d texture(s) at half size, %d '
+                            'sound(s) mono at 22 kHz; %.1f MiB' % (lo.get('textures') or 0, lo.get('sounds') or 0,
+                                                                sz / 1048576.0))
+        else:
+            WARNINGS.append('the map was above 512 MiB and was made smaller without loss: %.1f MiB' % (sz / 1048576.0))
     elif os.path.exists(smaller):
         os.remove(smaller)
     return sz, TETO - sz
@@ -1289,7 +1303,7 @@ def stable_title(fname):
 
 
 def map_port(map_path, work, output=None, stats=None, heading=None, log=print, packages=(), shrink_large=True,
-             memory_hacks='neutralize', balance_numbers=False, lua_translation=None):
+             memory_hacks='neutralize', balance_numbers=False, lua_translation=None, shrink_with_loss=False):
     t0 = time.time()
     map_path = os.path.abspath(map_path)
     base = os.path.splitext(map_path)[0]
@@ -1310,8 +1324,10 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
         if not os.path.isfile(pjass.exe()):
             raise Aborts('pjass.exe was not found (%s): the port checks the script with it '
                          '(https://github.com/lep/pjass)' % pjass.exe())
+        job_progress.topo('prepare_stage', 'Preparing the port')
         game_reference(root, log)
         original = map_path
+        job_progress.topo('protection', 'Removing the map protection')
         from doctor.mpq import mpqdoctor
         sp, _m, _u = mpqdoctor.is_sprotect(mpqread.Archive(original))
         if sp:
@@ -1324,12 +1340,15 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
             log('0. SProtect undone')
         else:
             original = unprotected_result(map_path, root, log)
+        job_progress.topo('extraction', 'Extracting the files')
         a, name_list = names_and_extraction(original, extract, log)
+        job_progress.topo('script', 'Reading the script')
         raw_data, forma = map_script(a, extract, os.path.join(root, 'scripts'), log)
         details['forma'] = forma
         body_text = re.sub(r'\r(?!\n)', '\n', open(raw_data, 'rb').read().decode('latin-1'))
         lua, raw_data, body_text = lua_route(a, raw_data, body_text, os.path.join(root, 'scripts'), log)
         uj, raw_data, body_text = ujapi_route(extract, raw_data, body_text, os.path.join(root, 'scripts'), log)
+        job_progress.topo('diagnostico', 'Reading what the map uses')
         diag = diagnostico(body_text, extract)
         if uj:
             diag['ujapi'] = {
@@ -1349,6 +1368,7 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
             % (len(diag['plataforma']), len(diag['implemented_count']), 'M16/JN' if diag['jn'] else
                'UjAPI' if diag.get('ujapi') else 'KK',
                'SLK' if diag['slk'] else 'w3u'))
+        job_progress.topo('layer', 'Writing the map part of the layer')
         blz, _pair = map_part(root, compat, extract, raw_data, body_text, diag, heading, log, memory_hacks=memory_hacks,
                               lua_modules=(lua or {}).get('collect', {}).get('lua_modules'))
         from doctor.port import name_without_dot
@@ -1370,6 +1390,7 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
         from doctor.port import shadowed
         r.MAP_VERSION = shadowed.RANGE_CAP.get((details.get('made_for') or {}).get('range'))
         log('5. the script chain (this is the long step)')
+        job_progress.topo('chain', 'Building the script')
         ok, g1, g2, chain_log = run_chain(r)
         if not ok:
             error_list = pjass_errors(chain_log)
@@ -1412,6 +1433,7 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
             raise Aborts('the compiler gates did not pass (G1 %s, G2 %s): %s'
                          % ('PASS' if g1 else 'FAIL', 'PASS' if g2 else 'FAIL', '; '.join(error_list[:3]) or
                             os.path.join(root, 'port', 'out', 'cadeia.log')))
+        job_progress.topo('adjustments', 'Finishing the data')
         details['speed'] = speed_cap(r, extract, body_text, log)
         details['level'] = level_cap(r, extract, log)
         details['toc'] = close_toc(r, extract, log)
@@ -1427,6 +1449,7 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
             if lua and details['numbers'].get('state') == 'scaled':
                 lua['scale_factors'] = dict(details['numbers'].get('factors') or {})
         if packages:
+            job_progress.topo('arte', 'Importing the art of the packages')
             from doctor.port import art_packs
             script = open(os.path.join(r.OUT, 'war3map_pre_injecao.j'), 'rb').read().decode('utf-8', 'surrogateescape')
             arte, _s = _muted(art_packs.import_it, original, list(packages), script, os.path.join(r.OUT, 'arte'),
@@ -1456,9 +1479,12 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
             to_remove += [
                 n for n in ('war3map.j', 'scripts\\war3map.j') if a.find(n) is not None and n not in to_remove
             ]
+        job_progress.topo('assemble', 'Assembling the ported map')
         sz, slack, entrou = build_w3x(original, output, r, to_remove, listing, log, name_list=name_list, script=script)
         if slack < 0 and shrink_large:
-            sz, slack = shrinks(output, sz, log)
+            job_progress.topo('shrinks', 'Making the map smaller')
+            sz, slack = shrinks(output, sz, log, shrink_with_loss)
+        job_progress.topo('checks', 'Checking the ported map')
         port_checks(original, output, details)
         details.update(output=output, bytes=sz, slack=slack, file_set=entrou,
                        resultado='ported' if slack >= 0 else 'ported, but above the 512 MiB the game opens')
