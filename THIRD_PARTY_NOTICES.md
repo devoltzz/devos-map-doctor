@@ -208,6 +208,75 @@ program: they are downloaded the first time, from the release `translation-model
 PaddleOCR models (PP-OCRv6 small, PP-OCRv5 mobile) in the ONNX format published by RapidOCR, unchanged, under the
 Apache License 2.0 (inside each zip). The text is drawn with the font Pillow carries, Aileron (SIL Open Font License).
 
+## Projects used by 1.7.9 (MIT License)
+
+Each item below is under the MIT License (the text follows the list), with its own copyright line:
+
+- war3-model 4.0.1, https://github.com/4eb0da/war3-model, Copyright (c) 2017-2023 4eb0da: `ui/vendor/war3-model.browser.js`
+  (the MDX/MDL parser and WebGL renderer of the 3D model preview), unchanged. It bundles gl-matrix 3.3.0,
+  https://github.com/toji/gl-matrix, Copyright (c) 2015-2020 Brandon Jones, Colin MacKenzie IV. Their license files are
+  next to it in `ui/vendor/`.
+- w3gjs, https://github.com/PBug90/w3gjs, Copyright (c) 2018-2026 PBug90: `replay_read` is a Python port of its replay
+  parsers (the header and block layout, the encoded game settings, the Reforged player records, the game data blocks and
+  the action table).
+- Tasyen/FDF, https://github.com/Tasyen/FDF, Copyright (c) 2020 Tasyen: the frame type and keyword lists and the rules of
+  `fdf_lint`.
+- War3Net, https://github.com/Drake53/War3Net, Copyright (c) Drake53 and Contributors: `doctor/ref/game_builds.json` is
+  its `GameBuilds.json`.
+- WC3MapDeprotector, https://github.com/speige/WC3MapDeprotector, Copyright (c) 2023 WC3MapRepacker: the methods of
+  `slk_objects` (ObjectEditor.cs) and of the folder by name scan and the extension families of the name recovery; the
+  code is new.
+- warcraft-3-mcp-server, https://github.com/YElwiddi/warcraft-3-mcp-server, Copyright (c) 2026 YElwiddi: the sentinel
+  scheme of `durable_wct` (src/durable.ts); the code is new.
+- mdx-m3-viewer, https://github.com/flowtsohg/mdx-m3-viewer, Copyright (c) 2013-2021 Chananya Freiman; W3ModelViewer,
+  https://github.com/Darithos/W3ModelViewer, Copyright (c) 2026 Darithos; ReterasModelStudio,
+  https://github.com/Retera/ReterasModelStudio, Copyright (c) 2023 Retera: the checks of `mdx_sanity` and `blp_check`,
+  the model layouts by version (1800 included) and the key reduction of `mdx_optimize`, reimplemented.
+- jass-minifier, https://github.com/flowtsohg/jass-minifier, and JASS-Constant-Inliner,
+  https://github.com/Son-Guhun/JASS-Constant-Inliner: the approach of `jass_minify`, reimplemented.
+
+```
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## wc3ctl and 5211MapCheck (Apache License 2.0)
+
+- wc3ctl, https://github.com/GodMephisto/wc3ctl, Copyright 2026 GodMephisto: the ten natives renamed in patch 1.29
+  (`script_lint.NATIVE_RENAMES`, from NativeRenames.cs), changed into a Python table; the other checks taken from it
+  (the inherited requirement, the abilities kept on the object, the model paths, the loops, the leaks, the portrait
+  versions, the load markers) are reimplemented from its descriptions.
+- 5211MapCheck, https://github.com/sumneko/5211MapCheck, Copyright sumneko: the six signatures of `cheat_signs`
+  (src/check.lua), changed into a Python table; the lobby rule of `map_rules` is reimplemented.
+
+Both are licensed under the Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0); the copied
+tables were changed in form (Lua and C# to Python) by this program.
+
+## jasshelper (zlib License)
+
+https://github.com/shuen4/jasshelper (Vexorian's jasshelper): the six type names that `common.j` declares as handles but
+the engine counts by reference, and the way a returned local goes through a global (`handle_nulls`), rewritten in
+Python. Copyright (c) 2006 Vexorian. This software is provided 'as-is', without any express or implied warranty; the
+origin of the software must not be misrepresented; altered versions must be plainly marked as such (this is one: a
+rewrite in Python); this notice may not be removed or altered from any source distribution.
+
 ## The site
 
 The site (`web/build_site.py`) ships, unchanged, Pyodide (https://github.com/pyodide/pyodide, MPL-2.0) with its CPython
