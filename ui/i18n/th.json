@@ -2630,5 +2630,9 @@
  "{0} textures only the game has are not drawn.": "เท็กซ์เจอร์ {0} รายการที่มีเฉพาะในเกมจะไม่ถูกวาด",
  "{0} unbalanced braces": "วงเล็บปีกกา {0} ตัวที่ไม่สมดุล",
  "{0} unit types get their {1} normal abilities from the script as each unit is created ({2} unit types keep theirs in the object data, {3} abilities stay on the others). Test the map before sharing it.": "ยูนิตไทป์ {0} ประเภทได้รับความสามารถปกติ {1} รายการจากสคริปต์เมื่อสร้างแต่ละยูนิต (ยูนิตไทป์ {2} ประเภทเก็บของตัวเองไว้ในข้อมูลออบเจกต์ ส่วนความสามารถ {3} รายการคงอยู่ที่ประเภทอื่น) ทดสอบแมพก่อนแชร์",
- "{0}=Game.dll+0x{1}": "{0}=Game.dll+0x{1}"
+ "{0}=Game.dll+0x{1}": "{0}=Game.dll+0x{1}",
+ "A folder of loose art files (the ones a map reads from the game folder with \"Allow Local Files\")": "โฟลเดอร์ที่มีไฟล์งานศิลป์แบบแยกเดี่ยว (ไฟล์ที่แมพอ่านจากโฟลเดอร์เกมด้วย \"Allow Local Files\")",
+ "Add a folder...": "เพิ่มโฟลเดอร์...",
+ "the folder next to the ported map": "โฟลเดอร์ข้างแมพที่พอร์ตแล้ว",
+ "{0} file(s) ({1} MB) from a folder of loose files stay OUT of the map, as the map used them: they are in {2}. Copy its war3mapImported folder into the game folder (\"Warcraft III\\_retail_\") and turn on \"Allow Local Files\" (see the README.txt there; every player needs the same files)": "ไฟล์ {0} ไฟล์ ({1} MB) จากโฟลเดอร์ไฟล์แยกเดี่ยวจะอยู่นอกแมพ ตามที่แมพใช้งานอยู่เดิม: ไฟล์อยู่ใน {2} ให้คัดลอกโฟลเดอร์ war3mapImported ของมันไปไว้ในโฟลเดอร์เกม (\"Warcraft III\\_retail_\") แล้วเปิด \"Allow Local Files\" (ดู README.txt ที่นั่น ผู้เล่นทุกคนต้องมีไฟล์ชุดเดียวกัน)"
 }
