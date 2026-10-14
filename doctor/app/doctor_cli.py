@@ -9,8 +9,8 @@ USAGE = '''Devo's Map Doctor {version}, command line
 
 usage: doctor <command> <map> [options]
 
-<map> is a map (.w3x, .w3m), a campaign (.w3n) or an art package (a .mix, .asi or .dll with an MPQ inside, a .mpq):
-a package is read as data, never run; diag, files and extract work on it.
+<map> is a map (.w3x, .w3m), a campaign (.w3n) or an art package (a .mix, .asi or .dll with an MPQ inside, a .mpq,
+a .w3mod): a package is read as data, never run; diag, files and extract work on it.
 
   diag <map>                      what protects the map and what the World Editor needs (a package: what it carries)
   fix <map> [steps] [extras]      Fix map: saves <map>_fixed.w3x
@@ -19,21 +19,26 @@ a package is read as data, never run; diag, files and extract work on it.
                                   Editor to open it in, reforged (the default), 1.24 to 1.29 (keeps the map's
                                   version), or auto (the version the map was saved for)
   port <map> [--package=<name>] [--icons] [--textures] [--keep-memory] [--balance-numbers] [--strip-indent]
-       [--remove-game-files]      Port to Reforged (KK and M16 maps): saves <map>_reforged.w3x and the report;
+       [--remove-game-files] [--lossy]
+                                  Port to Reforged (KK and M16 maps): saves <map>_reforged.w3x and the report;
                                   --remove-game-files: the map's images and models with the path of a game file
-                                  (they replace the game's own; counted in the report either way) come out
-  check <map> [--game=<version>]  Runs on Reforged? (what crashes or misses on 3.0); --game=1.27 (or --version=1.27)
-                                  checks an older game instead: 1.24a to 1.28.5 and 1.29.2
+                                  (they replace the game's own; counted in the report either way) come out;
+                                  --lossy: a map still above 512 MiB after the lossless shrink gets its biggest
+                                  textures halved and its WAV sounds mono at 22 kHz until it fits
+  check <map> [--game=<version>]  Runs on Reforged? (what crashes or misses on 3.0, and the threads of a JASS script's
+                                  start that do more work than the game lets one thread do); --game=1.27 (or
+                                  --version=1.27) checks an older game instead: 1.24a to 1.28.5 and 1.29.2
   cheatpacks <map>                the cheat packs the map takes, with their options
-  cheat <map> --pack=<id> [--set <key>=<value> ...] [--strip-indent]
-                                  adds a cheat pack: saves <map>_<pack>.w3x
+  cheat <map> --pack=<id> [--set <key>=<value> ...] [--strip-indent] [--durable]
+                                  adds a cheat pack: saves <map>_<pack>.w3x; --durable: also a readable copy in
+                                  the map's triggers, so the pack can survive a save in the World Editor
   qol <map>                       what the map has for each quality of life edit
   qol <map> [--xp=<x>] [--gold=<x>] [--lumber=<x>] [--drop=<x>] [--craft=<x>] [--respawn=<x>] [--creep=<x>]
             [--noshake] [--noshake-off] [--reveal] [--vip] [--strip-indent]
                                   the quality of life edits (multipliers; --respawn=0.5 halves the hero revive
                                   time, --creep=0.5 the monster respawn time): saves <map>_qol.w3x
   translation groups <map>        the files the texts come from
-  translation export <map> <file.txt|file.html> [--only=<group>,...] [--images]
+  translation export <map> <file.json|file.html> [--only=<group>,...] [--images]
   translation check <map> <file>  checks a translated file against the map (apply it: fix --translation=<file>)
   translation machine <map> <file.json> [--quality=best|fast] [--only=<group>,...] [--images]
                                   translates the texts into English on this computer (an open translation model,
@@ -54,13 +59,38 @@ a package is read as data, never run; diag, files and extract work on it.
                                   --all also lists one item for another and the blocks that make several items
   card <map>                      name, author, players, loading screen
   compare <map> <other map>       what differs between two maps
+  diagnose <map> [--all]          the diagnostic copy: saves <map>_diag.w3x, which writes a log to
+                                  CustomMapData\\DevosMapDoctor while it is played (--all: every function marked)
+  diagnose <map> --init           the same, and every step of the load marked in its own file (a load that hangs)
+  log [<file.pld>|<folder _init>] reads the log of a diagnostic copy (none given: the newest one the game wrote)
+  replay [<file.w3g>|<folder>]    reads a replay: the players, chat, who left, sync and frame events, the checksums
+                                  (none given: lists the replays the game kept)
+  replay-compare <a.w3g> <b.w3g>  the first turn where the two games' state checksums differ (a desync)
+  crash [<folder|Crash.txt|War3Log.txt>] [--map=<map>]
+                                  reads the game's crash report or log (none given: lists the crash reports);
+                                  --map: counts that map's files at the game's own paths
 
 Steps of fix / editor (none given: the defaults the window ticks for this map; --no-<step> drops one):
   --unprotect --fake-files --listfile --ids --data --script-back --editor-files --counts --doodads
   --gui-triggers --script-objects --safe-units
 Extras of fix / editor:
   --models --model-names --portraits --data-pointers --kk-textures --green-icons --uabi --preload
-  --single-player --shrink --translation=<file> --strip-indent
+  --single-player --shrink --shrink-lossy --translation=<file> --strip-indent
+  --fix-attributes --remove-game-files --fix-requirements --fix-fdf --null-handles --minify --slk-objects
+  --portraits=stamp|upgrade --shrink-models --shrink-models-lossy --lobby-image=<picture>
+  --fix-attributes         redo the file checksums
+  --remove-game-files      take out the map files that replace the game's own (needs the game installed)
+  --fix-requirements       unlock abilities that require a tech the map lacks
+  --fix-fdf                fix frame file lists
+  --null-handles           null handle locals (JASS)
+  --minify                 shrink the JASS script
+  --slk-objects            make the editor object files from the SLK tables of an optimized map (needs the game)
+  --portraits=stamp|upgrade  the black portrait fix with the model version 1800 (stamp), or also the 3.0 layout
+                           (upgrade): untested in game, try one hero first
+  --shrink-models          models smaller without loss; --shrink-models-lossy also drops animation keys that change
+                           a movement by less than 0.05 units or a rotation by less than 0.002 rad
+  --lobby-image=<picture>  your own lobby image (the minimap moves to war3mapMap_ingame.blp); untested in game
+  --shrink-lossy           the shrink, and if the map is still above 512 MiB its art made smaller until it fits
 
 --strip-indent (fix, editor, port, cheat, qol): the script without the spaces and tabs that start its lines
 
@@ -74,9 +104,25 @@ STEP_FLAGS = {'mpq': 'unprotect', 'fake_list': 'fake-files', 'fake_list': 'fake-
               'inflated_counts': 'counts', 'inflated_counts': 'counts', 'invalid_doodads': 'doodads',
               'invalid_doodads': 'doodads', 'gui_triggers': 'gui-triggers', 'script_objects': 'script-objects',
               'safe_units': 'safe-units'}
-EXTRA_FLAGS = {'models': 'models', 'model-names': 'model_names', 'portraits': 'portraits',
-               'data-pointers': 'data_pointers', 'kk-textures': 'kk_textures', 'green-icons': 'disabled_icons',
-               'uabi': 'uabi', 'preload': 'preload', 'single-player': 'single_player', 'strip-indent': 'strip_indent'}
+EXTRA_FLAGS = {
+    'models': 'models',
+    'model-names': 'model_names',
+    'portraits': 'portraits',
+    'data-pointers': 'data_pointers',
+    'kk-textures': 'kk_textures',
+    'green-icons': 'disabled_icons',
+    'uabi': 'uabi',
+    'preload': 'preload',
+    'single-player': 'single_player',
+    'strip-indent': 'strip_indent',
+    'fix-attributes': 'attributes',
+    'remove-game-files': 'game_overrides',
+    'fix-requirements': 'requirements',
+    'fix-fdf': 'fdf',
+    'null-handles': 'null_handles',
+    'minify': 'minify',
+    'slk-objects': 'slk_objects',
+}
 EDITOR_EXTRAS = ('single-player', 'translation', 'strip-indent')
 OUTCOME_CODE = {'ok': 0, 'nothing': 0, 'partial': 3, 'failed': 1}
 
@@ -142,16 +188,30 @@ def pick_extras(action, opts):
         if not os.path.isfile(opts['translation']):
             raise UsageError('no such translation file: %s' % opts['translation'])
         extras['translation'] = os.path.abspath(opts['translation'])
-    if opts.get('shrink') is True and action == 'fix':
+    if isinstance(opts.get('portraits'), str) and action == 'fix':
+        if opts['portraits'] not in ('stamp', 'upgrade'):
+            raise UsageError('--portraits takes stamp or upgrade (or nothing)')
+        extras['portraits'] = opts['portraits']
+    if (opts.get('shrink-models') is True or opts.get('shrink-models-lossy') is True) and action == 'fix':
+        extras['shrink_models'] = {'lossy': opts.get('shrink-models-lossy') is True}
+    if isinstance(opts.get('lobby-image'), str) and action == 'fix':
+        if not os.path.isfile(opts['lobby-image']):
+            raise UsageError('no such picture: %s' % opts['lobby-image'])
+        extras['lobby_image'] = os.path.abspath(opts['lobby-image'])
+    if (opts.get('shrink') is True or opts.get('shrink-lossy') is True) and action == 'fix':
         extras['shrink'] = {'recompress': True, 'blp': True, 'dedup': True}
+        if opts.get('shrink-lossy') is True:
+            extras['shrink']['lossy'] = True
     return extras
 
 
 class Out:
     def __init__(self, quiet):
         self.quiet = quiet
-        self.tty = hasattr(sys.stderr, 'isatty') and sys.stderr.isatty()
+        self.err = sys.stderr
+        self.tty = hasattr(self.err, 'isatty') and self.err.isatty()
         self.last = ''
+        self.shown = ''
         for stream in (sys.stdout, sys.stderr):
             try:
                 stream.reconfigure(encoding='utf-8', errors='replace')
@@ -162,20 +222,26 @@ class Out:
         if self.quiet or ev.get('type') != 'progress':
             return
         label = str(ev.get('label') or '').strip()
-        if not label or label == self.last:
+        if not label:
             return
-        self.last = label
+        line = label + (' %d/%d' % (ev['done'], ev['total']) if ev.get('total') else '')
         if self.tty:
-            sys.stderr.write('\r\x1b[2K' + label[:100])
+            if line == self.shown:
+                return
+            self.shown = line
+            self.err.write('\r\x1b[2K' + line[:100])
         else:
-            sys.stderr.write(label + '\n')
-        sys.stderr.flush()
+            if label == self.last:
+                return
+            self.err.write(label + '\n')
+        self.last = label
+        self.err.flush()
 
     def done(self):
         if self.tty and self.last and not self.quiet:
-            sys.stderr.write('\r\x1b[2K')
-            sys.stderr.flush()
-        self.last = ''
+            self.err.write('\r\x1b[2K')
+            self.err.flush()
+        self.last = self.shown = ''
 
 
 def print_lines(lines):
@@ -200,7 +266,26 @@ def print_changes(changes):
 
 
 def show(command, r):
-    if command in ('diag', 'fix', 'editor', 'port', 'cheat', 'qol apply'):
+    if command == 'replay list':
+        for x in r.get('replays') or []:
+            print('%s  %s  %d bytes' % (x.get('path'), x.get('kind'), x.get('bytes') or 0))
+        return
+    if command == 'replay compare':
+        print(r.get('text') or '')
+        return
+    if command in ('log', 'crash', 'replay'):
+        print(r.get('text') or r.get('error') or '')
+        return
+    if command == 'crash list':
+        reports = r.get('reports') or []
+        if not reports:
+            print('No crash report in %s' % r.get('folder'))
+        for x in reports:
+            print('%s  %s in %s  %s' % (x.get('path'), x.get('kind'), x.get('module'), x.get('map') or ''))
+        if r.get('log'):
+            print('The game\'s log: %s' % r['log'])
+        return
+    if command in ('diag', 'fix', 'editor', 'port', 'cheat', 'qol apply', 'diagnose'):
         print_lines(r.get('lines'))
         if command in ('fix', 'editor'):
             print_changes(r.get('changes'))
@@ -396,7 +481,7 @@ def build_job(command, pos, opts, run):
                         'memory': not opts.get('keep-memory'), 'icons': bool(opts.get('icons')),
                         'textures': bool(opts.get('textures')), 'balance': bool(opts.get('balance-numbers')),
                         'strip_indent': opts.get('strip-indent') is True,
-                        'game_files': bool(opts.get('remove-game-files'))}
+                        'game_files': bool(opts.get('remove-game-files')), 'lossy': bool(opts.get('lossy'))}
     if command == 'check':
         need(pos, 2, '<map>')
         job = {'task': 'reforged', 'map': pos[1]}
@@ -424,7 +509,7 @@ def build_job(command, pos, opts, run):
                 raise UsageError('--set takes <key>=<value>, not %r' % kv)
             options[k] = {'true': True, 'false': False}.get(v.lower(), v)
         return 'cheat', {'task': 'cheatpack_inject', 'map': pos[1], 'pack': opts['pack'], 'options': options,
-                         'strip_indent': opts.get('strip-indent') is True}
+                         'strip_indent': opts.get('strip-indent') is True, 'durable': opts.get('durable') is True}
     if command == 'qol':
         need(pos, 2, '<map>')
         options = {}
@@ -500,6 +585,30 @@ def build_job(command, pos, opts, run):
         if not os.path.isfile(pos[2]):
             raise UsageError('no such map: %s' % pos[2])
         return 'compare', {'task': 'compare', 'map': pos[1], 'other': pos[2]}
+    if command == 'diagnose':
+        need(pos, 2, '<map>')
+        mode = 'all' if opts.get('all') is True else 'init' if opts.get('init') is True else 'entry'
+        return 'diagnose', {'task': 'diag_make', 'map': pos[1], 'mode': mode}
+    if command == 'replay':
+        if len(pos) == 1:
+            return 'replay list', {'task': 'replay_list'}
+        return 'replay', {'task': 'replay_read', 'file': os.path.abspath(pos[1])}
+    if command == 'replay-compare':
+        need(pos, 3, '<a.w3g> <b.w3g>')
+        return 'replay compare', {'task': 'replay_compare', 'a': os.path.abspath(pos[1]), 'b': os.path.abspath(pos[2])}
+    if command == 'log':
+        if len(pos) > 1:
+            return 'log', {'task': 'diag_read', 'file': os.path.abspath(pos[1])}
+        from doctor.fix import diagnose
+        logs = diagnose.logs(1)
+        if not logs:
+            raise UsageError('no diagnostic log in %s: give the file' % diagnose.log_folder())
+        return 'log', {'task': 'diag_read', 'file': logs[0]['path']}
+    if command == 'crash':
+        if len(pos) == 1:
+            return 'crash list', {'task': 'crash_list'}
+        mapa = opts.get('map') if isinstance(opts.get('map'), str) else None
+        return 'crash', {'task': 'crash_read', 'file': os.path.abspath(pos[1]), 'map': mapa, 'check_map': bool(mapa)}
     raise UsageError('unknown command %r' % command)
 
 
