@@ -272,6 +272,150 @@ def _classic_jass_items(tree, ref, version, declared, defined, own_blizzard, own
     return items
 
 
+FDF_PHRASES = (
+    ('fdf_duplicate_mainframe', '%d frames defined twice in one file (the game ignores the rest of the file)'),
+    ('fdf_braces', '%d unbalanced braces'),
+    ('fdf_missing_comma', '%d actions missing the comma that ends the one before'),
+    ('fdf_hierarchy', '%d simple frames inside a plain frame'),
+    ('fdf_include_missing', '%d included files that neither the map nor the game has'),
+    ('toc_missing_file', '%d table of contents lines naming a file that neither the map nor the game has'),
+    ('fdf_inherits_missing', '%d frames inherited from a frame no file defines'),
+    ('toc_final_line', '%d tables of contents without a final line break (the last frame file is not read)'),
+)
+
+
+def check_items(path):
+    items = []
+
+    def safe(f):
+        try:
+            return f(path)
+        except Exception:
+            return None
+    from doctor.fix import fdf_lint
+    r = safe(fdf_lint.lint)
+    if r and r.get('counts'):
+        c = r['counts']
+        parts = [txt % c[code] for code, txt in FDF_PHRASES if c.get(code)]
+        if parts:
+            sev = 'warning' if any(f.get('severity') == 'warning' for fs in r['files'].values() for f in fs) else 'info'
+            items.append(_item('fdf_lint', sev, 'The frame files (.fdf, .toc) have %d problems the game skips: %s.' % (
+                sum(c.get(code, 0) for code, _t in FDF_PHRASES), '; '.join(parts)),
+                'doctor' if r.get('fixable') else 'none', files=sorted(r['files'])[:30]))
+    from doctor.port import game_files
+    s = safe(game_files.scan)
+    if s and s.get('files') and s.get('severity') == 'warning':
+        under_ui = sum(1 for n in s['files'] if str(n).lower().startswith('ui\\'))
+        items.append(
+            _item(
+                'game_file_override',
+                'warning',
+                '%d files of the map have the path of a file of the game '
+                '(%d under UI), so 3.0 uses the map\'s copy instead of its own. Two maps made the game close this way '
+                '(UI\\MiniMap textures in LAN with HD graphics; a port with 1,486 repacked game textures); '
+                'removing them fixed both. The map may do it on purpose (a new skin). Folders: %s.'
+                % (len(s['files']), under_ui, ', '.join('%s %d' % tuple(x) for x in (s.get('folders') or [])[:4])),
+                'doctor',
+                count=len(s['files']),
+            )
+        )
+    from doctor.fix import requirement_check
+    q = safe(requirement_check.scan)
+    if q and q.get('count'):
+        names = ', '.join(sorted(q.get('bases') or {})[:5])
+        if q.get('new_count'):
+            items.append(_item('inherited_requirement', 'warning', '%d abilities inherit a requirement from their base '
+                               'ability that the map does not define (%s), and the 3.0 game data has it where the '
+                               'classic data did not. Players report such skills locked ("requires Berserker Upgrade" '
+                               'on a hero in a map with no orc tech tree). The Doctor writes an empty requirement.' % (
+                                   q['new_count'], names), 'doctor', fixable=q['new_count']))
+        rest = q['count'] - (q.get('new_count') or 0)
+        if rest:
+            items.append(_item('inherited_requirement_classic', 'info', '%d more abilities inherit a requirement the '
+                               'classic data had too; if the gate is intended, leave it.' % rest, 'none'))
+    from doctor.fix import model_paths
+    m = safe(model_paths.scan)
+    if m and m.get('missing'):
+        bad = [x for x in m['missing'] if x.get('severity') == 'warning']
+        soft = len(m['missing']) - len(bad)
+        items.append(_item('model_path_missing', 'warning' if bad else 'info', '%d model paths in the script and the '
+                           'object data resolve to no file in the map or the game, so the unit or effect draws nothing '
+                           '(the engine logs "model creation failed" on each try). %d more are empty placeholders and '
+                           'doodads or destructables that may never be placed.' % (len(bad), soft), 'none',
+                           paths=[dict((k, x.get(k)) for k in ('source', 'id', 'field', 'path', 'suggestion'))
+                                  for x in (bad or m['missing'])[:10]]))
+    from doctor.fix import map_rules
+    mr = safe(map_rules.scan)
+    for f in (mr or {}).get('findings') or []:
+        items.append(_item('players_mismatch', 'warning', 'The lobby (war3map.w3i) and the script\'s config() '
+                           'disagree: %s' % f.get('text', ''), 'none'))
+    from doctor.fix import attributes_check
+    at = safe(attributes_check.scan)
+    if at and at.get('stale'):
+        items.append(_item('attributes_stale', 'warning', '%d files no longer match their checksum in (attributes), '
+                           'which can make the game refuse the map as corrupted (%s).' % (
+                               len(at['stale']), ', '.join(str(x) for x in at['stale'][:5])), 'doctor',
+                           fixable=len(at['stale'])))
+    return items
+
+
+def script_rule_items(tree, text, made):
+    items = []
+    old = False
+    try:
+        from doctor.data import wc3_versions
+        v = (made or {}).get('version')
+        old = bool(v) and wc3_versions.normalize(v) != wc3_versions.REFORGED
+    except Exception:
+        old = False
+    from doctor.fix import cheat_signs
+    from doctor.fix import handle_nulls
+    from doctor.fix import script_lint
+    for run in (lambda: handle_nulls.reforged_items(handle_nulls.analyze(tree), _item),
+                lambda: script_lint.reforged_items(script_lint.lint(tree), old, _item),
+                lambda: cheat_signs.reforged_items(cheat_signs.signs(tree, text), _item)):
+        try:
+            items += run() or []
+        except Exception:
+            pass
+    return items
+
+
+def thread_items(text, own_blizzard=None, seconds=8.0):
+    from doctor.script import jass_eval
+    from doctor.triggers import triggerdata
+    libs = []
+    for name in ('common.j', 'blizzard.j'):
+        if name == 'blizzard.j' and own_blizzard:
+            libs.append(own_blizzard)
+            continue
+        path = os.path.join(REF_30, name)
+        libs.append(jass_ast.read_script(path) if os.path.isfile(path) else (triggerdata.game_script(name) or ''))
+    try:
+        r = jass_eval.thread_limits(text, libs, seconds=seconds)
+    except Exception:
+        return []
+    if not r['over']:
+        return []
+    stops = [x for x in r['over'] if x[2] == 'stops']
+    names = ', '.join('%s (%s)' % (n, '{:,}'.format(c)) for n, c, _v in r['over'][:6])
+    if stops:
+        return [
+            _item(
+                'thread_limit',
+                'warning',
+                '%d thread(s) of the map\'s start do much more work than the game lets '
+                'one thread do, so the game stops them in the middle, without a message: %s operations. Make a '
+                'diagnostic copy (Diagnose) to see where they stop.' % (len(r['over']), names),
+                'none',
+                threads=[list(x) for x in r['over']],
+            )
+        ]
+    return [_item('thread_limit', 'info', '%d thread(s) of the map\'s start come close to the work the game lets one '
+                  'thread do (%s operations): if something stops halfway, start there.' % (len(r['over']), names),
+                  'none', threads=[list(x) for x in r['over']])]
+
+
 def pjass_items(text, version, own_blizzard=None):
     from doctor.data import wc3_versions
     r = wc3_versions.pjass_check(text, version, own_blizzard)
@@ -286,7 +430,10 @@ def pjass_items(text, version, own_blizzard=None):
 
 
 def model_items(path, progress=None, version=None):
-    r = model_check.scan(path, progress)
+    try:
+        r = model_check.scan(path, progress, sanity=True, version=version)
+    except TypeError:
+        r = model_check.scan(path, progress)
     if r.get('error'):
         return [], 0
     hang = [m['file'] for m in r['models'] if any(x['code'] == 'matrix_groups' for x in m['problems'])]
@@ -325,6 +472,19 @@ def model_items(path, progress=None, version=None):
                            'their name back.' % len(enc['renamed']), 'doctor',
                            names=[list(x) for x in enc['renamed'][:30]],
                            collisions=[list(x) for x in enc.get('collisions') or []][:10]))
+    try:
+        from doctor.fix import mdx_sanity
+        for it in mdx_sanity.summary(r.get('sanity') or {}, version):
+            items.append(_item(it['code'], it['severity'], it['text'], 'none', models=it['files'], count=it['count']))
+    except Exception:
+        pass
+    try:
+        from doctor.fix import blp_check
+        t = blp_check.scan_map(path, version, progress)
+        for it in blp_check.summary(t, version):
+            items.append(_item(it['code'], it['severity'], it['text'], 'none', textures=it['files'], count=it['count']))
+    except Exception:
+        pass
     return items, r['checked']
 
 
@@ -541,9 +701,18 @@ def _script_items(src, diag, progress, version=None, extra=None):
         p('Checking the natives')
         own = unprotect._read(a, 'scripts\\blizzard.j')
         items += jass_items(tree, own.decode('latin-1') if own else None, version)
+        items += script_rule_items(tree, text, (extra or {}).get('made_for'))
         if version:
             p('Compiling the script with pjass')
             items += pjass_items(sc['bytes'], version, own)
+            try:
+                from doctor.fix import downgrade
+                items += downgrade.media_items(src, version, p)
+            except Exception:
+                pass
+        else:
+            p('Running the start of the script')
+            items += thread_items(text, own.decode('latin-1') if own else None)
     if tree is not None and not version:
         sp = single_player.analyze(text, lang, strings, tree)
         if sp['found']:
@@ -655,6 +824,8 @@ def check(path, progress=None, diag=None, version=None):
         if not version:
             p('Checking the object data')
             items += object_items(src)
+            p('Checking the frame files, the game files and the model paths')
+            items += check_items(src)
         p('Checking the imported files')
         items += import_items(src)
         p('Checking the textures')
