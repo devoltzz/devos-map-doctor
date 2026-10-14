@@ -2630,5 +2630,9 @@
  "{0} textures only the game has are not drawn.": "Текстури, які є лише в грі, не малюються: {0}.",
  "{0} unbalanced braces": "Незбалансованих фігурних дужок: {0}",
  "{0} unit types get their {1} normal abilities from the script as each unit is created ({2} unit types keep theirs in the object data, {3} abilities stay on the others). Test the map before sharing it.": "Типи юнітів ({0}) отримують свої {1} звичайних здібностей зі скрипту під час створення кожного юніта (типів юнітів, що тримають їх у даних об'єктів: {2}; здібностей, що залишаються в інших: {3}). Перевірте мапу, перш ніж ділитися нею.",
- "{0}=Game.dll+0x{1}": "{0}=Game.dll+0x{1}"
+ "{0}=Game.dll+0x{1}": "{0}=Game.dll+0x{1}",
+ "A folder of loose art files (the ones a map reads from the game folder with \"Allow Local Files\")": "Тека з окремими файлами арту (тими, які мапа читає з теки гри через \"Allow Local Files\")",
+ "Add a folder...": "Додати теку...",
+ "the folder next to the ported map": "тека поруч із портованою мапою",
+ "{0} file(s) ({1} MB) from a folder of loose files stay OUT of the map, as the map used them: they are in {2}. Copy its war3mapImported folder into the game folder (\"Warcraft III\\_retail_\") and turn on \"Allow Local Files\" (see the README.txt there; every player needs the same files)": "Файли ({0} шт., {1} MB) з теки з окремими файлами залишаються ПОЗА мапою, як їх і використовувала мапа: вони лежать у {2}. Скопіюйте її теку war3mapImported до теки гри (\"Warcraft III\\_retail_\") і ввімкніть \"Allow Local Files\" (див. README.txt там само; усім гравцям потрібні ті самі файли)"
 }
