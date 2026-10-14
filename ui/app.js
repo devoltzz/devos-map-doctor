@@ -58,6 +58,41 @@ function dialog(title, body, buttons) {
   });
 }
 
+function showAbout() {
+  if (web()) { location.href = 'about.html'; return; }
+  const h = state.hello || {};
+  const repo = h.repository;
+  const link = (label, url) => el('button', { class: 'btn small', text: label,
+    onclick: () => api().open_url(url) });
+  const body = el('div', { class: 'about' },
+    el('p', { class: 'muted', translate: 'no', text: 'v' + (h.version || '?') }),
+    el('h3', { text: 'What this is' }),
+    el('p', { text: 'Devo\'s Map Doctor opens protected Warcraft III maps, fixes what stops them on Reforged 3.0, ' +
+      'prepares them for the World Editor and ports the maps of the KK and M16 platforms. It also adds cheat packs ' +
+      'and quality of life edits, translates maps and finds out why a map fails in the game (Diagnose). The window is ' +
+      'in English and 16 other languages.' }),
+    el('h3', { text: 'Privacy' }),
+    el('ul', {},
+      el('li', { text: 'Everything runs on this computer: your maps are never sent anywhere, and the original map is ' +
+        'never written.' }),
+      el('li', { text: 'When it opens, the program asks GitHub whether a new version is out. The file name index and ' +
+        'the data of the old game versions are downloaded only when they are needed and you accept.' }),
+      el('li', { text: '"Report a problem" opens a GitHub issue in your browser with the report filled in: you read ' +
+        'it and decide whether to send it.' })),
+    el('h3', { text: 'The command line' }),
+    el('p', { text: 'Every action also runs from a terminal: doctor --help lists them. On Windows, doctor.exe appears next to ' +
+      'the program the first time you open it; on Linux the program takes the commands itself.' }),
+    el('h3', { text: 'Licenses' }),
+    el('p', { text: 'The Doctor is open source under the MIT license. The parts of other projects it carries and ' +
+      'their licenses are listed in THIRD_PARTY_NOTICES.txt (THIRD_PARTY_NOTICES-linux.txt on Linux), in each ' +
+      'release.' }),
+    el('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap;margin-top:6px' },
+      repo ? link('Project page', 'https://github.com/' + repo) : null,
+      repo ? link('Releases', 'https://github.com/' + repo + '/releases') : null,
+      link('Use it in the browser', 'https://doctor.devoltz.party')));
+  dialog('About Devo\'s Map Doctor', body);
+}
+
 async function copyText(text) {
   try { await navigator.clipboard.writeText(text); return true; } catch (e) { }
   const ta = el('textarea', {}, text);
@@ -83,7 +118,7 @@ const state = {
   trGroups: null, trSkip: new Set(), mtQuality: 'best',
   trImages: false, trReview: null,
   extras: { card: null, translation: null, models: null, modelNames: null, singlePlayer: null, portraits: null,
-    dataPointers: null, kkTextures: null, disabledIcons: null, uabi: null, preload: null },
+    dataPointers: null, kkTextures: null, disabledIcons: null, uabi: null, preload: null, attributes: null, gameOverrides: null, requirements: null, fdf: null, slkObjects: null, lobbyImage: null },
   cheatpacks: null, cheatPack: { id: null, options: {}, result: null },
   qol: null, qolOpt: {}, qolResult: null,
   rawcodes: null,
@@ -103,7 +138,7 @@ async function run(task, params, opts) {
   const key = task + (Object.keys(ex).length ? ':' + Object.keys(ex).filter(k => ex[k]).sort().join(',') : '');
   return new Promise((resolve, reject) => {
     state.jobs[id] = { task, key, resolve, reject, started: Date.now(), label: opts.label, quiet: opts.quiet,
-      size: state.open ? state.open.size : null, stage: null, marks: [] };
+      size: state.open ? state.open.size : null, path: '', seen: {}, ended: {}, count: null, rate: {} };
     if (opts.quiet) state.quietJobs.add(id);
     else showJob(id, opts.label || 'Working...');
     const early = pendingEvents[id];
@@ -128,11 +163,10 @@ window.doctor = {
       return;
     }
     if (ev.type === 'progress') {
-      if (!job.quiet) {
-        job.stage = { label: ev.label, at: (Date.now() - job.started) / 1000 };
-        job.marks.push(job.stage);
+      if (!job.quiet) noteScope(job, ev);
+      if (!job.quiet && state.running === ev.job) {
+        $('#jobLabel').textContent = ev.label + (ev.total ? ' ' + ev.done + '/' + ev.total : '');
       }
-      if (!job.quiet && state.running === ev.job) $('#jobLabel').textContent = ev.label;
       if (job.onProgress) job.onProgress(ev.label);
       return;
     }
@@ -158,34 +192,153 @@ function showJob(id, label) {
 }
 
 const BAR = 14;
+function isPrefix(p, path) { return !p || path === p || path.startsWith(p + '/'); }
+
+function noteScope(job, ev) {
+  const now = (Date.now() - job.started) / 1000;
+  const path = ev.path || '';
+  if (path !== job.path) {
+    for (const p of Object.keys(job.seen)) if (job.ended[p] === undefined && !isPrefix(p, path)) job.ended[p] = now;
+    const parts = path ? path.split('/') : [];
+    for (let i = 1; i <= parts.length; i++) {
+      const p = parts.slice(0, i).join('/');
+      if (job.seen[p] === undefined) job.seen[p] = now;
+      else delete job.ended[p];
+    }
+    job.path = path;
+  }
+  if (ev.total) {
+    const r = job.rate[path] || (job.rate[path] = { t: now, d: ev.done });
+    job.count = { path, done: ev.done, total: ev.total, at: now, t0: r.t, d0: r.d };
+  } else if (job.count && job.count.path !== path) job.count = null;
+}
+
+function jobMB(job) { return job.size ? Math.max(job.size / 1e6, 0.1) : 1; }
+
+const FADE = 0.8;
+function fitAdd(f, x, y) {
+  const o = f || { w: 0, sx: 0, sy: 0, sxx: 0, sxy: 0 };
+  return { w: o.w * FADE + 1, sx: o.sx * FADE + x, sy: o.sy * FADE + y, sxx: o.sxx * FADE + x * x,
+    sxy: o.sxy * FADE + x * y };
+}
+function fitSecs(f, x) {
+  if (!f || !(f.w > 0)) return null;
+  const mx = f.sx / f.w, my = f.sy / f.w, vr = f.sxx / f.w - mx * mx, cv = f.sxy / f.w - mx * my;
+  if (vr > Math.pow(0.25 * mx, 2)) {
+    const b = Math.max(cv / vr, 0), a = Math.max(my - b * mx, 0);
+    return a + b * x;
+  }
+  return my * Math.sqrt(x / Math.max(mx, 1e-6));
+}
+
 function learnTime(job) {
   const secs = (Date.now() - job.started) / 1000;
   if (secs < 1) return;
+  const mb = jobMB(job);
   const timing = state.settings.timing = Object.assign({}, state.settings.timing);
   for (const k of new Set([job.key, job.task])) {
-    const h = Object.assign({ n: 0, stages: {} }, timing[k]);
+    const h = Object.assign({ n: 0, stagesv2: {}, inner: {} }, timing[k]);
+    delete h.stages;
+    delete h.scopes;
     const mix = (old, now) => old === undefined || old === null || !h.n ? now : old * 0.6 + now * 0.4;
     h.secs = mix(h.secs, secs);
-    if (job.size) h.mbps = mix(h.mbps, secs / Math.max(job.size / 1e6, 0.1));
-    const stages = Object.assign({}, h.stages);
-    for (const m of job.marks) stages[m.label] = mix(stages[m.label], m.at / secs);
-    h.stages = stages;
+    if (job.size) h.mbps = mix(h.mbps, secs / mb);
+    const stages = Object.assign({}, h.stagesv2), inner = Object.assign({}, h.inner);
+    const tops = new Set();
+    for (const p of Object.keys(job.seen)) {
+      const s = job.seen[p], e = job.ended[p] === undefined ? secs : job.ended[p];
+      const parts = p.split('/');
+      if (parts.length === 1) {
+        tops.add(p);
+        const old = stages[p] || {};
+        stages[p] = { fit: fitAdd(old.fit, mb, e - s), order: mix(old.order, s / secs),
+          occ: mix(old.occ === undefined ? 0 : old.occ, 1) };
+      } else {
+        const top = parts[0], ts = job.seen[top], te = job.ended[top] === undefined ? secs : job.ended[top];
+        const span = Math.max(te - ts, 1e-6), old = inner[p];
+        const iv = [(s - ts) / span, (e - ts) / span];
+        inner[p] = old ? [mix(old[0], iv[0]), mix(old[1], iv[1])] : iv;
+      }
+    }
+    for (const p of Object.keys(stages)) if (!tops.has(p)) stages[p] = Object.assign({}, stages[p], { occ: mix(stages[p].occ, 0) });
+    h.stagesv2 = stages;
+    h.inner = inner;
     h.n = Math.min(h.n + 1, 20);
     timing[k] = h;
   }
   saveSettings();
 }
 
+function stageFrac(job, h, top, stageSecs, now) {
+  const parts = job.path.split('/');
+  const c = job.count;
+  for (let i = parts.length; i >= 1; i--) {
+    const p = parts.slice(0, i).join('/');
+    const iv = i === 1 ? [0, 1] : (h.inner || {})[p];
+    if (!iv) continue;
+    const s = iv[0], e = Math.max(iv[1], iv[0]);
+    if (c && c.path === p) return s + (e - s) * c.done / c.total;
+    if (stageSecs > 0) {
+      const begun = job.seen[p] || 0, span = (e - s) * stageSecs;
+      return s + (e - s) * (span > 0 ? Math.min((now - begun) / span, 0.95) : 0.95);
+    }
+    if (c && i === 1 && c.path.startsWith(top + '/')) return null;
+  }
+  return null;
+}
+
 function estimate(job) {
   const t = state.settings.timing || {};
   const h = t[job.key] || t[job.task];
-  if (!h) return null;
   const now = (Date.now() - job.started) / 1000;
-  let total = job.size && h.mbps ? h.mbps * job.size / 1e6 : h.secs;
-  const st = job.stage, f = st && h.stages ? h.stages[st.label] : null;
-  if (f > 0.05 && st.at > 1) total = total > 0 ? (total + 2 * st.at / f) / 3 : st.at / f;
-  if (!(total > 0)) return null;
-  return { frac: Math.min(now / total, 0.97), left: Math.max(total - now, 0) };
+  const c = job.count;
+  const stepLeft = c && c.done > c.d0 && c.at > c.t0 ? (c.total - c.done) * (c.at - c.t0) / (c.done - c.d0) : null;
+  const stepOnly = () => (c ? { frac: c.done / c.total, left: stepLeft, step: true } : null);
+  if (!h || !h.stagesv2) return stepOnly();
+  const mb = jobMB(job), stages = h.stagesv2;
+  const top = job.path ? job.path.split('/')[0] : '';
+  const st = stages[top];
+  const begun = top ? job.seen[top] || 0 : 0;
+  let curLeft;
+  if (st) {
+    const secs = fitSecs(st.fit, mb) || 0;
+    const f = stageFrac(job, h, top, secs, now);
+    const sofar = now - begun;
+    if (f !== null && f > 0.05) {
+      curLeft = Math.max((sofar > secs || !(secs > 0) ? sofar / f : (secs + 2 * sofar / f) / 3) - sofar, 0);
+    }
+    else curLeft = Math.max(secs - sofar, sofar * 0.25, secs * 0.05);
+  } else {
+    curLeft = Math.max(now - begun, 1);
+  }
+  if (stepLeft !== null && c.path.startsWith(top + '/')) curLeft = Math.max(curLeft, stepLeft);
+  const here = st ? st.order : (now / Math.max(h.secs || now, 1e-6));
+  let after = 0;
+  for (const [p, s] of Object.entries(stages)) {
+    if (p === top || job.seen[p] !== undefined || !(s.order > here)) continue;
+    after += (s.occ === undefined ? 1 : s.occ) * (fitSecs(s.fit, mb) || 0);
+  }
+  let whole = 0;
+  for (const s of Object.values(stages)) whole += (s.occ === undefined ? 1 : s.occ) * (fitSecs(s.fit, mb) || 0);
+  let took = Math.max(whole * 0.2, 4), expected = took;
+  for (const [p, s] of Object.entries(stages)) {
+    if (p === top || job.seen[p] === undefined || job.ended[p] === undefined) continue;
+    took += job.ended[p] - job.seen[p];
+    expected += fitSecs(s.fit, mb) || 0;
+  }
+  const k = Math.min(Math.max(took / expected, 0.33), 3);
+  const left = curLeft + after * k;
+  if (!(left >= 0) || !isFinite(left)) return stepOnly();
+  const frac = Math.min(Math.max(now / (now + left), 0), 0.99);
+  return { frac, left };
+}
+
+function advanceShown(job, frac, left, now) {
+  const prev = job.shown || 0, dt = Math.max(now - (job.shownAt === undefined ? now : job.shownAt), 0);
+  job.shownAt = now;
+  if (frac >= prev) return (job.shown = frac);
+  const step = left > 0 ? (0.99 - prev) * Math.min(dt / (left + dt), 1) : 0;
+  return (job.shown = Math.min(prev + step, 0.99));
 }
 
 function renderCat() {
@@ -200,10 +353,15 @@ function renderCat() {
   const e = estimate(job);
   let bar, tail;
   if (e) {
-    e.frac = job.shown = Math.max(job.shown || 0, e.frac);
+    if (e.step) {
+      const same = job.stepShown && job.count && job.stepShown.path === job.count.path;
+      e.frac = Math.max(same ? job.stepShown.frac : 0, e.frac);
+      if (job.count) job.stepShown = { path: job.count.path, frac: e.frac };
+    } else e.frac = advanceShown(job, e.frac, e.left, now);
     const full = Math.round(e.frac * BAR);
     bar = '[' + '\u2588'.repeat(full) + '\u2591'.repeat(BAR - full) + '] ' + Math.round(e.frac * 100) + '%';
-    tail = e.left >= 1 ? '~' + clock(e.left) + ' left' : 'almost done';
+    tail = e.left === null || e.left === undefined ? clock(now) + ' so far' :
+      e.left >= 1 ? '~' + clock(e.left) + (e.step ? ' left in this step' : ' left') : 'almost done';
   } else {
     const span = BAR - 3, k = Math.floor(now * 6) % (2 * span), at = k < span ? k : 2 * span - k;
     bar = '[' + '\u2591'.repeat(at) + '\u2588\u2588\u2588' + '\u2591'.repeat(span - at) + ']';
@@ -277,7 +435,7 @@ async function openMap(path) {
   state.portResult = null;
   state.portPackages = [];
   state.extras = { card: null, translation: null, models: null, modelNames: null, singlePlayer: null, portraits: null,
-    dataPointers: null, kkTextures: null, disabledIcons: null, uabi: null, preload: null };
+    dataPointers: null, kkTextures: null, disabledIcons: null, uabi: null, preload: null, attributes: null, gameOverrides: null, requirements: null, fdf: null, slkObjects: null, lobbyImage: null };
   state.cheatpacks = null;
   state.cheatPack = { id: null, options: {}, result: null };
   state.qol = null;
@@ -288,6 +446,7 @@ async function openMap(path) {
   state.rawcodes = null;
   state.recipes = null;
   state.editorVersion = 'reforged';
+  state.diag = { mode: 'entry', result: null, logs: null, log: null, crashes: null, crash: null, checkMap: true };
   TABS.forEach(n => setTabState(n, 'wait'));
   $('#welcome').classList.add('hidden');
   $('#mapview').classList.remove('hidden');
@@ -316,9 +475,12 @@ async function openMap(path) {
     renderTranslation();
     renderCompare();
     renderPort();
+    renderDiagnose();
     setTabState('translation', 'ready');
     setTabState('compare', 'ready');
     setTabState('port', 'ready');
+    setTabState('diagnose', 'ready');
+    loadDiagnoseLists(gen);
     loadThumb(gen);
     checkReforgedQuietly(gen);
     loadTabsInBackground(gen);
@@ -412,6 +574,12 @@ async function checkReforgedQuietly(gen) {
     if (r.uabi && r.uabi.distinct) { state.extras.uabi = r.uabi; renderActions(); }
     if (r.preload && (r.preload.units || r.preload.abilities)) { state.extras.preload = r.preload; renderActions(); }
     if (r.model_names && r.model_names.fixable) { state.extras.modelNames = r.model_names; renderActions(); }
+    if (r.attributes && r.attributes.fixable) { state.extras.attributes = r.attributes; renderActions(); }
+    if (r.game_overrides && r.game_overrides.count) { state.extras.gameOverrides = r.game_overrides; renderActions(); }
+    if (r.requirements && r.requirements.fixable) { state.extras.requirements = r.requirements; renderActions(); }
+    if (r.fdf && r.fdf.fixable) { state.extras.fdf = r.fdf; renderActions(); }
+    if (r.slk_objects && r.slk_objects.fixable) { state.extras.slkObjects = r.slk_objects; renderActions(); }
+    if (r.lobby_image && r.lobby_image.ready) { state.extras.lobbyImage = r.lobby_image; renderActions(); }
   } catch (e) {
     if (gen !== state.gen) return;
     const badge = $('#reforgedBadge');
@@ -428,8 +596,10 @@ const ACTIONS = {
     lead: 'Saves a copy the World Editor opens, triggers back as GUI.' },
 };
 const EXTRA_STEPS = {
-  fix: ['models', 'modelNames', 'portraits', 'dataPointers', 'kkTextures', 'disabledIcons', 'uabi', 'preload',
-    'singlePlayer', 'card', 'translation', 'stripIndent', 'shrink'],
+  fix: ['attributes', 'gameOverrides', 'models', 'modelNames', 'portraits', 'dataPointers', 'kkTextures',
+    'disabledIcons', 'uabi', 'preload', 'singlePlayer', 'card', 'translation', 'requirements', 'fdf', 'nullHandles',
+    'minify', 'stripIndent', 'shrinkModels', 'shrinkModelsLossy', 'shrink', 'shrinkLossy', 'slkObjects',
+    'lobbyImage'],
   editor: ['singlePlayer', 'card', 'translation', 'stripIndent'],
 };
 
@@ -466,6 +636,14 @@ function extraSteps(action) {
       detail: x.portraits.fixable + ' portrait ' + (x.portraits.fixable === 1 ? 'model has' : 'models have') +
         ' an old camera that shows black in 3.0; it is removed. Check in game.',
       on: false, applies: true, group: 'extra' });
+    if (k === 'portraits' && x.portraits) {
+      out.push({ key: 'x:portraitStamp', label: '... and stamp the model version 1800 (test)',
+        detail: 'With "Fix black portraits": also writes the portrait models as version 1800. Untested in game: try ' +
+          'one hero first.', on: false, applies: true, group: 'extra' });
+      out.push({ key: 'x:portraitUpgrade', label: '... and widen the layout to the 3.0 one (test)',
+        detail: 'With "Fix black portraits": the version 1800 and the fields the 3.0 models have. Untested in game: ' +
+          'try one hero first.', on: false, applies: true, group: 'extra' });
+    }
     if (k === 'dataPointers' && x.dataPointers) out.push({ key: 'x:dataPointers', label: 'Fix the levelled data pointers',
       detail: x.dataPointers.fixable + ' levelled ' + (x.dataPointers.fixable === 1 ? 'field points' : 'fields point') +
         ' to another data column on some levels.', on: true, applies: true, group: 'extra' });
@@ -496,10 +674,50 @@ function extraSteps(action) {
     if (k === 'translation' && x.translation && !x.translation.check.error) out.push({ key: 'x:translation',
       label: 'Apply the translation',
       detail: base(x.translation.file) + ', from the Translation tab.', on: true, applies: true, group: 'extra' });
+    if (k === 'attributes' && x.attributes) out.push({ key: 'x:attributes', label: 'Redo the file checksums',
+      detail: x.attributes.fixable + ' file checksums in (attributes) no longer match, and the game can refuse the map as ' +
+        'corrupted.', on: true, applies: true, group: 'extra' });
+    if (k === 'gameOverrides' && x.gameOverrides) out.push({ key: 'x:gameOverrides',
+      label: 'Remove map files that replace the game\'s own',
+      detail: x.gameOverrides.count + ' images and models of the map have the path of a game file, and the game has ' +
+        'closed on maps that ship them. A map can replace an icon on purpose, so this is off by default. Needs the ' +
+        'game installed.',
+      on: false, applies: true, group: 'extra' });
+    if (k === 'requirements' && x.requirements) out.push({ key: 'x:requirements',
+      label: 'Unlock abilities that require a tech the map lacks',
+      detail: x.requirements.fixable + ' abilities inherit a requirement that only the 3.0 game data has and the map ' +
+        'does not define: an empty requirement is written.', on: true, applies: true, group: 'extra' });
+    if (k === 'fdf' && x.fdf) out.push({ key: 'x:fdf', label: 'Fix frame file lists',
+      detail: 'Adds the final line break a .toc needs, so the game reads its last frame file.',
+      on: true, applies: true, group: 'extra' });
+    const jass = /jass/.test((state.open && state.open.summary && state.open.summary.script) || '');
+    if (k === 'nullHandles' && jass) out.push({ key: 'x:nullHandles', label: 'Null handle locals',
+      detail: 'Writes the missing set x = null before each return and at the end of the functions of the script, so ' +
+        'handle ids can be recycled (pjass checks the result).', on: false, applies: true, group: 'extra' });
+    if (k === 'minify' && jass) out.push({ key: 'x:minify', label: 'Minify script',
+      detail: 'Shrinks war3map.j: no comments, short names, dead functions and globals removed, constants written in ' +
+        'place (pjass checks the result). Readable names are lost.', on: false, applies: true, group: 'extra' });
+    if (k === 'shrinkModels') out.push({ key: 'x:shrinkModels', label: 'Shrink models (lossless)',
+      detail: 'Removes repeated animation keys from the imported models; each model is read back and compared.', on: false, applies: true, group: 'extra' });
+    if (k === 'shrinkModelsLossy') out.push({ key: 'x:shrinkModelsLossy', label: 'Shrink models, lossy',
+      detail: 'Also drops animation keys that change a movement by less than 0.05 units or a rotation by less than ' +
+        '0.002 rad; the first and last key of every sequence stay.', on: false, applies: true, group: 'extra' });
+    if (k === 'slkObjects' && x.slkObjects) out.push({ key: 'x:slkObjects',
+      label: 'Make the editor object files from the SLK tables',
+      detail: 'A map optimized into SLK/TXT files has no unit, item or ability data the World Editor reads; this ' +
+        'writes it (war3map.w3u/w3t/w3a) from the tables, the parents of units and items inferred. Needs the game ' +
+        'installed.', on: false, applies: true, group: 'extra' });
+    if (k === 'lobbyImage' && x.lobbyImage) out.push({ key: 'x:lobbyImage', label: 'Use my own lobby image',
+      detail: 'Asks for a picture: it becomes the lobby image (war3mapMap.blp), the minimap moves to ' +
+        'war3mapMap_ingame.blp and the script puts it back in game. Not tested in game.', on: false, applies: true, group: 'extra' });
     if (k === 'stripIndent') out.push({ key: 'x:stripIndent', label: STRIP_INDENT.title, detail: STRIP_INDENT.detail,
       on: stripIndentOn(), applies: true, group: 'extra' });
     if (k === 'shrink') out.push({ key: 'x:shrink', label: 'Make the map smaller, losing nothing',
       detail: 'Recompresses every file and stores duplicates once. Slow on big maps.',
+      on: false, applies: true, group: 'extra' });
+    if (k === 'shrinkLossy') out.push({ key: 'x:shrinkLossy', label: 'If still above 512 MiB, make the art smaller',
+      detail: 'Halves the biggest textures and makes WAV sounds mono at 22 kHz, only until the map fits the game\'s ' +
+        '512 MiB. This loses quality; the map is shrunk losing nothing first.',
       on: false, applies: true, group: 'extra' });
   }
   return out;
@@ -517,7 +735,12 @@ const FLAGS = { mpq: 'unprotect', falsos: 'fake-files', fake_list: 'fake-files',
   gatilhos_gui: 'gui-triggers', objetos_do_script: 'script-objects', unidades_seguras: 'safe-units', 'x:models': 'models', 'x:modelNames': 'model-names', 'x:portraits': 'portraits',
   'x:dataPointers': 'data-pointers', 'x:kkTextures': 'kk-textures', 'x:disabledIcons': 'green-icons',
   'x:uabi': 'uabi', 'x:preload': 'preload', 'x:singlePlayer': 'single-player', 'x:card': 'card',
-  'x:translation': 'translation', 'x:stripIndent': 'strip-indent', 'x:shrink': 'shrink' };
+  'x:translation': 'translation', 'x:stripIndent': 'strip-indent', 'x:shrink': 'shrink',
+  'x:shrinkLossy': 'shrink-lossy', 'x:attributes': 'fix-attributes', 'x:gameOverrides': 'remove-game-files',
+  'x:requirements': 'fix-requirements', 'x:fdf': 'fix-fdf', 'x:nullHandles': 'null-handles', 'x:minify': 'minify',
+  'x:slkObjects': 'slk-objects', 'x:lobbyImage': 'lobby-image', 'x:shrinkModels': 'shrink-models',
+  'x:shrinkModelsLossy': 'shrink-models-lossy', 'x:portraitStamp': 'portraits=stamp',
+  'x:portraitUpgrade': 'portraits=upgrade' };
 
 function shellLine(action) {
   const card = $('.action[data-action="' + action + '"]');
@@ -550,7 +773,8 @@ function editorVersionRow() {
   return el('div', { class: 'row', style: 'gap:8px;align-items:center;margin:4px 0 8px' },
     el('span', { text: 'World Editor' }), sel,
     guess ? el('span', { class: 'muted' }, el('span', { text: 'Made for World Editor' }), ' ',
-      el('span', { class: 'mono', text: guess })) : null);
+      el('span', { class: 'mono', text: guess })) : null,
+    ev.saved_by ? el('span', { class: 'faint', translate: 'no', text: '(' + ev.saved_by + ')' }) : null);
 }
 
 function renderAction(action) {
@@ -677,10 +901,27 @@ async function runAction(action) {
   if (extras.disabledIcons) params.extras.disabled_icons = true;
   if (extras.uabi) params.extras.uabi = true;
   if (extras.preload) params.extras.preload = true;
+  if (extras.attributes) params.extras.attributes = true;
+  if (extras.gameOverrides) params.extras.game_overrides = true;
+  if (extras.requirements) params.extras.requirements = true;
+  if (extras.fdf) params.extras.fdf = true;
+  if (extras.nullHandles) params.extras.null_handles = true;
+  if (extras.minify) params.extras.minify = true;
+  if (extras.slkObjects) params.extras.slk_objects = true;
+  if (extras.shrinkModels || extras.shrinkModelsLossy) params.extras.shrink_models = { lossy: !!extras.shrinkModelsLossy };
+  if (extras.portraits && extras.portraitUpgrade) params.extras.portraits = 'upgrade';
+  else if (extras.portraits && extras.portraitStamp) params.extras.portraits = 'stamp';
+  if (extras.lobbyImage) {
+    const img = await api().pick_file('image');
+    if (img) params.extras.lobby_image = img;
+  }
   if (extras.card && state.extras.card) params.extras.card = state.extras.card;
   if (extras.translation && state.extras.translation) params.extras.translation = state.extras.translation.file;
   if (extras.stripIndent) params.extras.strip_indent = true;
-  if (extras.shrink) params.extras.shrink = { recompress: true, blp: true, dedup: true };
+  if (extras.shrink || extras.shrinkLossy) {
+    params.extras.shrink = { recompress: true, blp: true, dedup: true };
+    if (extras.shrinkLossy) params.extras.shrink.lossy = true;
+  }
   if (action === 'editor' && state.editorVersion !== 'reforged') params.editor_version = state.editorVersion;
   status(a.label);
   try {
@@ -770,12 +1011,14 @@ function offerIndex(release, missing) {
     ['Later', () => {}]] });
 }
 
-const TABS = ['card', 'reforged', 'files', 'script', 'cheatpacks', 'qol', 'triggers', 'translation', 'compare', 'port'];
+const TABS = ['card', 'reforged', 'files', 'script', 'cheatpacks', 'qol', 'triggers', 'translation', 'compare', 'port',
+  'diagnose'];
 const TAB_DATA = { card: loadCard, files: loadFiles, script: loadScript, cheatpacks: loadCheatpacks, qol: loadQol,
   triggers: loadTriggers, reforged: checkReforgedQuietly };
 
 const MODES = { fix: ['fix', 'reforged'], editor: ['editor', 'card', 'triggers'], port: ['port'],
-  cheatpacks: ['cheatpacks'], qol: ['qol'], translation: ['translation'], inspect: ['files', 'script', 'compare'] };
+  cheatpacks: ['cheatpacks'], qol: ['qol'], translation: ['translation'], inspect: ['files', 'script', 'compare'],
+  diagnose: ['diagnose'] };
 const modeOf = name => Object.keys(MODES).find(m => MODES[m].includes(name));
 
 function setTabState(name, st) {
@@ -1082,7 +1325,26 @@ function renderReforged() {
     (r.items || []).length ? el('div', { class: 'report' }, r.items.map(it => el('div', { class: 'step' },
       el('span', { class: 'badge ' + (sev[it.severity] || ''), text: it.severity }),
       el('div', {}, el('div', { text: it.text }), fix[it.fix] ? el('div', { class: 'd muted', text: fix[it.fix] }) :
-        null)))) : el('p', { class: 'muted', text: 'Nothing found.' })));
+        null)))) : el('p', { class: 'muted', text: 'Nothing found.' })),
+    older ? downgradeCard(older) : null);
+}
+
+function downgradeCard(version) {
+  const g = state.gameCheck || {};
+  return el('div', { class: 'card' },
+    el('h2', { text: 'Take the map info to this version' }),
+    el('p', { class: 'muted', text: 'Writes war3map.w3i in the format this game reads (flags it does not know cleared). ' +
+      'Only the map info: the object data, the triggers and the terrain stay as they are, and the report lists them.' }),
+    el('div', { class: 'foot' }, el('button', { class: 'btn needs-idle', text: 'Write the older map info',
+      disabled: !!state.running, onclick: async () => {
+        try {
+          g.downgrade = await run('downgrade_w3i', { version }, { label: 'Writing the map info...' });
+        } catch (e) { failed(e, 'Writing the map info'); return; }
+        renderReforged();
+      } })),
+    g.downgrade ? el('div', {}, reportLines(g.downgrade.lines || []),
+      g.downgrade.file ? el('div', { class: 'foot row' }, el('span', { class: 'faint mono grow', text: g.downgrade.file }),
+        folderButton(g.downgrade.file)) : null) : null);
 }
 
 function gamePicker(base, current) {
@@ -1235,6 +1497,39 @@ function lintSummary(f) {
   return parts.length ? el('p', { class: 'lead', text: 'Imported files: ' + parts.join(', ') + '.' }) : null;
 }
 
+const MODEL3D_TEXT = ['The 3D preview needs WebGL, and this browser has none.', 'This model cannot be shown in 3D',
+  'This model has no geometry to show.', 'The 3D preview could not start', 'The 3D preview stopped',
+  'The 3D preview lost its WebGL context.'];
+function model3dButton(file, box, seq) {
+  const stage = el('div', {});
+  const btn = el('button', { class: 'btn', text: '3D preview', onclick: async () => {
+    btn.disabled = true;
+    stage.replaceChildren(el('span', { class: 'faint', text: 'Loading...' }));
+    try {
+      const m = await run('model3d', { name: file.name }, { quiet: true });
+      if (box.previewSeq !== seq) return;
+      if (m.error || !m.drawable) {
+        stage.replaceChildren(el('span', { class: 'faint', text: m.error || (m.version ? 'This model is version ' +
+          m.version + '; the 3D preview draws versions 800 to 1100.' : m.reason || 'This model cannot be shown in 3D') }));
+        btn.disabled = false;
+        return;
+      }
+      const canvas = el('canvas', { style: 'width:100%;max-width:520px;height:380px;display:block;background:#222;' +
+        'touch-action:none' });
+      stage.replaceChildren(canvas);
+      window.Model3D.t = s => (window.doctorI18n ? window.doctorI18n.tr(s) : s);
+      await window.Model3D.show(canvas, m.model, m.textures);
+      if ((m.outside || []).length) stage.append(el('p', { class: 'faint', text: m.outside.length +
+        ' textures only the game has are not drawn.' }));
+    } catch (e) {
+      stage.replaceChildren(el('span', { class: 'bad', text: (e && e.message) || String(e) }));
+    }
+    btn.disabled = false;
+  } });
+  return el('div', { style: 'width:100%' }, btn, stage);
+}
+void MODEL3D_TEXT;
+
 async function showPreview(file, box) {
   const seq = box.previewSeq = (box.previewSeq || 0) + 1;
   box.replaceChildren(el('span', { class: 'faint', text: 'Loading...' }));
@@ -1249,7 +1544,7 @@ async function showPreview(file, box) {
     else if (p.kind === 'text' || p.kind === 'script') box.replaceChildren(el('pre', { class: 'code', style: 'width:100%',
       text: p.text + (p.truncated ? '\n\n(cut short)' : '') }));
     else if (p.kind === 'model') box.replaceChildren(el('pre', { class: 'code', style: 'width:100%',
-      text: JSON.stringify(p.info, null, 1) }));
+      text: JSON.stringify(p.info, null, 1) }), model3dButton(file, box, seq));
     else box.replaceChildren(el('pre', { class: 'code', style: 'width:100%', text: p.hex || '(empty)' }));
   } catch (e) {
     if (box.previewSeq !== seq) return;
@@ -1565,7 +1860,12 @@ function cheatpackCard(p) {
     p.file ? el('div', { class: 'faint mono', text: p.file }) : null,
     p.needs ? el('div', { class: 'muted', style: 'margin-top:4px', text: 'Works on: ' + p.needs }) : null,
     chosen ? el('div', { class: 'form', style: 'margin-top:12px' }, (p.options || []).map(cheatpackField).flat(),
-      el('ul', { class: 'steps', style: 'grid-column:1 / -1' }, stripIndentItem()),
+      el('ul', { class: 'steps', style: 'grid-column:1 / -1' }, stripIndentItem(),
+        optionItem({ checked: state.cheatDurable === true,
+          title: 'Also keep a readable copy in the map\'s triggers',
+          detail: 'So the pack can survive a save in the World Editor; a call to it goes in the first custom text ' +
+            'trigger. The copy is readable, not obfuscated. Not tried in the editor.',
+          onchange: e => { state.cheatDurable = e.target.checked; } })),
       el('div', { style: 'grid-column:1 / -1' }, el('button', { class: 'btn primary needs-idle',
         text: 'Inject the cheat pack', disabled: !!state.running, onclick: runCheatpack }))) : null);
 }
@@ -1599,7 +1899,8 @@ async function runCheatpack() {
   if (!pack) { toast('Pick a cheat pack first.'); return; }
   status('Injecting the cheat pack...');
   try {
-    const r = await run('cheatpack_inject', { pack, options: cheatpackOptions(), strip_indent: stripIndentOn() },
+    const r = await run('cheatpack_inject', { pack, options: cheatpackOptions(), strip_indent: stripIndentOn(),
+      durable: state.cheatDurable === true },
       { label: 'Injecting the cheat pack...' });
     state.cheatPack.result = r;
     state.results.cheatpacks = r;
@@ -2142,10 +2443,196 @@ function renderPort() {
           detail: 'Icons, textures and interface models the map carries with the game\'s own path. Try it if the ' +
             'game crashes on the ported map.',
           onchange: e => { state.portGameFiles = e.target.checked; } }),
+        optionItem({ checked: state.portLossy === true, title: 'If above 512 MiB, make the art smaller',
+          detail: 'Halves the biggest textures and makes WAV sounds mono at 22 kHz, only until the map fits the ' +
+            'game\'s 512 MiB. This loses quality.',
+          onchange: e => { state.portLossy = e.target.checked; } }),
         stripIndentItem()),
       el('div', { class: 'foot' }, el('button', { class: 'btn primary needs-idle', text: 'Port to Reforged',
         disabled: !!state.running, onclick: runPort }))),
     r ? portResult(r) : null);
+}
+
+async function loadDiagnoseLists(gen) {
+  try {
+    const [logs, crashes, replays] = await Promise.all([run('diag_logs', {}, { quiet: true }),
+      run('crash_list', {}, { quiet: true }), run('replay_list', {}, { quiet: true }).catch(() => null)]);
+    if (gen !== state.gen) return;
+    state.diag.logs = logs;
+    state.diag.crashes = crashes;
+    state.diag.replays = replays;
+    renderDiagnose();
+  } catch (e) { }
+}
+
+function renderDiagnose() {
+  const d = state.diag;
+  const s = state.open ? state.open.summary : {};
+  const jass = !/lua/.test((s && s.script) || '');
+  tabBody('diagnose',
+    el('div', { class: 'card' },
+      el('h2', { text: 'Diagnostic copy' }),
+      el('p', { class: 'lead', text: 'A copy of the map that writes what it does to a log while you play it: the ' +
+        'functions the game started and never finished (their thread most likely stopped there), the Lua errors, the ' +
+        'last things that ran. Play it until the problem happens, then read the log below.' }),
+      jass ? el('ul', { class: 'steps', style: 'margin:6px 0 4px' },
+        optionItem({ checked: d.mode === 'all', title: 'Mark every function',
+          detail: 'Finer, but the extra work can itself stop long loops: use it when the first copy does not say ' +
+            'enough.', onchange: e => { d.mode = e.target.checked ? 'all' : 'entry'; renderDiagnose(); } }),
+        optionItem({ checked: d.mode === 'init', title: 'Load markers',
+          detail: 'For a map that hangs on the loading screen: every step of the load writes its own file at once, ' +
+            'so the last one says where it stopped.', onchange: e => { d.mode = e.target.checked ? 'init' : 'entry';
+            renderDiagnose(); } })) : null,
+      el('div', { class: 'foot' }, el('button', { class: 'btn primary needs-idle', text: 'Make a diagnostic copy',
+        disabled: !!state.running, onclick: runDiagMake }))),
+    d.result ? diagMakeResult(d.result) : null,
+    el('div', { class: 'card' },
+      el('h2', { text: 'Read a diagnostic log' }),
+      el('p', { class: 'muted', text: 'The game writes it to Documents\\Warcraft III\\CustomMapData\\DevosMapDoctor.' }),
+      diagList((d.logs && d.logs.logs) || [], x => [x.name, when(x.modified)], x => readDiagLog(x.path)),
+      el('div', { class: 'foot' }, el('button', { class: 'btn needs-idle', text: 'Choose a log...',
+        disabled: !!state.running, onclick: async () => {
+          const f = await api().pick_file('log');
+          if (f) readDiagLog(f);
+        } }))),
+    d.log ? diagLogResult(d.log) : null,
+    el('div', { class: 'card' },
+      el('h2', { text: 'Read a crash report' }),
+      el('p', { class: 'muted', text: 'When the game closes it writes a report to Documents\\Warcraft III\\Errors; ' +
+        'its log (Logs\\War3Log.txt) also says what the map asked for and the game refused.' }),
+      diagList((d.crashes && d.crashes.reports) || [], x => [x.name, (x.kind || '') + ' in ' + (x.module || '?'),
+        x.map ? base(x.map) : ''], x => readCrash(x.path)),
+      el('ul', { class: 'steps', style: 'margin:6px 0 4px' },
+        optionItem({ checked: d.checkMap, title: 'Check the open map against the game',
+          detail: 'For a crash in ClientSdk.dll: counts the images and models the open map carries at the game\'s ' +
+            'own paths (needs Warcraft III installed; slower).',
+          onchange: e => { d.checkMap = e.target.checked; } })),
+      el('div', { class: 'foot row' },
+        d.crashes && d.crashes.log ? el('button', { class: 'btn needs-idle', text: 'Read the game\'s log',
+          disabled: !!state.running, onclick: () => readCrash(d.crashes.log) }) : null,
+        el('button', { class: 'btn needs-idle', text: 'Choose a file...', disabled: !!state.running,
+          onclick: async () => {
+            const f = await api().pick_file('crash');
+            if (f) readCrash(f);
+          } }))),
+    d.crash ? diagCrashResult(d.crash) : null,
+    el('div', { class: 'card' },
+      el('h2', { text: 'Read a replay' }),
+      el('p', { class: 'muted', text: 'A replay (.w3g) says who left and when, the chat, the sync and frame events and ' +
+        'the state checksum of every turn. The game keeps one when it closes (TempReplay.w3g) and one when a game ends ' +
+        '(LastReplay.w3g).' }),
+      diagList((d.replays && d.replays.replays) || [], x => [x.name, x.kind, when(x.modified)], x => readReplay(x.path)),
+      el('div', { class: 'foot' }, el('button', { class: 'btn needs-idle', text: 'Choose a replay...',
+        disabled: !!state.running, onclick: async () => {
+          const f = await api().pick_file('replay');
+          if (f) readReplay(f);
+        } }))),
+    d.replay ? diagReportCard('Replay', d.replay, d.replay.error ? [] : [
+      ['Players', (d.replay.players || []).map(p => p.name || '?')],
+      ['Who left', (d.replay.leaves || []).map(l => clock((l.t || 0) / 1000) + '  ' + (l.name || '?'))],
+      ['Chat', (d.replay.chat || []).slice(-40).map(c => clock((c.t || 0) / 1000) + '  ' + (c.name || '?') + ': ' +
+        (c.text || ''))]]) : null);
+}
+
+async function readReplay(path) {
+  if (state.running) return;
+  try {
+    state.diag.replay = await run('replay_read', { file: path }, { label: 'Reading the replay...' });
+  } catch (e) {
+    failed(e, 'Reading the replay');
+    return;
+  }
+  renderDiagnose();
+}
+
+function when(t) { return t ? new Date(t * 1000).toLocaleString() : ''; }
+
+function diagList(items, cols, onread) {
+  if (!items.length) return null;
+  return el('div', { class: 'report', style: 'margin:6px 0' }, items.slice(0, 8).map(x =>
+    el('div', { class: 'row', style: 'gap:10px;align-items:center' },
+      el('span', { class: 'grow mono faint', translate: 'no', text: cols(x).filter(Boolean).join('  ·  ') }),
+      el('button', { class: 'btn small needs-idle', text: 'Read', disabled: !!state.running, onclick: () => onread(x) }))));
+}
+
+async function runDiagMake() {
+  if (state.running) return;
+  status('Making the diagnostic copy...');
+  try {
+    const r = await run('diag_make', { mode: state.diag.mode }, { label: 'Making the diagnostic copy...' });
+    state.diag.result = r;
+    status(r.outcome === 'ok' ? 'Diagnostic copy saved.' : 'The diagnostic copy was not made.');
+  } catch (e) {
+    failed(e, 'Making the diagnostic copy');
+    state.diag.result = { outcome: 'failed', lines: [['bad', (e && e.message) || String(e)]] };
+  }
+  renderDiagnose();
+}
+
+function diagMakeResult(r) {
+  const ok = r.outcome === 'ok';
+  return el('div', { class: 'card' + (ok ? '' : ' bad') },
+    el('div', { class: 'row' }, el('h2', { class: 'grow', text: 'Diagnostic copy: result' }),
+      el('span', { class: 'badge ' + (ok ? 'good' : 'bad'), text: ok ? 'Saved' : 'Stopped' })),
+    reportLines(r.lines || []),
+    el('div', { class: 'foot row', style: 'margin-top:14px' },
+      r.file ? el('span', { class: 'faint mono grow', text: r.file }) : null,
+      r.file ? folderButton(r.file) : null));
+}
+
+async function readDiagLog(path) {
+  if (state.running) return;
+  try {
+    state.diag.log = await run('diag_read', { file: path }, { label: 'Reading the log...' });
+  } catch (e) {
+    failed(e, 'Reading the log');
+    return;
+  }
+  renderDiagnose();
+}
+
+async function readCrash(path) {
+  if (state.running) return;
+  try {
+    state.diag.crash = await run('crash_read', { file: path, check_map: state.diag.checkMap },
+      { label: 'Reading the crash report...' });
+  } catch (e) {
+    failed(e, 'Reading the crash report');
+    return;
+  }
+  renderDiagnose();
+}
+
+function diagReportCard(title, r, folds) {
+  return el('div', { class: 'card' + (r.error ? ' bad' : '') },
+    el('div', { class: 'row' }, el('h2', { class: 'grow', text: title }),
+      el('button', { class: 'btn small', text: 'Copy as text', onclick: async () => {
+        await copyText(r.text || r.error || ''); toast('The report is in the clipboard.'); } })),
+    r.error ? reportLines([['bad', r.error]]) : reportLines(r.findings || []),
+    folds.filter(f => f && f[1].length).map(([summary, rows]) => el('details', { style: 'margin-top:8px' },
+      el('summary', { text: summary }),
+      el('pre', { class: 'mono', translate: 'no', style: 'white-space:pre-wrap;margin:6px 0 0',
+        text: rows.join('\n') }))));
+}
+
+function diagLogResult(r) {
+  return diagReportCard('Diagnostic log: ' + (r.map || ''), r, r.error ? [] : [
+    ['Open functions (started, finished, last start)', (r.open || []).map(o =>
+      o.name + (o.waits ? ' (waits)' : '') + '  ' + o.started + '  ' + o.finished + '  ' + (o.last || 0).toFixed(2))],
+    ['Lua errors', (r.errors || []).map(e => e.times + 'x  ' + (e.first || 0).toFixed(1) + ' s  ' + e.where + ': ' +
+      e.message)],
+    ['The last events', (r.events || []).slice(-60).map(e => (e.time || 0).toFixed(2) + '  ' + e.name + '  x' +
+      e.times)]]);
+}
+
+function diagCrashResult(r) {
+  const lg = r.log || {};
+  return diagReportCard('Crash report', r, r.error ? [] : [
+    ['Models the game could not create', Object.entries(lg.models || {}).map(([p, n]) => n + 'x  ' + (p || '(empty)'))],
+    ['Interface frames with names that are too long', Object.entries(lg.frames_long || {}).map(([k, v]) =>
+      v[0] + ':' + v[1] + '  ' + k)],
+    ['The modules on the stack', ((r.crash || {}).exception || {}).modules || []],
+    ['Files at the game\'s own paths', (r.overrides || {}).sample || []]]);
 }
 
 function packagesBox() {
@@ -2174,7 +2661,7 @@ async function runPort() {
   try {
     const r = await run('port', { packages: state.portPackages || [], memory: state.portMemory !== false,
       icons: state.portIcons !== false, textures: state.portTextures !== false, balance: state.portBalance === true,
-      game_files: state.portGameFiles === true, strip_indent: stripIndentOn() },
+      game_files: state.portGameFiles === true, lossy: state.portLossy === true, strip_indent: stripIndentOn() },
       { label: 'Porting the map to Reforged...' });
     state.portResult = r;
     state.results.port = r;
@@ -2242,6 +2729,7 @@ function wire() {
   $('#btnOpen').onclick = pickMap;
   $('#btnOpen2').onclick = pickMap;
   $('#btnReport').onclick = reportProblem;
+  $('#btnAbout').onclick = showAbout;
   $('#btnCancel').onclick = () => { if (state.running) api().cancel(state.running); };
   $$('#modes button').forEach(b => { b.onclick = () => selectMode(b.dataset.mode); });
   $$('.subtabs button').forEach(b => { b.onclick = () => selectTab(b.dataset.tab); });
