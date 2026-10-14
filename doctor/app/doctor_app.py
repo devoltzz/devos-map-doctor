@@ -17,7 +17,7 @@ import webbrowser
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP = "Devo's Map Doctor"
-MAP_TYPES = ('Warcraft III maps, campaigns and art packages (*.w3x;*.w3m;*.w3n;*.mix;*.asi;*.dll;*.mpq;*.w3mod)',
+MAP_TYPES = ('Warcraft III maps campaigns and art packages (*.w3x;*.w3m;*.w3n;*.mix;*.asi;*.dll;*.mpq;*.w3mod)',
              'Warcraft III maps and campaigns (*.w3x;*.w3m;*.w3n)',
              'Art packages (*.mix;*.asi;*.dll;*.mpq;*.w3mod)', 'All files (*.*)')
 NO_WINDOW = 0x08000000
