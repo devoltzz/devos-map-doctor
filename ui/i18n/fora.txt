@@ -88,3 +88,8 @@ Image entries are the text drawn in an image (read by OCR): the translation is d
 image {0}x{1}{2}, {3} line(s) at {4},{5}
 img:{0}:{1}:{2}
 FrameFont "{0}", 0.010, "",
+1. Copy what is in this folder (the war3mapImported folder) into the folder of the game, "Warcraft III\_retail_".
+2. Turn on "Allow Local Files": the DWORD value "Allow Local Files" = 1 in the registry key
+Every player of the map needs the same files.
+These are the art files the ported map reads from the game folder, outside the map (the map is
+too big to carry them: the game opens maps up to 512 MiB).
