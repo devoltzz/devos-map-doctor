@@ -263,13 +263,14 @@ _TABLES_MIN_BLOCKS = 1 << 16
 _TABLES_CAP = 2
 
 
-def _hashes3(name):
-    r = _HASHES3.get(name)
+def _hashes3(name, bar=False):
+    hash_key = (name, 1) if bar else name
+    r = _HASHES3.get(hash_key)
     if r is None:
-        r = (M.hashstr(name, 0), M.hashstr(name, 1), M.hashstr(name, 2))
+        r = tuple(M.hashstr(name, t, bar) for t in (0, 1, 2))
         if len(_HASHES3) > (1 << 18):
             _HASHES3.clear()
-        _HASHES3[name] = r
+        _HASHES3[hash_key] = r
     return r
 
 
@@ -331,8 +332,13 @@ class Archive:
         return M.header_sector(self.h.block_shift)
 
     def hash_entries(self, name):
-        name = name.replace('/', '\\')
-        h0, h1, h2 = _hashes3(name)
+        bar = '/' in name
+        es = self._probe(*_hashes3(name.replace('/', '\\')))
+        if not es and bar:
+            es = self._probe(*_hashes3(name, True))
+        return es
+
+    def _probe(self, h0, h1, h2):
         hn = self.hash_n
         if hn != self.hash_n_read or hn & (hn - 1) or self._idx is not None:
             return self._index_entries(h0, h1, h2)
