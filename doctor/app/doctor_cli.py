@@ -21,6 +21,9 @@ a .w3mod): a package is read as data, never run; diag, files and extract work on
   port <map> [--package=<name>] [--icons] [--textures] [--keep-memory] [--balance-numbers] [--strip-indent]
        [--remove-game-files] [--lossy]
                                   Port to Reforged (KK and M16 maps): saves <map>_reforged.w3x and the report;
+                                  --package: the art packages the map needs, comma separated, the first wins (a
+                                  .mix, .asi, .dll or .mpq, or a folder of loose files the map read from the game
+                                  folder with "Allow Local Files");
                                   --remove-game-files: the map's images and models with the path of a game file
                                   (they replace the game's own; counted in the report either way) come out;
                                   --lossy: a map still above 512 MiB after the lossless shrink gets its biggest
