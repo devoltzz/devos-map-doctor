@@ -51,3 +51,10 @@ def fixable(data_bytes):
         i += 1
     unclosed = [block_start] if status == 'block_entry' else []
     return bytes(out), removed, unclosed
+
+
+def fix_toc(data_bytes):
+    if not data_bytes or data_bytes.endswith((b'\n', b'\r')):
+        return data_bytes, False
+    eol = b'\r\n' if b'\r\n' in data_bytes else (b'\n' if b'\n' in data_bytes else b'\r\n')
+    return data_bytes + eol + eol, True
