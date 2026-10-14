@@ -2652,6 +2652,14 @@ function packagesBox() {
       if (!p) return;
       state.portPackages = list.concat([p]);
       renderPort();
+    } }),
+    web() ? null : ' ',
+    web() ? null : el('button', { class: 'btn small', text: 'Add a folder...', title: 'A folder of loose art files (the ones ' +
+      'a map reads from the game folder with "Allow Local Files")', onclick: async () => {
+      const p = await api().pick_folder();
+      if (!p) return;
+      state.portPackages = list.concat([p]);
+      renderPort();
     } }));
 }
 
