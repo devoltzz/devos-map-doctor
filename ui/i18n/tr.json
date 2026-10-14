@@ -2630,5 +2630,9 @@
  "{0} textures only the game has are not drawn.": "Yalnızca oyunda bulunan {0} doku çizilmiyor.",
  "{0} unbalanced braces": "{0} dengesiz süslü parantez",
  "{0} unit types get their {1} normal abilities from the script as each unit is created ({2} unit types keep theirs in the object data, {3} abilities stay on the others). Test the map before sharing it.": "{0} birim türü, {1} normal yeteneğini her birim oluşturulurken scriptten alıyor ({2} birim türü yeteneklerini nesne verisinde tutuyor, {3} yetenek diğerlerinde kalıyor). Paylaşmadan önce haritayı test edin.",
- "{0}=Game.dll+0x{1}": "{0}=Game.dll+0x{1}"
+ "{0}=Game.dll+0x{1}": "{0}=Game.dll+0x{1}",
+ "A folder of loose art files (the ones a map reads from the game folder with \"Allow Local Files\")": "Dağınık sanat dosyalarından oluşan bir klasör (haritanın \"Allow Local Files\" ile oyun klasöründen okuduğu dosyalar)",
+ "Add a folder...": "Klasör ekle...",
+ "the folder next to the ported map": "taşınan haritanın yanındaki klasör",
+ "{0} file(s) ({1} MB) from a folder of loose files stay OUT of the map, as the map used them: they are in {2}. Copy its war3mapImported folder into the game folder (\"Warcraft III\\_retail_\") and turn on \"Allow Local Files\" (see the README.txt there; every player needs the same files)": "Dağınık dosyalardan oluşan bir klasördeki {0} dosya ({1} MB), harita onları nasıl kullandıysa öyle, haritanın DIŞINDA kalır: {2} içindedirler. Onun war3mapImported klasörünü oyun klasörüne (\"Warcraft III\\_retail_\") kopyalayın ve \"Allow Local Files\" seçeneğini açın (oradaki README.txt dosyasına bakın; her oyuncunun aynı dosyalara ihtiyacı var)"
 }
