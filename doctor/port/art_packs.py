@@ -82,9 +82,47 @@ def requested_ones(script, data_bytes=None, extract=None):
     return ped
 
 
+class Folder:
+    def __init__(self, root):
+        self.root = root
+        self.idx = {}
+        fname = os.path.basename(os.path.normpath(root))
+        for d, subs, fs in os.walk(root):
+            subs.sort()
+            for f in sorted(fs):
+                c = os.path.join(d, f)
+                details = os.path.relpath(c, root).replace(os.sep, B).replace('/', B)
+                self.idx.setdefault(details.lower(), c)
+                self.idx.setdefault((fname + B + details).lower(), c)
+
+    @staticmethod
+    def hash_key(p):
+        p = p.strip().replace('/', B).lstrip(B)
+        while B + B in p:
+            p = p.replace(B + B, B)
+        return p.lower()
+
+    def find(self, p):
+        return self.hash_key(p) in self.idx
+
+    def read(self, p):
+        c = self.idx.get(self.hash_key(p))
+        if c is None:
+            return None
+        with open(c, 'rb') as f:
+            return f.read()
+
+
 def open_packs(paths, log=print):
     out = []
     for c in paths:
+        if os.path.isdir(c):
+            p = Folder(c)
+            if not p.idx:
+                log('package %s: an empty folder' % os.path.basename(os.path.normpath(c)))
+                continue
+            out.append((os.path.basename(os.path.normpath(c)) + os.sep, p))
+            continue
         try:
             a = mpqread.Archive(c)
         except BaseException as e:
@@ -192,7 +230,7 @@ def resolve(map_path, packages, ped, in_game, log=print):
     return import_it, missing_items
 
 
-def import_it(map_path, packages, script, dest, data_bytes=None, extract=None, casc=None, log=print):
+def import_it(map_path, packages, script, dest, data_bytes=None, extract=None, casc=None, log=print, local=None):
     import shutil
     a = mpqread.Archive(map_path)
     art_pack = open_packs(packages, log)
@@ -225,8 +263,9 @@ def import_it(map_path, packages, script, dest, data_bytes=None, extract=None, c
 
     ped = requested_ones(script, data_bytes, extract)
     imp, missing_items = resolve(a, art_pack, ped, in_game, log)
-    if os.path.isdir(dest):
-        shutil.rmtree(dest)
+    for folder in (dest, local):
+        if folder and os.path.isdir(folder):
+            shutil.rmtree(folder)
     details = {
         'imported': 0,
         'missing_items': sorted(missing_items, key=str.lower),
@@ -234,6 +273,8 @@ def import_it(map_path, packages, script, dest, data_bytes=None, extract=None, c
         'by_pack': collections.Counter(),
         'warnings': [],
         'manifest': [],
+        'local_vars': 0,
+        'local_bytes': 0,
     }
     from doctor.models import mdxfix
     for p in sorted(imp, key=str.lower):
@@ -256,18 +297,33 @@ def import_it(map_path, packages, script, dest, data_bytes=None, extract=None, c
             if n:
                 d = new
             details['warnings'] += check_mdx(p, d)
-        tgt = os.path.join(dest, *[x for x in p.split(B) if x])
+        outside = bool(local) and isinstance(file_, Folder)
+        tgt = os.path.join(local if outside else dest, *[x for x in p.split(B) if x])
         os.makedirs(os.path.dirname(tgt), exist_ok=True)
         with open(tgt, 'wb') as f:
             f.write(d)
-        details['imported'] += 1
-        details['bytes'] += len(d)
-        details['by_pack'][source] += 1
+        if outside:
+            details['local_vars'] += 1
+            details['local_bytes'] += len(d)
+        else:
+            details['imported'] += 1
+            details['bytes'] += len(d)
+            details['by_pack'][source] += 1
         details['manifest'].append((p, source, cpath, len(d), '; '.join(sorted(ped.get(p, set())))[:200]))
     details['by_pack'] = dict(details['by_pack'])
     details['missing_items'] = sorted(set(details['missing_items']), key=str.lower)
-    log('art from packages: %d file(s) imported (%.1f MB; %s); %d asked for and found nowhere'
-        % (details['imported'], details['bytes'] / 1e6, details['by_pack'], len(details['missing_items'])))
+    log(
+        'art from packages: %d file(s) imported (%.1f MB; %s); %d left out of the map as loose files (%.1f MB); %d asked'
+        ' for and found nowhere'
+        % (
+            details['imported'],
+            details['bytes'] / 1e6,
+            details['by_pack'],
+            details['local_vars'],
+            details['local_bytes'] / 1e6,
+            len(details['missing_items']),
+        )
+    )
     return details
 
 
