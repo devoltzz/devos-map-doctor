@@ -122,10 +122,10 @@ EXT_EQUIV = [
     ('.w3m', '.w3x', '.mpq', '.pud'),
     ('.txt', '.ini'),
     ('.j', '.lua'),
-    ('.wav', '.mp3', '.ogg'),
+    ('.wav', '.mp3', '.ogg', '.flac', '.aif', '.aiff'),
     ('.mdl', '.mdx'),
     ('.blp', '.tga', '.jpg', '.dds', '.gif', '.png'),
-    ('.ttf', '.otf'),
+    ('.ttf', '.otf', '.woff'),
 ]
 PROTECTOR_PREFIXES = ('DIS', 'PAS', 'DISDIS', 'DISPAS')
 _EXT_EQUIV_OF = {}
@@ -202,7 +202,7 @@ def _variants_seq(fname, cap=48, rounds=3):
 
 
 _EXTENSIONS_B = (
-    rb'(?:mdx|mdl|blp|tga|jpg|dds|gif|png|wav|mp3|ogg|ttf|otf|fdf|toc|slk|ini|txt|'
+    rb'(?:mdx|mdl|blp|tga|jpg|dds|gif|png|wav|mp3|ogg|flac|aiff|aif|ttf|otf|woff|fdf|toc|slk|ini|txt|'
     rb'j|lua|w3a|w3t|w3u|w3d|w3b|w3h|w3q|w3i|w3e|w3r|w3c|w3s|wts|doo|shd|wpm|mmp|imp|pld)')
 RE_PATH_B = re.compile(
     rb'[A-Za-z0-9_\-\\/\.\[\(!#$%&@^~{=][A-Za-z0-9_\-\\/\. \[\]\(\)\+!#$%&@^~{}=]{0,180}?\.' + _EXTENSIONS_B,
@@ -210,7 +210,7 @@ RE_PATH_B = re.compile(
 RE_EXTENSION_B = re.compile(rb'\.' + _EXTENSIONS_B, re.I)
 RE_EXTENSION_NUL_B = re.compile(rb'\.' + _EXTENSIONS_B + rb'(?=\x00)', re.I)
 PATH_REACH = 181
-PATH_EXT_MAX = 3
+PATH_EXT_MAX = 4
 RE_REQUIRE_B = re.compile(rb'''require\s*\(?\s*['"]([\w.\-/\\ ]{1,120})['"]''')
 
 
@@ -254,10 +254,41 @@ def mdx_textures(data_bytes):
     return out
 
 
+EXT_MODEL_TEXTURE = ('.mdx', '.mdl', '.blp', '.tga', '.dds', '.jpg')
+
+
+def slk_dir_file(data_bytes):
+    out = set()
+    if not data_bytes.startswith(b'ID;'):
+        return out
+    try:
+        from doctor.data import slk
+        slk_columns, rows = slk.parse_slk_bytes(data_bytes)
+    except Exception:
+        return out
+    cols = {str(c).lower(): c for c in slk_columns}
+    cd, cf = cols.get('dir'), cols.get('file')
+    if cd is None or cf is None:
+        return out
+    for row in rows.values():
+        d = (row.get(cd) or '').strip().strip('"').replace('/', '\\').strip('\\')
+        f = (row.get(cf) or '').strip().strip('"').replace('/', '\\').strip('\\')
+        if not d or not f or d == '-' or f == '-' or f == '_':
+            continue
+        file_path = d + '\\' + f
+        out.add(file_path)
+        root = os.path.splitext(file_path)[0] if os.path.splitext(f)[1].lower() in EXT_MODEL_TEXTURE else file_path
+        out.update(root + e for e in EXT_MODEL_TEXTURE)
+        out.update(file_path + e for e in EXT_MODEL_TEXTURE)
+    return out
+
+
 def mine_bytes(data_bytes):
     out = set()
     if data_bytes[:4] == b'MDLX':
         out |= mdx_textures(data_bytes)
+    elif data_bytes[:3] == b'ID;':
+        out |= slk_dir_file(data_bytes)
     if b'\x00' in data_bytes:
         out.update(v.decode('latin-1').replace('/', '\\') for v in nul_values(data_bytes))
     for m in _paths(data_bytes):
@@ -381,6 +412,7 @@ SIGNATURES = {'.blp': (b'BLP1', b'BLP2', b'BLX1'), '.mdx': (b'MDLX',), '.w3x': (
               '.wav': (b'RIFF',), '.mp3': (b'ID3', b'\xff\xfb', b'\xff\xf3', b'\xff\xf2'), '.jpg': (b'\xff\xd8\xff',),
               '.dds': (b'DDS ',), '.exe': (b'MZ',), '.dll': (b'MZ',), '.asi': (b'MZ',), '.mix': (b'MZ',),
               '.m3d': (b'MZ',), '.flt': (b'MZ',), '.ogg': (b'OggS',), '.png': (b'\x89PNG',),
+              '.flac': (b'fLaC', b'ID3'), '.aif': (b'FORM',), '.aiff': (b'FORM',), '.woff': (b'wOFF',),
               '.gif': (b'GIF87a', b'GIF89a'), '.zip': (b'PK\x03\x04',), '.rar': (b'Rar!',), '.7z': (b'7z\xbc\xaf',)}
 EXT_TEXT = frozenset(('.ai', '.j', '.txt', '.fdf', '.toc', '.slk', '.html', '.pld', '.lua', '.ini', '.js', '.css',
                       '.wai', '.htm', '.xml', '.json', '.md', '.csv'))
@@ -538,7 +570,88 @@ def read_unnamed(a, bi, whole=True):
         return None
 
 
-def derived_names(a, name_list, log=None):
+CROSS_FOLDERS = ('', 'scripts', 'Fonts', 'war3mapImported', 'ReplaceableTextures\\CommandButtons',
+                 'ReplaceableTextures\\CommandButtonsDisabled', 'ReplaceableTextures\\PassiveButtons')
+CROSS_CAP = 2000000
+CROSS_BATCH = 250000
+
+
+def crossed_folders(name_list):
+    visited = {}
+    use_of = {}
+    for n in CROSS_FOLDERS:
+        visited.setdefault(n.upper(), n)
+    for n in name_list:
+        pieces = n.replace('/', '\\').strip('\\').split('\\')[:-1]
+        for i in range(1, len(pieces) + 1):
+            folder = '\\'.join(pieces[:i])
+            k = folder.upper()
+            if not folder:
+                continue
+            visited.setdefault(k, folder)
+            use_of[k] = use_of.get(k, 0) + 1
+    fixed_set = [visited[n.upper()] for n in CROSS_FOLDERS]
+    rest = sorted((k for k in visited if k not in {f.upper() for f in fixed_set}), key=lambda k: (-use_of.get(k, 0), k))
+    return fixed_set + [visited[k] for k in rest]
+
+
+def crossed_bases(name_list):
+    visited = {}
+    for n in name_list:
+        b = n.replace('/', '\\').rsplit('\\', 1)[-1].strip()
+        if b and RX_HAS_EXT.search(b):
+            visited.setdefault(b.upper(), b)
+    return [visited[k] for k in sorted(visited)]
+
+
+def cross_scan(a, bases, folders, cap=CROSS_CAP, existing=None, log=None):
+    ht = getattr(a, 'ht', None)
+    n_ht = getattr(a, 'hash_n_read', None)
+    if not bases or not folders or ht is None or n_ht is None:
+        return []
+    from doctor.mpq import mpqlib as M
+    pairs = set(zip(ht[0:4 * n_ht:4], ht[1:4 * n_ht:4]))
+    existing = existing or ()
+    matches = []
+    batch = []
+    done = 0
+
+    def flush():
+        enc = [n.encode('utf-8', 'surrogateescape') for n in batch]
+        h1, h2 = M.hashstr_batch(enc, 1), M.hashstr_batch(enc, 2)
+        matches.extend(n for n, x, y in zip(batch, h1, h2) if (int(x), int(y)) in pairs)
+        del batch[:]
+
+    for folder in folders:
+        prefix = folder + '\\' if folder else ''
+        for b in bases:
+            if done >= cap:
+                break
+            n = prefix + b
+            if n.upper() in existing:
+                continue
+            batch.append(n)
+            done += 1
+            if len(batch) >= CROSS_BATCH:
+                flush()
+        if done >= cap:
+            break
+    if batch:
+        flush()
+    if log and done >= cap:
+        log('cross scan: cut at %d pairs (%d folders x %d names)' % (cap, len(folders), len(bases)))
+    return matches
+
+
+SPACE_SUFFIXES = (' ', '  ')
+
+
+def with_trailing_space(a, name_list, suffixes=SPACE_SUFFIXES):
+    cand = [n.rstrip(' ') + suf for n in name_list if RX_HAS_EXT.search(n.rstrip(' ')) for suf in suffixes]
+    return _with_hash_entry(a, cand)
+
+
+def derived_names(a, name_list, log=None, crossed=True):
     from doctor.mpq import mpqread
     known = {}
     for n in name_list:
@@ -570,6 +683,25 @@ def derived_names(a, name_list, log=None):
                 from_texts |= variants(c)
     matches = {}
     tested = set()
+    ok_bases, ok_folders = [], []
+    seen_bases, seen_folders = set(), set()
+
+    def cross_pair(cited, log=log):
+        if not crossed:
+            return []
+        new_b = [b for b in crossed_bases(cited) if b.upper() not in seen_bases]
+        all_p = crossed_folders(list(known) + list(matches))
+        new_p = [p for p in all_p if p.upper() not in seen_folders]
+        if not new_b and not new_p:
+            return []
+        seen_bases.update(b.upper() for b in new_b)
+        seen_folders.update(p.upper() for p in new_p)
+        achou = cross_scan(a, ok_bases + new_b, new_p, existing=keys, log=log)
+        achou += cross_scan(a, new_b, ok_folders, existing=keys, log=log)
+        achou += with_trailing_space(a, [c for c in cited if c.upper() not in keys])
+        ok_bases.extend(new_b)
+        ok_folders.extend(new_p)
+        return achou
 
     def try_names(candidates):
         new_c = set(candidates)
@@ -605,9 +737,14 @@ def derived_names(a, name_list, log=None):
                 pass
     cand.extend(numbered(prefixes, MODEL_EXT + IMAGE_EXT))
     cand.extend(from_texts)
+    cited = set(from_texts)
+    for _inner, textures in models.values():
+        cited.update(textures)
     new_ones = try_names(cand)
+    new_ones = new_ones + try_names(cross_pair(cited))
     model_folders = set(IMPORTED_FOLDERS) | set(folder(n) for n in known if n.lower().endswith(MODEL_EXT))
     round_num = 0
+    new_cited = set()
     while True:
         round_num += 1
         cand = []
@@ -638,7 +775,10 @@ def derived_names(a, name_list, log=None):
                 continue
             for c in mine_bytes((d or b'')[:16 * 1048576]):
                 cand.extend(variants(c))
+                new_cited.add(c)
         new_ones = try_names(cand)
+        new_ones = new_ones + try_names(cross_pair(new_cited))
+        new_cited = set()
         if log:
             log('unnamed, round %d: %d candidates, +%d (total %d, %d left)' % (round_num, len(set(cand)), len(new_ones),
                                                                                   len(matches), len(nameless)))
