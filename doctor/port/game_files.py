@@ -5,6 +5,8 @@ import os
 
 IMAGE_EXTS = ('.blp', '.tga', '.dds')
 TEMPLATE = ('.mdx', '.mdl')
+BULK = 50
+ICON_FOLDERS = ('replaceabletextures\\commandbuttons', 'replaceabletextures\\passivebuttons')
 
 
 def candidates(game_path):
@@ -50,3 +52,144 @@ def remove(map_path, name_list):
     from doctor.mpq import mpqadd
     mpqadd.add_files(map_path, [], list(name_list), log=lambda *a: None)
     return len(name_list)
+
+
+def _nothing(*_a, **_k):
+    pass
+
+
+def classe(fname):
+    n = fname.replace('/', '\\').lstrip('\\').lower()
+    if n.startswith('ui\\'):
+        return 'ui'
+    if n.startswith(ICON_FOLDERS):
+        return 'icons'
+    return 'other'
+
+
+def _game_forms(fname):
+    base, ext = os.path.splitext(fname.replace('/', '\\').lstrip('\\').lower())
+    if ext in IMAGE_EXTS:
+        return [base + e for e in IMAGE_EXTS]
+    if ext in TEMPLATE:
+        return [base + e for e in TEMPLATE]
+    return []
+
+
+def scan(map_path, progress=None, casc=None):
+    from doctor.fix import unprotect
+    from doctor.fix import game_paths
+    from doctor.models import model_check
+    p = progress or _nothing
+    out = {'files': [], 'counts': {'ui': 0, 'icons': 0, 'other': 0}, 'folders': [], 'severity': None, 'game': False}
+    g = game_paths.open_game(casc)
+    if g is None:
+        return out
+    out['game'] = True
+    a, err = model_check._open(map_path) if isinstance(map_path, str) else (map_path, None)
+    if a is None:
+        out['error'] = err
+        return out
+    p('Finding the file names')
+    have = g.names()
+    for n in model_check._names(a):
+        if any(c in have for c in _game_forms(n)) and unprotect._valid_for_game(a, n) is not None:
+            out['files'].append(n)
+            out['counts'][classe(n)] += 1
+    out['files'].sort(key=str.lower)
+    out['folders'] = count_by_folder(out['files'])
+    if out['files']:
+        out['severity'] = 'warning' if out['counts']['ui'] or len(out['files']) >= BULK else 'info'
+    return out
+
+
+def _imp_without(data_bytes, name_list):
+    import struct
+    wanted = set(n.replace('/', '\\').upper() for n in name_list)
+    try:
+        version_num, n = struct.unpack_from('<ii', data_bytes, 0)
+        p, mantidas, removed_count = 8, [], 0
+        for _ in range(n):
+            f = data_bytes.index(b'\0', p + 1)
+            brute = data_bytes[p:f + 1]
+            fname = data_bytes[p + 1:f].decode('utf-8', 'surrogateescape').replace('/', '\\').upper()
+            if fname in wanted or 'WAR3MAPIMPORTED\\' + fname in wanted:
+                removed_count += 1
+            else:
+                mantidas.append(brute)
+            p = f + 1
+    except (struct.error, ValueError):
+        return data_bytes, 0
+    if not removed_count:
+        return data_bytes, 0
+    return struct.pack('<ii', version_num, len(mantidas)) + b''.join(mantidas) + data_bytes[p:], removed_count
+
+
+def fix(entry, output, progress=None, casc=None, scope='all'):
+    import shutil
+    from doctor.fix import unprotect
+    from doctor.models import model_check
+    from doctor.mpq import mpqadd
+    p = progress or _nothing
+    res = {'state': 'failed', 'removed': 0, 'folders': [], 'lines': []}
+    if os.path.abspath(entry) == os.path.abspath(output):
+        res['error'] = 'The output must be a new file.'
+        return res
+    r = scan(entry, p, casc)
+    if r.get('error'):
+        res['error'] = r['error']
+        return res
+    name_list = [n for n in r['files'] if scope != 'ui' or classe(n) == 'ui']
+    if not name_list:
+        res['state'] = 'nothing_to_do'
+        res['reason'] = 'The map has no %sfile with the path of a game file.' % ('UI ' if scope == 'ui' else '')
+        return res
+    a, err = model_check._open(entry)
+    if a is None:
+        res['error'] = err
+        return res
+    all_items = model_check._names(a)
+    imp = unprotect._read(a, 'war3map.imp')
+    repl = []
+    if imp:
+        new_imp, _n = _imp_without(imp, name_list)
+        if new_imp != imp:
+            repl.append(('war3map.imp', new_imp))
+    part = model_check._part(output)
+    try:
+        p('Writing the new map')
+        shutil.copyfile(entry, part)
+        no_place = []
+        with unprotect.quiet():
+            mpqadd.add_files(part, repl, list(name_list), log=_nothing, no_slot=no_place)
+        if no_place:
+            raise RuntimeError('no room in the hash table for %s' % ', '.join(no_place))
+        b, err = model_check._open(part)
+        if b is None:
+            raise RuntimeError(err)
+        for n in name_list:
+            if unprotect._read(b, n) is not None:
+                raise RuntimeError('%s is still in the map' % n)
+        done = set(n.lower() for n in name_list) | set(n.lower() for n, _d in repl)
+        for n in all_items:
+            if n.lower() in done:
+                continue
+            x = unprotect._read(a, n)
+            if x is not None and unprotect._read(b, n) != x:
+                raise RuntimeError('%s changed' % n)
+        for n, d in repl:
+            if unprotect._read(b, n) != d:
+                raise RuntimeError('%s was not read back' % n)
+        del a, b
+        os.replace(part, output)
+    except Exception as e:
+        try:
+            os.remove(part)
+        except OSError:
+            pass
+        res['error'] = 'The check of the new map failed (%s).' % (str(e) or type(e).__name__)
+        return res
+    res.update(state='done', removed=len(name_list), folders=count_by_folder(name_list)[:6])
+    res['lines'] = ['%d files that had the path of a game file left the map (%s).' % (
+        len(name_list), ', '.join('%s %d' % (f, n) for f, n in res['folders'][:4]))]
+    return res
