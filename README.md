@@ -47,6 +47,11 @@ How to translate a map, every way step by step: [README-translation.md](README-t
 </tr>
 </table>
 
+### New in 1.7.9.1
+
+- **Fixed:** the buttons that open a map did nothing in 1.7.8 and 1.7.9 (only dragging a map in opened it).
+- **Port:** an art package can be a folder of loose files, the art a map reads from the game folder with "Allow Local Files" ("Add a folder..."). Those files stay out of the ported map, so it stays under the game's 512 MiB, and are written next to it with a README.
+
 ### New in 1.7.9
 
 - **Diagnose**, a new section, to find out why a map fails in the game: a diagnostic copy that logs, once a second while you play it, the functions the game started and never finished, the Lua errors and the last events (and, with "Load markers", every step of a load that hangs); the reader of that log; the reader of the game's crash report and log (the module it closed in, the models it could not create, the frames it refused, the classic Crash.txt of 1.24-1.31, the desync files); and a replay reader (who left and when, the chat, sync and frame events, the first turn two replays disagree). From the command line: `doctor diagnose`, `log`, `crash`, `replay`, `replay-compare`.
