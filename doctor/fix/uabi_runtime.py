@@ -5,7 +5,7 @@ from doctor.fix import unprotect
 
 
 DISTINCT_WARNING = 2000
-KEEP = frozenset(('Aloc',))
+KEEP = frozenset(('Aloc', 'Avul', 'AInv', 'Aihn', 'Aien', 'Aion', 'Aiun'))
 CHUNK = 300
 PREFIX = 'dmd_uabi'
 RX_ID = re.compile(r'\A[\x21-\x7e]{4}\Z')
@@ -93,6 +93,26 @@ def _morph_targets(w3a):
                 if vt == 3:
                     out.update(x.strip() for x in val.decode('latin-1').split(',') if RX_ID.match(x.strip()))
     return out
+
+
+def keep_ids(w3a):
+    keep = set(KEEP)
+    if not w3a:
+        return keep
+    from doctor.data import objbin
+    try:
+        _v, tabs, _p = objbin.read_data(w3a, True)
+    except Exception:
+        return keep
+    pairs = [(old, new) for objs in tabs for old, new, _m in objs if new.strip('\x00')]
+    grew = True
+    while grew:
+        grew = False
+        for old, new in pairs:
+            if old in keep and new not in keep:
+                keep.add(new)
+                grew = True
+    return keep
 
 
 def _raw(ident):
@@ -184,8 +204,10 @@ def fix(path_in, path_out, progress=None):
         lists = _lists(w3u)
     except Exception as e:
         return stop('refused', 'war3map.w3u does not read (%s).' % e)
-    morphs = _morph_targets(unprotect._read(a, 'war3map.w3a'))
-    moves, empty = [], set()
+    w3a = unprotect._read(a, 'war3map.w3a')
+    morphs = _morph_targets(w3a)
+    stay = keep_ids(w3a)
+    moves, newval = [], {}
     for ti, oi, mi, ident, ids in lists:
         if not ids:
             continue
@@ -195,16 +217,23 @@ def fix(path_in, path_out, progress=None):
         if ident in morphs:
             rep['kept'].append({'type': ident, 'why': 'an ability can morph a unit into it'})
             continue
-        if any(x in KEEP or not RX_ID.match(x) for x in ids):
-            rep['kept'].append({'type': ident, 'why': 'its list has Aloc or an id that is not 4 characters'})
+        stays = [x for x in ids if x in stay or not RX_ID.match(x)]
+        goes = [x for x in ids if x not in stays]
+        if not goes:
+            rep['kept'].append({'type': ident, 'why': 'its whole list is abilities that must stay in the object data'})
             continue
-        moves.append((ident, ids))
-        empty.add((ti, oi, mi))
+        if stays:
+            rep['kept'].append({'type': ident, 'why': '%s stay in the object data (they change behaviour when added '
+                                'later)' % ', '.join(stays), 'partial': True})
+            rep['stayed'] = rep.get('stayed', 0) + len(stays)
+        moves.append((ident, goes))
+        newval[(ti, oi, mi)] = stays
     if not moves:
         return stop('nothing_to_do', 'No unit type list can move.')
-    new_w3u, n = objbin.rewrite(w3u, False, lambda ti, oi, mi, _mid, _v: b'' if (ti, oi, mi) in empty else None)
-    if n != len(empty):
-        return stop('failed', 'war3map.w3u: %d of %d lists emptied.' % (n, len(empty)))
+    new_w3u, n = objbin.rewrite(w3u, False, lambda ti, oi, mi, _mid, _v: ','.join(newval[(ti, oi, mi)]).encode(
+        'latin-1') if (ti, oi, mi) in newval else None)
+    if n != len(newval):
+        return stop('failed', 'war3map.w3u: %d of %d lists changed.' % (n, len(newval)))
     text = sc['bytes'].decode('utf-8', 'surrogateescape')
     if PREFIX + '_Init' in text:
         return stop('nothing_to_do', 'The script already adds the lists.')
@@ -223,8 +252,8 @@ def fix(path_in, path_out, progress=None):
 
     def check(part):
         b = unprotect._open(part)
-        if any(ids for _t, _o, _m, _i, ids in _lists(unprotect._read(b, 'war3map.w3u'))
-               if (_t, _o, _m) in empty):
+        got = dict(((_t, _o, _m), ids) for _t, _o, _m, _i, ids in _lists(unprotect._read(b, 'war3map.w3u')))
+        if any(got.get(k) != v for k, v in newval.items()):
             raise RuntimeError('a moved list is still in war3map.w3u')
 
     try:
@@ -234,7 +263,10 @@ def fix(path_in, path_out, progress=None):
         return stop('failed', 'The map could not be written (%s).' % unprotect._error(e))
     rep.update(state='done', moved=len(moves), references=sum(len(ids) for _t, ids in moves),
                same_files=done['same_files'])
-    rep['lines'] = ['%d unit types get their %d normal abilities from the script as each unit is created (%d stay in '
-                    'the object data). Test the map before sharing it.' % (rep['moved'], rep['references'],
-                                                                           len(rep['kept']))]
+    whole = sum(1 for k in rep['kept'] if not k.get('partial'))
+    rep['lines'] = [
+        '%d unit types get their %d normal abilities from the script as each unit is created (%d unit types '
+        'keep theirs in the object data, %d abilities stay on the others). Test the map before sharing '
+        'it.' % (rep['moved'], rep['references'], whole, rep.get('stayed', 0))
+    ]
     return rep
