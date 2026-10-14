@@ -28,8 +28,8 @@ from doctor.data import w3i
 
 
 KNOWN_W3I = (18, 25, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39)
-RX_WTS = re.compile(rb'^(?:\xef\xbb\xbf)?STRING[ \t]+(\d+)[^\n]*\n(?:[ \t]*(?://[^\n]*)?\r?\n)*[ \t]*\{[^\n]*\n'
-                    rb'(.*?)\r?\n?^\}', re.S | re.M)
+RX_WTS = re.compile(rb'^(?:\xef\xbb\xbf)?(?i:STRING)[ \t]+(\d+)[^\n]*\n(?:[ \t]*(?://[^\n]*)?\r?\n)*[ \t]*\{[^\n]*\n'
+                    rb'(.*?)\r?\n?^\}[ \t]*\r?$', re.S | re.M)
 RX_TRIGSTR = re.compile(r'TRIGSTR_(\d+)\s*$')
 RX_COLOR = re.compile(r'\|[cC][0-9a-fA-F]{8}|\|[rRnN]')
 
