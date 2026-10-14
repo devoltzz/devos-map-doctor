@@ -43,7 +43,9 @@ def read_materials(data, off, n, version_num):
         prio = struct.unpack_from('<i', data, q)[0]
         flags = struct.unpack_from('<I', data, q + 4)[0]
         q += 8
-        if version_num >= 900:
+        if 900 <= version_num < 1100 and data[q:q + 4] != b'LAYS':
+            q += 80
+        elif data[q:q + 4] != b'LAYS' and data[q + 80:q + 84] == b'LAYS':
             q += 80
         if data[q:q + 4] != b'LAYS':
             mats.append({'prio': prio, 'flags': flags, 'lays': [], 'err': 'no LAYS'})
