@@ -234,6 +234,9 @@ def _workers(options):
     n = options.get('workers')
     if n:
         return max(1, int(n))
+    teto = os.environ.get('DOCTOR_WORKERS')
+    if teto and teto.isdigit():
+        return max(1, int(teto))
     if getattr(sys, 'frozen', False) or sys.platform == 'emscripten':
         return 1
     return os.cpu_count() or 1
