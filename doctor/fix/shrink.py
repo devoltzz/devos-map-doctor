@@ -1,4 +1,4 @@
-# Makes a map smaller without losing anything: recompression, lossless BLP, duplicates once.
+# Makes a map smaller without losing anything: recompression, lossless BLP, duplicates once; and, as an option, the biggest textures and sounds smaller while the map is above 512 MiB.
 import collections
 import contextlib
 import hashlib
@@ -8,6 +8,7 @@ import os
 import struct
 import sys
 import time
+import zlib
 
 from doctor.mpq import mpqlib as M
 from doctor.mpq import mpqread
@@ -264,6 +265,11 @@ def _fora_do_cache(items, sector, cod):
     return sum(len(c) for c in items.values() if c and cache.read_data('shrink', mpq_recompress._key(c, assin)) is None)
 
 
+def _fatia_n(args):
+    i, job = args
+    return i, mpq_recompress._slice(job)
+
+
 def _pack(items, sector, cod, pool, progress):
     out, jobs, owner = {}, [], []
     step = mpq_recompress.SLICE * sector
@@ -283,13 +289,21 @@ def _pack(items, sector, cod, pool, progress):
         for s in range(0, len(c), step):
             jobs.append((c[s:s + step], cod, 8, sector))
             owner.append(k)
+    feitas = [None] * len(jobs)
+    total_kb = max(1, sum(len(j[0]) for j in jobs) // 1024)
+    feito = 0
+    res = pool.imap_unordered(_fatia_n, enumerate(jobs), chunksize=4) if pool else map(_fatia_n, enumerate(jobs))
+    for n, (i, r) in enumerate(res):
+        feitas[i] = r
+        feito += len(jobs[i][0])
+        if n % 20 == 0:
+            progress('Compressing %d/%d' % (feito // 1024, total_kb))
     parts = collections.defaultdict(list)
-    res = pool.imap(mpq_recompress._slice, jobs, chunksize=4) if pool else map(mpq_recompress._slice, jobs)
-    for n, (k, r) in enumerate(zip(owner, res)):
-        if n % 100 == 0:
-            progress('Compressing %d%%' % (100 * n // max(1, len(jobs))))
+    for k, r in zip(owner, feitas):
         parts[k].extend(r)
-    for k, ps in parts.items():
+    for n, (k, ps) in enumerate(parts.items()):
+        if n % 20 == 0:
+            progress('Storing the compressed files %d/%d' % (n, len(parts)))
         out[k] = (mpq_recompress.build_block(ps), F_EXISTS | F_COMPRESS)
         if k in chaves:
             try:
@@ -503,7 +517,208 @@ def _report_sizes(a, kept, kinds, members, written, plan):
             'packed': sum(1 for how, _c in plan.values() if how[0] == 'packed')}
 
 
+LIMIT = 512 << 20
+LOSSY_TARGET = LIMIT - (6 << 20)
+LOSSY_MIN_SIDE = 512
+
+
+def _half_texture(name, data):
+    import io
+    import tempfile
+    from PIL import Image
+    low = name.lower()
+    try:
+        if low.endswith('.blp'):
+            from doctor.models import blpread
+            from doctor.models import blpwrite
+            info = blpread.header_bytes(data, name)
+            w, h = info['map_width'], info['map_height']
+            if max(w, h) < LOSSY_MIN_SIDE:
+                return None
+            try:
+                im = blpread.read_bytes(data, 1, info, name)[0] if info['sizes'][1] else None
+            except Exception:
+                im = None
+            if im is None or im.size != (max(1, w // 2), max(1, h // 2)):
+                im = blpread.read_bytes(data, 0, info, name)[0].resize((max(1, w // 2), max(1, h // 2)), Image.LANCZOS)
+            fd, tmp = tempfile.mkstemp(suffix='.blp')
+            os.close(fd)
+            try:
+                blpwrite.save_blp(im, tmp, quality=90, alpha_bits=8 if info['alpha_bits'] else 0)
+                with open(tmp, 'rb') as f:
+                    out = f.read()
+            finally:
+                os.remove(tmp)
+        elif low.endswith('.tga'):
+            im = Image.open(io.BytesIO(data))
+            if max(im.size) < LOSSY_MIN_SIDE:
+                return None
+            im = im.resize((max(1, im.width // 2), max(1, im.height // 2)), Image.LANCZOS)
+            b = io.BytesIO()
+            im.save(b, 'TGA', rle=True)
+            out = b.getvalue()
+        else:
+            return None
+    except Exception:
+        return None
+    return out if len(out) < len(data) else None
+
+
+def _small_wav(data):
+    import io
+    import wave
+    try:
+        import numpy as np
+        with wave.open(io.BytesIO(data)) as w:
+            ch, width, rate, n = w.getnchannels(), w.getsampwidth(), w.getframerate(), w.getnframes()
+            if width not in (1, 2) or (ch == 1 and rate <= 22050):
+                return None
+            raw = w.readframes(n)
+    except Exception:
+        return None
+    a = np.frombuffer(raw, dtype=np.uint8 if width == 1 else np.int16).astype(np.float32)
+    if width == 1:
+        a = (a - 128.0) * 256.0
+    a = a.reshape(-1, ch).mean(axis=1)
+    if rate > 22050:
+        k = rate / 22050.0
+        a = np.interp(np.arange(0, len(a) - 1, k), np.arange(len(a)), a)
+        rate = 22050
+    b = io.BytesIO()
+    with wave.open(b, 'wb') as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(np.clip(a, -32768, 32767).astype(np.int16).tobytes())
+    out = b.getvalue()
+    return out if len(out) < len(data) else None
+
+
+def lossy(path_in, path_out, need, progress=None):
+    p = progress or _nothing
+    res = {'state': 'failed', 'textures': 0, 'sounds': 0, 'saved': 0, 'files': [], 'error': None}
+    a, err = _open(path_in)
+    if a is None:
+        res['error'] = err
+        return res
+    from doctor.fix import unprotect
+    p('Finding the art')
+    with unprotect.quiet():
+        every = unprotect.map_names(a)
+    cands, seen = [], set()
+    for n in every:
+        if not n.lower().endswith(('.blp', '.tga', '.wav')):
+            continue
+        r = a.find(n)
+        if r is None or r[1] in seen:
+            continue
+        seen.add(r[1])
+        cands.append((_stored(a, r[1])[1], n))
+    cands.sort(reverse=True)
+    repl = []
+    done = 0
+    for k, (stored, n) in enumerate(cands):
+        if res['saved'] >= need:
+            break
+        if k % 10 == 0:
+            p('Making the art smaller %d/%d' % (min(res['saved'], need) >> 10, max(need >> 10, 1)))
+        data = a.read(n)
+        if not data:
+            continue
+        new = _small_wav(data) if n.lower().endswith('.wav') else _half_texture(n, data)
+        if new is None:
+            continue
+        after = len(zlib.compress(new, 6))
+        if after >= stored:
+            continue
+        repl.append((n, new))
+        res['saved'] += stored - after
+        res['files'].append((n, stored, after))
+        res['sounds' if n.lower().endswith('.wav') else 'textures'] += 1
+        done += 1
+    if not repl:
+        res['state'] = 'nothing_to_do'
+        return res
+    import shutil
+    from doctor.mpq import mpqadd
+    p('Writing the smaller art')
+    part = _part(path_out)
+    try:
+        shutil.copyfile(path_in, part)
+        import contextlib
+        with contextlib.redirect_stdout(io.StringIO()):
+            mpqadd.add_files(part, repl, [])
+        b = mpqread.Archive(part)
+        for n, new in repl:
+            if b.read(n) != new:
+                raise RuntimeError('%s did not come back as it was written' % n)
+        os.replace(part, path_out)
+    except Exception as e:
+        if os.path.exists(part):
+            os.remove(part)
+        res['error'] = 'The smaller art was not written (%s).' % (str(e) or type(e).__name__)
+        return res
+    res['state'] = 'done'
+    return res
+
+
 def shrink(path_in, path_out, options=None, progress=None):
+    opts = dict(options or {})
+    want_lossy = bool(opts.pop('lossy', False))
+    res = _with_lines(_lossy_after(path_in, path_out, opts, progress, want_lossy))
+    return res
+
+
+def _with_lines(res):
+    lines = []
+    if res.get('state') == 'done' and res.get('size_before') and res.get('size_after'):
+        lines.append('%.1f MiB -> %.1f MiB.' % (res['size_before'] / 1048576.0, res['size_after'] / 1048576.0))
+    lo = res.get('lossy')
+    if lo:
+        if lo.get('state') == 'done' and not lo.get('error'):
+            lines.append('With loss, since the map was above 512 MiB: %d texture(s) at half size, %d sound(s) mono at '
+                         '22 kHz.' % (lo.get('textures') or 0, lo.get('sounds') or 0))
+        else:
+            lines.append('The art was not made smaller: %s' % (lo.get('error') or 'nothing could be made smaller'))
+        if res.get('size_after') and res['size_after'] > LIMIT:
+            lines.append('Still above 512 MiB: the game will not open it.')
+    if lines:
+        res['summary_lines'] = lines
+    return res
+
+
+def _lossy_after(path_in, path_out, opts, progress, want_lossy):
+    res = _shrink(path_in, path_out, opts, progress)
+    if not want_lossy or res.get('state') not in ('done', 'nothing_to_do'):
+        return res
+    cur = path_out if res['state'] == 'done' else path_in
+    size = os.path.getsize(cur)
+    if size <= LIMIT:
+        return res
+    p = progress or _nothing
+    from doctor.app import job_progress
+    tmp = _part(path_out) + '.lossy.w3x'
+    try:
+        with job_progress.stage('lossy'):
+            lo = lossy(cur, tmp, size - LOSSY_TARGET, p)
+        res['lossy'] = dict((k, lo[k]) for k in ('state', 'textures', 'sounds', 'saved', 'error'))
+        res['lossy']['files'] = lo['files'][:200]
+        if lo['state'] != 'done':
+            return res
+        with job_progress.stage('again'):
+            again = _shrink(tmp, path_out, opts, progress)
+        if again.get('state') != 'done':
+            res['lossy']['error'] = again.get('error') or 'the lossless shrink after it did not finish'
+            return res
+        again['lossy'] = res['lossy']
+        again['size_before'] = res.get('size_before', again.get('size_before'))
+        return again
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+
+def _shrink(path_in, path_out, options=None, progress=None):
     t0 = time.time()
     p = progress or _nothing
     opts = dict(OPTIONS)
