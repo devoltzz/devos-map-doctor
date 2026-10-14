@@ -9,7 +9,9 @@ TAGS = {
     b'HELP', b'ATCH', b'PREM', b'PRE2', b'RIBB', b'EVTS', b'CAMS', b'CLID', b'BPOS', b'FAFX',
     b'PIVT',
     b'CORN', b'LAYS', b'TXAN', b'FAXS', b'HELP', b'SNBI', b'SNBS', b'SNBV',
+    b'DILG',
 }
+VERSIONS = {800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800}
 MAGICS = {b'MDLX', b'EMAM'}
 
 
