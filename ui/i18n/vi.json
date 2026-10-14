@@ -2630,5 +2630,9 @@
  "{0} textures only the game has are not drawn.": "{0} texture chỉ game có thì không được vẽ.",
  "{0} unbalanced braces": "{0} dấu ngoặc nhọn không cân bằng",
  "{0} unit types get their {1} normal abilities from the script as each unit is created ({2} unit types keep theirs in the object data, {3} abilities stay on the others). Test the map before sharing it.": "{0} loại đơn vị nhận {1} kỹ năng bình thường của chúng từ script mỗi khi một đơn vị được tạo ({2} loại đơn vị giữ kỹ năng của chúng trong dữ liệu đối tượng, {3} kỹ năng ở lại trên các loại còn lại). Hãy thử bản đồ trước khi chia sẻ.",
- "{0}=Game.dll+0x{1}": "{0}=Game.dll+0x{1}"
+ "{0}=Game.dll+0x{1}": "{0}=Game.dll+0x{1}",
+ "A folder of loose art files (the ones a map reads from the game folder with \"Allow Local Files\")": "Một thư mục chứa các tệp đồ họa rời (những tệp mà bản đồ đọc từ thư mục trò chơi bằng \"Allow Local Files\")",
+ "Add a folder...": "Thêm một thư mục...",
+ "the folder next to the ported map": "thư mục bên cạnh bản đồ đã chuyển đổi",
+ "{0} file(s) ({1} MB) from a folder of loose files stay OUT of the map, as the map used them: they are in {2}. Copy its war3mapImported folder into the game folder (\"Warcraft III\\_retail_\") and turn on \"Allow Local Files\" (see the README.txt there; every player needs the same files)": "{0} tệp ({1} MB) từ một thư mục tệp rời nằm NGOÀI bản đồ, đúng như cách bản đồ đã dùng chúng: chúng ở trong {2}. Hãy sao chép thư mục war3mapImported của nó vào thư mục trò chơi (\"Warcraft III\\_retail_\") và bật \"Allow Local Files\" (xem README.txt ở đó; mọi người chơi đều cần cùng các tệp)"
 }
