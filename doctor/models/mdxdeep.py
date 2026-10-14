@@ -5,6 +5,9 @@ import struct
 from doctor.models import mdxnodes as mn
 
 
+NODE_CHUNKS = mn.NODE_CHUNKS + (b'CORN',)
+CAMERA_MASK = 0x00FFFFFF
+
 
 def bad(v):
     return math.isnan(v) or math.isinf(v) or abs(v) > 1e7
@@ -13,11 +16,19 @@ def bad(v):
 def deep(data):
     r = {}
     chunks = mn.parse_chunks(data)
+    version = next((struct.unpack_from('<I', b, 0)[0] for t, b in chunks if t == b'VERS' and len(b) >= 4), None)
+    placed = None
+    if version is not None and version >= 900:
+        try:
+            from doctor.fix import mdx_struct
+            placed = mdx_struct.read(data).geos
+        except Exception:
+            placed = None
     tags = [c[0] for c in chunks]
     r['chunks'] = ' '.join(t.decode('latin-1') for t in tags)
     nodes = {}
     for tag, body in chunks:
-        if tag in mn.NODE_CHUNKS:
+        if tag in NODE_CHUNKS:
             for off, tot, noff in mn.iter_entries(tag, body):
                 oid, pid, fl = struct.unpack_from('<III', body, noff + 84)
                 nodes[oid] = (tag, pid, fl)
@@ -28,7 +39,7 @@ def deep(data):
     seen = set()
     dups = 0
     for tag, body in chunks:
-        if tag in mn.NODE_CHUNKS:
+        if tag in NODE_CHUNKS:
             for off, tot, noff in mn.iter_entries(tag, body):
                 oid = struct.unpack_from('<I', body, noff + 84)[0]
                 if oid in seen:
@@ -94,6 +105,7 @@ def deep(data):
                 geo_issues.append('g%d:parse:%s' % (gi, e))
                 continue
             nv = parts[b'VRTX'][1]
+            info = placed[gi] if placed is not None and gi < len(placed) and placed[gi].get('uvas') else None
             nn = parts[b'NRMS'][1] if b'NRMS' in parts else -1
             ptyp = struct.unpack_from('<%dI' % parts[b'PTYP'][1], g, parts[b'PTYP'][2]) if b'PTYP' in parts else ()
             pcnt = struct.unpack_from('<%dI' % parts[b'PCNT'][1], g, parts[b'PCNT'][2]) if b'PCNT' in parts else ()
@@ -109,7 +121,8 @@ def deep(data):
                 geo_issues.append('g%d:pcnt%d!=pvtx%d' % (gi, sum(pcnt), npv))
             if npv % 3:
                 geo_issues.append('g%d:pvtx_nao_mult3' % gi)
-            if len(gndx) != nv:
+            hd = info is not None and info.get('skin') is not None
+            if len(gndx) != nv and not hd:
                 geo_issues.append('g%d:gndx%d!=vrtx%d' % (gi, len(gndx), nv))
             if gndx and max(gndx) >= nmtgc:
                 geo_issues.append('g%d:gndx_max%d>=mtgc%d' % (gi, max(gndx), nmtgc))
@@ -118,17 +131,20 @@ def deep(data):
             if any(nodes[m][0] != b'BONE' for m in mats if m in nodes):
                 geo_issues.append('g%d:mats_nonbone' % gi)
             matid, selg, self_ = struct.unpack_from('<III', g, after)
-            ext = struct.unpack_from('<7f', g, after + 12)
-            next_ = struct.unpack_from('<I', g, after + 40)[0]
+            lod = 84 if info is not None and info['lod'] else 0
+            ext = struct.unpack_from('<7f', g, after + 12 + lod)
+            next_ = struct.unpack_from('<I', g, after + 40 + lod)[0]
             if matid >= nmat:
                 geo_issues.append('g%d:matid%d>=nmat%d' % (gi, matid, nmat))
             if self_ & 4:
                 geo_issues.append('g%d:unselectable' % gi)
             if any(bad(x) for x in ext):
                 geo_issues.append('g%d:extents_ruins' % gi)
-            if all(abs(x) < 1e-6 for x in ext):
+            if all(abs(x) < 1e-6 for x in ext) and (version or 800) < 900:
                 geo_issues.append('g%d:extents_zero' % gi)
-            p2 = after + 44 + next_ * 28
+            p2 = after + 44 + lod + next_ * 28
+            if info is not None:
+                p2 = info['tail_at'] - (info['off'] + 4)
             if g[p2:p2 + 4] != b'UVAS':
                 geo_issues.append('g%d:sem_UVAS' % gi)
             else:
@@ -205,7 +221,7 @@ def deep(data):
     r['cams'] = 0
     q = 0
     while q + 4 <= len(cams):
-        sz = struct.unpack_from('<I', cams, q)[0]
+        sz = struct.unpack_from('<I', cams, q)[0] & CAMERA_MASK
         if sz < 4 or q + sz > len(cams):
             break
         r['cams'] += 1
@@ -224,5 +240,5 @@ def deep(data):
         r['modl_ext_bad'] = any(bad(v) for v in ext)
         r['modl_blend'] = struct.unpack_from('<I', modl, 368)[0]
         r['modl_anim_file'] = modl[80:340].split(b'\0')[0].decode('latin-1', 'replace')
-    r['version'] = next((struct.unpack_from('<I', b, 0)[0] for t, b in chunks if t == b'VERS'), None)
+    r['version'] = version
     return r
