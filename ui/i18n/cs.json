@@ -2630,5 +2630,9 @@
  "{0} textures only the game has are not drawn.": "{0} textur, které má jen hra, se nevykreslí.",
  "{0} unbalanced braces": "{0} nevyvážených složených závorek",
  "{0} unit types get their {1} normal abilities from the script as each unit is created ({2} unit types keep theirs in the object data, {3} abilities stay on the others). Test the map before sharing it.": "{0} typů jednotek dostává svých {1} běžných schopností ze skriptu při vytvoření každé jednotky ({2} typů jednotek si je ponechává v datech objektů, {3} schopností zůstává u ostatních). Před sdílením mapu otestujte.",
- "{0}=Game.dll+0x{1}": "{0}=Game.dll+0x{1}"
+ "{0}=Game.dll+0x{1}": "{0}=Game.dll+0x{1}",
+ "A folder of loose art files (the ones a map reads from the game folder with \"Allow Local Files\")": "Složka s volnými soubory grafiky (těmi, které mapa čte ze složky hry pomocí \"Allow Local Files\")",
+ "Add a folder...": "Přidat složku...",
+ "the folder next to the ported map": "složka vedle portované mapy",
+ "{0} file(s) ({1} MB) from a folder of loose files stay OUT of the map, as the map used them: they are in {2}. Copy its war3mapImported folder into the game folder (\"Warcraft III\\_retail_\") and turn on \"Allow Local Files\" (see the README.txt there; every player needs the same files)": "Soubory ({0}, {1} MB) ze složky s volnými soubory zůstávají MIMO mapu, tak jak je mapa používala: jsou v {2}. Zkopírujte její složku war3mapImported do složky hry (\"Warcraft III\\_retail_\") a zapněte \"Allow Local Files\" (viz README.txt tamtéž; každý hráč potřebuje stejné soubory)"
 }
