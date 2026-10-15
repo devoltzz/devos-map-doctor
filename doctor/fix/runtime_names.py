@@ -44,9 +44,9 @@ def _text(v):
     if v is None:
         return None
     try:
-        return v.encode('latin-1').decode('utf-8')
+        return v.encode('latin-1').decode('utf-8', 'surrogateescape')
     except (UnicodeDecodeError, UnicodeEncodeError):
-        return v.encode('latin-1', 'replace').decode('utf-8', 'replace')
+        return v.encode('latin-1', 'replace').decode('utf-8', 'surrogateescape')
 
 
 def _latin1(text):
@@ -256,7 +256,7 @@ def file_names(text, budget=600000, seconds=15.0, early=5.0, libs=None, deadline
               'unresolved': unresolved[0]}
     items.sort(key=lambda x: (x['known'], x['how'], x['kind'], x['name']))
     out = {'items': items[:LIST_MAX], 'names': names, 'frame_names': frame_names, 'counts': counts, 'run': run,
-           'ran_before_static': ran}
+           'ran_before_static': ran, 'all_items': items}
     out['lines'] = summary(out)
     return out
 
@@ -264,7 +264,8 @@ def file_names(text, budget=600000, seconds=15.0, early=5.0, libs=None, deadline
 def names_of(result, literals=False, backslash=True):
     if result.get('error'):
         return []
-    names = set(x['name'] for x in result['items'] if x['kind'] != 'frame' and (literals or not x['known']))
+    names = set(x['name'] for x in result.get('all_items') or result['items']
+                if x['kind'] != 'frame' and (literals or not x['known']))
     if backslash:
         names = set(n.replace('/', '\\') for n in names)
     return sorted(names)
