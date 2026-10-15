@@ -113,9 +113,8 @@ def split(files):
             version, objects, end = _parse(d, levels)
         except (ValueError, IndexError, struct.error):
             continue
-        if end != len(d) or not any(
-            f in fields for _t, _i, sets in objects for _fl, mods in sets for f, _s, _e in mods
-        ):
+        if (end != len(d) and d[end:].strip(b'\0')) or \
+                not any(f in fields for _t, _i, sets in objects for _fl, mods in sets for f, _s, _e in mods):
             continue
         new_classic = _write(version, objects, d, lambda f: f not in fields)
         new_skin = _skin(objects, d, fields)
