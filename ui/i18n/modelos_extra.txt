@@ -25,3 +25,7 @@ changed
 removed
 applied
 {0} item drop roll(s) found. {1} item(s) in the item tables of the World Editor.
+{0} and {1}
+1.23 or older
+1.24 to 1.28
+1.30 or newer (Reforged)
