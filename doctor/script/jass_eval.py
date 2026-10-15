@@ -93,9 +93,15 @@ def _truthy(v):
     return bool(v)
 
 
+MAX_STRING = 1 << 20
+
+
 def _concat_or_add(a, b):
     if isinstance(a, str) or isinstance(b, str):
-        return (a or '') + (b or '')
+        r = (a or '') + (b or '')
+        if len(r) > MAX_STRING:
+            raise Crash('a string longer than %d characters' % MAX_STRING)
+        return r
     if a is None and b is None:
         return None
     if isinstance(a, bool) or isinstance(b, bool) or a is None or b is None:
@@ -386,6 +392,8 @@ class Interpreter(object):
 
         def run(args):
             env = {}
+            if len(args) < len(params):
+                raise Crash('%s called with %d of %d arguments' % (f.name, len(args), len(params)))
             for (t, n), v in zip(params, args):
                 env[n] = _coerce(t, v)
             for n, init, is_array, t in init_calls:
@@ -472,8 +480,10 @@ class Interpreter(object):
         if isinstance(target, jass_ast.Name):
             name = target.name
             if name in local_names:
+                ltype = local_names[name] if isinstance(local_names, dict) else None
+
                 def set_local(env):
-                    env[name] = value(env)
+                    env[name] = _coerce(ltype, value(env))
                     return 0
                 return set_local
             types = self.global_types
@@ -485,6 +495,7 @@ class Interpreter(object):
         name = target.base.name
         index = self._expr(target.index, local_names)
         local = name in local_names
+        atype = (local_names[name] if isinstance(local_names, dict) else None) if local else self.global_types.get(name)
 
         def set_index(env):
             i = index(env)
@@ -493,7 +504,7 @@ class Interpreter(object):
             arr = env[name] if local else g.get(name)
             if not isinstance(arr, dict):
                 raise Crash('%s is not an array' % name)
-            arr[i] = value(env)
+            arr[i] = _coerce(atype, value(env))
             return 0
         return set_index
 
@@ -704,6 +715,8 @@ def _r2i(it, r):
 
 
 def _r2sw(it, r, width, precision):
+    if width > MAX_STRING or precision > 4096:
+        raise Crash('R2SW with a width of %d and a precision of %d' % (width, precision))
     return '%*.*f' % (max(0, width), max(0, precision), r)
 
 
