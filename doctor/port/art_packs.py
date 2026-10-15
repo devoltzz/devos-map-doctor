@@ -24,6 +24,8 @@ def norm(p):
     p = p.strip().strip('"').replace('/', B).lstrip(B)
     while B + B in p:
         p = p.replace(B + B, B)
+    p = re.sub(r'^[A-Za-z]:', '', p)
+    p = B.join(x for x in p.split(B) if x not in ('', '.', '..'))
     if p.lower().endswith('.mdl'):
         p = p[:-4] + '.mdx'
     return p
@@ -64,8 +66,12 @@ def requested_ones(script, data_bytes=None, extract=None):
     if extract:
         sources += [os.path.join(extract, 'Doodads', 'Doodads.slk'), os.path.join(extract, 'war3mapSkin.txt'),
                     os.path.join(extract, 'war3mapMisc.txt')]
-        if not data_bytes and os.path.isdir(os.path.join(extract, 'Units')):
+        if (not data_bytes or not os.path.isdir(data_bytes)) and os.path.isdir(os.path.join(extract, 'Units')):
             sources += [os.path.join(extract, 'Units', f) for f in os.listdir(os.path.join(extract, 'Units'))]
+        sources += [os.path.join(extract, n) for n in ('war3map.w3u', 'war3map.w3t', 'war3map.w3a', 'war3map.w3b',
+                                                       'war3map.w3d', 'war3map.w3h', 'war3map.w3q', 'war3mapSkin.w3u',
+                                                       'war3mapSkin.w3t', 'war3mapSkin.w3a', 'war3mapSkin.w3b',
+                                                       'war3mapSkin.w3d', 'war3mapSkin.w3h', 'war3mapSkin.w3q')]
     for p in sources:
         if os.path.isfile(p):
             for a in RX_FILE.finditer(open(p, 'rb').read().decode('utf-8', 'surrogateescape')):
@@ -184,7 +190,19 @@ def variants(p):
     return out
 
 
-def resolve(map_path, packages, ped, in_game, log=print):
+def port_owned(map_data):
+    if not map_data:
+        return None
+
+    def owned(p):
+        tgt = os.path.join(map_data, *[x for x in p.split(B) if x])
+        if os.path.isfile(tgt):
+            return True
+        return tgt.lower().endswith('.mdx') and os.path.isfile(tgt[:-4] + '.mdl')
+    return owned
+
+
+def resolve(map_path, packages, ped, in_game, log=print, owned=None):
     import_it, missing_items, seen = {}, {}, set()
     work_queue = list(ped)
 
@@ -202,7 +220,7 @@ def resolve(map_path, packages, ped, in_game, log=print):
         if k in seen:
             continue
         seen.add(k)
-        if map_path.find(p) or in_game(p):
+        if map_path.find(p) or in_game(p) or (owned is not None and owned(p)):
             continue
         origin = finds(p)
         conv = None
@@ -222,7 +240,13 @@ def resolve(map_path, packages, ped, in_game, log=print):
             continue
         import_it[p] = origin + (conv,)
         if p.lower().endswith('.mdx') and origin[1] is not None:
-            d = origin[1].read(origin[2]) or b''
+            try:
+                d = origin[1].read(origin[2]) or b''
+            except Exception as e:
+                log('%s: the package file could not be read (%s): counted as missing' % (p, str(e)[:80]))
+                missing_items[p] = ped.get(p, {'an imported model'})
+                del import_it[p]
+                continue
             for t in mdx_references(d):
                 t = norm(t)
                 ped[t].add('imported model ' + p)
@@ -230,7 +254,8 @@ def resolve(map_path, packages, ped, in_game, log=print):
     return import_it, missing_items
 
 
-def import_it(map_path, packages, script, dest, data_bytes=None, extract=None, casc=None, log=print, local=None):
+def import_it(map_path, packages, script, dest, data_bytes=None, extract=None, casc=None, log=print, local=None,
+              map_data=None):
     import shutil
     a = mpqread.Archive(map_path)
     art_pack = open_packs(packages, log)
@@ -262,7 +287,7 @@ def import_it(map_path, packages, script, dest, data_bytes=None, extract=None, c
             return None
 
     ped = requested_ones(script, data_bytes, extract)
-    imp, missing_items = resolve(a, art_pack, ped, in_game, log)
+    imp, missing_items = resolve(a, art_pack, ped, in_game, log, port_owned(map_data))
     for folder in (dest, local):
         if folder and os.path.isdir(folder):
             shutil.rmtree(folder)
@@ -271,15 +296,51 @@ def import_it(map_path, packages, script, dest, data_bytes=None, extract=None, c
         'missing_items': sorted(missing_items, key=str.lower),
         'bytes': 0,
         'by_pack': collections.Counter(),
+        'unclosed': [n for n, _a in art_pack],
         'warnings': [],
         'manifest': [],
         'local_vars': 0,
         'local_bytes': 0,
+        'identical': {'map_path': 0, 'is_pack': 0, 'game': 0},
     }
+    import hashlib
     from doctor.models import mdxfix
+    map_sha = {}
+    if extract and os.path.isdir(extract):
+        for root_, _d, fs in os.walk(extract):
+            for f in fs:
+                c = os.path.join(root_, f)
+                try:
+                    with open(c, 'rb') as h:
+                        map_sha.setdefault(hashlib.sha1(h.read()).hexdigest(), os.path.relpath(c, extract))
+                except OSError:
+                    pass
+    import_sha = {}
+    by_size = None
+
+    def same_in_game(d, p):
+        nonlocal by_size
+        if casc is None or not getattr(casc, 'file_set', None):
+            return None
+        if by_size is None:
+            by_size = collections.defaultdict(list)
+            for k, (orig, spans) in casc.file_set.items():
+                if spans:
+                    by_size[(max(o + t for o, t, _e in spans), os.path.splitext(k)[1])].append(k)
+        for k in by_size.get((len(d), os.path.splitext(p)[1].lower()), ())[:12]:
+            try:
+                if casc.read_data(k) == d:
+                    return k.split(':')[-1]
+            except Exception:
+                continue
+        return None
     for p in sorted(imp, key=str.lower):
         source, file_, cpath, conv = imp[p]
-        d = read_game(cpath) if source == 'game' else (file_.read(cpath) or b'')
+        try:
+            d = read_game(cpath) if source == 'game' else (file_.read(cpath) or b'')
+        except Exception as e:
+            details['warnings'].append('%s: %s could not be read (%s)' % (p, cpath, str(e)[:80]))
+            d = b''
         if not d:
             details['missing_items'].append(p)
             continue
@@ -309,12 +370,23 @@ def import_it(map_path, packages, script, dest, data_bytes=None, extract=None, c
             details['imported'] += 1
             details['bytes'] += len(d)
             details['by_pack'][source] += 1
-        details['manifest'].append((p, source, cpath, len(d), '; '.join(sorted(ped.get(p, set())))[:200]))
+        sha = hashlib.sha1(d).hexdigest()
+        equal = ''
+        if sha in map_sha:
+            equal, details['identical']['map_path'] = 'map:' + map_sha[sha], details['identical']['map_path'] + 1
+        elif sha in import_sha:
+            equal, details['identical']['is_pack'] = 'pack:' + import_sha[sha], details['identical']['is_pack'] + 1
+        else:
+            j = same_in_game(d, p)
+            if j:
+                equal, details['identical']['game'] = 'game:' + j, details['identical']['game'] + 1
+        import_sha.setdefault(sha, p)
+        details['manifest'].append((p, source, cpath, len(d), '; '.join(sorted(ped.get(p, set())))[:200], sha, equal))
     details['by_pack'] = dict(details['by_pack'])
     details['missing_items'] = sorted(set(details['missing_items']), key=str.lower)
     log(
         'art from packages: %d file(s) imported (%.1f MB; %s); %d left out of the map as loose files (%.1f MB); %d asked'
-        ' for and found nowhere'
+        ' for and found nowhere; byte-for-byte copies: %d of a file the map has, %d of another import, %d of a game file'
         % (
             details['imported'],
             details['bytes'] / 1e6,
@@ -322,6 +394,9 @@ def import_it(map_path, packages, script, dest, data_bytes=None, extract=None, c
             details['local_vars'],
             details['local_bytes'] / 1e6,
             len(details['missing_items']),
+            details['identical']['map_path'],
+            details['identical']['is_pack'],
+            details['identical']['game'],
         )
     )
     return details
@@ -348,8 +423,8 @@ def check_mdx(p, d):
 
 def write_manifest(details, file_path):
     with open(file_path, 'w', encoding='utf-8', newline='\n') as fh:
-        fh.write('path\tsource\tpath_in_source\tbytes\tasked_by\n')
+        fh.write('path\tsource\tpath_in_source\tbytes\tasked_by\tsha1\tsame_as\n')
         for x in details['manifest']:
-            fh.write('%s\t%s\t%s\t%d\t%s\n' % x)
+            fh.write('%s\t%s\t%s\t%d\t%s\t%s\t%s\n' % x)
         for p in details['missing_items']:
-            fh.write('%s\tMISSING\t\t0\t\n' % p)
+            fh.write('%s\tMISSING\t\t0\t\t\t\n' % p)
