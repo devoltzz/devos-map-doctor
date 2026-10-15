@@ -41,8 +41,8 @@ class _Reader(object):
         return v
 
     def raw(self, n):
-        if self.pos + n > len(self.data):
-            raise Unreadable('the file ends at byte %d' % len(self.data))
+        if n < 0 or self.pos + n > len(self.data):
+            raise Unreadable('the file ends at byte %d (%d bytes asked at %d)' % (len(self.data), n, self.pos))
         v = self.data[self.pos:self.pos + n]
         self.pos += n
         return v
@@ -148,6 +148,8 @@ def _w3i_sections(r, m, hud):
 
 
 def read_w3s(data):
+    if len(data) < 8:
+        raise Unreadable('w3s: %d bytes' % len(data))
     r = _Reader(data, 8)
     version, count = struct.unpack_from('<ii', data, 0)
     if version not in (1, 2, 3):
@@ -263,7 +265,9 @@ def rawcode(b):
 
 def jstring(b):
     s = b.decode('utf-8', 'surrogateescape') if isinstance(b, bytes) else b
-    return '"%s"' % s.replace('\\', '\\\\').replace('"', '\\"')
+    return '"%s"' % s.replace('\\', '\\\\').replace('"', '\\"').replace('\r\n', '\\n').replace('\n', '\\n').replace(
+        '\r', '\\n'
+    )
 
 
 def identifier(name):
@@ -286,6 +290,7 @@ def _function(name, body, locals_=(), returns='nothing'):
 
 class GameData(object):
     _game = None
+    _game_problem = None
     TINTS = {}
     ABILITIES = {}
     ABILITY_IDS = set()
@@ -308,32 +313,46 @@ class GameData(object):
 
     @classmethod
     def game(cls, casc=None):
-        if cls._game is None:
+        if cls._game is None or (cls._game_problem and casc is not None):
             from doctor.data import slk
             units, items, colors, orders, dests = {}, set(), {}, {}, set()
+            problems = []
+
+            def rows_of(name):
+                try:
+                    return slk.parse_slk_bytes_memo(casc.read_wc3(name))[1]
+                except Exception as e:
+                    problems.append('%s: %s' % (name, str(e)[:80]))
+                    return {}
+
+            def text_of(name):
+                try:
+                    return casc.read_wc3(name).decode('utf-8', 'replace')
+                except Exception as e:
+                    problems.append('%s: %s' % (name, str(e)[:80]))
+                    return ''
             try:
                 if casc is None:
                     from doctor.data import casc_wc3
                     casc = casc_wc3.CascWC3()
-                _h, rows = slk.parse_slk_bytes_memo(casc.read_wc3('units\\unitbalance.slk'))
-                for k, row in rows.items():
+            except Exception as e:
+                casc = None
+                problems.append('no game to read: %s: %s' % (type(e).__name__, str(e)[:80]))
+            if casc is not None:
+                for k, row in rows_of('units\\unitbalance.slk').items():
                     units[k.encode('latin-1')] = (row.get('isbldg') or '0').strip() == '1'
-                _h, rows = slk.parse_slk_bytes_memo(casc.read_wc3('units\\itemdata.slk'))
+                rows = rows_of('units\\itemdata.slk')
                 items = set(k.encode('latin-1') for k in rows)
                 for k, row in rows.items():
                     colors[k.encode('latin-1')] = (_int(row.get('teamColor'), -1), _int(row.get('customTeamColor'), 0))
-                _h, rows = slk.parse_slk_bytes_memo(casc.read_wc3('units\\destructabledata.slk'))
-                dests = set(k.encode('latin-1') for k in rows)
-                _h, rows = slk.parse_slk_bytes_memo(casc.read_wc3('units\\abilitydata.slk'))
-                cls.ABILITY_IDS.update(k.encode('latin-1') for k in rows)
-                _h, rows = slk.parse_slk_bytes_memo(casc.read_wc3('units\\unitabilities.slk'))
-                for k, row in rows.items():
+                dests = set(k.encode('latin-1') for k in rows_of('units\\destructabledata.slk'))
+                cls.ABILITY_IDS.update(k.encode('latin-1') for k in rows_of('units\\abilitydata.slk'))
+                for k, row in rows_of('units\\unitabilities.slk').items():
                     cls.ABILITIES[k.encode('latin-1')] = (row.get('abilList') or '').replace('"', '')
-                _h, rows = slk.parse_slk_bytes_memo(casc.read_wc3('units\\unitui.slk'))
-                for k, row in rows.items():
+                for k, row in rows_of('units\\unitui.slk').items():
                     colors[k.encode('latin-1')] = (_int(row.get('teamColor'), -1), _int(row.get('customTeamColor'), 0))
                 current = None
-                for line in casc.read_wc3('units\\destructableskin.txt').decode('utf-8', 'replace').splitlines():
+                for line in text_of('units\\destructableskin.txt').splitlines():
                     line = line.strip()
                     m = re.match(r'^\[(\w{4})\]$', line)
                     if m:
@@ -355,8 +374,7 @@ class GameData(object):
                             key, value = line.split('=', 1)
                             if key.lower() in ('order', 'orderon', 'orderoff', 'unorder'):
                                 current.setdefault(key.lower(), value.strip())
-            except Exception:
-                pass
+            cls._game_problem = '; '.join(problems) or None
             cls._game = (units, items, colors, orders, dests)
         return cls._game
 
@@ -1295,21 +1313,28 @@ def map_files(archive):
 
 def _triggers(files, td, mt, texts, header):
     if mt is not None or not files.get('war3map.wtg') or td is None:
-        return mt, texts, header
+        return mt, texts, header, None
     from doctor.triggers import wtg
+    ct = None
     try:
-        mt = wtg.read_wtg(files['war3map.wtg'], td, script_fallback=True)
         ct = wtg.read_wct(files['war3map.wct']) if files.get('war3map.wct') else None
-        texts = wtg.trigger_texts(mt, ct) if ct is not None else [None] * len(mt.triggers)
         if header is None and ct is not None:
             header = ct.header
+    except Exception:
+        ct = None
+    try:
+        mt = wtg.read_wtg(files['war3map.wtg'], td, script_fallback=True)
+        texts = wtg.trigger_texts(mt, ct) if ct is not None else [None] * len(mt.triggers)
         if mt.sub_version is not None:
             names = _trigger_globals(mt, td)
             mt, texts = _classico(mt, texts)
             mt.trigger_globals = names
-    except Exception:
-        return None, None, header
-    return mt, texts, header
+    except Exception as e:
+        return None, None, header, 'war3map.wtg: %s: %s' % (type(e).__name__, str(e)[:120])
+    return mt, texts, header, None
+
+
+RX_OBJECT_GLOBAL = re.compile(r'(?m)^[ \t]*(?:unit|item|destructable)[ \t]+(gg_(?:unit|item|dest)_\w+)[ \t]*=')
 
 
 def _classico(mt, texts):
@@ -1348,15 +1373,27 @@ def render(files, td=None, editor=None, game=None, mt=None, texts=None, duration
         w3i_ = read_w3i(files['war3map.w3i'])
     except (KeyError, Unreadable):
         pass
-    st = Style(editor or (w3i_ or {}).get('editor_version'))
-    EMPATE_PAR[0] = (editor or (w3i_ or {}).get('editor_version') or 0) >= EDITOR_EMPATE_PAR
+    ev = editor or (w3i_ or {}).get('editor_version') or EDITOR_3
+    st = Style(ev)
+    EMPATE_PAR[0] = ev >= EDITOR_EMPATE_PAR
     out = Rendering(st)
     if w3i_ is None:
         out.unknown['w3i'] = 'war3map.w3i unreadable'
     game = game or GameData(files)
-    mt, texts, header = _triggers(files, td, mt, texts, header)
+    if GameData._game_problem:
+        out.notes.append('the game tables were not all read (%s): buildings, items and colors by the map alone'
+                         % GameData._game_problem[:200])
+    mt, texts, header, problem = _triggers(files, td, mt, texts, header)
+    if problem:
+        out.unknown['triggers'] = problem
     referenced = referenced_objects(mt, texts, header)
     named = referenced_objects(mt, texts, header, enabled_only=False)
+    if mt is None and files.get('war3map.j'):
+        for name in RX_OBJECT_GLOBAL.findall(files['war3map.j'].decode('utf-8', 'surrogateescape')):
+            if name not in named:
+                named.append(name)
+            if name not in referenced:
+                referenced.append(name)
     regions, cameras, sounds, units, doodads = [], [], [], [], []
     for name, reader, key in (('war3map.w3r', read_w3r, 'regions'), ('war3map.w3c', read_w3c, 'cameras'),
                               ('war3map.w3s', read_w3s, 'sounds'), ('war3mapUnits.doo', read_units, 'units'),
@@ -1521,7 +1558,7 @@ def same_function(rendered, original, rendered_all=None, original_all=None, name
 
 RX_MAIN_JASSHELPER = re.compile(
     r'(?m)^(?:[ \t]*call[ \t]+(?:ExecuteFunc[ \t]*\([ \t]*"\w+"[ \t]*\)|\w+__\w+[ \t]*\([ \t]*\))'
-    r'[ \t]*|call[ \t][^\n]*)\n'
+    r'[ \t]*|call[ \t][^\n]*//[ \t]*INLINED!![^\n]*)\n'
 )
 
 
@@ -1596,24 +1633,9 @@ class Fit(object):
         self.vanilla = False
 
 
-RX_VJASS_OPEN = re.compile(r'[ \t]*(?:(?:private|public)[ \t]+)?'
-                           r'(?:scope|library|library_once|struct|module|interface)\b')
-RX_VJASS_CLOSE = re.compile(r'[ \t]*end(?:scope|library|struct|module|interface)\b')
-
-
 def mask_vjass(text):
-    lines = text.split('\n')
-    if not any(RX_VJASS_OPEN.match(line) for line in lines):
-        return text
-    depth = 0
-    for k, line in enumerate(lines):
-        if RX_VJASS_OPEN.match(line):
-            depth += 1
-        if depth:
-            lines[k] = ' ' * len(line)
-            if RX_VJASS_CLOSE.match(line):
-                depth -= 1
-    return '\n'.join(lines)
+    from doctor.triggers import trigger_restore
+    return trigger_restore.mascara_vjass(text)[0]
 
 
 class _Header(object):
@@ -1925,15 +1947,28 @@ def pjass_run(scripts, ref_dir=None):
                                  tmp=os.path.join(tmp, tag))
             out[tag] = (r['rc'], collections.Counter(RX_PJASS_WHERE.sub('', x) for x in r['line_list']
                                                      if RX_PJASS_WHERE.match(x)))
+    except TimeoutError:
+        raise
+    except OSError as e:
+        PJASS_PROBLEM[0] = str(e)[:120]
+        return None
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     return out
 
 
+PJASS_PROBLEM = [None]
+
+
 def _pjass_proof(scripts, original_errors, ref_dir=None):
-    runs = pjass_run(scripts, ref_dir)
+    try:
+        runs = pjass_run(scripts, ref_dir)
+    except TimeoutError as e:
+        return False, str(e)
     if runs is None:
-        return True, 'skipped: no pjass'
+        return True, 'skipped: no pjass' if not PJASS_PROBLEM[
+            0
+        ] else 'skipped: pjass could not run (%s)' % PJASS_PROBLEM[0]
     new = collections.Counter()
     for tag, (rc, errors) in runs.items():
         new.update(errors - (original_errors or collections.Counter()))
@@ -1996,6 +2031,15 @@ def _fit(out, header_text, files, td, mt, texts, reference, original, casc, edit
                       sound_labels=sound_labels if old_sounds else None) for h in (None, header_text)]
     if renders[1].functions == renders[0].functions and renders[1].declared() == renders[0].declared():
         renders = renders[:1]
+    missing = collections.OrderedDict()
+    for r in renders:
+        for key in ('w3i', 'regions', 'cameras', 'sounds', 'units', 'doodads'):
+            if key in r.unknown:
+                missing.setdefault(key, r.unknown[key])
+    if missing and header.decls:
+        out.reason = ('an editor file could not be read (%s): what the editor declares is not known'
+                      % '; '.join(missing.values())[:300])
+        return out
     declared = collections.OrderedDict()
     for r in renders:
         for g in r.globals:
@@ -2039,7 +2083,11 @@ def _fit(out, header_text, files, td, mt, texts, reference, original, casc, edit
     if isinstance(original, bytes):
         original = original.decode('utf-8', 'surrogateescape')
     if original is not None:
-        runs = pjass_run({'original': mask_vjass(original)}, ref_dir)
+        try:
+            runs = pjass_run({'original': mask_vjass(original)}, ref_dir)
+        except TimeoutError as e:
+            runs = None
+            out.notes.append(str(e))
         original_errors = runs['original'][1] if runs else None
     if header.masked != header.text:
         out.notes.append('the custom script has vJass blocks: JassHelper compiles them on save, pjass reads the rest '
