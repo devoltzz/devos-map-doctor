@@ -131,7 +131,9 @@ def _scan(d, p, seg, comps, tables, restart, blocks, dcs):
             eobrun = 0
         for cid, td, ta in order:
             if ss == 0:
-                values = dcs.setdefault(cid, [0] * blocks)
+                values = dcs.get(cid)
+                if values is None:
+                    values = dcs[cid] = [0] * blocks
                 if ah:
                     values[mcu] |= bits.bits(1) << al
                 else:
