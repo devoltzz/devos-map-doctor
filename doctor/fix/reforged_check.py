@@ -82,7 +82,7 @@ def reference(version=None):
         return _REFS[version]
     if not _REF:
         from doctor.triggers import triggerdata
-        _REF['globals'] = set()
+        ref = {'globals': set()}
         for key, name in (('natives', 'common.j'), ('ai_natives', 'common.ai'), ('functions', 'blizzard.j')):
             path = os.path.join(REF_30, name)
             text = jass_ast.read_script(path) if os.path.isfile(path) else triggerdata.game_script(name)
@@ -90,10 +90,11 @@ def reference(version=None):
                 raise FileNotFoundError('the Warcraft III 3.0 %s: no copy and no installed game' % name)
             tree = jass_ast.parse(text)
             src = tree.functions if key == 'functions' else tree.natives
-            _REF[key] = dict((f.name, len(f.params)) for f in src)
+            ref[key] = dict((f.name, len(f.params)) for f in src)
             if key != 'ai_natives':
-                _REF['globals'].update(g.name for g in tree.globals)
-        _REF['hidden'] = HIDDEN_NATIVES
+                ref['globals'].update(g.name for g in tree.globals)
+        ref['hidden'] = HIDDEN_NATIVES
+        _REF.update(ref)
     return _REF
 
 
@@ -288,10 +289,24 @@ def check_items(path):
     items = []
 
     def safe(f):
+        nome = (getattr(f, '__module__', '') or '').split('.')[-1]
         try:
-            return f(path)
-        except Exception:
+            r = f(path)
+        except Exception as e:
+            items.append(
+                _item(
+                    'check_failed',
+                    'info',
+                    'The %s check did not run (%s).' % (nome, str(e) or type(e).__name__),
+                    'none',
+                    check=nome,
+                )
+            )
             return None
+        if isinstance(r, dict) and r.get('error'):
+            items.append(_item('check_failed', 'info', 'The %s check did not run (%s).' % (nome, r['error']), 'none',
+                               check=nome))
+        return r
     from doctor.fix import fdf_lint
     r = safe(fdf_lint.lint)
     if r and r.get('counts'):
@@ -306,6 +321,7 @@ def check_items(path):
     s = safe(game_files.scan)
     if s and s.get('files') and s.get('severity') == 'warning':
         under_ui = sum(1 for n in s['files'] if str(n).lower().startswith('ui\\'))
+        identical = len(s.get('identical') or [])
         items.append(
             _item(
                 'game_file_override',
@@ -313,10 +329,18 @@ def check_items(path):
                 '%d files of the map have the path of a file of the game '
                 '(%d under UI), so 3.0 uses the map\'s copy instead of its own. Two maps made the game close this way '
                 '(UI\\MiniMap textures in LAN with HD graphics; a port with 1,486 repacked game textures); '
-                'removing them fixed both. The map may do it on purpose (a new skin). Folders: %s.'
-                % (len(s['files']), under_ui, ', '.join('%s %d' % tuple(x) for x in (s.get('folders') or [])[:4])),
+                'removing them fixed both. The map may do it on purpose (a new skin)%s. Folders: %s.'
+                % (
+                    len(s['files']),
+                    under_ui,
+                    ('; %d of them are byte-for-byte copies of the game\'s file, which can always go' % identical)
+                    if identical
+                    else '',
+                    ', '.join('%s %d' % tuple(x) for x in (s.get('folders') or [])[:4]),
+                ),
                 'doctor',
                 count=len(s['files']),
+                identical=identical,
             )
         )
     from doctor.fix import requirement_check
@@ -430,10 +454,7 @@ def pjass_items(text, version, own_blizzard=None):
 
 
 def model_items(path, progress=None, version=None):
-    try:
-        r = model_check.scan(path, progress, sanity=True, version=version)
-    except TypeError:
-        r = model_check.scan(path, progress)
+    r = model_check.scan(path, progress, sanity=True, version=version)
     if r.get('error'):
         return [], 0
     hang = [m['file'] for m in r['models'] if any(x['code'] == 'matrix_groups' for x in m['problems'])]
@@ -496,7 +517,7 @@ def object_items(path):
     if dp.get('fixable'):
         rows = [{'file': f, 'object': x['object'], 'field': x['field']} for f, xs in dp['files'].items() for x in xs
                 if x['fix'] is not None]
-        items.append(_item('data_pointers', 'warning', '%d levelled fields of the object data point to another data '
+        items.append(_item('data_pointers', 'warning', '%d leveled fields of the object data point to another data '
                            'column on some levels: on those levels the field the author meant keeps its base value. '
                            'The Doctor sets them to the column the other levels use.' % dp['fixable'], 'doctor',
                            fields=rows[:30]))
@@ -657,6 +678,24 @@ def limit_items(version, size, detected):
     return items
 
 
+def _lua54_attributes(tree, text):
+    if not re.search(r'<\s*(?:const|close)\s*>', text):
+        return 0
+    first = 0
+    stack = [tree]
+    while stack:
+        x = stack.pop()
+        if isinstance(x, lua_ast.LocalStmt) and any(x.attribs):
+            first = x.line if not first else min(first, x.line)
+        if isinstance(x, list):
+            stack.extend(x)
+        elif isinstance(x, (lua_ast.Node, lua_ast.Chunk)):
+            for cls in type(x).__mro__:
+                for slot in getattr(cls, '__slots__', ()):
+                    stack.append(getattr(x, slot, None))
+    return first
+
+
 def _script_items(src, diag, progress, version=None, extra=None):
     p = progress
     items = []
@@ -691,6 +730,12 @@ def _script_items(src, diag, progress, version=None, extra=None):
         else:
             items.append(_item('script_syntax', 'blocker', 'The %s script does not compile (%s).' % (
                 'JASS' if lang == 'jass' else 'Lua', e), 'none'))
+    if tree is not None and lang == 'lua':
+        line = _lua54_attributes(tree, text)
+        if line:
+            items.append(_item('lua_attributes', 'blocker', 'The script declares a local with a Lua 5.4 attribute '
+                               '(<const> or <close>, line %d), which the game\'s Lua 5.3 does not read: the script '
+                               'does not load.' % line, 'none'))
     if lang == 'jass':
         from doctor.script import ydwe_lua
         lua = ydwe_lua.detect(text, lambda name: unprotect._read(a, name))
