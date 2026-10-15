@@ -38,7 +38,9 @@ function status(text) {
 
 function toast(text, opts) {
   opts = opts || {};
-  const t = el('div', { class: 'toast' + (opts.bad ? ' bad' : '') }, el('div', { text }));
+  const t = el('div', { class: 'toast' + (opts.bad ? ' bad' : '') },
+    el('button', { class: 'x', title: 'Close', 'aria-label': 'Close', text: '\u00d7', onclick: () => t.remove() }),
+    el('div', { text }));
   if (opts.actions) t.appendChild(el('div', { class: 'act' }, opts.actions.map(([label, fn]) =>
     el('button', { class: 'btn small', text: label, onclick: () => { t.remove(); fn(); } }))));
   $('#toasts').appendChild(t);
@@ -68,15 +70,19 @@ function showAbout() {
     el('p', { class: 'muted', translate: 'no', text: 'v' + (h.version || '?') }),
     el('h3', { text: 'What this is' }),
     el('p', { text: 'Devo\'s Map Doctor opens protected Warcraft III maps, fixes what stops them on Reforged 3.0, ' +
-      'prepares them for the World Editor and ports the maps of the KK and M16 platforms. It also adds cheat packs ' +
-      'and quality of life edits, translates maps and finds out why a map fails in the game (Diagnose). The window is ' +
-      'in English and 16 other languages.' }),
+      'prepares them for the World Editor and ports the maps of the KK and M16 platforms. It also checks whether a ' +
+      'map runs on Reforged or on an older game, adds cheat packs and quality of life edits, translates maps and ' +
+      'finds out why a map fails in the game (Diagnose reads the crash reports, the logs of a diagnostic copy and ' +
+      'the replays). The window is in English and 16 other languages.' }),
     el('h3', { text: 'Privacy' }),
     el('ul', {},
       el('li', { text: 'Everything runs on this computer: your maps are never sent anywhere, and the original map is ' +
         'never written.' }),
       el('li', { text: 'When it opens, the program asks GitHub whether a new version is out. The file name index and ' +
         'the data of the old game versions are downloaded only when they are needed and you accept.' }),
+      el('li', { text: 'When a map has file names the shared name list does not know, the program offers to share ' +
+        'them: a GitHub issue opens in your browser with the names of the files only (never the map, its name or ' +
+        'its folder), and you decide whether to send it.' }),
       el('li', { text: '"Report a problem" opens a GitHub issue in your browser with the report filled in: you read ' +
         'it and decide whether to send it.' })),
     el('h3', { text: 'The command line' }),
@@ -126,7 +132,19 @@ const state = {
   editorVersion: 'reforged',
 };
 
-const api = () => window.pywebview.api;
+const api = () => new Proxy(window.pywebview.api, { get(target, name) {
+  const v = target[name];
+  if (typeof v !== 'function') return v;
+  return (...args) => {
+    let r;
+    try { r = v.apply(target, args); } catch (e) { throw tagApi(e, name); }
+    return r && typeof r.then === 'function' ? r.then(null, e => { throw tagApi(e, name); }) : r;
+  };
+} });
+function tagApi(e, name) {
+  if (e && typeof e === 'object' && !e.api) { try { e.api = String(name); } catch (x) { } }
+  return e;
+}
 
 const pendingEvents = {};
 
@@ -386,7 +404,7 @@ function setBusy(busy) {
 function failed(e, what) {
   if (e && e.cancelled) {
     status('Cancelled.');
-    if (e.kept) toast(what + ' was cancelled. The map without the extras was saved as ' + base(e.output) + '.',
+    if (e.kept) toast(what + ' was cancelled. What it had written before the cancel stays as ' + base(e.output) + '.',
       e.output ? { actions: [[showLabel('Show in folder'), () => api().open_folder(e.output)]] } : {});
     else toast(what + ' was cancelled. Nothing was saved.');
     return;
@@ -396,6 +414,20 @@ function failed(e, what) {
   state.lastError = { what, message: msg, trace: e && e.trace };
   toast(what + ' failed: ' + msg, { bad: true, sticky: true, actions: [['Report a problem', reportProblem]] });
 }
+
+function unhandled(e) {
+  if (e && e.cancelled) return;
+  const name = e && e.name && e.name !== 'Error' ? e.name + ': ' : '';
+  const msg = name + ((e && e.message) || String(e));
+  const where = e && e.api ? String(e.api) : '';
+  state.lastError = { what: where ? 'The program (' + where + ')' : 'The page', message: msg,
+    trace: e && (e.trace || e.stack) };
+  status('Something went wrong.');
+  toast(where ? 'Something went wrong in ' + where + ': ' + msg : 'Something went wrong: ' + msg,
+    { bad: true, sticky: true, actions: [['Report a problem', reportProblem]] });
+}
+window.addEventListener('unhandledrejection', ev => unhandled(ev.reason));
+window.addEventListener('error', ev => unhandled(ev.error || ev.message));
 
 async function saveSettings() { try { await api().save_settings(state.settings); } catch (e) { } }
 
@@ -426,6 +458,7 @@ async function openMap(path) {
   state.quietJobs.clear();
   state.map = path;
   state.open = null;
+  state.newNames = null;
   state.lastError = null;
   state.card = state.files = state.reforged = null;
   state.gameCheck = null;
@@ -483,6 +516,7 @@ async function openMap(path) {
     loadDiagnoseLists(gen);
     loadThumb(gen);
     checkReforgedQuietly(gen);
+    checkNewNamesQuietly(gen);
     loadTabsInBackground(gen);
   } catch (e) {
     if (gen !== state.gen) return;
@@ -514,7 +548,7 @@ function renderHeader() {
     b.push(el('span', { class: 'badge', text: pk.files + ' files, ' + pk.models + ' models, ' + pk.images +
       ' images' }));
     $('#badges').replaceChildren(...b);
-    $('#diagLines').replaceChildren(reportLines(o.lines));
+    $('#diagLines').replaceChildren(linesView(o.lines));
     return;
   }
   b.push(s.protected ? el('span', { class: 'badge warn', text: 'Protected' }) :
@@ -528,11 +562,72 @@ function renderHeader() {
   if (s.campaign) b.push(el('span', { class: 'badge info', text: 'Campaign' }));
   b.push(el('span', { class: 'badge', id: 'reforgedBadge', text: 'Runs on Reforged? checking...' }));
   $('#badges').replaceChildren(...b);
-  $('#diagLines').replaceChildren(reportLines(o.lines));
+  $('#diagLines').replaceChildren(linesView(o.lines));
 }
 
 function reportLines(lines) {
   return el('div', { class: 'report' }, lines.map(([style, text]) => el('div', { class: 'l ' + style, text })));
+}
+
+function linesView(lines) {
+  lines = lines || [];
+  const bad = lines.filter(l => l[0] === 'bad'), warn = lines.filter(l => l[0] === 'warn');
+  if (lines.length < 12 || bad.length + warn.length < 2) return reportLines(lines);
+  const full = reportLines(lines);
+  const chips = el('div', { class: 'chips filter' });
+  const chip = (label, n, cls) => n || cls === '' ? el('button', { class: 'chip' + (cls === '' ? ' on' : ''),
+    onclick: e => {
+      $$('.chip', chips).forEach(c => c.classList.remove('on'));
+      e.currentTarget.classList.add('on');
+      full.classList.toggle('only-bad', cls === 'bad');
+      full.classList.toggle('only-warn', cls === 'warn');
+    } }, el('span', { text: label }), el('span', { class: 'n', text: String(n) })) : null;
+  chips.append(...[chip('All', lines.length, ''), chip('Problems', bad.length, 'bad'),
+    chip('Warnings', warn.length, 'warn')].filter(Boolean));
+  return el('div', {},
+    el('div', { class: 'top3' }, el('div', { class: 'cap', text: 'What matters' }),
+      bad.concat(warn).slice(0, 5).map(([style, text]) => el('div', { class: 'l ' + style, text: text.trim() }))),
+    chips, full);
+}
+
+function reportView(o) {
+  const items = o.items || [];
+  const rank = { bad: 0, warn: 1, info: 2 };
+  const order = items.map((it, i) => [it, i]).filter(([it]) => it.sev !== 'info')
+    .sort((a, b) => rank[a[0].sev] - rank[b[0].sev] || a[1] - b[1]).slice(0, 3).map(x => x[1]);
+  const row = (it, top) => {
+    const long = it.text.length > 110;
+    return el('div', { class: 'item' + (top ? ' top' : ''), 'data-sev': it.sev, 'data-fix': it.fix || '' },
+      el('span', { class: 'badge ' + it.sev, text: it.label }),
+      el('div', { class: 'what' }, long || it.more ? el('details', {}, el('summary', {},
+        el('span', { class: long ? 'clip' : '', text: it.text }), el('span', { class: 'tip', text: 'Details' })),
+        it.more ? el('div', { class: 'more', text: it.more }) : null) : el('div', { text: it.text })),
+      it.chip ? el('span', { class: 'fixchip ' + (it.chip[0] || ''), text: it.chip[1] }) : null);
+  };
+  const list = el('div', { class: 'items all' }, items.map((it, i) => row(it, order.includes(i))));
+  const count = sev => items.filter(it => it.sev === sev).length;
+  const chips = el('div', { class: 'chips filter' });
+  const filters = [['All', items.length, () => true], ['Blockers', count('bad'), it => it.dataset.sev === 'bad'],
+    ['Warnings', count('warn'), it => it.dataset.sev === 'warn'], ['Notes', count('info'), it => it.dataset.sev === 'info'],
+    ['Fixed by "Fix map"', items.filter(it => it.fix === 'doctor').length, it => it.dataset.fix === 'doctor']];
+  for (const [label, n, keep] of filters) {
+    if (!n) continue;
+    chips.appendChild(el('button', { class: 'chip' + (label === 'All' ? ' on' : ''), onclick: e => {
+      $$('.chip', chips).forEach(c => c.classList.remove('on'));
+      e.currentTarget.classList.add('on');
+      list.classList.toggle('all', label === 'All');
+      for (const it of $$('.item', list)) it.classList.toggle('hide', label !== 'All' && !keep(it));
+    } }, el('span', { text: label }), el('span', { class: 'n', text: String(n) })));
+  }
+  return el('div', {},
+    o.verdict ? el('div', { class: 'verdict' }, el('span', { class: 'badge ' + o.verdict[0], text: o.verdict[1] }),
+      el('span', { class: 'big', text: o.verdict[2] })) : null,
+    o.summary && o.summary.length ? el('p', { class: 'sumline' }, [].concat(o.summary).map((t, i) =>
+      el('span', { text: (i ? ' ' : '') + t }))) : null,
+    order.length ? el('div', { class: 'top3' }, el('div', { class: 'cap', text: 'What matters' }),
+      order.map(i => row(items[i], false))) : null,
+    items.length > order.length ? chips : null,
+    items.length ? list : el('p', { class: 'muted', text: 'Nothing found.' }));
 }
 
 function imageOf(which) {
@@ -549,6 +644,29 @@ async function loadThumb(gen) {
   const ctx = $('#thumb').getContext('2d');
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(c, 0, 0, 96, 96);
+}
+
+async function checkNewNamesQuietly(gen) {
+  if (typeof api().report_names !== 'function') return;
+  try {
+    const r = await run('new_names', {}, { quiet: true });
+    if (gen !== state.gen || !r || !r.index || !r.count) return;
+    state.newNames = r;
+    toast(r.count === 1 ? 'This map has a file name that the shared name list does not know yet. Share it on GitHub?' :
+      'This map has ' + r.count + ' file names that the shared name list does not know yet. Share them on GitHub?',
+      { sticky: true, actions: [['Share the names', shareNewNames], ['Not now', () => {}]] });
+  } catch (e) {
+  }
+}
+
+async function shareNewNames() {
+  const r = state.newNames;
+  if (!r || !r.count) return;
+  const v = await api().report_names(r.names, state.map);
+  if (!v || !v.opened) { toast('The names could not be shared: the repository is not set.', { bad: true }); return; }
+  if (v.file) toast('The whole list is in ' + v.file + ': drag that file into the GitHub issue that opened, then send it.',
+    { sticky: true, actions: [['OK', () => {}]] });
+  else toast('A GitHub issue with the names opened in the browser: read it and send it.');
 }
 
 async function checkReforgedQuietly(gen) {
@@ -638,14 +756,14 @@ function extraSteps(action) {
       on: false, applies: true, group: 'extra' });
     if (k === 'portraits' && x.portraits) {
       out.push({ key: 'x:portraitStamp', label: '... and stamp the model version 1800 (test)',
-        detail: 'With "Fix black portraits": also writes the portrait models as version 1800. Untested in game: try ' +
+        detail: 'With "Fix black portraits": also writes the portrait models as version 1800. Not tested in game: try ' +
           'one hero first.', on: false, applies: true, group: 'extra' });
       out.push({ key: 'x:portraitUpgrade', label: '... and widen the layout to the 3.0 one (test)',
-        detail: 'With "Fix black portraits": the version 1800 and the fields the 3.0 models have. Untested in game: ' +
+        detail: 'With "Fix black portraits": the version 1800 and the fields the 3.0 models have. Not tested in game: ' +
           'try one hero first.', on: false, applies: true, group: 'extra' });
     }
-    if (k === 'dataPointers' && x.dataPointers) out.push({ key: 'x:dataPointers', label: 'Fix the levelled data pointers',
-      detail: x.dataPointers.fixable + ' levelled ' + (x.dataPointers.fixable === 1 ? 'field points' : 'fields point') +
+    if (k === 'dataPointers' && x.dataPointers) out.push({ key: 'x:dataPointers', label: 'Fix the leveled data pointers',
+      detail: x.dataPointers.fixable + ' leveled ' + (x.dataPointers.fixable === 1 ? 'field points' : 'fields point') +
         ' to another data column on some levels.', on: true, applies: true, group: 'extra' });
     if (k === 'kkTextures' && x.kkTextures) out.push({ key: 'x:kkTextures',
       label: 'Decrypt the KK textures',
@@ -683,6 +801,11 @@ function extraSteps(action) {
         'closed on maps that ship them. A map can replace an icon on purpose, so this is off by default. Needs the ' +
         'game installed.',
       on: false, applies: true, group: 'extra' });
+    if (k === 'gameOverrides' && x.gameOverrides && x.gameOverrides.identical) out.push({ key: 'x:gameOverridesIdentical',
+      label: '... or only the ones that are copies of the game\'s file',
+      detail: x.gameOverrides.identical + ' of them are byte-for-byte copies of the game\'s own file: taking them out ' +
+        'changes nothing the map shows, and the game uses its own. Needs the game installed.',
+      on: false, applies: true, group: 'extra' });
     if (k === 'requirements' && x.requirements) out.push({ key: 'x:requirements',
       label: 'Unlock abilities that require a tech the map lacks',
       detail: x.requirements.fixable + ' abilities inherit a requirement that only the 3.0 game data has and the map ' +
@@ -699,7 +822,7 @@ function extraSteps(action) {
         'place (pjass checks the result). Readable names are lost.', on: false, applies: true, group: 'extra' });
     if (k === 'shrinkModels') out.push({ key: 'x:shrinkModels', label: 'Shrink models (lossless)',
       detail: 'Removes repeated animation keys from the imported models; each model is read back and compared.', on: false, applies: true, group: 'extra' });
-    if (k === 'shrinkModelsLossy') out.push({ key: 'x:shrinkModelsLossy', label: 'Shrink models, lossy',
+    if (k === 'shrinkModelsLossy') out.push({ key: 'x:shrinkModelsLossy', label: 'Shrink models (lossy)',
       detail: 'Also drops animation keys that change a movement by less than 0.05 units or a rotation by less than ' +
         '0.002 rad; the first and last key of every sequence stay.', on: false, applies: true, group: 'extra' });
     if (k === 'slkObjects' && x.slkObjects) out.push({ key: 'x:slkObjects',
@@ -732,11 +855,12 @@ const FLAGS = { mpq: 'unprotect', falsos: 'fake-files', fake_list: 'fake-files',
   listing: 'listfile', ids: 'ids', desprotecao: 'unprotect', unprotection: 'unprotect', script_de_volta: 'script-back',
   script_restore: 'script-back', arquivos_do_editor: 'editor-files', editor_only_files: 'editor-files',
   contagem_inflada: 'counts', inflated_counts: 'counts', doodads_invalidos: 'doodads', invalid_doodads: 'doodads',
-  gatilhos_gui: 'gui-triggers', objetos_do_script: 'script-objects', unidades_seguras: 'safe-units', 'x:models': 'models', 'x:modelNames': 'model-names', 'x:portraits': 'portraits',
+  gatilhos_gui: 'gui-triggers', objetos_do_script: 'script-objects', unidades_seguras: 'safe-units',
+  texturas_iguais: 'identical-textures', duplicate_textures: 'identical-textures', 'x:models': 'models', 'x:modelNames': 'model-names', 'x:portraits': 'portraits',
   'x:dataPointers': 'data-pointers', 'x:kkTextures': 'kk-textures', 'x:disabledIcons': 'green-icons',
   'x:uabi': 'uabi', 'x:preload': 'preload', 'x:singlePlayer': 'single-player', 'x:card': 'card',
   'x:translation': 'translation', 'x:stripIndent': 'strip-indent', 'x:shrink': 'shrink',
-  'x:shrinkLossy': 'shrink-lossy', 'x:attributes': 'fix-attributes', 'x:gameOverrides': 'remove-game-files',
+  'x:shrinkLossy': 'shrink-lossy', 'x:attributes': 'fix-attributes', 'x:gameOverrides': 'remove-game-files', 'x:gameOverridesIdentical': 'remove-game-copies',
   'x:requirements': 'fix-requirements', 'x:fdf': 'fix-fdf', 'x:nullHandles': 'null-handles', 'x:minify': 'minify',
   'x:slkObjects': 'slk-objects', 'x:lobbyImage': 'lobby-image', 'x:shrinkModels': 'shrink-models',
   'x:shrinkModelsLossy': 'shrink-models-lossy', 'x:portraitStamp': 'portraits=stamp',
@@ -788,16 +912,21 @@ function renderAction(action) {
   const picked = choices(action);
   const steps = state.open.steps.filter(x => x.action === action);
   const extras = extraSteps(action);
-  const showNa = !!(state.settings.showNa || {})[action];
-  const list = el('ul', { class: 'steps' });
-  const groups = [['main', null], ['data', 'Warcraft III 3.0 data'], ['extra', 'Extras']];
-  for (const [g, title] of groups) {
-    const items = steps.filter(s => s.group === g && (s.applies || showNa)).concat(extras.filter(s => s.group === g));
-    if (!items.length) continue;
-    if (title) list.appendChild(el('li', { class: 'grouptitle', text: title }));
-    for (const s of items) list.appendChild(stepItem(action, s, s.key.startsWith('x:') ? s.on : picked[s.key]));
+  const needed = [], more = [], notNeeded = [];
+  for (const g of ['main', 'data', 'extra']) {
+    for (const s of steps.filter(x => x.group === g).concat(extras.filter(x => x.group === g))) {
+      if (!s.key.startsWith('x:') && !s.applies) notNeeded.push(s);
+      else if (s.on || s.locked) needed.push(s);
+      else more.push(s);
+    }
   }
-  const hidden = steps.filter(s => !s.applies).length;
+  const item = s => stepItem(action, s, s.key.startsWith('x:') ? s.on : picked[s.key]);
+  const list = el('div', {},
+    needed.length ? el('ul', { class: 'steps' }, el('li', { class: 'grouptitle', text: 'What this map needs' }),
+      needed.map(item)) : null,
+    foldedGroup(action, 'more', 'More options', more.map(item), !needed.length),
+    foldedGroup(action, 'na', 'Not needed for this map', notNeeded.map(item),
+      !!(state.settings.showNa || {})[action]));
   const any = steps.some(s => s.applies) || extras.length;
   const card = el('div', { class: 'card action', 'data-action': action },
     el('div', { class: 'head' }, el('h2', { text: a.title }),
@@ -807,13 +936,21 @@ function renderAction(action) {
     any ? list : el('p', { class: 'muted', text: 'Nothing to do here for this map.' }),
     el('div', { class: 'foot' },
       el('button', { class: 'btn primary needs-idle', text: a.title, disabled: !any || !!state.running,
-        'data-off': !any, onclick: () => runAction(action) }),
-      hidden ? el('label', { class: 'show-na' }, el('input', { type: 'checkbox', checked: showNa, onchange: e => {
-        state.settings.showNa = Object.assign({}, state.settings.showNa, { [action]: e.target.checked });
-        saveSettings(); renderActions(); } }), ' show the ' + hidden + ' steps not needed') : null),
+        'data-off': !any, onclick: () => runAction(action) })),
     any ? el('div', { class: 'shell' }, '$ ', el('span', { class: 'cmd' }), el('span', { class: 'cursor' })) : null);
   if (any) setTimeout(() => shellLine(action));
   return card;
+}
+
+function foldedGroup(owner, key, title, items, openByDefault) {
+  if (!items.length) return null;
+  const k = owner + ':' + key;
+  const kept = (state.settings.folds || {})[k];
+  return el('details', { class: 'grp', open: kept === undefined ? !!openByDefault : kept, ontoggle: e => {
+    state.settings.folds = Object.assign({}, state.settings.folds, { [k]: e.target.open });
+    saveSettings(); } },
+    el('summary', {}, el('span', { text: title }), el('span', { class: 'n', text: String(items.length) })),
+    el('ul', { class: 'steps' }, items));
 }
 
 function stepItem(action, s, checked) {
@@ -903,6 +1040,7 @@ async function runAction(action) {
   if (extras.preload) params.extras.preload = true;
   if (extras.attributes) params.extras.attributes = true;
   if (extras.gameOverrides) params.extras.game_overrides = true;
+  else if (extras.gameOverridesIdentical) params.extras.game_overrides = 'identical';
   if (extras.requirements) params.extras.requirements = true;
   if (extras.fdf) params.extras.fdf = true;
   if (extras.nullHandles) params.extras.null_handles = true;
@@ -941,7 +1079,7 @@ function renderResult(action, r) {
   const card = el('div', { class: 'card', id: 'result-' + action },
     el('div', { class: 'row' }, el('h2', { class: 'grow', text: a.title + ': result' }),
       el('span', { class: 'badge ' + badge[0], text: badge[1] })),
-    reportLines(r.lines),
+    linesView(r.lines),
     ch.files.length || ch.notes.length ? el('div', {}, el('h3', { text: 'What changed' }),
       ch.files.length ? el('div', { class: 'scroll', style: 'max-height:240px' }, el('table', { class: 'grid' },
         el('thead', {}, el('tr', {}, el('th', { text: 'File' }), el('th', { text: 'How' }), el('th', { text: 'Why' }))),
@@ -964,6 +1102,8 @@ function plainReport(lines) {
 
 async function reportProblem() {
   const parts = ['Version: ' + (state.hello ? state.hello.version : '?')];
+  if (state.lastError) parts.push('', '### Error', state.lastError.what + ': ' + state.lastError.message,
+    '```', (state.lastError.trace || '').slice(-2500), '```');
   if (state.open) parts.push('Map: ' + state.open.name + ' (' + mb(state.open.size) + ')', '',
     '### Diagnosis', '```', plainReport(state.open.lines), '```');
   const otherTitles = { port: 'Port to Reforged', cheatpacks: 'Cheat pack' };
@@ -971,8 +1111,6 @@ async function reportProblem() {
     parts.push('', '### ' + (ACTIONS[action] ? ACTIONS[action].title : otherTitles[action] || action), '```',
       plainReport(r.lines || []), '```');
   }
-  if (state.lastError) parts.push('', '### Error', state.lastError.what + ': ' + state.lastError.message,
-    '```', (state.lastError.trace || '').slice(-2500), '```');
   parts.push('', 'What I expected, and what happened instead:', '');
   const body = parts.join('\n');
   const title = 'Problem with ' + (state.open ? state.open.name : 'the Doctor');
@@ -1027,7 +1165,7 @@ function setTabState(name, st) {
     b.disabled = st === 'wait';
     b.classList.toggle('loading', st === 'wait');
     b.classList.toggle('failed', st === 'failed');
-    b.title = st === 'wait' ? 'Loading: the tab opens when its information is in.' :
+    b.title = st === 'wait' ? 'Loading: the tab opens when its data is ready.' :
       st === 'failed' ? 'Loading failed: open the tab to try again.' : '';
   }
 }
@@ -1036,10 +1174,20 @@ async function loadTabsInBackground(gen) {
   const groups = loadTranslationGroups(gen);
   for (const name of ['card', 'files', 'script', 'cheatpacks', 'qol', 'triggers']) {
     if (gen !== state.gen) return;
-    await TAB_DATA[name](gen);
+    const before = new Set(state.quietJobs);
+    let limit;
+    const timedOut = await Promise.race([TAB_DATA[name](gen).then(() => false),
+      new Promise(r => { limit = setTimeout(() => r(true), TAB_TIME_LIMIT * 1000); })]);
+    clearTimeout(limit);
+    if (timedOut && gen === state.gen) {
+      for (const id of state.quietJobs) if (!before.has(id)) api().cancel(id);
+      setTabState(name, 'failed');
+    }
   }
   await groups;
 }
+
+const TAB_TIME_LIMIT = 300;
 
 function selectTab(name) {
   if (!ACTIONS[name] && state.tabState[name] === 'wait') return;
@@ -1272,7 +1420,7 @@ async function replaceImage(which, box) {
   if (!p) return;
   const b64 = await api().read_file(p);
   const ext = p.toLowerCase().split('.').pop();
-  if (!['png', 'jpg', 'jpeg', 'bmp'].includes(ext)) { toast('Pick a PNG, JPG or BMP image.', { bad: true }); return; }
+  if (!['png', 'jpg', 'jpeg', 'bmp'].includes(ext)) { toast('Choose a PNG, JPG or BMP image.', { bad: true }); return; }
   const img = new Image();
   img.onload = () => {
     const size = which === 'minimap' ? 256 : Math.min(256, Math.max(img.width, img.height));
@@ -1316,16 +1464,26 @@ function renderReforged() {
   const fix = { doctor: '"Fix map" or "Open in World Editor" takes care of it.', port: 'It needs a port, not a fix.',
     none: '' };
   const made = r.made_for || base.made_for;
-  tabBody('reforged', el('div', { class: 'card' }, gamePicker(base, older), el('h2', { text: verdict }),
-    el('p', { class: 'lead', text: older ? 'A "yes" means none of the known limits of that version is there.' :
-      'A "yes" means none of the measured problems is there.' }),
-    made && made.label ? el('p', { class: 'muted' }, el('span', { text: 'Made for:' }), ' ',
-      el('b', { text: made.label }), el('span', { class: 'faint', text: ' (' + (made.reasons || []).join('; ') + ')' }))
-      : null,
-    (r.items || []).length ? el('div', { class: 'report' }, r.items.map(it => el('div', { class: 'step' },
-      el('span', { class: 'badge ' + (sev[it.severity] || ''), text: it.severity }),
-      el('div', {}, el('div', { text: it.text }), fix[it.fix] ? el('div', { class: 'd muted', text: fix[it.fix] }) :
-        null)))) : el('p', { class: 'muted', text: 'Nothing found.' })),
+  const items = (r.items || []).map(it => ({ sev: sev[it.severity] || 'info', fix: it.fix,
+    label: { blocker: 'Blocker', warning: 'Warning' }[it.severity] || 'Note', text: it.text,
+    chip: it.fix === 'doctor' ? ['', 'Fix map fixes it'] : it.fix === 'port' ? ['port', 'needs a port'] : null }));
+  const n = s => items.filter(it => it.sev === s).length;
+  const fixed = items.filter(it => it.fix === 'doctor').length;
+  const word = { 'v-yes': ['good', 'Yes'], 'v-probably': ['info', 'Probably'], 'v-no': ['bad', 'No'] }[r.verdict_code] ||
+    ['', '?'];
+  const summary = items.length ? [n('bad') + ' blocker(s), ' + n('warn') + ' warning(s), ' + n('info') + ' note(s).',
+    fixed ? '"Fix map" takes care of ' + fixed + ' of them.' : '',
+    items.some(it => it.fix === 'port') ? 'The script needs a port.' : ''].filter(Boolean) : [];
+  tabBody('reforged', el('div', { class: 'card' }, gamePicker(base, older),
+    reportView({ verdict: [word[0], word[1], verdict], summary, items }),
+    el('details', { class: 'grp' }, el('summary', {}, el('span', { text: 'How the check was made' })),
+      el('p', { class: 'muted', style: 'padding:0 10px', text: older ?
+        'A "yes" means none of the known limits of that version is there.' :
+        'A "yes" means none of the measured problems is there.' }),
+      made && made.label ? el('p', { class: 'muted', style: 'padding:0 10px' }, el('span', { text: 'Made for:' }), ' ',
+        el('b', { text: made.label }), el('span', { class: 'faint' }, ' (', (made.reasons || []).flatMap((x, i) =>
+          (i ? ['; '] : []).concat(el('span', { text: x }))), ')'))
+        : null)),
     older ? downgradeCard(older) : null);
 }
 
@@ -1864,7 +2022,7 @@ function cheatpackCard(p) {
         optionItem({ checked: state.cheatDurable === true,
           title: 'Also keep a readable copy in the map\'s triggers',
           detail: 'So the pack can survive a save in the World Editor; a call to it goes in the first custom text ' +
-            'trigger. The copy is readable, not obfuscated. Not tried in the editor.',
+            'trigger. The copy is readable, not obfuscated. Not tested in the World Editor.',
           onchange: e => { state.cheatDurable = e.target.checked; } })),
       el('div', { style: 'grid-column:1 / -1' }, el('button', { class: 'btn primary needs-idle',
         text: 'Inject the cheat pack', disabled: !!state.running, onclick: runCheatpack }))) : null);
@@ -1896,7 +2054,7 @@ function cheatpackOptions() {
 async function runCheatpack() {
   if (state.running) return;
   const pack = state.cheatPack.id;
-  if (!pack) { toast('Pick a cheat pack first.'); return; }
+  if (!pack) { toast('Choose a cheat pack first.'); return; }
   status('Injecting the cheat pack...');
   try {
     const r = await run('cheatpack_inject', { pack, options: cheatpackOptions(), strip_indent: stripIndentOn(),
@@ -1925,7 +2083,7 @@ function cheatpackResult(r) {
       el('span', { class: 'badge ' + (ok ? 'good' : 'bad'), text: ok ? 'Injected' : 'Stopped' })),
     ok ? null : el('div', { class: 'report' }, el('div', { class: 'l bad',
       text: 'The cheat pack was not injected.' })),
-    reportLines(r.lines || []),
+    linesView(r.lines || []),
     el('div', { class: 'foot row', style: 'margin-top:14px' },
       r.file ? el('span', { class: 'faint mono grow', text: r.file }) : null,
       r.file ? folderButton(r.file) : null,
@@ -2080,7 +2238,7 @@ function qolResult(r) {
     el('div', { class: 'row' }, el('h2', { class: 'grow', text: 'QoL edits: result' }),
       el('span', { class: 'badge ' + (ok ? 'good' : r.outcome === 'failed' ? 'bad' : 'warn'),
         text: ok ? 'Written' : r.outcome === 'failed' ? 'Stopped' : 'Nothing written' })),
-    reportLines(r.lines || []),
+    linesView(r.lines || []),
     el('div', { class: 'foot row', style: 'margin-top:14px' },
       r.file ? el('span', { class: 'faint mono grow', text: r.file }) : null,
       r.file ? folderButton(r.file) : null,
@@ -2107,7 +2265,7 @@ function renderTriggers(t) {
     return;
   }
   const view = el('div', { class: 'card', style: 'min-height:200px' }, el('span', { class: 'faint',
-    text: 'Pick a trigger.' }));
+    text: 'Choose a trigger.' }));
   const tree = el('div', { class: 'tree scroll', style: 'padding:8px' }, t.categories.map(c => el('details',
     { open: t.categories.length < 6 }, el('summary', { text: c.name + ' (' + c.triggers.length + ')' }),
     c.triggers.map(g => el('div', { class: 'trig', text: g.name + (g.kind === 'text' ? '  (text)' : '') +
@@ -2178,7 +2336,7 @@ function renderTranslation() {
   const none = !state.trGroups ||
     (state.trGroups.groups && pickedGroups() !== null && !pickedGroups().length);
   tabBody('translation', el('div', { class: 'card' }, el('h2', { text: 'Export' }),
-    el('p', { class: 'lead', text: 'Pick the texts, export them, translate the file, then load it back below.' }),
+    el('p', { class: 'lead', text: 'Choose the texts, export them, translate the file, then load it back below.' }),
     translationGroupsBox(),
     imagesOption(),
     el('div', { class: 'row', style: 'margin-top:12px' },
@@ -2327,7 +2485,7 @@ function machineCard(none) {
       m.models.length === 1 ? ' ' : null, m.models.length === 1 ? el('span', { class: 'faint', text: size(picked) }) :
         null),
     choice,
-    m.models.length > 1 ? el('p', { class: 'faint', text: 'Best reads game texts better; Fast is a smaller download ' +
+    m.models.length > 1 ? el('p', { class: 'faint', text: 'Best reads game text more accurately; Fast is a smaller download ' +
       'and takes about half the time.' }) : null,
     el('button', { class: 'btn needs-idle', text: 'Translate on this computer...', disabled: !!state.running || none,
       onclick: () => machineTranslate(picked) }),
@@ -2378,7 +2536,7 @@ async function exportTexts(kind) {
 }
 
 function renderCompare(result) {
-  const pick = el('button', { class: 'btn needs-idle', text: 'Pick the other version...', disabled: !!state.running,
+  const pick = el('button', { class: 'btn needs-idle', text: 'Choose the other version...', disabled: !!state.running,
     onclick: async () => {
       if (state.running) return;
       const p = await api().pick_file('map');
@@ -2392,12 +2550,19 @@ function renderCompare(result) {
   if (result) {
     const f = result.files || {};
     if (result.error) parts.push(el('div', { class: 'report' }, el('div', { class: 'l bad', text: result.error })));
+    const notes = [];
+    if (f.unreadable && f.unreadable.length) notes.push(f.unreadable.length + ' file(s) could not be read in one of the ' +
+      'maps: ' + f.unreadable.slice(0, 6).join(', '));
+    if (result.info && result.info.error) notes.push('Map info: ' + result.info.error);
+    for (const [file, d] of Object.entries(result.objects || {})) if (d && d.error) notes.push(file + ': ' + d.error);
+    if (result.script && result.script.error) notes.push('Script: ' + result.script.error);
+    if (notes.length) parts.push(reportLines(notes.map(t => ['warn', t])));
     const list = (title, items, fmt) => items && items.length ? el('div', {}, el('h3', { text: title + ' (' +
       items.length + ')' }), el('div', { class: 'scroll', style: 'max-height:220px;padding:6px 10px' },
       items.slice(0, 2000).map(x => el('div', { class: 'mono', text: fmt ? fmt(x) : (typeof x === 'string' ? x :
         x.name || JSON.stringify(x)) })))) : null;
     parts.push(el('p', { class: 'muted', text: 'This map against ' + base(result.other) + '.' }),
-      list('Files only in the other', f.added), list('Files only in this one', f.removed), list('Files changed',
+      list('Files only in the other map', f.added), list('Files only in this one', f.removed), list('Files changed',
         f.changed), list('Map info', result.info && result.info.changed, x => x.field + ': ' + JSON.stringify(x.a) +
         '  ->  ' + JSON.stringify(x.b)),
       list('Objects', result.objects && [].concat(...Object.entries(result.objects).map(([file, d]) =>
@@ -2427,6 +2592,7 @@ function renderPort() {
       el('p', { class: 'muted', text: 'Big maps take minutes.' }),
       packagesBox(),
       el('ul', { class: 'steps', style: 'margin:6px 0 4px' },
+        el('li', { class: 'grouptitle', text: 'Recommended' }),
         optionItem({ checked: state.portMemory !== false, title: 'Neutralize memory hacks',
           detail: 'What read the old game\'s memory (smart cast, control groups, exit hooks) breaks.',
           onchange: e => { state.portMemory = e.target.checked; } }),
@@ -2435,11 +2601,16 @@ function renderPort() {
           onchange: e => { state.portTextures = e.target.checked; } }),
         optionItem({ checked: state.portIcons !== false, title: 'Fix the green icons',
           detail: 'Makes the disabled art of the imported icons (a dead hero, another unit\'s items).',
-          onchange: e => { state.portIcons = e.target.checked; } }),
+          onchange: e => { state.portIcons = e.target.checked; } })),
+      foldedGroup('port', 'more', 'More options', [
+        optionItem({ checked: state.portClassic === true, title: 'Classic look of the game effects',
+          detail: 'The game\'s own effect models the map uses keep their classic (SD) look: copied into the map under ' +
+            'new names, the references rewritten. Reforged shows their HD variant, another effect for many spells.',
+          onchange: e => { state.portClassic = e.target.checked; } }),
         optionItem({ checked: state.portBalance === true, title: 'Balance huge numbers',
           detail: 'Scales life, damage, mana and armor down so the biggest fit the game\'s limit, keeping the proportions.',
           onchange: e => { state.portBalance = e.target.checked; } }),
-        optionItem({ checked: state.portGameFiles === true, title: 'Remove the game\'s own files',
+        optionItem({ checked: state.portGameFiles === true, title: 'Remove map files that replace the game\'s own',
           detail: 'Icons, textures and interface models the map carries with the game\'s own path. Try it if the ' +
             'game crashes on the ported map.',
           onchange: e => { state.portGameFiles = e.target.checked; } }),
@@ -2447,7 +2618,7 @@ function renderPort() {
           detail: 'Halves the biggest textures and makes WAV sounds mono at 22 kHz, only until the map fits the ' +
             'game\'s 512 MiB. This loses quality.',
           onchange: e => { state.portLossy = e.target.checked; } }),
-        stripIndentItem()),
+        stripIndentItem()], false),
       el('div', { class: 'foot' }, el('button', { class: 'btn primary needs-idle', text: 'Port to Reforged',
         disabled: !!state.running, onclick: runPort }))),
     r ? portResult(r) : null);
@@ -2455,8 +2626,8 @@ function renderPort() {
 
 async function loadDiagnoseLists(gen) {
   try {
-    const [logs, crashes, replays] = await Promise.all([run('diag_logs', {}, { quiet: true }),
-      run('crash_list', {}, { quiet: true }), run('replay_list', {}, { quiet: true }).catch(() => null)]);
+    const [logs, crashes, replays] = await Promise.all([run('diag_logs', {}, { quiet: true }).catch(() => null),
+      run('crash_list', {}, { quiet: true }).catch(() => null), run('replay_list', {}, { quiet: true }).catch(() => null)]);
     if (gen !== state.gen) return;
     state.diag.logs = logs;
     state.diag.crashes = crashes;
@@ -2574,7 +2745,7 @@ function diagMakeResult(r) {
   return el('div', { class: 'card' + (ok ? '' : ' bad') },
     el('div', { class: 'row' }, el('h2', { class: 'grow', text: 'Diagnostic copy: result' }),
       el('span', { class: 'badge ' + (ok ? 'good' : 'bad'), text: ok ? 'Saved' : 'Stopped' })),
-    reportLines(r.lines || []),
+    linesView(r.lines || []),
     el('div', { class: 'foot row', style: 'margin-top:14px' },
       r.file ? el('span', { class: 'faint mono grow', text: r.file }) : null,
       r.file ? folderButton(r.file) : null));
@@ -2608,7 +2779,7 @@ function diagReportCard(title, r, folds) {
     el('div', { class: 'row' }, el('h2', { class: 'grow', text: title }),
       el('button', { class: 'btn small', text: 'Copy as text', onclick: async () => {
         await copyText(r.text || r.error || ''); toast('The report is in the clipboard.'); } })),
-    r.error ? reportLines([['bad', r.error]]) : reportLines(r.findings || []),
+    r.error ? reportLines([['bad', r.error]]) : linesView(r.findings || []),
     folds.filter(f => f && f[1].length).map(([summary, rows]) => el('details', { style: 'margin-top:8px' },
       el('summary', { text: summary }),
       el('pre', { class: 'mono', translate: 'no', style: 'white-space:pre-wrap;margin:6px 0 0',
@@ -2669,7 +2840,8 @@ async function runPort() {
   try {
     const r = await run('port', { packages: state.portPackages || [], memory: state.portMemory !== false,
       icons: state.portIcons !== false, textures: state.portTextures !== false, balance: state.portBalance === true,
-      game_files: state.portGameFiles === true, lossy: state.portLossy === true, strip_indent: stripIndentOn() },
+      game_files: state.portGameFiles === true, lossy: state.portLossy === true, strip_indent: stripIndentOn(),
+      classic: state.portClassic === true },
       { label: 'Porting the map to Reforged...' });
     state.portResult = r;
     state.results.port = r;
@@ -2702,7 +2874,7 @@ function portResult(r) {
         ' platform natives implemented' }) : null,
       el('span', { class: 'badge ' + (stubs.length ? 'warn' : 'good'), text: stubs.length + ' called stub' +
         (stubs.length === 1 ? '' : 's') })),
-    reportLines(r.lines),
+    linesView(r.lines),
     stubs.length ? el('div', {}, el('h3', { text: 'Stubs the map calls' }),
       el('div', { class: 'scroll', style: 'max-height:280px' }, el('table', { class: 'grid' },
         el('thead', {}, el('tr', {}, el('th', { text: 'Native' }), el('th', { text: 'Calls' }),
