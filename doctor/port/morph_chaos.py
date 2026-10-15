@@ -164,7 +164,10 @@ def add_levels(slk, strings, pairs):
         b = line_list[bi[0]]
         mx = int(re.search(r'X(\d+)', b).group(1))
         my = int(re.search(r'Y(\d+)', b).group(1))
-        end_pos = max(i for i, line in enumerate(line_list) if line.strip() == 'E')
+        ends = [i for i, line in enumerate(line_list) if line.strip() == 'E']
+        if not ends:
+            raise ValueError('AbilityData.slk without the E record (the file was cut)')
+        end_pos = max(ends)
         extra = []
         y = my
         for a, t in new_ones:
