@@ -14,6 +14,20 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = HERE
 
 
+def no_box(folder, *pieces):
+    p = folder
+    for x in pieces:
+        q = os.path.join(p, x)
+        if not os.path.exists(q) and os.path.isdir(p):
+            low = x.lower()
+            for f in sorted(os.listdir(p)):
+                if f.lower() == low:
+                    q = os.path.join(p, f)
+                    break
+        p = q
+    return p
+
+
 def common_module(fname):
     hash_key = '_kk_' + fname
     mod = sys.modules.get(hash_key)
@@ -506,7 +520,12 @@ def _unquoted(v):
     return v
 
 
+LEVEL_MAX = 10000
+
+
 def _raw_ini(raw):
+    if raw[:3] == b'\xef\xbb\xbf':
+        raw = raw[3:]
     nat = slk.native_ini(raw, quoted=False, lowercase_names=True) if hasattr(slk, 'native_ini') else None
     if nat is not None:
         return nat
@@ -764,6 +783,8 @@ def apply_modifications(obj_kind, rec, raw_data, mods, meta, multi, per_level, w
             if listing is None:
                 listing = level_list[fname] = value_levels(raw_data.get(fname), rec.get('levels'))
             i = max(level, 1) - 1
+            if i > LEVEL_MAX:
+                continue
             while len(listing) <= i:
                 listing.append('')
             listing[i] = s
@@ -872,14 +893,18 @@ def _normal(field_value, kind):
         v = ''
     if kind == 0:
         try:
-            return int(float(v)) if v else 0
+            f = float(v) if v else 0.0
         except ValueError:
             return v
+        if f != f or f in (float('inf'), float('-inf')):
+            return v
+        return int(f)
     if kind in (1, 2):
         try:
-            return float(v) if v else 0.0
+            f = float(v) if v else 0.0
         except ValueError:
             return v
+        return v if f != f else f
     return v
 
 
