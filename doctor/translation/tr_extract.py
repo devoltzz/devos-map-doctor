@@ -71,12 +71,15 @@ def read_text(path):
     return open(path, 'rb').read().decode('utf-8', 'surrogateescape')
 
 
-def line_break(body_text, jass=False):
+def line_break(body_text, jass=False, multiline=None):
     crlf = body_text.count('\r\n')
     if body_text.count('\r') - crlf > crlf:
         return split_outside_quotes(body_text, 'mista'), '\n'
-    if jass and literal_multilinha():
-        method, sep = ('crlf', '\r\n') if crlf and crlf >= body_text.count('\n') - crlf else ('lf', '\n')
+    if jass and (multiline if multiline is not None else literal_multilinha()):
+        if multiline:
+            method, sep = ('crlf', '\r\n') if crlf else ('lf', '\n')
+        else:
+            method, sep = ('crlf', '\r\n') if crlf and crlf >= body_text.count('\n') - crlf else ('lf', '\n')
         return split_outside_quotes(body_text, method), sep
     sep = '\r\n' if crlf else '\n'
     return body_text.split(sep), sep
@@ -141,7 +144,7 @@ def lines_protected(line_list, protected):
 def extract_txt_text(details, body_text, entries, stats, unknown, tem_text=None):
     present = tem_text or CJK.search
     obj = None
-    for ln, line_text in enumerate(line_break(body_text)[0]):
+    for txt_ln, line_text in enumerate(line_break(body_text)[0]):
         mo = re.match(r'^\[(.+)\]\s*$', line_text)
         if mo:
             obj = mo.group(1)
@@ -170,7 +173,7 @@ def extract_txt_text(details, body_text, entries, stats, unknown, tem_text=None)
                 quoted=quoted,
                 comma=(',' in core),
                 text=core,
-                line=ln,
+                line=txt_ln,
             )
         )
         stats[details] += 1
@@ -178,7 +181,7 @@ def extract_txt_text(details, body_text, entries, stats, unknown, tem_text=None)
 
 def extract_misc_text(fn, body_text, entries, stats, tem_text=None):
     present = tem_text or CJK.search
-    for ln, line_text in enumerate(line_break(body_text)[0]):
+    for txt_ln, line_text in enumerate(line_break(body_text)[0]):
         mk = re.match(r'^([A-Za-z0-9_]+)=(.*)$', line_text)
         if mk and present(mk.group(2)):
             entries.append(
@@ -191,19 +194,19 @@ def extract_misc_text(fn, body_text, entries, stats, tem_text=None):
                     quoted=False,
                     comma=False,
                     text=mk.group(2),
-                    line=ln,
+                    line=txt_ln,
                 )
             )
             stats[fn] += 1
 
 
-RX_WTS = re.compile(r'^(?:\ufeff)?STRING[ \t]+(\d+)[^\n]*\n(?:[ \t]*(?://[^\n]*)?\r?\n)*[ \t]*\{[^\n]*\n'
-                    r'(.*?)\r?\n?^\}', re.S | re.M)
+from doctor.data import object_names
+wts_entries = object_names.wts_entries
 
 
 def extract_wts_text(t, entries, stats, tem_text=None):
     present = tem_text or CJK.search
-    for mo in RX_WTS.finditer(t):
+    for mo in wts_entries(t):
         if present(mo.group(2)):
             entries.append(
                 OrderedDict(
@@ -226,11 +229,11 @@ def extract_script_text(src, entries, stats, protected=(), tem_text=None):
     seen = OrderedDict()
     inside = lines_protected(lines, protected)
     outside = set()
-    for ln, line_text in enumerate(lines):
+    for txt_ln, line_text in enumerate(lines):
         for pos, lit in ki.literals(line_text):
             if not present(lit):
                 continue
-            if not (inside and inside[ln]):
+            if not (inside and inside[txt_ln]):
                 outside.add(lit)
             use = ki.classify(line_text, pos, lit)
             ctx = line_text.strip()
@@ -260,7 +263,7 @@ def extract_script_text(src, entries, stats, protected=(), tem_text=None):
                 e['uses'].append(use)
             if len(e['contexts']) < 2:
                 e['contexts'].append(ctx)
-            e['lines'].append(ln)
+            e['lines'].append(txt_ln)
     record = re.compile(r'\|[' + chr(0xAC00) + '-' + chr(0xD7A3) + r']+[0-9.]+\|')
     for lit, e in seen.items():
         if 'comparison' in e['uses'] or 'hash/substring' in e['uses'] or 'chat' in e['uses']:
