@@ -28,7 +28,10 @@
   const escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const rxOf = (m, gap) => new RegExp('^' + m.split(/(\{\d+\})/).map(p =>
     /^\{\d+\}$/.test(p) ? gap : escape(p)).join('') + '$');
-  const RX = (D.modelos || []).map(m => {
+  const AND = '{0} and {1}';
+  const RX_LIST = /^((?:[^\s,]+, )*[^\s,]+) and ([^\s,]+)$/;
+  const NAME = /[._\\\/0-9]|[a-z][A-Z]|^[A-Z0-9]{3,}$/;
+  const RX = (D.modelos || []).filter(m => m !== AND).map(m => {
     const fixed = m.split(/\{\d+\}/);
     return [rxOf(m, '([\\s\\S]*?)'), m, fixed.join('').length,
       fixed.reduce((a, b) => (b.length > a.length ? b : a), ''), (fixed.join('').match(/[A-Za-z]/g) || []).length,
@@ -87,6 +90,9 @@
     if (!t) return v;
     const pre = v.slice(0, v.indexOf(t)), post = v.slice(v.indexOf(t) + t.length);
     if (dict[t]) return pre + dict[t] + post;
+    const list = t.match(RX_LIST);
+    if (list && dict[AND] && (list[1] + ', ' + list[2]).split(', ').every(x => NAME.test(x)))
+      return pre + dict[AND].replace('{0}', list[1]).replace('{1}', list[2]) + post;
     if ((depth || 0) < 1 && /[A-Za-z]{2,}/.test(t)) {
       const x = line(t, (depth || 0) + 1);
       if (x !== t) return pre + x + post;
