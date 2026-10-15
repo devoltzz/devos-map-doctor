@@ -85,6 +85,7 @@ class OCR(object):
         so = ort.SessionOptions()
         so.intra_op_num_threads = threads or max(1, min(8, os.cpu_count() or 1))
         so.log_severity_level = 3
+        so.enable_cpu_mem_arena = False
         prov = ['CPUExecutionProvider']
         self.det = ort.InferenceSession(det_path, so, providers=prov)
         self.rec = ort.InferenceSession(rec_path, so, providers=prov)
