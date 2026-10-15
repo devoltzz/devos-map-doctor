@@ -76,6 +76,69 @@ BIG_INDEX = os.path.join(
     else os.path.normpath(os.path.join(HERE, '..', '..')),
     'names.npz',
 )
+NAME_MAX = 300
+
+
+RX_DRIVE = re.compile(rb'^[A-Za-z]:[\\/]*')
+FORBIDDEN = frozenset(b'"*?<>|')
+
+
+def _sanitize(n):
+    n = RX_DRIVE.sub(b'', n).lstrip(b'\\/')
+    if not n or n.endswith((b'\\', b'/')) or n.lower().startswith(b'~unknowns') or FORBIDDEN.intersection(n) or \
+            b'\xef\xbf\xbd' in n:
+        return b''
+    return n
+
+
+def add_levels(name_list, origin=BIG_INDEX, dest=None, log=None):
+    import numpy as np
+    from doctor.mpq import mpqlib as M
+    z = np.load(origin)
+    hash_key, h3, offs, blob = z['hash_key'], z['h3'], z['offs'], z['blob'].tobytes()
+    new_ones, seen = [], set()
+    for n in name_list:
+        b = n if isinstance(n, (bytes, bytearray)) else n.encode('utf-8', 'surrogateescape')
+        b = _sanitize(bytes(b).strip(b' \t\r\n'))
+        if not b or len(b) > NAME_MAX or any(c < 0x20 for c in b):
+            continue
+        b = b.replace(b'/', b'\\').lstrip(b'\\')
+        k = b.translate(M.MPQ_UPPERCASE)
+        if k in seen:
+            continue
+        seen.add(k)
+        new_ones.append(b)
+    if not new_ones:
+        return 0, len(hash_key)
+    h1 = np.asarray(M.hashstr_batch(new_ones, 1), dtype=np.uint64)
+    h2 = np.asarray(M.hashstr_batch(new_ones, 2), dtype=np.uint64)
+    key_new = (h1 << np.uint64(32)) | h2
+    pos = np.searchsorted(hash_key, key_new)
+    pos[pos >= len(hash_key)] = 0
+    missing = hash_key[pos] != key_new if len(hash_key) else np.ones(len(key_new), dtype=bool)
+    new_ones = [n for n, f in zip(new_ones, missing) if f]
+    key_new = key_new[missing]
+    if not new_ones:
+        return 0, len(hash_key)
+    h3_new = np.asarray(
+        M.hashstr_batch([n.replace(b'/', b'\\').rsplit(b'\\', 1)[-1] for n in new_ones], 3), dtype=np.uint32
+    )
+    all_items = [blob[offs[i]:offs[i + 1]] for i in range(len(hash_key))] + new_ones
+    key2 = np.concatenate([hash_key, key_new])
+    h3_all = np.concatenate([h3.astype(np.uint32), h3_new])
+    order = np.argsort(key2, kind='stable')
+    key2, h3_all = key2[order], h3_all[order]
+    unique = np.ones(len(key2), dtype=bool)
+    unique[1:] = key2[1:] != key2[:-1]
+    order, key2, h3_all = order[unique], key2[unique], h3_all[unique]
+    sz = np.fromiter((len(all_items[i]) for i in order), dtype=np.int64, count=len(order))
+    offs_all = np.zeros(len(order) + 1, dtype=np.int64)
+    np.cumsum(sz, out=offs_all[1:])
+    blob_all = np.frombuffer(b''.join(all_items[i] for i in order), dtype=np.uint8)
+    np.savez_compressed(dest or origin, hash_key=key2, h3=h3_all, offs=offs_all, blob=blob_all)
+    if log:
+        log('index: +%d names (%d in all) -> %s' % (len(new_ones), len(key2), dest or origin))
+    return len(new_ones), len(key2)
 
 
 class BigIndex(object):
@@ -328,13 +391,24 @@ EXT_TO_MINE = frozenset((
 ))
 
 
+def _pairs_of_hash(a, ht, n_ht):
+    cache = getattr(a, '_hash_pairs', None)
+    if cache is None or cache[0] != n_ht or cache[1] is not ht:
+        cache = (n_ht, ht, set(zip(ht[0:4 * n_ht:4], ht[1:4 * n_ht:4])))
+        try:
+            a._hash_pairs = cache
+        except AttributeError:
+            pass
+    return cache[2]
+
+
 def _with_hash_entry(a, name_list):
     ht = getattr(a, 'ht', None)
     n_ht = getattr(a, 'hash_n_read', None)
     if not name_list or ht is None or n_ht is None:
         return name_list
     from doctor.mpq import mpqlib as M
-    pairs = set(zip(ht[0:4 * n_ht:4], ht[1:4 * n_ht:4]))
+    pairs = _pairs_of_hash(a, ht, n_ht)
     enc = [n.encode('utf-8', 'surrogateescape') for n in name_list]
     h1, h2 = M.hashstr_batch(enc, 1), M.hashstr_batch(enc, 2)
     return [n for n, x, y in zip(name_list, h1, h2) if (int(x), int(y)) in pairs]
@@ -610,7 +684,7 @@ def cross_scan(a, bases, folders, cap=CROSS_CAP, existing=None, log=None):
     if not bases or not folders or ht is None or n_ht is None:
         return []
     from doctor.mpq import mpqlib as M
-    pairs = set(zip(ht[0:4 * n_ht:4], ht[1:4 * n_ht:4]))
+    pairs = _pairs_of_hash(a, ht, n_ht)
     existing = existing or ()
     matches = []
     batch = []
