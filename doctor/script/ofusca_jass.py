@@ -879,15 +879,15 @@ def new_pieces(L):
             custo = 0
     if ls:
         new_block(ls)
-    ln = []
+    txt_ln = []
     for orig, nv in name_table:
-        ln.append('call SaveStr(%s,StringHash(%s),0,"%s")' % (H_NAME, ref_s(orig), nv))
-        ln.append('call SaveStr(%s,StringHash(%s),1,%s)' % (H_NAME, ref_s(orig), ref_s(orig)))
-        if len(ln) >= 3000:
-            new_block(ln)
-            ln = []
-    if ln:
-        new_block(ln)
+        txt_ln.append('call SaveStr(%s,StringHash(%s),0,"%s")' % (H_NAME, ref_s(orig), nv))
+        txt_ln.append('call SaveStr(%s,StringHash(%s),1,%s)' % (H_NAME, ref_s(orig), ref_s(orig)))
+        if len(txt_ln) >= 3000:
+            new_block(txt_ln)
+            txt_ln = []
+    if txt_ln:
+        new_block(txt_ln)
     lg = []
     for fname, ti in converted.items():
         tgt = gmap.get(fname, fname)
