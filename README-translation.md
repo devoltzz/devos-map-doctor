@@ -105,7 +105,8 @@ texts into English on your computer. Nothing is sent anywhere.
    (see [the text in the images](#6-the-text-in-the-images)).
 4. In "Local machine translation", pick "Best" or "Fast".
 5. Click "Translate on this computer..." and choose where to save the file (it suggests `<map>.en.translation.json`).
-6. Wait. The first time, the model is downloaded. A big RPG takes 2 to 4 minutes on a common processor.
+6. Wait. The first time, the model is downloaded. A big RPG takes 1 to 3 minutes on a common processor (longer
+   with the text in the images).
 7. The file is loaded and checked by itself: the Import card shows how many texts pass.
 8. [Apply the translation](#apply-the-translation-to-the-map).
 
@@ -118,7 +119,7 @@ texts into English on your computer. Nothing is sent anywhere.
 | Vietnamese | | 62 MB |
 | Thai | | 68 MB |
 
-"Best" reads game texts better. "Fast" is a smaller download and takes about half the time. Japanese, Vietnamese and
+"Best" reads game text more accurately. "Fast" is a smaller download and takes about half the time. Japanese, Vietnamese and
 Thai have one model.
 
 What the Doctor does around the model, so you do not have to:
@@ -260,9 +261,8 @@ first time) and redraws the translation in its place. Only in the program.
 
 ## Apply the translation to the map
 
-A loaded translation becomes an option of two actions, in their "Extras" group: **"Apply the translation"**.
-
-<img src="docs/images/translation-apply.png" width="900" alt="Fix map with the Apply the translation option ticked">
+A loaded translation becomes a step of two actions, ticked, under "What this map needs": **"Apply the
+translation"**.
 
 1. Load the translation in the Import card (the local machine translation loads its own).
 2. Go to **FIX** ("Fix map") or **EDITOR** ("Open in World Editor").
