@@ -73,10 +73,12 @@ def _cstr(b):
     return (b if i < 0 else b[:i]).decode('latin-1')
 
 
-def _chain(m, pos, end, owner, allowed=None, commit=True):
+def _chain(m, pos, end, owner, allowed=None, commit=True, dead=None):
     d = m.data
     out = []
     while pos + 16 <= end:
+        if dead is not None and pos in dead:
+            break
         tag = d[pos:pos + 4].decode('latin-1')
         info = TRACKS.get(tag)
         if info is None or (allowed is not None and tag not in allowed):
@@ -116,14 +118,18 @@ def _tail_tracks(m, lo, end, owner, allowed=None, candidates=()):
     d = m.data
     if _TAGS_RX.search(d, lo, end) is None:
         return True
-    for off in list(candidates) + list(range(0, end - lo - 15)):
+    import itertools
+    dead = set()
+    for off in itertools.chain(candidates, range(0, end - lo - 15)):
         p = lo + off
-        if p + 16 > end:
+        if p + 16 > end or p in dead:
             continue
-        stop, got = _chain(m, p, end, owner, allowed, commit=False)
+        stop, got = _chain(m, p, end, owner, allowed, commit=False, dead=dead)
         if stop == end and got:
             m.tracks.extend(got)
             return True
+        dead.add(p)
+        dead.update(t.start for t in got)
     return False
 
 
