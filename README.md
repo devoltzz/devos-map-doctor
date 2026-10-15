@@ -15,165 +15,95 @@ Open, fix and port Warcraft III maps for Reforged.
 **[Use it in the browser](https://doctor.devoltz.party)** ·
 **[Report a problem](https://github.com/devoltzz/devos-map-doctor/issues/new)**
 
-<img src="docs/images/tour.gif" width="900" alt="A map opened in the Doctor: diagnosis, Fix map, Runs on Reforged?, map card, Port to Reforged, translation and cheat packs">
+<img src="docs/images/doctor.gif" width="900" alt="A protected map opened in the Doctor: the diagnosis, Fix map and the result">
 
 </div>
 
-## What it does
-
-The Doctor opens protected maps, repairs what stops them on Reforged 3.0, rebuilds the World Editor files and ports
-the maps of the Chinese KK and Korean M16 platforms. It shows what a map carries before anything is written, and it
-never runs the game. The window is in English and 16 other languages.
-
-| Action | What it does |
-|---|---|
-| **Fix map** | Removes the protection and repairs the map: fake file tables, scrambled ids, data the 3.0 engine refuses, broken SLK tables, models that crash the game, portrait cameras, data pointers, ability lists, single player. Extras for the map card, the translation and the size. |
-| **Open in World Editor** | Writes a copy the editor opens, with the GUI triggers rebuilt from the script when the round trip proves them. |
-| **Port to Reforged** | KK, KKWE, DzAPI, YDWE and j2b maps get their natives implemented and their scripts back in JASS. Maps whose game runs on the YDWE Lua engine become Reforged Lua maps (their Lua 5.3 bytecode translated to source). |
-| **Diagnose** | Finds out why a map fails in the game without a test per guess: a diagnostic copy that logs what the map started and never finished (and the Lua errors) while you play it, the reader of that log, and the readers of the game's own crash report and log and of replays. |
-| **QoL** | A quality of life version of the map: more experience, gold, lumber, item drops and craft success, a faster hero revive and monster respawn, a -noshake command, the map revealed, VIP for everyone. |
-| **Tabs** | Map card, "Runs on Reforged?", files (previews, raw codes), script and its checks, triggers, translation export and import, local machine translation into English, compare two versions, cheat packs. |
-
-How to translate a map, every way step by step: [README-translation.md](README-translation.md).
-
-<table>
-<tr>
-<td width="50%"><img src="docs/images/diagnosis.png" alt="The diagnosis of a protected map"></td>
-<td width="50%"><img src="docs/images/port-report.png" alt="The report of a KK map ported to Reforged"></td>
-</tr>
-<tr>
-<td align="center">The diagnosis, as soon as a map opens</td>
-<td align="center">A KK map ported, with both compiler gates passed</td>
-</tr>
-</table>
-
-### New in 1.7.9.1
-
-- **Fixed:** the buttons that open a map did nothing in 1.7.8 and 1.7.9 (only dragging a map in opened it).
-- **Port:** an art package can be a folder of loose files, the art a map reads from the game folder with "Allow Local Files" ("Add a folder..."). Those files stay out of the ported map, so it stays under the game's 512 MiB, and are written next to it with a README.
-
-### New in 1.7.9
-
-- **Diagnose**, a new section, to find out why a map fails in the game: a diagnostic copy that logs, once a second while you play it, the functions the game started and never finished, the Lua errors and the last events (and, with "Load markers", every step of a load that hangs); the reader of that log; the reader of the game's crash report and log (the module it closed in, the models it could not create, the frames it refused, the classic Crash.txt of 1.24-1.31, the desync files); and a replay reader (who left and when, the chat, sync and frame events, the first turn two replays disagree). From the command line: `doctor diagnose`, `log`, `crash`, `replay`, `replay-compare`.
-- **Runs on Reforged?** checks much more: the start of a JASS script run in the Doctor's interpreter (a thread over the game's work limit), frame files (.fdf/.toc), map files at the game's own paths, abilities locked by a requirement the map lacks, model paths that resolve to nothing, the lobby against the script's player setup, stale (attributes) checksums, handle locals never set to null, the natives renamed in 1.29, signs of grafted code, model and texture sanity (the 3.0 model format, version 1800, included). For an older game: the media it does not load.
-- **Fix map** extras: redo the file checksums, remove map files that replace the game's own, unlock abilities that require a tech the map lacks, fix frame file lists, null handle locals, minify the script, shrink models (lossless or lossy), make the editor object files from the SLK tables of an optimized map, your own lobby image, two test variants of the black portrait fix, and, for maps still above 512 MiB, smaller art (textures at half size, WAV sounds mono at 22 kHz).
-- **Files tab:** a 3D preview of models (versions 800 to 1100). **Map card:** the World Editor that saved the map. **Runs on version X?:** write the map info in that version's format. **Cheat packs:** a readable copy in the map's triggers, so the pack can survive a save in the World Editor (not tried in the editor).
-- The progress bar follows the real work, jobs start at once (two workers are kept ready), and the window has an About.
+The Doctor opens protected Warcraft III maps, fixes what stops them on Reforged 3.0 (or on an older game), prepares
+them for the World Editor, ports the maps of the Chinese KK and Korean M16 platforms, translates maps and finds out why
+a map fails in the game. The map you open is never changed: every result is a new file next to it.
 
 ## Get it
 
-### In the browser
+**In the browser:** [doctor.devoltz.party](https://doctor.devoltz.party). Nothing to install, and your map never leaves
+your computer. Chrome, Edge or Firefox on a computer, maps up to 450 MB.
 
-[doctor.devoltz.party](https://doctor.devoltz.party) is the same program, run in your browser. Your map never leaves
-your computer, and the page works offline after the first visit. Chrome, Edge and Firefox on a computer; maps up to
-450 MB. The local machine translation and the text in the images are only in the program for Windows and Linux.
+**Windows:**
 
-### Windows
+1. Download `DevosMapDoctor.exe` and `names.npz` from [Releases](https://github.com/devoltzz/devos-map-doctor/releases/latest).
+2. Keep them in the same folder.
+3. Open `DevosMapDoctor.exe` and drop a map on the window.
 
-Get `DevosMapDoctor.exe` and `names.npz` from [Releases](https://github.com/devoltzz/devos-map-doctor/releases) and keep them in the same
-folder. Nothing to install. The program tells you when a new version is out.
+**Linux** (x86-64, glibc 2.35 or newer: Ubuntu 22.04+, Debian 12+, Fedora 36+, Mint 21+):
 
-### Linux
+1. Download `DevosMapDoctor-linux-x86_64` and `names.npz` into the same folder.
+2. `chmod +x DevosMapDoctor-linux-x86_64`
+3. Run it. The window uses the system's WebKitGTK: `sudo apt install gir1.2-webkit2-4.1` (Debian, Ubuntu) or
+   `sudo dnf install webkit2gtk4.1` (Fedora). To port maps, point `WC3_GAME` at the Warcraft III folder (under Wine
+   or Lutris).
 
-Get `DevosMapDoctor-linux-x86_64` and `names.npz`, keep them in the same folder, then:
+The program tells you when a new version is out. The window is in English and 16 other languages.
+
+## Use it
+
+Open a map. The Doctor reads it at once and says what it needs, then one button does the job:
+
+| Action | What it does |
+|---|---|
+| **Fix map** | Removes the protection and repairs what stops the map on Reforged 3.0. |
+| **Open in World Editor** | Writes a copy the World Editor opens, with the GUI triggers rebuilt when the round trip proves them. |
+| **Port to Reforged** | Ports KK, KKWE, YDWE and M16 maps: their platform natives implemented, their scripts back in JASS (or Lua). |
+| **Diagnose** | Finds out why a map fails in the game: a diagnostic copy that logs while you play, and the readers of the game's crash report, log and replays. |
+
+The tabs show the rest: the map card, "Runs on Reforged?", the files and the script, the triggers, the translation,
+the comparison of two versions, cheat packs and quality of life edits. How to translate a map:
+[README-translation.md](README-translation.md).
+
+**Command line:** the same jobs from a terminal (`doctor.exe` appears next to the program the first time you open it;
+on Linux the program itself takes the commands):
 
 ```
-chmod +x DevosMapDoctor-linux-x86_64
-```
-
-One file, for x86-64 systems with glibc 2.35 or newer (Ubuntu 22.04+, Debian 12+, Fedora 36+, Mint 21+). The window
-uses the system's GTK and WebKitGTK, as the Windows one uses WebView2:
-
-```
-sudo apt install gir1.2-webkit2-4.1     # Debian, Ubuntu
-sudo dnf install webkit2gtk4.1          # Fedora
-```
-
-The command line needs nothing. To port maps, point `WC3_GAME` at the Warcraft III 3.0 folder (under Wine or Lutris).
-
-### Command line
-
-The same jobs as the window: `doctor <command> <map> [options]`. On Windows, `doctor.exe` appears next to the program
-the first time you open it. On Linux it is the program itself (`./DevosMapDoctor-linux-x86_64 fix map.w3x`). The page
-shows the command of each action under its button.
-
-```
-doctor diag map.w3x
-doctor fix map.w3x --unprotect --listfile --portraits
-doctor editor map.w3x
-doctor editor map.w3x --editor-version=1.27
-doctor port map.w3x
-doctor check map.w3x
-doctor check map.w3x --game=1.27
-doctor cheatpacks map.w3x
-doctor cheat map.w3x --pack=nzcp --set activator=-cheat
-doctor qol map.w3x --xp=2 --gold=2 --drop=2 --respawn=0.5
-doctor translation export map.w3x texts.json
-doctor translation machine map.w3x english.json
-doctor fix map.w3x --translation=texts.json
-doctor files map.w3x
-doctor recipes map.w3x --out=recipes.csv
-doctor extract map.w3x war3map.j --to=out
-doctor diagnose map.w3x
-doctor log
-doctor crash
+doctor fix map.w3x
 doctor --help
 ```
 
-The report goes to the output and the progress to stderr (`--quiet`: none). `--json` prints what the job returned.
+## Questions
 
-| Exit code | Meaning |
-|---|---|
-| 0 | done |
-| 1 | failed |
-| 2 | wrong command line |
-| 3 | done with leftovers |
+**The ported map needs the art of the platform.** In Port to Reforged, add the art packages the map needs (`.mix`,
+`.asi`, `.dll`, `.mpq`, `.w3mod`) or a folder of loose files ("Add a folder..."). Files from a folder stay out of the
+map and are written next to it, with a README on how to use them with "Allow Local Files".
 
-## Limits
+**The game does not list my map.** Warcraft III does not list maps above 512 MiB. "Make the map smaller, losing
+nothing" (in Fix map) recompresses every file and stores copies once; if the map is still too big, "If still above 512
+MiB, make the art smaller" halves the biggest textures and makes WAV sounds mono.
 
-Nothing touches the file you opened: a new one is written next to it, and every output is checked file by file. Some
-protections can only be partly undone; the report says what was left. Test the map in game before sharing it.
+**I want to edit the map in the classic World Editor.** In Open in World Editor, choose the editor of the map's own
+version (1.24 to 1.29) instead of Reforged: the copy keeps that version. The files of the old editors are downloaded
+once, when you choose one.
+
+**The game closes on my map.** Use Diagnose: make a diagnostic copy, play it until the problem happens, then read its
+log. It says what the map started and never finished. The game's own crash report and the replay are read there too.
+
+**Is my map sent anywhere?** No. Everything runs on your computer (or inside the page, on the site). The program only
+asks GitHub whether a new version is out, and downloads what you accept (the translation models, the old editors).
+
+## Changes
+
+What each version brought: [CHANGELOG.md](CHANGELOG.md).
 
 ## Building
 
-`pip install -r requirements.txt`, then `python build.py` writes `dist/DevosMapDoctor.exe` and the `doctor.exe` it
-carries (from `launcher/doctor_launcher.c`). With Rust installed, `cargo` also builds the script checks of
-`native/jass_checks`, which otherwise run in Python.
-
-`python build_linux.py` writes `dist/DevosMapDoctor-linux-x86_64` in a Docker container (`linux/Dockerfile`), from
-Windows or Linux.
-
-The site is built from the same code by `web/build_site.py`. The `site` workflow attaches it to each release, and
-`deploy/` serves it.
-
-## Problems
-
-Use "Report a problem" in the window: it opens an issue here with the report filled in.
+`pip install -r requirements.txt`, then `python build.py` writes `dist/DevosMapDoctor.exe` (with Rust installed,
+`cargo` also builds the script checks of `native/jass_checks`). `python build_linux.py` writes
+`dist/DevosMapDoctor-linux-x86_64` in a Docker container. The site is built by `web/build_site.py`.
 
 ## Thanks
 
-- [caiohsr14](https://github.com/caiohsr14), for the exact models of `DzSetUnitModel` and the unique ASCII names of
-  models whose names are not UTF-8 (#9).
-- sangje_wc3 ([hachamacha106](https://github.com/hachamacha106)), whose
-  [w3x2lni-reforged](https://github.com/hachamacha106/w3x2lni-reforged), the w3x2lni fork for Warcraft III 3.0 maps,
-  pointed out gaps the Doctor now covers in its own code.
-- [Unryze](https://github.com/UnryzeC), for the [UjAPI](https://github.com/UnryzeC/UjAPI), whose declarations the
-  porter reads for maps made for it, the [MemHackAPI](https://github.com/UnryzeC/MemHackAPI), whose catalog lets the
-  porter recognize the interface memory hacks, and [WFE](https://github.com/UnryzeC/WFE-Release).
-- [garden-hose](https://github.com/garden-hose), whose [DzAPIConverter](https://github.com/garden-hose/DzAPIConverter)
-  gave the base of the `EX*` data natives of the port layer (MIT).
-
-- For the 1.7.9 checks and tools, these projects, whose code, data or measurements the Doctor uses (credited in
-  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)): GodMephisto's
-  [wc3ctl](https://github.com/GodMephisto/wc3ctl), sumneko's [5211MapCheck](https://github.com/sumneko/5211MapCheck),
-  [w3champions](https://github.com/w3champions/map-updater-scripts) (the minimap override measurement), Tasyen's
-  [FDF](https://github.com/Tasyen/FDF), Drake53's [War3Net](https://github.com/Drake53/War3Net) and War3App, speige's
-  [WC3MapDeprotector](https://github.com/speige/WC3MapDeprotector), PBug90's [w3gjs](https://github.com/PBug90/w3gjs),
-  scopatz's [w3g](https://github.com/scopatz/w3g) notes, UnrealKaraulov's
-  [WC3CrashAnalyzer](https://github.com/UnrealKaraulov/WC3CrashAnalyzer), 4eb0da's
-  [war3-model](https://github.com/4eb0da/war3-model), flowtsohg (Chananya Freiman), Darithos, Retera, Dr Super Good
-  (the BLP specification), WarRaft, Vexorian's jasshelper, Son-Guhun, YElwiddi and inwc3.
+[caiohsr14](https://github.com/caiohsr14), sangje_wc3 ([hachamacha106](https://github.com/hachamacha106)),
+[Unryze](https://github.com/UnryzeC), [garden-hose](https://github.com/garden-hose) and everyone who reported a map.
+The projects whose code, data or measurements the Doctor uses are credited in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## License
 
-MIT, see [LICENSE](LICENSE). Third-party code is listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+MIT, see [LICENSE](LICENSE).
