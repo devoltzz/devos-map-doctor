@@ -21,6 +21,7 @@ def alias_name(file_path):
 def map_models(name_list):
     listing = {}
     seen = set()
+    taken = set(n[:-4].lower() for n in name_list if n.lower().endswith(('.mdx', '.mdl')))
     for n in sorted(name_list, key=lambda x: (x.lower(), x)):
         if not n.lower().endswith(('.mdx', '.mdl')) or not many_dots(n):
             continue
@@ -28,7 +29,13 @@ def map_models(name_list):
         if orig.lower() in seen:
             continue
         seen.add(orig.lower())
-        listing[orig] = alias_name(orig)
+        new = alias_name(orig)
+        base, k = new[:-4], 1
+        while new[:-4].lower() in taken:
+            k += 1
+            new = '%s_%d.mdx' % (base, k)
+        taken.add(new[:-4].lower())
+        listing[orig] = new
     return listing
 
 
