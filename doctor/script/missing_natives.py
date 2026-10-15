@@ -38,6 +38,7 @@ def declara_functions(txt):
     return out
 
 
+RX_LITERAL = re.compile(r'''//[^\n]*|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*\'''', re.S)
 KEYWORDS = frozenset('''if elseif return exitwhen not and or loop call set local debug function takes returns then
 else endif endloop endfunction globals endglobals constant native type extends array true false null nothing'''.split())
 
