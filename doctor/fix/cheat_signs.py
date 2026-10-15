@@ -75,11 +75,18 @@ def signs(text_or_tree, text=None):
         it = out['init_trig']
         it['defined'], it['called'] = len(defined), len(called)
         dset, cset = set(defined), set(called)
-        it['not_called'] = [n for n in defined if n not in cset][:LIST_MAX]
-        it['not_defined'] = [n for n in dict.fromkeys(called) if n not in dset][:LIST_MAX]
+        not_called = [n for n in defined if n not in cset]
+        not_defined = [n for n in dict.fromkeys(called) if n not in dset]
+        it['not_called'], it['not_defined'] = not_called[:LIST_MAX], not_defined[:LIST_MAX]
         pos = dict((n, i) for i, n in enumerate(defined))
         shared = [n for n in dict.fromkeys(called) if n in pos]
-        it['out_of_order'] = [shared[i] for i in _lis_outside([pos[n] for n in shared])][:LIST_MAX]
+        out_of_order = [shared[i] for i in _lis_outside([pos[n] for n in shared])]
+        it['out_of_order'] = out_of_order[:LIST_MAX]
+        it['totals'] = {
+            'not_called': len(not_called),
+            'not_defined': len(not_defined),
+            'out_of_order': len(out_of_order),
+        }
         for fname in ('main', 'config', 'InitGlobals', 'InitCustomTriggers', 'RunInitializationTriggers'):
             f = funcs.get(fname)
             if f is None:
@@ -95,8 +102,10 @@ def signs(text_or_tree, text=None):
                 line = text.count('\n', 0, text.find(sig)) + 1
                 out['signatures'].append({'signature': sig, 'count': n, 'line': line})
     it = out['init_trig']
-    out['counts'] = {'not_called': len(it['not_called']), 'not_defined': len(it['not_defined']),
-                     'out_of_order': len(it['out_of_order']), 'outside': len(out['outside']),
+    tot = it.get('totals') or {}
+    out['counts'] = {'not_called': tot.get('not_called', len(it['not_called'])),
+                     'not_defined': tot.get('not_defined', len(it['not_defined'])),
+                     'out_of_order': tot.get('out_of_order', len(it['out_of_order'])), 'outside': len(out['outside']),
                      'signatures': len(out['signatures'])}
     out['lines'] = summary(out)
     return out
