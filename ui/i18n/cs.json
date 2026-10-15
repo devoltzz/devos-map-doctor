@@ -3086,5 +3086,19 @@
  "... or only the ones that are copies of the game's file": "... nebo jen ty, které jsou kopiemi herního souboru",
  "This map has a file name that the shared name list does not know yet. Share it on GitHub?": "Tato mapa má jeden název souboru, který sdílený seznam názvů zatím nezná. Sdílet ho na GitHubu?",
  "World Editor: needs the fixes above.": "World Editor: potřebuje opravy výše.",
- "{0} of them are byte-for-byte copies of the game's own file: taking them out changes nothing the map shows, and the game uses its own. Needs the game installed.": "Z nich je {0} kopií herního souboru bajt po bajtu: jejich odstranění nic nemění na tom, co mapa ukazuje, a hra používá svůj vlastní soubor. Vyžaduje nainstalovanou hru."
+ "{0} of them are byte-for-byte copies of the game's own file: taking them out changes nothing the map shows, and the game uses its own. Needs the game installed.": "Z nich je {0} kopií herního souboru bajt po bajtu: jejich odstranění nic nemění na tom, co mapa ukazuje, a hra používá svůj vlastní soubor. Vyžaduje nainstalovanou hru.",
+ "Port": "Port",
+ "Port to:": "Portovat na:",
+ "The game the ported map is for": "Hra, pro kterou je portovaná mapa určena",
+ "To Reforged. For KK or M16 maps (DzAPI, japi, JN): fills in the platform natives, makes the save local and ports the menus. Saves the map and a report next to it.": "Na Reforged. Pro mapy KK nebo M16 (DzAPI, japi, JN): doplní nativy platformy, udělá ukládání lokální a portuje menu. Uloží mapu a zprávu vedle ní.",
+ "a map of the KK platform: Reforged only": "mapa platformy KK: jen Reforged",
+ "to Reforged or a newer game": "na Reforged nebo novější hru",
+ "Made for: {0}.": "Vytvořeno pro: {0}.",
+ "Port to {0}": "Portovat na {0}",
+ "Port to {0}: result": "Port na {0}: výsledek",
+ "Porting the map to {0}": "Portuji mapu na {0}",
+ "Porting the map to {0}...": "Portuji mapu na {0}...",
+ "Takes the map to {0}: the return bug gets its equivalent, the names the newer game also has are renamed and the script is checked with the scripts of {1}. The rest of the map stays. Saves the map and a report next to it.": "Převede mapu na {0}: return bug dostane svůj ekvivalent, názvy, které má i novější hra, se přejmenují a skript se zkontroluje se skripty verze {1}. Zbytek mapy zůstane. Uloží mapu a zprávu vedle ní.",
+ "the map could not be read for this ({0})": "mapu se pro tento účel nepodařilo přečíst ({0})",
+ "{0} (not for this map)": "{0} (ne pro tuto mapu)"
 }
