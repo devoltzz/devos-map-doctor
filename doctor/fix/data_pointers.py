@@ -1,4 +1,4 @@
-# Finds the levelled object fields whose data pointer differs between levels, and aligns them.
+# Finds the leveled object fields whose data pointer differs between levels, and aligns them.
 import os
 import shutil
 import struct
@@ -105,7 +105,8 @@ def scan(path):
             continue
         try:
             found = scan_bytes(d)
-        except (ValueError, struct.error):
+        except (ValueError, struct.error) as e:
+            out.setdefault('skipped', []).append({'file': name, 'reason': str(e) or type(e).__name__})
             continue
         if found:
             out['files'][name] = found
@@ -117,7 +118,7 @@ def scan(path):
 def fix(path_in, path_out, progress=None):
     p = progress or _nothing
     res = {'state': 'failed', 'fixed': 0, 'files': [], 'checked': 0}
-    if os.path.abspath(path_in) == os.path.abspath(path_out):
+    if os.path.normcase(os.path.abspath(path_in)) == os.path.normcase(os.path.abspath(path_out)):
         res['error'] = 'The output must be a new file.'
         return res
     from doctor.mpq import mpqadd
@@ -134,7 +135,8 @@ def fix(path_in, path_out, progress=None):
             continue
         try:
             new, n = fix_bytes(d)
-        except (ValueError, struct.error):
+        except (ValueError, struct.error) as e:
+            res.setdefault('skipped', []).append({'file': name, 'reason': str(e) or type(e).__name__})
             continue
         if n:
             repl.append((name, new))
