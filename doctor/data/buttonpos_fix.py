@@ -6,7 +6,7 @@ import sys
 
 def complete(field_value):
     v = field_value.strip()
-    if v == '':
+    if v.strip('"') == '':
         return '0,0'
     if ',' not in v:
         return v + ',0'
@@ -50,7 +50,7 @@ def insert_missing(line_list):
 def complete_lines(line_list):
     n = 0
     for i, line in enumerate(line_list):
-        if '=' not in line or line.startswith('['):
+        if '=' not in line or line.startswith('[') or line.lstrip().startswith(('//', ';')):
             continue
         k, _, v = line.partition('=')
         if not k.strip().lower().endswith('buttonpos'):
