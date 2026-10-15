@@ -76,7 +76,7 @@ def merge_profile(b, entries, banner=SKIN_BANNER):
         lines, crlf = _lines(b)
     where, current = {}, None
     for i, line in enumerate(lines):
-        s = line.strip()
+        s = line.strip().lstrip('﻿')
         if s.startswith('[') and s.endswith(']'):
             current = s[1:-1]
             where.setdefault(current, [i, None])
@@ -88,9 +88,8 @@ def merge_profile(b, entries, banner=SKIN_BANNER):
         if code in where:
             head, at = where[code]
             if at is not None:
-                replace[at] = 'file=' + entries[code]
-            else:
-                insert.setdefault(head, []).append('file=' + entries[code])
+                continue
+            insert.setdefault(head, []).append('file=' + entries[code])
         else:
             tail += ['[%s]' % code, 'file=' + entries[code], '']
     out = []
@@ -114,8 +113,9 @@ def fix_file_column(files, cur, report):
         if 'file' not in [c.lower() for c in cols.values()]:
             continue
         if models is None:
-            report.setdefault('file_column', {})[name] = 0
             report.setdefault('notes', []).append('%s: no %s column, so the file column stays' % (name, id_col))
+            continue
+        if not models:
             continue
         skin_name = _find(cur, skin) or skin
         cur[skin_name] = merge_profile(cur.get(skin_name), models)
@@ -129,7 +129,11 @@ def _each_slk(cur, report, key, fix):
         if not name.lower().endswith('.slk'):
             continue
         lines, crlf = _lines(cur[name])
-        n = len(fix(lines))
+        try:
+            n = len(fix(lines))
+        except Exception as e:
+            report.setdefault('slk_errors', {})[name] = '%s: %s' % (type(e).__name__, e)
+            continue
         if n:
             cur[name] = _join(lines, crlf)
             report.setdefault(key, {})[name] = n
