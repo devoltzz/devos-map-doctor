@@ -110,12 +110,14 @@ RX_DELAY_IF = re.compile(r'^\s*(?:if|elseif)\s*\(?\s*(\w+)\s*(?:<=|<|==)\s*(?:0|
 RX_SET = re.compile(r'^\s*set\s+(\w+)\s*=\s*(.+?)\s*(?://.*)?$')
 RX_REVIVE_NAME = re.compile(r'reviv|respawn|resurr|rez', re.I)
 RX_ALIAS = re.compile(r'^(?:\w+|\w+\[[^\[\]]*\]|function\w+)$')
+RX_FIM_FUNCAO = re.compile(r'^\s*(?:endfunction\b|function\s)')
 
 
 class _Aliases(object):
     def __init__(self, lines, owner_start):
         self.lines = lines
         self.owner_start = owner_start
+        self._sets = {}
         once = {}
         for l in lines:
             m = RX_SET.match(l)
@@ -129,16 +131,36 @@ class _Aliases(object):
             return expr
         start = self.owner_start.get(k)
         if start is not None:
-            for j in range(k - 1, start - 1, -1):
-                m = RX_SET.match(self.lines[j - 1])
-                if m and m.group(1) == expr:
-                    rhs = _norm(m.group(2))
+            e = self._sets_de(start).get(expr)
+            if e:
+                import bisect
+                i = bisect.bisect_left(e[0], k) - 1
+                if i >= 0:
+                    rhs = _norm(e[1][i])
                     if RX_ALIAS.match(rhs):
-                        return self.resolve(rhs, j, depth + 1)
+                        return self.resolve(rhs, e[0][i], depth + 1)
                     return '%d/%s' % (start, expr)
         if expr in self.once and RX_ALIAS.match(_norm(self.once[expr])):
             return self.resolve(self.once[expr], None, depth + 1)
         return expr
+
+    def _sets_de(self, start):
+        idx = self._sets.get(start)
+        if idx is None:
+            idx = {}
+            j, n = start, len(self.lines)
+            while 1 <= j <= n:
+                ln = self.lines[j - 1]
+                if j > start and RX_FIM_FUNCAO.match(ln):
+                    break
+                m = RX_SET.match(ln)
+                if m:
+                    e = idx.setdefault(m.group(1), ([], []))
+                    e[0].append(j)
+                    e[1].append(m.group(2))
+                j += 1
+            self._sets[start] = idx
+        return idx
 
 
 def _timer_key(expr):
@@ -1964,7 +1986,13 @@ def options_of(options):
             out[k] = str(v).lower() in ('1', 'true', 'yes', 'on')
         else:
             lo, hi = LIMITS[k]
-            out[k] = min(hi, max(lo, float(v)))
+            try:
+                f = float(str(v).replace(',', '.'))
+            except ValueError:
+                continue
+            if f != f or f in (float('inf'), float('-inf')):
+                continue
+            out[k] = min(hi, max(lo, f))
     return out
 
 
