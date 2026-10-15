@@ -52,7 +52,7 @@ def inspect(data):
     jh = struct.unpack_from('<I', data, HEADER)[0] if content == 0 else 0
     info = dict(version=int(magic[3:]), content=content, alpha_bits=alpha, width=w, height=h, has_mips=mips,
                 offsets=offsets, sizes=sizes, jpeg_header=jh)
-    info['data_at'] = HEADER + 4 + (jh if content == 0 else PALETTE)
+    info['data_at'] = HEADER + 4 + jh if content == 0 else HEADER + PALETTE
     return info
 
 
@@ -198,7 +198,7 @@ def check(data, version=None):
                           'The texture is %dx%d: before patch 1.29 the largest level the game uses is 512 pixels, the '
                           'rest is dead weight.' % (w, h), width=w, height=h))
     if content == 0 and alpha_bits == 0 and present and not beyond:
-        last = max(i for i in present if i < expect or i == 0)
+        last = max((i for i in present if i < expect or i == 0), default=0)
         flat = _jpeg_alpha_opaque(data, info, last)
         if flat is False:
             out.append(
@@ -309,7 +309,11 @@ def scan_map(path, version=None, progress=None):
         if data is None:
             out['skipped'].append({'file': n, 'reason': 'cannot be read'})
             continue
-        issues = check(data, version)
+        try:
+            issues = check(data, version)
+        except Exception as e:
+            out['skipped'].append({'file': n, 'reason': 'the check failed (%s: %s)' % (type(e).__name__, e)})
+            continue
         out['checked'] += 1
         if issues:
             out['files'].append({'file': n, 'issues': issues})
