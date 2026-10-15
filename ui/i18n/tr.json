@@ -3085,5 +3085,19 @@
  "... or only the ones that are copies of the game's file": "... veya yalnızca oyunun dosyasının kopyası olanları",
  "This map has a file name that the shared name list does not know yet. Share it on GitHub?": "Bu haritada paylaşılan ad listesinin henüz bilmediği bir dosya adı var. GitHub'da paylaşılsın mı?",
  "World Editor: needs the fixes above.": "World Editor: yukarıdaki düzeltmeler gerekiyor.",
- "{0} of them are byte-for-byte copies of the game's own file: taking them out changes nothing the map shows, and the game uses its own. Needs the game installed.": "Bunların {0} tanesi oyunun kendi dosyasının bayt bayt kopyası: bunları kaldırmak haritanın gösterdiği hiçbir şeyi değiştirmez, oyun kendi dosyasını kullanır. Oyunun kurulu olması gerekir."
+ "{0} of them are byte-for-byte copies of the game's own file: taking them out changes nothing the map shows, and the game uses its own. Needs the game installed.": "Bunların {0} tanesi oyunun kendi dosyasının bayt bayt kopyası: bunları kaldırmak haritanın gösterdiği hiçbir şeyi değiştirmez, oyun kendi dosyasını kullanır. Oyunun kurulu olması gerekir.",
+ "Port": "Port",
+ "Port to:": "Port hedefi:",
+ "The game the ported map is for": "Port edilen haritanın hedef oyunu",
+ "To Reforged. For KK or M16 maps (DzAPI, japi, JN): fills in the platform natives, makes the save local and ports the menus. Saves the map and a report next to it.": "Reforged'a. KK veya M16 haritaları için (DzAPI, japi, JN): platform native'lerini doldurur, kaydı yerel yapar ve menüleri port eder. Haritayı ve yanına bir rapor kaydeder.",
+ "a map of the KK platform: Reforged only": "KK platformunun bir haritası: yalnızca Reforged",
+ "to Reforged or a newer game": "Reforged'a veya daha yeni bir oyuna",
+ "Made for: {0}.": "Şunun için yapıldı: {0}.",
+ "Port to {0}": "{0} sürümüne port et",
+ "Port to {0}: result": "{0} sürümüne port et: sonuç",
+ "Porting the map to {0}": "Harita {0} sürümüne port ediliyor",
+ "Porting the map to {0}...": "Harita {0} sürümüne port ediliyor...",
+ "Takes the map to {0}: the return bug gets its equivalent, the names the newer game also has are renamed and the script is checked with the scripts of {1}. The rest of the map stays. Saves the map and a report next to it.": "Haritayı {0} sürümüne taşır: return bug karşılığını alır, yeni oyunda da bulunan adlar yeniden adlandırılır ve script, {1} script'leriyle denetlenir. Haritanın geri kalanı olduğu gibi kalır. Haritayı ve yanına bir rapor kaydeder.",
+ "the map could not be read for this ({0})": "harita bunun için okunamadı ({0})",
+ "{0} (not for this map)": "{0} (bu harita için değil)"
 }
