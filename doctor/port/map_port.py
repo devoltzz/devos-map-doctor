@@ -29,6 +29,10 @@ class Recipe(object):
         self.__dict__.update(kw)
 
 
+def _utf8(body_text):
+    return body_text.encode('latin-1', 'replace').decode('utf-8', 'replace')
+
+
 def _muted(f, *a, **k):
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
@@ -36,6 +40,9 @@ def _muted(f, *a, **k):
             v = f(*a, **k)
         except SystemExit as e:
             v = SystemExit(e.code)
+        except Exception as e:
+            e.quiet_output = buf.getvalue()
+            raise
     return v, buf.getvalue()
 
 
@@ -309,19 +316,26 @@ def names_and_extraction(map_path, extract, log):
     for n in list(new.ALWAYS_NAMES) + list(new_port.KNOWN_NAMES):
         if a.find(n):
             name_list.add(n)
-    done = []
+    done, unreadable_items = [], []
     order = sorted(name_list, key=str.lower)
     for k, n in enumerate(order):
         job_progress.avanca(k + 1, len(order))
         try:
             d = a.read(n)
-        except Exception:
+            if d is None:
+                raise ValueError('no data')
+            _writes(_destination(extract, n), d)
+        except Exception as e:
+            unreadable_items.append('%s (%s)' % (n, str(e)[:60]))
             continue
-        if d is None:
-            continue
-        _writes(_destination(extract, n), d)
         done.append(n)
-    log('1. names and extraction: %d files' % len(done))
+    if unreadable_items:
+        WARNINGS.append('%d file(s) of the map could not be extracted (a block that does not read, a name the file '
+                        'system refuses): %s' % (len(unreadable_items), '; '.join(unreadable_items[:5])))
+    log(
+        '1. names and extraction: %d files%s'
+        % (len(done), '' if not unreadable_items else ', %d not extracted' % len(unreadable_items))
+    )
     return a, done
 
 
@@ -540,9 +554,10 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
         pass
     lua_texts = [m['data_bytes'].decode('utf-8', 'surrogateescape') for m in (lua_modules or {}).values()
                  if m.get('forma') != 'bytecode' and m.get('data_bytes')]
-    pair['KK_UI_TEXTO'] = 'true' if writes_ideographs('\n'.join([body_text] + lua_texts), extract) else 'false'
+    text_u = _utf8(body_text)
+    pair['KK_UI_TEXTO'] = 'true' if writes_ideographs('\n'.join([text_u] + lua_texts), extract) else 'false'
     pair['KK_UI_PAINEL'] = 'true'
-    decoys = shop_baits([body_text] + lua_texts)
+    decoys = shop_baits([text_u] + lua_texts)
     pair['KK_LOJA_ISCAS'] = 'true' if decoys else 'false'
     if decoys:
         pair['KK_LOJA_ISCAS_LISTA'] = ('|' + '|'.join(decoys) + '|')[:1000]
@@ -670,8 +685,14 @@ def recipe(root, raw_data, diag, blz, no_dot_name_list, heading, added_models=()
 
 def run_chain(r):
     from doctor.port import chain
-    v, output = _muted(chain.assemble, r, [])
-    open(os.path.join(r.ROOT, 'port', 'out', 'cadeia.log'), 'w', encoding='utf-8').write(output)
+    try:
+        v, output = _muted(chain.assemble, r, [])
+    except Exception as e:
+        with open(os.path.join(r.ROOT, 'port', 'out', 'cadeia.log'), 'w', encoding='utf-8', errors='replace') as f:
+            f.write(getattr(e, 'quiet_output', '') + '\n%s: %s\n' % (type(e).__name__, e))
+        raise
+    with open(os.path.join(r.ROOT, 'port', 'out', 'cadeia.log'), 'w', encoding='utf-8', errors='replace') as f:
+        f.write(output)
     g = re.search(r'G1 (PASS|FAIL) \| G2 (PASS|FAIL)', output)
     abort_match = re.search(r'ABORT at ([^\n]*)\n((?:  [^\n]*\n)*)', output)
     g1 = g.group(1) == 'PASS' if g else False
@@ -700,10 +721,12 @@ RX_PJASS_TOTAL = re.compile(r'Parse failed: (\d+) errors? total')
 
 
 def pjass_errors(chain_log):
-    seen = []
+    seen, data_set = [], set()
     for m in RX_PJASS_LINE.finditer(chain_log):
-        if m.group(1).strip() not in seen:
-            seen.append(m.group(1).strip())
+        x = m.group(1).strip()
+        if x not in data_set:
+            data_set.add(x)
+            seen.append(x)
     return seen
 
 
@@ -743,6 +766,15 @@ def build_w3x(original, output, r, to_remove, no_dot_list, log, name_list=(), sc
                         by_name[n.lower()] = (n, p)
     item_entries.extend(by_name[k] for k in sorted(by_name))
     copies, gaps = name_without_dot.copies(mpqread.Archive(original), no_dot_list)
+    from doctor.models import model_check as _mc
+    _fixed_ones = []
+    for _n, _d in copies:
+        try:
+            _new_doo, _v = _mc.retag_800_layout(_d)
+        except Exception:
+            _new_doo = None
+        _fixed_ones.append((_n, _new_doo or _d))
+    copies = _fixed_ones
     if gaps:
         WARNINGS.append('%d model(s) with dots in the name could not be copied under a name Reforged loads: %s'
                         % (len(gaps), '; '.join(gaps)[:300]))
@@ -754,39 +786,47 @@ def build_w3x(original, output, r, to_remove, no_dot_list, log, name_list=(), sc
     if os.path.exists(part):
         os.remove(part)
     try:
-        with job_progress.stage('attach'):
-            v, _s = _muted(map_path.attach, original, part, entra, to_delete=to_remove, log=lambda s: None)
-        with job_progress.stage('verify'):
-            failures = ['the appender stopped: %s' % v] if isinstance(v, SystemExit) else \
-                map_path.verify(part, entra, missing_ones=to_remove)
-    except Exception as e:
-        failures = ['the appender stopped: %s: %s' % (type(e).__name__, e)]
-    if failures:
+        try:
+            with job_progress.stage('attach'):
+                v, _s = _muted(map_path.attach, original, part, entra, to_delete=to_remove, log=lambda s: None)
+            with job_progress.stage('verify'):
+                failures = ['the appender stopped: %s' % v] if isinstance(v, SystemExit) else \
+                    map_path.verify(part, entra, missing_ones=to_remove)
+        except Exception as e:
+            failures = ['the appender stopped: %s: %s' % (type(e).__name__, e)]
+        if failures:
+            if os.path.exists(part):
+                os.remove(part)
+            a = mpqread.Archive(original)
+            data_bytes = dict((n, map_path.content(v)) for n, v in entra)
+            replacements = dict((n, d) for n, d in data_bytes.items() if a.find(n))
+            new_ones = dict((n, d) for n, d in data_bytes.items() if not a.find(n))
+            with job_progress.stage('rebuild'):
+                details, _s = _muted(
+                    map_path.rebuild,
+                    original,
+                    part,
+                    list(name_list) + list(data_bytes),
+                    replacements=replacements,
+                    new_ones=new_ones,
+                    to_remove=to_remove,
+                    hash_factor=2,
+                    log=lambda s: None,
+                )
+            if isinstance(details, SystemExit) or details.get('error_list'):
+                raise Aborts('the ported map does not read back: %s' % '; '.join(
+                    (failures + (details.get('error_list') or []) if isinstance(details, dict) else failures)[:5]))
+            log('6. the archive was rewritten (the original could not take the new files in place: %s)' % failures[0])
+        sz, slack = map_path.cap(part)
+        os.replace(part, output)
+        log('6. the map: %d file(s) replaced or added, %.1f MiB' % (len(entra), sz / 1048576.0))
+    except BaseException:
         if os.path.exists(part):
-            os.remove(part)
-        a = mpqread.Archive(original)
-        data_bytes = dict((n, map_path.content(v)) for n, v in entra)
-        replacements = dict((n, d) for n, d in data_bytes.items() if a.find(n))
-        new_ones = dict((n, d) for n, d in data_bytes.items() if not a.find(n))
-        with job_progress.stage('rebuild'):
-            details, _s = _muted(
-                map_path.rebuild,
-                original,
-                part,
-                list(name_list) + list(data_bytes),
-                replacements=replacements,
-                new_ones=new_ones,
-                to_remove=to_remove,
-                hash_factor=2,
-                log=lambda s: None,
-            )
-        if isinstance(details, SystemExit) or details.get('error_list'):
-            raise Aborts('the ported map does not read back: %s' % '; '.join(
-                (failures + (details.get('error_list') or []) if isinstance(details, dict) else failures)[:5]))
-        log('6. the archive was rewritten (the original could not take the new files in place: %s)' % failures[0])
-    sz, slack = map_path.cap(part)
-    os.replace(part, output)
-    log('6. the map: %d file(s) replaced or added, %.1f MiB' % (len(entra), sz / 1048576.0))
+            try:
+                os.remove(part)
+            except OSError:
+                pass
+        raise
     return sz, slack, [n for n, _v in entra]
 
 
@@ -794,7 +834,12 @@ def shrinks(output, sz, log, with_loss=False):
     from doctor.fix import shrink
     smaller = os.path.splitext(output)[0] + '.small' + os.path.splitext(output)[1]
     log('6. the map is above 512 MiB: making it smaller, losing nothing (this is slow)')
-    r, _s = _muted(shrink.shrink, output, smaller, {'lossy': bool(with_loss)})
+    try:
+        r, _s = _muted(shrink.shrink, output, smaller, {'lossy': bool(with_loss)})
+    except BaseException:
+        if os.path.exists(smaller):
+            os.remove(smaller)
+        raise
     if isinstance(r, dict) and r.get('state') == 'done' and os.path.isfile(smaller):
         os.replace(smaller, output)
         sz = os.path.getsize(output)
@@ -892,7 +937,7 @@ def level_cap(r, extract, log):
             continue
         try:
             level = int(float(row.get('level') or 0))
-        except ValueError:
+        except (ValueError, OverflowError):
             continue
         above_cap[uid] = level
     larger = max(above_cap.values()) if above_cap else 0
@@ -994,6 +1039,21 @@ def writes_ideographs(body_text, extract=None):
         p = os.path.join(extract, 'war3map.wts')
         if os.path.isfile(p):
             if RX_IDEOGRAPH.search(open(p, 'rb').read().decode('utf-8', 'replace')):
+                return True
+    return False
+
+
+RX_HANGUL = re.compile('[ᄀ-ᇿ㄰-㆏가-힣]')
+
+
+def writes_hangul(body_text, extract=None):
+    for m in re.finditer(r'"((?:[^"\\\n]|\\.)*)"', body_text or ''):
+        if RX_HANGUL.search(m.group(1)):
+            return True
+    if extract:
+        p = os.path.join(extract, 'war3map.wts')
+        if os.path.isfile(p):
+            if RX_HANGUL.search(open(p, 'rb').read().decode('utf-8', 'replace')):
                 return True
     return False
 
@@ -1114,6 +1174,18 @@ def report_text(details):
               'packages)' % (ar['imported'], ar['bytes'] / 1e6, ', '.join('%s: %d' % kv for kv in
                                                                            sorted(ar['by_pack'].items())) or '-',
                               ar['missing_items'])]
+        ig = ar.get('identical') or {}
+        if any(ig.values()):
+            L.append(
+                '- byte-for-byte copies among them: %d of a file the map already has, %d of another imported file, '
+                '%d of a file of the game (the column same_as of %s says which: those can go)'
+                % (
+                    ig.get('map_path', 0),
+                    ig.get('is_pack', 0),
+                    ig.get('game', 0),
+                    os.path.basename(ar.get('manifest') or 'arte_manifesto.tsv'),
+                )
+            )
         if ar.get('local_vars'):
             L.append(
                 '- %d file(s) (%.1f MB) from a folder of loose files stay OUT of the map, as the map used them: '
@@ -1125,11 +1197,32 @@ def report_text(details):
                     ar.get('local_folder') or 'the folder next to the ported map',
                 )
             )
+    sd = details.get('sd_models')
+    if sd and sd.get('status') == 'done':
+        rf = sd['references']
+        L += ['', 'Classic look of the game effects', '-' * 32,
+              '- %d model(s) of the game that Reforged shows in their HD variant (another effect, for many spells) '
+              'copied in their classic (SD) version as war3mapImported\\KKSD\\... (%.1f MB); %d reference(s) '
+              'rewritten to them: %d in the script, %d in the data, %d in the object files'
+              % (len(sd['models']), sd['bytes'] / 1e6, sum(rf.values()), rf['script'], rf['data_bytes'], rf['objects'])]
+        L += ['  %s -> %s' % (p, n) for p, n, _b in sd['models'][:12]]
+        if len(sd['models']) > 12:
+            L.append('  ... and %d more (the report of the port lists them all)' % (len(sd['models']) - 12))
+    elif sd and sd.get('status') == 'nothing':
+        L += ['', 'Classic look of the game effects', '-' * 32,
+              '- no model of the game the map cites has a different HD variant: nothing to copy']
     tm = details.get('dead_type')
     if tm and tm.get('types'):
         L += ['', 'Removed (dead platform code)', '-' * 28,
               '- the type(s) %s, used only by code nothing calls: %d function(s), %d global(s), %d native(s)'
               % (', '.join(tm['types']), len(tm['functions']), len(tm['globals_block']), len(tm['natives']))]
+    lvl = details.get('level')
+    if lvl and lvl.get('saved'):
+        L += ['', 'Unit level cap', '-' * 14,
+              '- %d unit type(s) have a level above the MaxUnitLevel of the gameplay constants (%d): MaxUnitLevel is '
+              'now %d in war3mapMisc.txt (%s%s)' % (len(lvl.get('units') or []), lvl['before'], lvl['larger'],
+                                                   ', '.join((lvl.get('units') or [])[:6]),
+                                                   '' if len(lvl.get('units') or []) <= 6 else ', ...')]
     vel = details.get('speed')
     if vel:
         L += ['', 'Movement speed cap', '-' * 18,
@@ -1271,6 +1364,12 @@ def memory_warnings(info):
             '%d typecast function(s) of the patch 1.2x memory hacks (the return bug) now use the Reforged '
             'equivalent: %s' % (len(info['conversions']), ', '.join(n for n, _p, _r in info['conversions'][:12]))
         )
+    if info.get('approximate'):
+        WARNINGS.append(
+            '%d of them convert between real and integer: Reforged has no way to copy the bits as the return '
+            'bug did, so they convert the VALUE (a real kept in an integer comes back without its fraction): %s'
+            % (len(info['approximate']), ', '.join(info['approximate'][:12]))
+        )
     if info['effects']:
         WARNINGS.append(
             '%d special effect function(s) the map wrote over the game memory now use the Reforged natives: %s'
@@ -1341,7 +1440,8 @@ def write_local_art(folder, output, log=print):
 
 
 def map_port(map_path, work, output=None, stats=None, heading=None, log=print, packages=(), shrink_large=True,
-             memory_hacks='neutralize', balance_numbers=False, lua_translation=None, shrink_with_loss=False):
+             memory_hacks='neutralize', balance_numbers=False, lua_translation=None, shrink_with_loss=False,
+             sd_models=False):
     t0 = time.time()
     map_path = os.path.abspath(map_path)
     base = os.path.splitext(map_path)[0]
@@ -1378,6 +1478,15 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
             log('0. SProtect undone')
         else:
             original = unprotected_result(map_path, root, log)
+        if os.path.normcase(output) == os.path.normcase(map_path):
+            raise Aborts('the output is the map itself: name another file')
+        if packages:
+            from doctor.port import art_packs as _ap
+            _msgs = []
+            _opened = _ap.open_packs([p for p in packages], _msgs.append)
+            WARNINGS.extend(_msgs)
+            if not _opened:
+                raise Aborts('none of the art packages could be read: %s' % ('; '.join(_msgs)[:300] or 'no package'))
         job_progress.topo('extraction', 'Extracting the files')
         a, name_list = names_and_extraction(original, extract, log)
         job_progress.topo('script', 'Reading the script')
@@ -1406,7 +1515,7 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
             % (len(diag['plataforma']), len(diag['implemented_count']), 'M16/JN' if diag['jn'] else
                'UjAPI' if diag.get('ujapi') else 'KK',
                'SLK' if diag['slk'] else 'w3u'))
-        job_progress.topo('layer', 'Writing the map part of the layer')
+        job_progress.topo('layer', 'Writing the map\'s part of the port layer')
         blz, _pair = map_part(root, compat, extract, raw_data, body_text, diag, heading, log, memory_hacks=memory_hacks,
                               lua_modules=(lua or {}).get('collect', {}).get('lua_modules'))
         from doctor.port import name_without_dot
@@ -1425,6 +1534,7 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
                    carrier=_pair.get('KK_CAR_LIGADO') == 'true')
         r.MEMORY_LEVEL = memory_hacks
         r.COMMAND_CARD = _pair.get('KK_JN_CARTAO') == 'true'
+        r.HUD_LOL = new.ui_hud_lol(body_text) == 'true'
         from doctor.port import shadowed
         r.MAP_VERSION = shadowed.RANGE_CAP.get((details.get('made_for') or {}).get('range'))
         log('5. the script chain (this is the long step)')
@@ -1477,6 +1587,8 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
         details['toc'] = close_toc(r, extract, log)
         if _pair.get('KK_UI_TEXTO') == 'true':
             interface_font(r, extract, text_template(r, log, body_text, extract), log)
+        elif writes_hangul(_utf8(body_text), extract):
+            interface_font(r, extract, TEXT_FONT.replace('\\\\', '\\'), log)
         if details['toc']:
             WARNINGS.append('%d TOC file(s) got the line ending Reforged needs to load the last FDF of the list: %s'
                             % (len(details['toc']), ', '.join(details['toc'][:6])))
@@ -1491,13 +1603,20 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
             from doctor.port import art_packs
             script = open(os.path.join(r.OUT, 'war3map_pre_injecao.j'), 'rb').read().decode('utf-8', 'surrogateescape')
             local_art = os.path.join(r.OUT, 'local_art')
+            _art_warnings = []
             arte, _s = _muted(art_packs.import_it, original, list(packages), script, os.path.join(r.OUT, 'arte'),
-                              data_bytes=os.path.join(r.DATA, 'Units'), extract=extract, log=lambda s: None,
-                              local=local_art)
+                              data_bytes=os.path.join(r.DATA, 'Units'), extract=extract, log=_art_warnings.append,
+                              local=local_art, map_data=r.DATA)
+            WARNINGS.extend(m for m in _art_warnings if m.startswith(('package ', 'the game files')))
             if isinstance(arte, SystemExit):
                 WARNINGS.append('the art packages could not be read: %s' % arte)
             else:
                 art_packs.write_manifest(arte, os.path.join(root, 'port', 'out', 'arte_manifesto.tsv'))
+                manifest = os.path.splitext(output)[0] + '.art.tsv'
+                try:
+                    art_packs.write_manifest(arte, manifest)
+                except OSError:
+                    manifest = os.path.join(root, 'port', 'out', 'arte_manifesto.tsv')
                 details['arte'] = {
                     'imported': arte['imported'],
                     'bytes': arte['bytes'],
@@ -1505,10 +1624,58 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
                     'by_pack': arte['by_pack'],
                     'local_vars': arte['local_vars'],
                     'local_bytes': arte['local_bytes'],
+                    'identical': arte.get('identical') or {},
+                    'manifest': manifest,
                 }
                 WARNINGS.extend(arte['warnings'][:20])
                 log('6. art from %d package(s): %d file(s) imported, %d left out of the map as loose files, %d still '
                     'missing' % (len(packages), arte['imported'], arte['local_vars'], len(arte['missing_items'])))
+        from doctor.models import model_check
+        retagged = []
+        for mdx_root in (extract, os.path.join(r.OUT, 'arte')):
+          if not os.path.isdir(mdx_root):
+            continue
+          for base_dir, _d, fs in os.walk(mdx_root):
+            for f in fs:
+                if not f.lower().endswith('.mdx'):
+                    continue
+                mdx_path = os.path.join(base_dir, f)
+                try:
+                    with open(mdx_path, 'rb') as h:
+                        mdx_data = h.read()
+                    new_mdx, mdx_version = model_check.retag_800_layout(mdx_data)
+                except Exception:
+                    continue
+                if new_mdx:
+                    mdx_rel = os.path.relpath(mdx_path, mdx_root)
+                    mdx_target = os.path.join(r.OUT, 'arte', mdx_rel)
+                    os.makedirs(os.path.dirname(mdx_target), exist_ok=True)
+                    with open(mdx_target, 'wb') as h:
+                        h.write(new_mdx)
+                    retagged.append((mdx_rel.replace(os.sep, '\\'), mdx_version))
+        if retagged:
+            details['retagged_models'] = retagged
+            WARNINGS.append(
+                '%d model(s) carried a version tag above 800 over the 800 layout (the old game did not load '
+                'them; Reforged read them with the wrong layout and closed when the effect was created): '
+                'retagged 800: %s' % (len(retagged), ', '.join('%s (%d)' % x for x in retagged[:6]))
+            )
+            log('6. %d model(s) retagged 800 (version tag above 800 over the 800 layout): %s'
+                % (len(retagged), ', '.join(x[0] for x in retagged[:6])))
+        if sd_models:
+            job_progress.topo('classic', 'Keeping the classic look of the game effects')
+            from doctor.port import sd_models as _sd
+            sd, _s = _muted(_sd.applies, os.path.join(r.OUT, 'war3map.j'), r.DATA, extract, original,
+                            os.path.join(r.OUT, 'arte'), log=lambda s: None)
+            if isinstance(sd, SystemExit) or not isinstance(sd, dict):
+                WARNINGS.append('the classic look of the game effects could not be applied: %s' % (sd,))
+            else:
+                details['sd_models'] = sd
+                if sd['status'] == 'skipped':
+                    WARNINGS.append('the classic look of the game effects was not applied: %s' % sd['reason'])
+                elif sd['status'] == 'done':
+                    log('6. %d game effect model(s) kept in the classic look (%.1f MB), %d reference(s) rewritten'
+                        % (len(sd['models']), sd['bytes'] / 1e6, sum(sd['references'].values())))
         to_remove = ['kkmap.jc'] if forma == 'kkwe' else (['war3map.bin'] if forma == 'j2b' else [])
         scripts_folder = scripts_folder_files(original, name_list)
         if scripts_folder:
@@ -1546,9 +1713,9 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
 def _closes(details, stats, log):
     details['stats'] = stats
     try:
-        with open(stats, 'w', encoding='utf-8', newline='\r\n') as f:
+        with open(stats, 'w', encoding='utf-8', errors='replace', newline='\r\n') as f:
             f.write(report_text(details))
-    except OSError as e:
+    except (OSError, UnicodeError) as e:
         details['report_error'] = str(e)
     log('%s%s' % (details['resultado'], (': ' + details['err']) if details.get('err') else ''))
     return details
