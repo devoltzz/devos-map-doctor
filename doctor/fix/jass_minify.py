@@ -39,6 +39,17 @@ def _names_gen(avoid):
             yield name
 
 
+def _pool_iter(pool, avoid):
+    i = 0
+    while True:
+        if i == len(pool[1]):
+            pool[1].append(next(pool[0]))
+        name = pool[1][i]
+        i += 1
+        if name not in avoid:
+            yield name
+
+
 def _string_value(lit):
     return jass_ast._unescape(lit.text[1:-1])
 
@@ -83,7 +94,8 @@ def minify_text(text, options=None):
         for g in tree.globals:
             if g.is_constant and not g.is_array and type(g.initializer) is jass_ast.Literal and g.name not in keep \
                     and g.name not in var_literals and g.initializer.kind in ('integer', 'real', 'string', 'rawcode',
-                                                                              'boolean'):
+                                                                              'boolean') \
+                    and g.initializer.kind in _LITERAL_OF_TYPE.get(g.type, ()):
                 lit = g.initializer
                 if lit.kind != 'string' or len(lit.text) <= INLINE_STRING_MAX or uses.get(g.name, 0) <= 2:
                     consts[g.name] = lit
@@ -117,42 +129,57 @@ def minify_text(text, options=None):
     return new, rep
 
 
+_LITERAL_OF_TYPE = {
+    'integer': ('integer', 'rawcode'),
+    'real': ('real',),
+    'string': ('string',),
+    'boolean': ('boolean',),
+}
+
+
 def _inline(tree, consts):
     count = [0]
 
-    def repl(e):
-        if type(e) is jass_ast.Name and e.name in consts:
-            count[0] += 1
-            lit = consts[e.name]
-            return jass_ast.Literal(lit.kind, lit.text, e.line)
-        return e
+    def apply(node, cs):
+        def repl(e):
+            if type(e) is jass_ast.Name and e.name in cs:
+                count[0] += 1
+                lit = cs[e.name]
+                return jass_ast.Literal(lit.kind, lit.text, e.line)
+            return e
 
-    for n in jass_ast.walk(tree):
-        t = type(n)
-        if t is jass_ast.Call:
-            n.args = [repl(a) for a in n.args]
-        elif t is jass_ast.SetStmt:
-            n.value = repl(n.value)
-            if type(n.target) is jass_ast.Index:
-                n.target.index = repl(n.target.index)
-        elif t is jass_ast.Index:
-            n.index = repl(n.index)
-        elif t is jass_ast.Binary:
-            n.left, n.right = repl(n.left), repl(n.right)
-        elif t is jass_ast.Unary:
-            n.operand = repl(n.operand)
-        elif t is jass_ast.Paren:
-            n.inner = repl(n.inner)
-        elif t is jass_ast.ReturnStmt and n.value is not None:
-            n.value = repl(n.value)
-        elif t is jass_ast.ExitWhenStmt:
-            n.cond = repl(n.cond)
-        elif t is jass_ast.LocalDecl and n.initializer is not None:
-            n.initializer = repl(n.initializer)
-        elif t is jass_ast.GlobalDecl and n.initializer is not None and not (n.is_constant and n.name in consts):
-            n.initializer = repl(n.initializer)
-        elif t is jass_ast.IfStmt:
-            n.branches = [(None if c is None else repl(c), b) for c, b in n.branches]
+        for n in jass_ast.walk(node):
+            t = type(n)
+            if t is jass_ast.Call:
+                n.args = [repl(a) for a in n.args]
+            elif t is jass_ast.SetStmt:
+                n.value = repl(n.value)
+                if type(n.target) is jass_ast.Index:
+                    n.target.index = repl(n.target.index)
+            elif t is jass_ast.Index:
+                n.index = repl(n.index)
+            elif t is jass_ast.Binary:
+                n.left, n.right = repl(n.left), repl(n.right)
+            elif t is jass_ast.Unary:
+                n.operand = repl(n.operand)
+            elif t is jass_ast.Paren:
+                n.inner = repl(n.inner)
+            elif t is jass_ast.ReturnStmt and n.value is not None:
+                n.value = repl(n.value)
+            elif t is jass_ast.ExitWhenStmt:
+                n.cond = repl(n.cond)
+            elif t is jass_ast.LocalDecl and n.initializer is not None:
+                n.initializer = repl(n.initializer)
+            elif t is jass_ast.GlobalDecl and n.initializer is not None and not (n.is_constant and n.name in cs):
+                n.initializer = repl(n.initializer)
+            elif t is jass_ast.IfStmt:
+                n.branches = [(None if c is None else repl(c), b) for c, b in n.branches]
+
+    for g in tree.globals:
+        apply(g, consts)
+    for f in tree.functions:
+        shadow = set(n for _t, n in f.params) | set(d.name for d in f.locals)
+        apply(f, dict((k, v) for k, v in consts.items() if k not in shadow) if shadow & set(consts) else consts)
     return count[0]
 
 
@@ -236,11 +263,12 @@ def _rename(tree, funcs, keep, exec_literals, var_literals, rep, libraries):
     top_map = dict((name, next(gen)) for name in movable)
     final_top = dict((n, top_map.get(n, n)) for n in top_names)
     local_maps = {}
+    pool = [_names_gen(protected | external | set(final_top.values())), []]
     for fname, (own_set, lst) in refs.items():
         if not own_set:
             continue
         outside = set(final_top.get(n.name, n.name) for n in lst if n.name not in own_set)
-        lgen = _names_gen(outside | protected | external | set(final_top.values()))
+        lgen = _pool_iter(pool, outside)
         f = funcs[fname]
         order = [nm for _t, nm in f.params] + [d.name for d in f.locals]
         local_maps[fname] = dict((nm, next(lgen)) for nm in dict.fromkeys(order))
