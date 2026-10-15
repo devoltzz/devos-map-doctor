@@ -66,6 +66,10 @@ def classify_items(fname, st, consts=None):
                 return None, None
         else:
             n = int(x)
+        if n < 0x10:
+            if fname == 'SetUnitState' and n in (1, 3):
+                return ('set MAX_LIFE' if n == 1 else 'set MAX_MANA'), None
+            return None, None
         return ('%s 0x%X' % ('set' if fname == 'SetUnitState' else 'get', n)), '0x%X' % n
     if fname == 'SetUnitState' and st == 'UNIT_STATE_MAX_LIFE':
         return 'set MAX_LIFE', None
