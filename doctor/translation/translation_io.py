@@ -242,7 +242,7 @@ def _collect_wts(mt, read):
     mt.files['war3map.wts'] = b
     t = _decode(b)
     texts = {}
-    for mo in tr_extract.RX_WTS.finditer(t):
+    for mo in tr_extract.wts_entries(t):
         texts.setdefault(int(mo.group(1)), mo.group(2))
     found = []
     tr_extract.extract_wts_text(t, found, collections.Counter(), tem_text=is_text)
@@ -486,7 +486,7 @@ def layer_lines(lines, seps, spans):
 
 
 def script_view(text):
-    lines = tr_extract.line_break(text, jass=True)[0]
+    lines = tr_extract.line_break(text, jass=True, multiline=True)[0]
     spans = layer_spans(text)
     if not spans:
         return lines, None, [False] * len(lines), list(lines), text
@@ -494,7 +494,7 @@ def script_view(text):
     layer = layer_lines(lines, seps, spans)
     view = ['' if x else line for line, x in zip(lines, layer)]
     view_text = join_lines(view, seps)
-    if len(tr_extract.line_break(view_text, jass=True)[0]) != len(lines):
+    if len(tr_extract.line_break(view_text, jass=True, multiline=True)[0]) != len(lines):
         raise RuntimeError('the script without its port layer does not split into the same lines')
     return lines, seps, layer, view, view_text
 
@@ -864,6 +864,11 @@ def export_html(path, out_file, progress=None, only=None):
             doc = json.load(f)
     finally:
         os.remove(tmp)
+    odd = [e for e in doc['entries'] if _odd_breaks(e['text'])]
+    if odd:
+        doc['entries'] = [e for e in doc['entries'] if not _odd_breaks(e['text'])]
+        rep['entries'] = len(doc['entries'])
+        rep['html_skipped'] = len(odd)
     rows = []
     for e in doc['entries']:
         text = e['text'].replace('\r\n', '\n')
@@ -902,6 +907,11 @@ def export_html(path, out_file, progress=None, only=None):
         return rep
     rep['file'] = out_file
     return rep
+
+
+def _odd_breaks(text):
+    rest = text.replace('\r\n', '')
+    return '\r' in rest or ('\r\n' in text and '\n' in rest)
 
 
 def _load_html(translation_file):
@@ -1020,6 +1030,8 @@ def check_entry(e, translation, language=''):
         out.append('a line starting with } (it ends a wts string)')
     if e['source'] in ('profile', 'fdf') and ('\r' in translation or '\n' in translation):
         out.append('a real line break in a profile value')
+    if e['source'] == 'fdf' and re.search(r'(?<!\\)(?:\\\\)*\\$', translation):
+        out.append('a backslash at the end (it would escape the quote of the FDF text)')
     if _bad_utf8(translation):
         out.append('not valid UTF-8')
     if e.get('_limit') and len(_encode(_written(e, translation))) > e['_limit']:
@@ -1038,7 +1050,7 @@ def _written(e, translation):
 
 def replace_wts(t, new):
     out, last, done = [], 0, set()
-    for m in tr_extract.RX_WTS.finditer(t):
+    for m in tr_extract.wts_entries(t):
         n = int(m.group(1))
         if n in new and n not in done:
             out += [t[last:m.start(2)], new[n]]
@@ -1139,7 +1151,7 @@ def _readback(a, mt, wanted, linked, script):
             b = data(e['file'])
             if e['source'] == 'wts':
                 v = {}
-                for mo in tr_extract.RX_WTS.finditer(_decode(b)):
+                for mo in tr_extract.wts_entries(_decode(b)):
                     v.setdefault(int(mo.group(1)), mo.group(2))
             elif e['source'] == 'w3i':
                 v = w3i.parse(b)
@@ -1404,6 +1416,9 @@ def import_(path_in, translation_file, path_out, progress=None):
     rep = {'state': None, 'error': None, 'output': None, 'applied': 0, 'applied_by_source': {}, 'empty': 0,
            'rejected': [], 'unknown': [], 'rejected_by_reason': {}, 'files_changed': [], 'script_copies': 0,
            'verified': None}
+    if os.path.normcase(os.path.abspath(path_in)) == os.path.normcase(os.path.abspath(path_out)):
+        rep.update(state='failed', error='the output is the input map itself: write a copy')
+        return rep
     try:
         doc = _load(translation_file)
     except Exception as e:
@@ -1424,7 +1439,7 @@ def import_(path_in, translation_file, path_out, progress=None):
         rep['state'] = 'nothing_to_apply'
         return rep
     if a.h.version != 0 or a.hash_n_read < a.hash_n:
-        rep.update(state='failed', error='the map is protected: unprotect it with Devo\'s Map Doctor first')
+        rep.update(state='failed', error='the map is protected: run "Fix map" on it first')
         return rep
     del a
     p('building files')
