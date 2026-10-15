@@ -17,7 +17,7 @@ KEYWORDS = frozenset((
 
 _TOKEN_BODY = (r'[A-Za-z_][A-Za-z0-9_]*+|[(),]|\r\n?|\n|[=!<>]=|<comment>[-+*/<>=\[\]]'
                r'|0[xX][0-9A-Fa-f]++|\$[0-9A-Fa-f]++|[0-9]++\.[0-9]*+|\.[0-9]++|[0-9]++'
-               r'|"[^"\\]*(?:\\.[^"\\]*)*"|' r"'[^'\\]*(?:\\.[^'\\]*)*'" r'|[^ \t\N{BYTE ORDER MARK}]')
+               r'|"[^"\\]*+(?:\\.[^"\\]*+)*+"|' r"'[^'\\]*+(?:\\.[^'\\]*+)*+'" r'|[^ \t\N{BYTE ORDER MARK}]')
 _TOKEN_RE = re.compile(r'[ \t\N{BYTE ORDER MARK}]*+(' + _TOKEN_BODY.replace('<comment>', r'//[^\r\n]*+|') + ')',
                        re.S)
 _CANON_RE = re.compile(r'(?:[ \t\N{BYTE ORDER MARK}]++|//[^\r\n]*+)*+(' + _TOKEN_BODY.replace('<comment>', '') + ')',
@@ -28,7 +28,7 @@ _BOM = '\N{BYTE ORDER MARK}'
 _LINE_BREAK_RE = re.compile(r'\r\n?|\n')
 _WORD_START = frozenset('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_')
 _NUMBER_START = frozenset('0123456789.$')
-_BINARY_PRECEDENCE = {'and': 1, 'or': 2, '==': 3, '!=': 3, '<': 3, '<=': 3, '>': 3, '>=': 3,
+_BINARY_PRECEDENCE = {'and': 1, 'or': 2, '==': 3, '!=': 3, '<': 4, '<=': 4, '>': 4, '>=': 4,
                       '+': 5, '-': 5, '*': 6, '/': 6}
 _NOT_OPERAND = 5
 _STRING_ESCAPES = {'n': '\n', 't': '\t', 'r': '\r', 'b': '\b', 'f': '\f', '"': '"', '\\': '\\', "'": "'"}
@@ -174,6 +174,8 @@ def literal_value(kind, text):
                 return _wrap32(int(text, 8))
             except ValueError:
                 pass
+        if len(text) > 4000:
+            return _wrap32(int(text[-32:]))
         return _wrap32(int(text))
     if kind == 'real':
         return float(text if text[0] != '.' else '0' + text)
@@ -1483,20 +1485,34 @@ def _tree_work():
             gc.enable()
 
 
+def declared_names(tree):
+    return set(f.name for f in tree.functions) | set(n.name for n in getattr(tree, 'natives', ())) | \
+        set(g.name for g in tree.globals)
+
+
+def function_specs(tree):
+    return [(f.name, f.line, f.end_line, [n for _t, n in f.params], [d.name for d in f.locals]) for f in tree.functions]
+
+
 def parse(text, vjass=False):
     if text[:1] == _BOM:
         text = text[1:]
-    with _tree_work():
-        if len(text) >= NATIVE_MIN:
-            tree = _parse_native(text)
-            if tree is not None:
-                return tree
-        if not vjass:
-            return _Parser(text).script()
-        try:
-            return _Parser(text).script()
-        except JassSyntaxError:
-            return _VParser(vjass_preprocess(text)).script()
+    elif text[:3] == '\xef\xbb\xbf':
+        text = text[3:]
+    try:
+        with _tree_work():
+            if len(text) >= NATIVE_MIN:
+                tree = _parse_native(text)
+                if tree is not None:
+                    return tree
+            if not vjass:
+                return _Parser(text).script()
+            try:
+                return _Parser(text).script()
+            except JassSyntaxError:
+                return _VParser(vjass_preprocess(text)).script()
+    except RecursionError:
+        raise JassSyntaxError(1, 'the script nests deeper than this parser follows')
 
 
 def vjass_summary(tree):
@@ -1916,14 +1932,15 @@ def _ue(e):
         text = _ue(e)
         if type(e) is Binary and _needs_parens(e, chain[0], False):
             text = '(' + text + ')'
+        parts = [text]
         for k, b in enumerate(chain):
             right = _ue(b.right)
             if type(b.right) is Binary and _needs_parens(b.right, b, True):
                 right = '(' + right + ')'
-            text = text + ' ' + b.op + ' ' + right
+            parts += [' ', b.op, ' ', right]
             if k + 1 < len(chain) and _needs_parens(b, chain[k + 1], False):
-                text = '(' + text + ')'
-        return text
+                parts = ['('] + parts + [')']
+        return ''.join(parts)
     if t is Paren:
         return '(' + _ue(e.inner) + ')'
     if t is Index:
@@ -2117,7 +2134,7 @@ def unparse(node, comments=True):
 
 _WORD_END_CHARS = frozenset('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.')
 _WORD_BEGIN_CHARS = _WORD_END_CHARS | frozenset('$')
-_LITERAL_SPLIT_RE = re.compile(r'''"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'|//[^\r\n]*+''', re.S)
+_LITERAL_SPLIT_RE = re.compile(r'''"([^"\\]*+(?:\\.[^"\\]*+)*+)"|'([^'\\]*+(?:\\.[^'\\]*+)*+)'|//[^\r\n]*+''', re.S)
 _SPACE_RUN_RE = re.compile(r'  ++')
 _LONE_SPACE_RE = re.compile(r' (?:(?<![A-Za-z0-9_.] )|(?![A-Za-z0-9_.$]))')
 _ONE_TOKEN_RUN_RE = re.compile(r'[A-Za-z0-9_.$](?:(?<=[A-Za-z_])[A-Za-z0-9_]*+|(?<=\$)[0-9A-Fa-f]++'
@@ -2191,7 +2208,7 @@ def canonical(text_or_node):
     return _canonical_tokens(text) if fast is None else fast
 
 
-_COMMENT_RE = re.compile(r'''"[^"\\]*(?:\\.[^"\\]*)*"|'[^'\\]*(?:\\.[^'\\]*)*'|/(/[^\r\n]*+)''', re.S)
+_COMMENT_RE = re.compile(r'''"[^"\\]*+(?:\\.[^"\\]*+)*+"|'[^'\\]*+(?:\\.[^'\\]*+)*+'|/(/[^\r\n]*+)''', re.S)
 
 
 def comments_of(text):
