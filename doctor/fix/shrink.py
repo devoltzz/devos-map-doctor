@@ -76,11 +76,11 @@ def _open(path):
 def _layout(a):
     hn = a.h.hash_n
     if a.h.version != 0:
-        return 'The archive header is not a normal MPQ v1 header (a protected map): unprotect it first.'
+        return 'The archive header is not a normal MPQ v1 header (a protected map): run "Fix map" on it first.'
     if hn != a.hash_n or hn != a.hash_n_read or not hn or hn & (hn - 1):
-        return 'The hash table does not fit in the file (a protected map): unprotect it first.'
+        return 'The hash table does not fit in the file (a protected map): run "Fix map" on it first.'
     if a.h.block_n != a.block_n or len(a.bt) // 4 < a.block_n:
-        return 'The block table does not fit in the file (a protected map): unprotect it first.'
+        return 'The block table does not fit in the file (a protected map): run "Fix map" on it first.'
     return None
 
 
@@ -219,7 +219,7 @@ def _facts(a, kept, data, names):
 
 def _not_a_map(kept, names):
     if not any(n.lower() in MAP_INFO for bi in kept for n in names.get(bi, ())):
-        return 'The archive tables do not describe a map (no war3map.w3i): repair or unprotect it first.'
+        return 'The archive tables do not describe a map (no war3map.w3i): run "Fix map" on it first.'
     return None
 
 
@@ -579,21 +579,24 @@ def _small_wav(data):
             raw = w.readframes(n)
     except Exception:
         return None
-    a = np.frombuffer(raw, dtype=np.uint8 if width == 1 else np.int16).astype(np.float32)
-    if width == 1:
-        a = (a - 128.0) * 256.0
-    a = a.reshape(-1, ch).mean(axis=1)
-    if rate > 22050:
-        k = rate / 22050.0
-        a = np.interp(np.arange(0, len(a) - 1, k), np.arange(len(a)), a)
-        rate = 22050
-    b = io.BytesIO()
-    with wave.open(b, 'wb') as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(rate)
-        w.writeframes(np.clip(a, -32768, 32767).astype(np.int16).tobytes())
-    out = b.getvalue()
+    try:
+        a = np.frombuffer(raw, dtype=np.uint8 if width == 1 else np.int16).astype(np.float32)
+        if width == 1:
+            a = (a - 128.0) * 256.0
+        a = a.reshape(-1, ch).mean(axis=1)
+        if rate > 22050:
+            k = rate / 22050.0
+            a = np.interp(np.arange(0, len(a) - 1, k), np.arange(len(a)), a)
+            rate = 22050
+        b = io.BytesIO()
+        with wave.open(b, 'wb') as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(rate)
+            w.writeframes(np.clip(a, -32768, 32767).astype(np.int16).tobytes())
+        out = b.getvalue()
+    except Exception:
+        return None
     return out if len(out) < len(data) else None
 
 
@@ -785,7 +788,31 @@ def _shrink(path_in, path_out, options=None, progress=None):
         if os.path.exists(part):
             os.remove(part)
         return _fail(res, 'The check of the new map failed (%s).' % (str(e) or type(e).__name__), t0)
+    if rewritten:
+        res['attributes'] = _redo_attributes(path_out, p)
     res.update(state='done', checked=len(kept), stormlib=storm, seconds=round(time.time() - t0, 1))
     p('Done')
     return res
+
+
+def _redo_attributes(path_out, p):
+    from doctor.fix import attributes_check
+    tmp = path_out + '.attributes.part'
+    try:
+        r = attributes_check.fix(path_out, tmp, progress=p)
+    except Exception as e:
+        r = {'state': 'failed', 'error': str(e) or type(e).__name__}
+    if r.get('state') == 'done':
+        os.replace(tmp, path_out)
+        return {'state': 'redone', 'files': r.get('fixed', 0)}
+    if os.path.exists(tmp):
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+    out = {'state': r.get('state') or 'failed', 'files': 0}
+    if r.get('error'):
+        out['error'] = 'the (attributes) of the rewritten textures could not be redone (%s): the game may call the ' \
+                       'map corrupted; run "Redo the file checksums" on it' % r['error']
+    return out
 
