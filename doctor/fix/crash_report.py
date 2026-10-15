@@ -8,7 +8,7 @@ import re
 FRAME_NAME_MAX = 62
 RX_TAG = re.compile(r'^<([\w.]+)>(.*)$')
 RX_ADDR = re.compile(r'DBG-ADDR<([0-9A-Fa-f]+)>\("([^"]*)"\)')
-RX_SUMMARY = re.compile(r'^(\w+) \((.*?)\)')
+RX_SUMMARY = re.compile(r'^(?:class\s+)?([\w:]+)\s*\((.*?)\)')
 RX_LOGLINE = re.compile(r'^\d+/\d+ \d+:\d+:\d+\.\d+\s+(.*)$')
 RX_FDF_LONG = re.compile(r'^\(([^)]*?)//(\d+)\) Error, framename "([^"]*)" is too long!')
 RX_FRAME_DUP = re.compile(r'Error, frame "([^"]*)" already encountered!')
@@ -25,8 +25,9 @@ RX_C_KIND = re.compile(r'\b(EXCEPTION_[A-Z_]+|[A-Z_]*ACCESS_VIOLATION|STACK_OVER
                        r'ILLEGAL_INSTRUCTION|PRIV_INSTRUCTION)\b')
 RX_C_GAMEDLL = re.compile(r'0x([0-9A-Fa-f]+)(?:[^\n]*?0x([0-9A-Fa-f]+))?[^\n]*?:[^\n]*?Game\.dll', re.I)
 RX_C_REG = re.compile(r'\b(E?[A-D]X|E?SI|E?DI|E?BP|E?SP|EIP|EFLAGS)\s*[=:]\s*(?:0x)?([0-9A-Fa-f]{8})\b')
-RX_C_DUMP = re.compile(r'^\s*(?:0x)?([0-9A-Fa-f]{4,8}):?\s+((?:[0-9A-Fa-f]{2}\s+){15}[0-9A-Fa-f]{2})\b')
+RX_C_DUMP = re.compile(r'^[ \t]*(?:0x)?([0-9A-Fa-f]{4,8}):?[ \t]+((?:[0-9A-Fa-f]{2}[ \t]+){15}[0-9A-Fa-f]{2})\b')
 GAME_DLL_BASE = 0x6F000000
+TEXT_CAP = 64 << 20
 GAME_DLL_SIZE = 0xBB5000
 
 
@@ -43,9 +44,26 @@ def current_log():
     return os.path.join(_documents(), 'Warcraft III', 'Logs', 'War3Log.txt')
 
 
-def _read_text(p):
+def _read_text(p, cap=TEXT_CAP):
     with open(p, 'rb') as f:
-        return f.read().decode('utf-8', 'replace')
+        f.seek(0, os.SEEK_END)
+        size = f.tell()
+        f.seek(max(size - cap, 0))
+        d = f.read(cap)
+    if d[:2] in (b'\xff\xfe', b'\xfe\xff'):
+        return d.decode('utf-16', 'replace')
+    return d.decode('utf-8', 'replace')
+
+
+def _game_dll_line(t):
+    lines = t.splitlines()
+    k = next((i for i, l in enumerate(lines) if 'Loaded Modules' in l), None)
+    for l in (lines[k:] if k is not None else lines):
+        if len(l) <= 1000 and 'game.dll' in l.lower():
+            m = RX_C_GAMEDLL.search(l)
+            if m:
+                return m
+    return None
 
 
 def _desync_files(p):
@@ -62,16 +80,16 @@ def folders(limit=20):
         if not os.path.isdir(p):
             continue
         crash = os.path.join(p, 'Crash.txt')
-        if os.path.isfile(crash):
-            out.append({'path': p, 'name': d, 'type': 'crash', 'modified': os.path.getmtime(crash)})
-            continue
         try:
+            if os.path.isfile(crash):
+                out.append({'path': p, 'name': d, 'type': 'crash', 'modified': os.path.getmtime(crash)})
+                continue
             ds = _desync_files(p)
+            if ds:
+                out.append({'path': p, 'name': d, 'type': 'desync',
+                            'modified': max(os.path.getmtime(os.path.join(p, f)) for f in ds)})
         except OSError:
             continue
-        if ds:
-            out.append({'path': p, 'name': d, 'type': 'desync',
-                        'modified': max(os.path.getmtime(os.path.join(p, f)) for f in ds)})
     out.sort(key=lambda x: -x['modified'])
     out = out[:limit]
     for x in out:
@@ -175,7 +193,7 @@ def parse_classic(t):
         out['memory'] = int(m.group(2), 16)
         out['access'] = (m.group(3) or '').lower() or None
     base, size, assumed = GAME_DLL_BASE, GAME_DLL_SIZE, True
-    m = RX_C_GAMEDLL.search(t)
+    m = _game_dll_line(t)
     if m:
         base = int(m.group(1), 16)
         assumed = True
@@ -218,11 +236,7 @@ def parse_classic(t):
                 if r is not None:
                     out['stack'].append((addr + i, v, r))
                     seen.add(r)
-    order = []
-    for _a, _v, r in out['stack']:
-        if r not in order:
-            order.append(r)
-    out['rvas'] = order
+    out['rvas'] = list(dict.fromkeys(r for _a, _v, r in out['stack']))
     return out
 
 
@@ -306,6 +320,7 @@ def compare_desync(a, b, limit=8):
 def parse_log(t):
     out = {'map': None, 'maps': [], 'models': collections.Counter(), 'frames_long': {},
            'frames_dup': collections.Counter(), 'levels': {}}
+    vistos_mapas = set()
     for raw in t.splitlines():
         m = RX_LOGLINE.match(raw)
         l = (m.group(1) if m else raw).strip()
@@ -316,7 +331,8 @@ def parse_log(t):
             p = (mm.group(1) or mm.group(2) or '').strip()
             if p and not p.startswith('Maps/') and ':' in p[:3]:
                 out['map'] = p
-                if p not in out['maps']:
+                if p not in vistos_mapas:
+                    vistos_mapas.add(p)
                     out['maps'].append(p)
             continue
         mm = RX_MODEL.match(l)
@@ -335,6 +351,22 @@ def parse_log(t):
         if mm:
             out['levels'][mm.group(1)] = (int(mm.group(2)), int(mm.group(3)))
     return out
+
+
+def _kind_of(path):
+    try:
+        t = _read_text(path, 1 << 20)
+    except OSError:
+        return None
+    if '\x00' in t[:4096]:
+        return None
+    if '<Exception.Summary:>' in t or 'The instruction at' in t or RX_C_BUILD.search(t[:65536]):
+        return 'crash'
+    if RX_DESYNC.search(t) or RX_DESYNC_BLOCK.search(t):
+        return 'desync'
+    if any(RX_LOGLINE.match(l) for l in t.splitlines()[:400]):
+        return 'log'
+    return None
 
 
 def game_overrides(map_path, limit=30):
@@ -365,8 +397,22 @@ def read(path, map_path=None):
         folder = os.path.dirname(path)
         desync_txt = path if path.lower().endswith('.txt') else os.path.join(folder, 'Desync.txt')
         log_txt = os.path.join(folder, 'War3Log.txt')
+    elif not os.path.exists(path):
+        out['error'] = 'There is no such file or folder: %s' % path
+        return out
     else:
-        log_txt = path
+        kind = _kind_of(path)
+        if kind is None:
+            out['error'] = ('This file is not a report the Doctor reads (a Crash.txt, a Desync.txt, a *_Desync.log or '
+                            'the War3Log.txt of the game): %s' % os.path.basename(path))
+            return out
+        folder = os.path.dirname(path)
+        if kind == 'crash':
+            crash_txt, log_txt = path, os.path.join(folder, 'War3Log.txt')
+        elif kind == 'desync':
+            desync_txt, log_txt = path, os.path.join(folder, 'War3Log.txt')
+        else:
+            folder, log_txt = None, path
     if folder and os.path.isfile(os.path.join(folder, 'TempReplay.w3g')):
         replay = os.path.join(folder, 'TempReplay.w3g')
     try:
@@ -382,10 +428,12 @@ def read(path, map_path=None):
                 out['desync'] = {'turn': None, 'game': None, 'map': None, 'map_hash': None, 'build': None}
             if logs and out['desync'] is not None:
                 out['desync']['logs'] = sorted(logs)
-                t = parse_desync_log(_read_text(os.path.join(folder, logs[0])))
+                chosen = os.path.basename(path) if path.lower().endswith('_desync.log') else sorted(logs)[0]
+                t = parse_desync_log(_read_text(os.path.join(folder, chosen)))
+                out['desync']['log'] = chosen
                 out['desync']['turns'] = sorted(t)
                 out['desync']['tags'] = sorted(set(b['tag'] for v in t.values() for b in v))
-    except OSError as e:
+    except (OSError, ValueError) as e:
         out['error'] = 'The report could not be read: %s' % e
         return out
     if replay:
@@ -394,14 +442,17 @@ def read(path, map_path=None):
             rr = replay_read.read(replay)
             if not rr.get('error'):
                 out['replay'] = rr
-        except Exception:
-            pass
+            else:
+                out['replay_error'] = rr['error']
+        except Exception as e:
+            out['replay_error'] = '%s: %s' % (type(e).__name__, str(e)[:120])
     if not out['crash'] and not out['log'] and not out['desync']:
-        out['error'] = 'Neither a Crash.txt, a Desync.txt nor a War3Log.txt was found there.'
+        out['error'] = 'None of Crash.txt, Desync.txt or War3Log.txt was found there.'
         return out
     ex = (out['crash'] or {}).get('exception') or {}
-    if ex.get('module', '').lower() == 'clientsdk.dll' and map_path and os.path.isfile(map_path):
+    if (ex.get('module') or '').lower() == 'clientsdk.dll' and map_path and os.path.isfile(map_path):
         out['overrides'] = game_overrides(map_path)
+        out['overrides_failed'] = out['overrides'] is None
     out['findings'] = _findings(out)
     return out
 
@@ -476,20 +527,30 @@ def _findings(r):
     elif c:
         ex = c['exception']
         mod = ex.get('module') or '?'
-        f.append(('bad', 'The game closed: %s in %s (%s).' % (ex.get('kind', '?'), mod, ex.get('what', '')[:160])))
+        f.append(
+            ('bad', 'The game closed: %s in %s (%s).' % (ex.get('kind') or '?', mod, (ex.get('what') or '')[:160]))
+        )
         if mod.lower() == 'clientsdk.dll':
             ov = r.get('overrides')
             tail = ''
+            if r.get('overrides_failed'):
+                tail = ' The check of the open map could not run here (the game files or the map could not be read).'
             if ov is not None:
-                tail = (' The open map carries %d file(s) at the game\'s own paths (%s): port it again with "Remove '
-                        'the game\'s own files" (or remove them) and test again.'
-                        % (ov['count'], ', '.join('%s %d' % kv for kv in ov['folders'][:4]))
-                        if ov['count'] else ' The open map carries no file at the game\'s own paths, so the cause is '
-                                            'another one.')
+                tail = (
+                    ' The open map carries %d file(s) at the game\'s own paths (%s): port it again with "Remove map '
+                    'files that replace the game\'s own" (or remove them) and test again.'
+                    % (ov['count'], ', '.join('%s %d' % kv for kv in ov['folders'][:4]))
+                    if ov['count']
+                    else ' The open map carries no file at the game\'s own paths, so the cause is another one.'
+                )
             f.append(('warn', 'A crash in ClientSdk.dll on the main thread was caused, in a measured case, by the map '
                               'carrying the game\'s own textures and icons at the game\'s paths (they replace '
                               'Reforged\'s).' + tail))
-        elif ex.get('kind') == 'ACCESS_VIOLATION' and 'execute address' in ex.get('what', '') and mod == '(no module)':
+        elif (
+            ex.get('kind') == 'ACCESS_VIOLATION'
+            and 'execute address' in (ex.get('what') or '')
+            and mod == '(no module)'
+        ):
             f.append(
                 (
                     'warn',
@@ -502,6 +563,8 @@ def _findings(r):
         mem = c.get('memory') or {}
         if mem.get('Committed', 0) > 12000:
             f.append(('warn', 'The game had %d MB committed: the map may run out of memory.' % mem['Committed']))
+    if r.get('replay_error'):
+        f.append(('muted', 'The folder has a TempReplay.w3g the replay reader could not take: %s' % r['replay_error']))
     rp = r.get('replay')
     if rp:
         f.append(('muted', 'The game saved the players\' actions in TempReplay.w3g (%d turns, %s of game time): '
@@ -534,11 +597,18 @@ def _findings(r):
     return f
 
 
+def sem_usuario(s):
+    return RX_USUARIO.sub(lambda m: m.group(1) + '<user>', s) if isinstance(s, str) else s
+
+
+RX_USUARIO = re.compile(r'(?i)([A-Z]:[\\/]+(?:Users|Documents and Settings)[\\/]+)(?!Public\b|Default\b)[^\\/\r\n]+')
+
+
 def text(r):
     if r.get('error'):
-        return r['error']
-    out = ['Crash report: %s' % r['path']]
-    out += ['- ' + t for _s, t in r['findings']]
+        return sem_usuario(r['error'])
+    out = ['Crash report: %s' % sem_usuario(r['path'])]
+    out += ['- ' + sem_usuario(t) for _s, t in r['findings']]
     lg = r.get('log') or {}
     if lg.get('frames_long'):
         out.append('Frames with names that are too long (file:line name):')
