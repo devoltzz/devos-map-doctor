@@ -27,9 +27,10 @@ CJK = re.compile(
     + chr(0x30FF)
     + ']'
 )
-AI_WORDS = re.compile(
-    r'\bAI\b|\b(?i:artificial intelligence|language model|LLM|GPT|Claude|machine[- ]translat|translated by|translator|translation note|TN:)\b'
-)
+AI_WORDS = re.compile(r'\bAI\b|(?i:\b(?:artificial intelligence|language model|LLM|GPT|Claude|translated by|translator|'
+                      r'translation note)\b|\bmachine[- ]translat\w*|\bTN:)')
+SOURCE_SPEAKS = ('人工智能', '인공지능', '人工知能', '翻译', '翻訳', '번역', '克劳德', '语言模型', '言語モデル', '언어 모델', '譯')
+RX_SOURCE_SPEAKS = re.compile(r'\b(?:AI|GPT|LLM|Claude)\b')
 
 
 def codes(s):
@@ -45,7 +46,7 @@ def check(entry, en):
         errs.append('empty')
     if CJK.search(en):
         errs.append('CJK restante')
-    mentions_ai = any(t in ko for t in ('人工智能', '인공지능', '人工知能')) or re.search(r'\bAI\b', ko)
+    mentions_ai = any(t in ko for t in SOURCE_SPEAKS) or RX_SOURCE_SPEAKS.search(ko)
     if AI_WORDS.search(en) and 'AI Protocol' not in en and not mentions_ai:
         errs.append('mencao a IA/traducao')
     if ('\n' in en or '\r' in en) and '\n' not in ko:
