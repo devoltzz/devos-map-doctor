@@ -11,12 +11,21 @@ class Reader(object):
             raise ValueError('not a Lua 5.3 chunk (%r)' % data[:6])
         self.d = data
         self.sint, self.ssize, self.sinstr, self.sinteger, self.snumber = data[12:17]
+        if self.sint != 4 or self.ssize not in (4, 8) or self.sinstr != 4 or self.sinteger not in (4, 8) \
+                or self.snumber not in (4, 8):
+            raise ValueError('not a Lua 5.3 chunk this reads (sizes %d/%d/%d/%d/%d)'
+                             % (self.sint, self.ssize, self.sinstr, self.sinteger, self.snumber))
         self.i = 17 + self.sinteger + self.snumber + 1
+        self.depth = 0
+
+    def count(self):
+        n = self.int()
+        if n < 0 or n > len(self.d) - self.i:
+            raise ValueError('count %d at byte %d past the end of the chunk' % (n, self.i))
+        return n
 
     def byte(self):
-        v = self.d[self.i]
-        self.i += 1
-        return v
+        return self.raw(1)[0]
 
     def raw(self, n):
         if self.i + n > len(self.d):
@@ -37,15 +46,26 @@ class Reader(object):
             return None
         if n == 0xFF:
             n = self.size()
+            if n == 0:
+                raise ValueError('a long string of size 0 at byte %d' % self.i)
         return self.raw(n - 1)
 
     def function(self, parent_source=None):
+        self.depth += 1
+        if self.depth > 200:
+            raise ValueError('more than 200 nested functions')
+        try:
+            return self._function(parent_source)
+        finally:
+            self.depth -= 1
+
+    def _function(self, parent_source=None):
         f = {'source': self.string() or parent_source}
         f['line'], f['lastline'] = self.int(), self.int()
         f['params'], f['vararg'], f['stack'] = self.byte(), self.byte(), self.byte()
-        f['code'] = [int.from_bytes(self.raw(self.sinstr), 'little') for _ in range(self.int())]
+        f['code'] = [int.from_bytes(self.raw(self.sinstr), 'little') for _ in range(self.count())]
         consts = []
-        for _ in range(self.int()):
+        for _ in range(self.count()):
             t = self.byte()
             if t == 0:
                 consts.append(None)
@@ -60,11 +80,11 @@ class Reader(object):
             else:
                 raise ValueError('constant of type %d at byte %d' % (t, self.i))
         f['consts'] = consts
-        f['upvals'] = [(self.byte(), self.byte()) for _ in range(self.int())]
-        f['protos'] = [self.function(f['source']) for _ in range(self.int())]
-        f['lineinfo'] = [self.int() for _ in range(self.int())]
-        f['locvars'] = [(self.string(), self.int(), self.int()) for _ in range(self.int())]
-        f['upnames'] = [self.string() for _ in range(self.int())]
+        f['upvals'] = [(self.byte(), self.byte()) for _ in range(self.count())]
+        f['protos'] = [self.function(f['source']) for _ in range(self.count())]
+        f['lineinfo'] = [self.int() for _ in range(self.count())]
+        f['locvars'] = [(self.string(), self.int(), self.int()) for _ in range(self.count())]
+        f['upnames'] = [self.string() for _ in range(self.count())]
         return f
 
 
