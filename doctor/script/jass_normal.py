@@ -190,11 +190,13 @@ class Reference(object):
         self.functions, self.signatures = {}, {}
         self._wrappers, self._flat, self._versions = None, {}, None
         self.players, self.mode = players, PLAYERS.get(players, {})
+        self.unparsed = []
         for text in texts:
             try:
                 script = existing.parse(text) if text else None
-            except existing.JassSyntaxError:
+            except existing.JassSyntaxError as e:
                 script = None
+                self.unparsed.append(str(e))
             if script is not None:
                 self._take(script)
 
@@ -1136,7 +1138,7 @@ def copies(script, ref=None, text=None):
     return out
 
 
-_PLAYER_CALL = re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"|//[^\n]*|\'[^\'\n]*\'|\bPlayer[ \t]*\([ \t]*'
+_PLAYER_CALL = re.compile(r'"[^"\\]*+(?:\\.[^"\\]*+)*+"|//[^\n]*|\'[^\'\n]*\'|\bPlayer[ \t]*\([ \t]*'
                           r'(\$[0-9A-Fa-f]+|0[xX][0-9A-Fa-f]+|[0-9]+)[ \t]*\)', re.S)
 
 
