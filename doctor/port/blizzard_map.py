@@ -10,8 +10,9 @@ VANILLA = os.path.join(
 )
 REF_30 = os.path.join(ARCHIVE_ROOT, 'common', 'ref', '3.0')
 
-RX_FUNC = re.compile(r'^[ \t]*(constant[ \t]+)?function[ \t]+(\w+)[ \t]+takes\b.*?^[ \t]*endfunction[ \t]*$',
-                     re.M | re.S)
+RX_FUNC = re.compile(
+    r'^[ \t]*(constant[ \t]+)?function[ \t]+(\w+)[ \t]+takes\b.*?^[ \t]*endfunction[ \t]*(?://[^\n]*)?$', re.M | re.S
+)
 RX_NATIVE = re.compile(r'^[ \t]*(?:constant[ \t]+)?native[ \t]+(\w+)', re.M)
 RX_GLOBALS = re.compile(r'^[ \t]*globals[ \t]*$(.*?)^[ \t]*endglobals[ \t]*$', re.M | re.S)
 RX_DECL_LINE = re.compile(r'^\s*(?:constant\s+)?(\w+)\s+(?:array\s+)?(\w+)')
