@@ -8,7 +8,7 @@ DISTINCT_WARNING = 2000
 KEEP = frozenset(('Aloc', 'Avul', 'AInv', 'Aihn', 'Aien', 'Aion', 'Aiun'))
 CHUNK = 300
 PREFIX = 'dmd_uabi'
-RX_ID = re.compile(r'\A[\x21-\x7e]{4}\Z')
+RX_ID = re.compile(r'\A(?:(?![\'\\])[\x21-\x7e]){4}\Z')
 
 
 def _nothing(*_a, **_k):
@@ -57,8 +57,8 @@ def scan(path):
                 out['types'] += 1
                 for x in ids:
                     uses[x] = uses.get(x, 0) + 1
-        except Exception:
-            pass
+        except Exception as e:
+            out['error'] = 'war3map.w3u does not read (%s: %s)' % (type(e).__name__, str(e)[:80])
     s = unprotect._read(a, 'Units\\UnitAbilities.slk')
     if s:
         try:
@@ -223,7 +223,7 @@ def fix(path_in, path_out, progress=None):
             rep['kept'].append({'type': ident, 'why': 'its whole list is abilities that must stay in the object data'})
             continue
         if stays:
-            rep['kept'].append({'type': ident, 'why': '%s stay in the object data (they change behaviour when added '
+            rep['kept'].append({'type': ident, 'why': '%s stay in the object data (they change behavior when added '
                                 'later)' % ', '.join(stays), 'partial': True})
             rep['stayed'] = rep.get('stayed', 0) + len(stays)
         moves.append((ident, goes))
