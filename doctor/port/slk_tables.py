@@ -74,19 +74,7 @@ def emit_table(name, objs, fh):
     fh.write('}\n')
 
 
-def _split_levels(field_value):
-    pieces, buf, inside = [], [], False
-    for c in field_value:
-        if c == '"':
-            inside = not inside
-            buf.append(c)
-        elif c == ',' and not inside:
-            pieces.append(''.join(buf))
-            buf = []
-        else:
-            buf.append(c)
-    pieces.append(''.join(buf))
-    return pieces
+_split_levels = objects._split_levels
 
 
 def _unquoted(s):
@@ -169,12 +157,12 @@ def w3u_models(ext, legacy_key=False):
 
 
 def has_slk(ext):
-    U = os.path.join(ext, 'units')
+    U = objects.no_box(ext, 'units')
     return os.path.isdir(U) and any(f.lower().endswith('.slk') for f in os.listdir(U))
 
 
 def _slk_or_empty(U, fn):
-    p = os.path.join(U, fn)
+    p = objects.no_box(U, fn)
     if not os.path.isfile(p):
         print('WARNING: the map has no Units\\%s: the table is left without those records' % fn)
         return [], {}
@@ -185,7 +173,7 @@ def build_tables(ext, legacy_key=False, allowed=None):
     unit_fields = allowed['unit'] if allowed else UNIT_FIELDS
     ability_fields = allowed['ability'] if allowed else ABILITY_FIELDS
     item_fields = allowed['item'] if allowed else ITEM_FIELDS
-    U = os.path.join(ext, 'units')
+    U = objects.no_box(ext, 'units')
     units = {}
     for fn in ('unitdata.slk', 'unitbalance.slk', 'unitui.slk', 'unitweapons.slk', 'unitabilities.slk'):
         hdr, rows = _slk_or_empty(U, fn)
