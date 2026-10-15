@@ -52,7 +52,7 @@ Open a map. The Doctor reads it at once and says what it needs, then one button 
 |---|---|
 | **Fix map** | Removes the protection and repairs what stops the map on Reforged 3.0. |
 | **Open in World Editor** | Writes a copy the World Editor opens, with the GUI triggers rebuilt when the round trip proves them. |
-| **Port to Reforged** | Ports KK, KKWE, YDWE and M16 maps: their platform natives implemented, their scripts back in JASS (or Lua). |
+| **Port** | Ports KK, KKWE, YDWE and M16 maps to Reforged (their platform natives implemented, their scripts back in JASS or Lua), and a classic map to a newer classic game. |
 | **Diagnose** | Finds out why a map fails in the game: a diagnostic copy that logs while you play, and the readers of the game's crash report, log and replays. |
 
 The tabs show the rest: the map card, "Runs on Reforged?", the files and the script, the triggers, the translation,
@@ -69,7 +69,7 @@ doctor --help
 
 ## Questions
 
-**The ported map needs the art of the platform.** In Port to Reforged, add the art packages the map needs (`.mix`,
+**The ported map needs the art of the platform.** In Port, add the art packages the map needs (`.mix`,
 `.asi`, `.dll`, `.mpq`, `.w3mod`) or a folder of loose files ("Add a folder..."). Files from a folder stay out of the
 map and are written next to it, with a README on how to use them with "Allow Local Files".
 
