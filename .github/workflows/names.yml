@@ -1,0 +1,51 @@
+# Merges the file names of a `names` issue into names/learned.txt and closes it.
+name: names
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  contents: write
+  issues: write
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  ISSUE: ${{ github.event.issue.number }}
+
+jobs:
+  names:
+    if: contains(github.event.issue.labels.*.name, 'names') || startsWith(github.event.issue.title, 'New file names')
+    runs-on: ubuntu-24.04
+    concurrency: names
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Tools
+        run: python -m pip install -q numpy
+      - name: The shared list of the latest release (to drop what it already has)
+        run: gh release download --pattern names.npz --dir /tmp/names || echo "no names.npz in the latest release"
+      - name: Merge
+        run: |
+          gh issue view "$ISSUE" --json body -q .body > /tmp/body.md
+          mkdir -p names
+          touch names/learned.txt
+          python deploy/names_merge.py /tmp/body.md names/learned.txt /tmp/names/names.npz > /tmp/comment.md
+          cat /tmp/comment.md
+      - name: Commit, comment, close
+        run: |
+          if git diff --quiet -- names/learned.txt; then
+            echo "nothing new"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add names/learned.txt
+            git commit -m "names: the file names of issue #$ISSUE"
+            git push
+          fi
+          gh issue comment "$ISSUE" --body-file /tmp/comment.md
+          gh issue close "$ISSUE"
