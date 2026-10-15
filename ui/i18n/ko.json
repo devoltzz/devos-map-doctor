@@ -3086,5 +3086,19 @@
  "... or only the ones that are copies of the game's file": "... 또는 게임 파일의 사본인 것만",
  "This map has a file name that the shared name list does not know yet. Share it on GitHub?": "이 맵에는 공유 이름 목록이 아직 모르는 파일 이름이 하나 있습니다. GitHub에 공유할까요?",
  "World Editor: needs the fixes above.": "World Editor: 위의 수정 필요.",
- "{0} of them are byte-for-byte copies of the game's own file: taking them out changes nothing the map shows, and the game uses its own. Needs the game installed.": "그중 {0}개는 게임 자체 파일과 바이트 단위로 동일한 사본입니다. 제거해도 맵에 보이는 것은 바뀌지 않으며, 게임이 자체 파일을 사용합니다. 게임이 설치되어 있어야 합니다."
+ "{0} of them are byte-for-byte copies of the game's own file: taking them out changes nothing the map shows, and the game uses its own. Needs the game installed.": "그중 {0}개는 게임 자체 파일과 바이트 단위로 동일한 사본입니다. 제거해도 맵에 보이는 것은 바뀌지 않으며, 게임이 자체 파일을 사용합니다. 게임이 설치되어 있어야 합니다.",
+ "Port": "포팅",
+ "Port to:": "포팅 대상:",
+ "The game the ported map is for": "포팅된 맵이 사용될 게임",
+ "To Reforged. For KK or M16 maps (DzAPI, japi, JN): fills in the platform natives, makes the save local and ports the menus. Saves the map and a report next to it.": "Reforged용입니다. KK 또는 M16 맵용 (DzAPI, japi, JN): 플랫폼 네이티브를 채우고, 저장을 로컬로 바꾸고, 메뉴를 포팅합니다. 맵과 보고서를 같은 위치에 저장합니다.",
+ "a map of the KK platform: Reforged only": "KK 플랫폼 맵: Reforged만 가능",
+ "to Reforged or a newer game": "Reforged 또는 최신 게임으로",
+ "Made for: {0}.": "대상 버전: {0}.",
+ "Port to {0}": "{0}(으)로 포팅",
+ "Port to {0}: result": "{0}(으)로 포팅: 결과",
+ "Porting the map to {0}": "맵을 {0}(으)로 포팅",
+ "Porting the map to {0}...": "맵을 {0}(으)로 포팅하는 중...",
+ "Takes the map to {0}: the return bug gets its equivalent, the names the newer game also has are renamed and the script is checked with the scripts of {1}. The rest of the map stays. Saves the map and a report next to it.": "맵을 {0}(으)로 옮깁니다. 리턴 버그는 대응 기능으로 바뀌고, 최신 게임에도 있는 이름은 변경되며, 스크립트는 {1}의 스크립트로 검사합니다. 맵의 나머지는 그대로 유지됩니다. 맵과 보고서를 같은 위치에 저장합니다.",
+ "the map could not be read for this ({0})": "이 작업을 위해 맵을 읽을 수 없음 ({0})",
+ "{0} (not for this map)": "{0} (이 맵에는 사용 불가)"
 }
