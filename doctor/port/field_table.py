@@ -468,7 +468,9 @@ def run_action(ext, output, fields, sitios=None, interface=None, texts=None, dat
         line_list += slk_dynamic.functions_by_name(fields, field_const)
     if os.path.dirname(output) and not os.path.isdir(os.path.dirname(output)):
         os.makedirs(os.path.dirname(output))
-    open(output, 'w', encoding='latin-1', newline='\n').write('\n'.join(line_list) + '\n')
+    with open(output + '.part', 'w', encoding='latin-1', newline='\n') as f:
+        f.write('\n'.join(line_list) + '\n')
+    os.replace(output + '.part', output)
     sz = os.path.getsize(output)
     print('written: %s (%d B = %.1f KB, %d lines)' % (output, sz, sz / 1024.0, len(line_list)))
 
