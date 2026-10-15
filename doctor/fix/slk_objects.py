@@ -282,10 +282,29 @@ def convert(read, names, species, base, w3i=None, progress=None):
             objs.append((1, parent, rid, mods))
             rep['new'] += 1
         rep['mods'] += len(objs[-1][3])
+    def _ids_ok(o):
+        return _id_ok(o[1]) and (o[0] == 0 or _id_ok(o[2]))
+    ruins = [o for o in objs if not _ids_ok(o)]
+    if ruins:
+        rep['skipped_ids'] = [o[1] if o[0] == 0 else o[2] for o in ruins][:20]
+        rep['skipped'] = len(ruins)
+        objs = [o for o in objs if _ids_ok(o)]
     out['objects'] = objs
     if objs:
         out['bytes'] = ob.write_objects_bytes(OBJECT_VERSION, objs, ob.uses_levels(cfg['map_path']))
     return out
+
+
+def _id_ok(s):
+    return isinstance(s, str) and len(s) == 4 and all(0x20 <= ord(c) < 0x100 for c in s)
+
+
+OTHER_TABLES = (
+    ('upgrade', 'units\\upgradedata.slk', 'war3map.w3q'),
+    ('buff', 'units\\abilitybuffdata.slk', 'war3map.w3h'),
+    ('destructable', 'units\\destructabledata.slk', 'war3map.w3b'),
+    ('doodad', 'doodads\\doodads.slk', 'war3map.w3d'),
+)
 
 
 def compare(objs, real_objects):
@@ -344,7 +363,15 @@ def fix(path_in, path_out, progress=None, base=None, species=SPECIES):
     todo = [
         s for s in species if not read(ob.OBJ_KINDS[s]['map_path']) and any(read(r) for r in ob.OBJ_KINDS[s]['slk'])
     ]
+    outras = [(k, t) for k, t, f in OTHER_TABLES if read(t) and not read(f)]
     if not todo:
+        if outras:
+            return stop(
+                'nothing_to_do',
+                'The map has no unit, item or ability SLK table that lacks its object file. Its '
+                '%s tables are not converted by this version: they stay in the SLK, which the game reads and the '
+                'editor does not.' % ', '.join(k for k, _t in outras),
+            )
         return stop('nothing_to_do', 'The map has no SLK tables that lack their object file.')
     p('Finding the file names')
     names = model_check._names(a)
@@ -376,11 +403,29 @@ def fix(path_in, path_out, progress=None, base=None, species=SPECIES):
                 % (s, r['file'], x['new'], x['originals'], x['mods'], x['parent_code'], x['parent_inferred']),
             )
         )
-        if x['unmapped']:
+        if x.get('skipped'):
+            rep['lines'].append(('warn', '%s: %d row(s) whose id is not a 4-character code were skipped (%s).' % (
+                s, x['skipped'], ', '.join(repr(i) for i in x['skipped_ids'][:5]))))
+        unm = [
+            (c, n)
+            for c, n in x['unmapped'].most_common()
+            if not c.lower().endswith('id')
+            and c.lower() not in ('alias', 'code', 'comment', 'comments', 'sort', 'version')
+        ]
+        if unm:
             rep['lines'].append(('info', '%s: %d columns have no field code in the game\'s metadata, skipped (%s).' % (
-                s, len(x['unmapped']), ', '.join(c for c, _n in x['unmapped'].most_common(5)))))
+                s, len(unm), ', '.join(c for c, _n in unm[:5]))))
+    if outras:
+        rep['lines'].append(
+            (
+                'warn',
+                'The %s tables of the map are not converted by this version (units, items and '
+                'abilities only): their objects stay in the SLK, which the game reads and the editor '
+                'does not.' % ', '.join(k for k, _t in outras),
+            )
+        )
     if not files:
-        rep['state'] = 'nothing_to_do'
+        rep['state'] = 'failed' if any(k == 'bad' for k, _t in rep['lines']) else 'nothing_to_do'
         return rep
     try:
         w = map_rewrite.write(path_in, path_out, files, p)
