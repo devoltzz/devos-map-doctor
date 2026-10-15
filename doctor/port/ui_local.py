@@ -100,9 +100,11 @@ def _highest_index(i_sync, i_code):
     return max(i for i in (i_sync, i_code) if isinstance(i, int))
 
 
-def forwarders(body_text, record_count=None, fixed_ones=False):
+def forwarders(body_text, record_count=None, fixed_ones=False, extras=None):
     record_count = dict(REGISTROS if record_count is None else record_count)
     new_ones = {}
+    if extras is None:
+        extras = {}
     internal_ones = set()
     while True:
         all_items = dict(record_count, **new_ones)
@@ -137,14 +139,18 @@ def forwarders(body_text, record_count=None, fixed_ones=False):
                     a_sync = core_part[args[i_sync][0]:args[i_sync][1]].strip()
                     fixed_fields = literal_bool(a_sync)
                 if a_sync is not None and types.get(a_sync, (0, ''))[1] == 'boolean':
-                    new_ones[fname] = (types[a_sync][0], types[a_code][0])
+                    var = (types[a_sync][0], types[a_code][0])
                 elif fixed_ones and fixed_fields == 'false':
-                    new_ones[fname] = ('false', types[a_code][0])
+                    var = ('false', types[a_code][0])
                 else:
                     continue
+                if fname not in new_ones:
+                    new_ones[fname] = var
+                    extras[fname] = [var]
+                elif var not in extras[fname]:
+                    extras[fname].append(var)
                 internal_ones.add(m.start())
                 achou = True
-                break
         if not achou:
             return new_ones, internal_ones
 
@@ -177,7 +183,8 @@ def applies(
     body_text = by_name(body_text, info)
     if not boot_info and re.search(r'(?m)^[ \t]*function[ \t]+%s\w+[ \t]+takes' % re.escape(PREFIX), body_text):
         return body_text, info
-    regs, internal_ones = forwarders(body_text, fixed_ones=fixed_ones)
+    extras = {}
+    regs, internal_ones = forwarders(body_text, fixed_ones=fixed_ones, extras=extras)
     record_count = dict(REGISTROS, **regs)
     rx_call = re.compile(r'\b(%s)\s*\(' % '|'.join(map(re.escape, record_count)))
     info['forwarders'] = sorted(regs)
@@ -195,32 +202,32 @@ def applies(
             continue
         core_part = body_text[opens + 1:end_pos]
         args = arguments(core_part)
-        i_sync, i_code = record_count[m.group(1)]
-        if len(args) <= _highest_index(i_sync, i_code):
-            failures.append('%s with %d argument(s) (offset %d)' % (m.group(1), len(args), m.start()))
-            continue
-        sync = i_sync if isinstance(i_sync, str) else literal_bool(core_part[args[i_sync][0]:args[i_sync][1]])
-        a0, a1 = args[i_code]
-        code = RX_CODE.match(core_part[a0:a1])
-        if code is None and core_part[a0:a1].strip() == 'null':
-            continue
-        if (sync is None or code is None) and tolerant_mode:
-            info['outside'].append('%s(%s)' % (m.group(1), core_part[:100]))
-            continue
-        if sync is None or code is None:
-            failures.append('%s without a literal `sync` or without `function X` (offset %d): %s'
-                            % (m.group(1), m.start(), core_part[:120]))
-            continue
-        if sync == 'true':
-            info['synchronous_ones'] += 1
-            continue
-        fname = code.group(1)
-        if fname.startswith(PREFIX):
-            continue
-        replacements.append((opens + 1 + a0, opens + 1 + a1, ' function %s%s' % (PREFIX, fname)))
-        if fname not in name_list:
-            name_list.append(fname)
-        info['local_vars'] += 1
+        for i_sync, i_code in extras.get(m.group(1), [record_count[m.group(1)]]):
+            if len(args) <= _highest_index(i_sync, i_code):
+                failures.append('%s with %d argument(s) (offset %d)' % (m.group(1), len(args), m.start()))
+                continue
+            sync = i_sync if isinstance(i_sync, str) else literal_bool(core_part[args[i_sync][0]:args[i_sync][1]])
+            a0, a1 = args[i_code]
+            code = RX_CODE.match(core_part[a0:a1])
+            if code is None and core_part[a0:a1].strip() == 'null':
+                continue
+            if (sync is None or code is None) and tolerant_mode:
+                info['outside'].append('%s(%s)' % (m.group(1), core_part[:100]))
+                continue
+            if sync is None or code is None:
+                failures.append('%s without a literal `sync` or without `function X` (offset %d): %s'
+                                % (m.group(1), m.start(), core_part[:120]))
+                continue
+            if sync == 'true':
+                info['synchronous_ones'] += 1
+                continue
+            fname = code.group(1)
+            if fname.startswith(PREFIX):
+                continue
+            replacements.append((opens + 1 + a0, opens + 1 + a1, ' function %s%s' % (PREFIX, fname)))
+            if fname not in name_list:
+                name_list.append(fname)
+            info['local_vars'] += 1
     keys = {}
     for m in (RX_EX.finditer(body_text) if quadro else ()):
         start_line = body_text.rfind('\n', 0, m.start()) + 1
@@ -301,7 +308,7 @@ def applies(
                     pos = m.end() + lm.end()
             body_text = body_text[:pos] + '\tcall DB_ui_boot()' + nl + body_text[pos:]
             info['boot_info'] = 1
-    _registers, internal_end = forwarders(body_text, fixed_ones=True) if fixed_ones else ({}, set())
+    _registers, internal_end = forwarders(body_text, fixed_ones=True, extras={}) if fixed_ones else ({}, set())
     for m in rx_call.finditer(body_text):
         start_line = body_text.rfind('\n', 0, m.start()) + 1
         ln = body_text[start_line:m.start()]
