@@ -3,6 +3,7 @@ import hashlib
 import io
 import os
 import re
+import sys
 import tempfile
 
 import numpy as np
@@ -179,6 +180,9 @@ def split_text(text, widths):
     return [' '.join(x) for x in out]
 
 
+OCR_PARALLEL = 2
+
+
 def scan(read, names, lang, progress=None, min_side=MIN_SIDE, ocr=None):
     from doctor.translation import image_ocr
     p = progress or _nothing
@@ -196,21 +200,36 @@ def scan(read, names, lang, progress=None, min_side=MIN_SIDE, ocr=None):
         if max(im.size) < min_side:
             continue
         images[n] = im.size
-        datas[n] = (b, im)
+        datas[n] = b
+        del im
     if not images:
         return []
+    par = OCR_PARALLEL if sys.platform != 'emscripten' else 1
     if ocr is None:
         det, rec = ocr_models(lang, p)
-        ocr = image_ocr.OCR(det, rec)
+        total = max(1, min(8, os.cpu_count() or 1))
+        ocr = image_ocr.OCR(det, rec, threads=max(1, total // par))
     out = []
     sets = tile_sets(images)
-    for k, members in enumerate(sets):
-        p('Reading the text in images: %d of %d' % (k + 1, len(sets)))
-        pic = stitch([datas[m][1] for m in members])
-        lines = [r for r in ocr(pic) if keep_line(r['text'], lang, r['conf'])]
-        if lines:
-            out.append({'members': members, 'sha': digest([datas[m][0] for m in members]), 'size': pic.size,
-                        'lines': lines})
+
+    def read_set(members):
+        pic = stitch([decode(m, datas[m]) for m in members])
+        return pic.size, [r for r in ocr(pic) if keep_line(r['text'], lang, r['conf'])]
+    if par > 1:
+        from concurrent.futures import ThreadPoolExecutor
+        pool = ThreadPoolExecutor(par)
+        results = pool.map(read_set, sets)
+    else:
+        pool, results = None, map(read_set, sets)
+    try:
+        for k, (members, (size, lines)) in enumerate(zip(sets, results)):
+            p('Reading the text in images: %d of %d' % (k + 1, len(sets)))
+            if lines:
+                out.append({'members': members, 'sha': digest([datas[m] for m in members]), 'size': size,
+                            'lines': lines})
+    finally:
+        if pool is not None:
+            pool.shutdown(wait=True, cancel_futures=True)
     return out
 
 
@@ -237,7 +256,7 @@ def add_entries(mtext, read, names, lang, progress=None, min_side=MIN_SIDE):
     return n
 
 
-RX_ID = re.compile(r'^img:([0-9a-f]{12}):(.+):((?:\d+,\d+,\d+,\d+;?)+)$')
+RX_ID = re.compile(r'^img:([0-9a-f]{12}):(.+):((?:\d++,\d++,\d++,\d++(?:;|$))+)$')
 
 
 def entry_from_id(ident, text, read):
