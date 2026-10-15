@@ -482,8 +482,8 @@ def load(path=None, cache_dir=None, game=None):
 
 REF_DIR = os.path.normpath(os.path.join(HERE, '..', 'ref', '3.0'))
 REF_SCRIPTS = ('common.j', 'blizzard.j', 'common.ai')
-RX_SIGNATURE = re.compile(r'(?m)^[ \t]*(?:constant[ \t]+)?(?:native|function)[ \t]+(\w+)[ \t]+takes[ \t]+(.*?)'
-                          r'[ \t]+returns[ \t]+(\w+)')
+RX_SIGNATURE = re.compile(r'(?m)^[ \t]*+(?:constant[ \t]++)?(?:native|function)[ \t]++(\w+)[ \t]++takes[ \t]++'
+                          r'([^\n]*?)[ \t]++returns[ \t]++(\w+)')
 _SIGNATURES = {}
 
 
@@ -555,6 +555,8 @@ class ScriptFallback(object):
         return n
 
     def __getattr__(self, name):
+        if name == 'td':
+            raise AttributeError(name)
         return getattr(self.td, name)
 
 
