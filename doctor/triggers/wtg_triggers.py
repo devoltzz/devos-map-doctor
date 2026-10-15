@@ -6,17 +6,19 @@ SECTIONS = {'TriggerEvents': 'event', 'TriggerConditions': 'condition', 'Trigger
             'TriggerCalls': 'call'}
 ECA_TYPE = {0: 'event', 1: 'condition', 2: 'action', 3: 'call'}
 _CACHE = {}
+LAST_ERROR = None
 
 
 def arities(body_text):
     d = dict((v, {}) for v in SECTIONS.values())
     sec = None
-    for ln in body_text.splitlines():
+    sections = dict((k.lower(), v) for k, v in SECTIONS.items())
+    for ln in body_text.lstrip('\ufeff').splitlines():
         s = ln.strip()
         if not s or s.startswith('//'):
             continue
         if s.startswith('[') and s.endswith(']'):
-            sec = SECTIONS.get(s[1:-1])
+            sec = sections.get(s[1:-1].strip().lower())
             continue
         if sec is None or '=' not in s:
             continue
@@ -33,6 +35,7 @@ def arities(body_text):
 def game_arities(game=None):
     if game in _CACHE:
         return _CACHE[game]
+    global LAST_ERROR
     arity = None
     try:
         from doctor.data import casc_wc3
@@ -40,8 +43,9 @@ def game_arities(game=None):
         b = c.read_wc3('ui\\triggerdata.txt')
         if b:
             arity = arities(b.decode('utf-8', 'replace'))
-    except Exception:
-        arity = None
+    except Exception as e:
+        LAST_ERROR = '%s: %s' % (type(e).__name__, str(e)[:120])
+        return None
     _CACHE[game] = arity
     return arity
 
@@ -59,6 +63,12 @@ class _Reader(object):
         v = struct.unpack_from('<' + fmt, self.b, self.p)
         self.p += struct.calcsize('<' + fmt)
         return v[0] if len(v) == 1 else v
+
+    def n(self, fmt):
+        v = self.u(fmt)
+        if v < 0 or v > len(self.b) - self.p:
+            raise ValueError('count %d at byte %d' % (v, self.p))
+        return v
 
     def z(self):
         e = self.b.index(b'\x00', self.p)
@@ -86,7 +96,7 @@ class _Reader(object):
             raise _Unknown(fname)
         for _i in range(self.arity[t][fname]):
             self.parameter()
-        for _i in range(self.u('i')):
+        for _i in range(self.n('i')):
             self.eca(True)
 
     def trigger(self, new):
@@ -96,7 +106,7 @@ class _Reader(object):
         if new:
             self.u('I')
         self.u('iiiii')
-        for _i in range(self.u('i')):
+        for _i in range(self.n('i')):
             self.eca(False)
 
     def read_data(self):
@@ -110,7 +120,7 @@ class _Reader(object):
             return {'version_num': ver, 'unchecked': True}
         trigger_list = 0
         if not new:
-            for _i in range(self.u('i')):
+            for _i in range(self.n('i')):
                 self.u('i')
                 self.z()
                 self.u('i')
@@ -122,14 +132,14 @@ class _Reader(object):
                 self.z()
                 self.u('iiii')
                 self.z()
-            for _i in range(self.u('i')):
+            for _i in range(self.n('i')):
                 self.trigger(False)
                 trigger_list += 1
         else:
             self.u('I')
             for _k in range(8):
                 self.u('I')
-                for _j in range(self.u('I')):
+                for _j in range(self.n('I')):
                     self.u('I')
             if self.u('i') not in (1, 2):
                 raise ValueError('the variables marker is neither 1 nor 2')
@@ -140,7 +150,7 @@ class _Reader(object):
                 self.u('iiii')
                 self.z()
                 self.u('II')
-            for _i in range(self.u('I')):
+            for _i in range(self.n('I')):
                 cl = self.u('i')
                 if cl in (1, 2, 4):
                     self.u('i')
@@ -172,7 +182,7 @@ def verify(b, arity):
         out.update(r.read_data())
     except _Unknown:
         out['err'] = 'unknown function'
-    except (ValueError, IndexError, struct.error) as e:
+    except (ValueError, IndexError, struct.error, RecursionError) as e:
         out['err'] = str(e)[:120] or type(e).__name__
     out['unknowns'] = r.unknowns
     return out
