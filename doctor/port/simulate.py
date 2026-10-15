@@ -183,8 +183,12 @@ def _run32(lua, file_path, seconds, log, details):
     fd, file_ = tempfile.mkstemp(suffix='.lua', prefix='sim32_')
     with os.fdopen(fd, 'wb') as f:
         f.write(body_text)
+    cap = max(600.0, float(seconds) * 20)
     try:
-        r = subprocess.run([LUA32, file_], capture_output=True)
+        r = subprocess.run([LUA32, file_], capture_output=True, timeout=cap)
+    except subprocess.TimeoutExpired:
+        details['err'] = 'lua32: no answer in %d s' % cap
+        return details
     finally:
         if os.environ.get('SIM32_GUARDA'):
             shutil.move(file_, os.environ["SIM32_GUARDA"])
@@ -217,6 +221,18 @@ def _run32(lua, file_path, seconds, log, details):
 
 
 def simulate(file_path, seconds=30.0, n_players=1, log=print, eval_code=None, lua32=False):
+    import locale
+    before = locale.setlocale(locale.LC_ALL)
+    try:
+        return _simulate(file_path, seconds, n_players, log, eval_code, lua32)
+    finally:
+        try:
+            locale.setlocale(locale.LC_ALL, before)
+        except locale.Error:
+            pass
+
+
+def _simulate(file_path, seconds=30.0, n_players=1, log=print, eval_code=None, lua32=False):
     import locale
     if lua32:
         L = _Module32()
