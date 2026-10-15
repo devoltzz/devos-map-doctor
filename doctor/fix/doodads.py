@@ -26,8 +26,11 @@ def _tail_ok(tail):
 def read_data(b, skin=None):
     if b[:4] != b'W3do':
         raise FormatError('missing W3do')
-    ver, sub = struct.unpack_from('<ii', b, 4)
-    n = struct.unpack_from('<I', b, 12)[0]
+    try:
+        ver, sub = struct.unpack_from('<ii', b, 4)
+        n = struct.unpack_from('<I', b, 12)[0]
+    except struct.error:
+        raise FormatError('short header (%d bytes)' % len(b))
     first = None
     for attempt in ((False, True) if skin is None else (bool(skin),)):
         try:
@@ -121,10 +124,24 @@ def map_ids(a, name_list=('war3map.w3d', 'war3map.w3b'), slk=SLK_TABLES):
     return out
 
 
-def game_ids(game=None, hd=False):
-    hash_key = (game, hd)
+def game_ids(game=None, hd=False, version_num=None):
+    hash_key = (game, hd, version_num)
     if hash_key in _GAME_CACHE:
         return _GAME_CACHE[hash_key]
+    if version_num:
+        matches = set()
+        try:
+            from doctor.data import wc3_versions
+            for fname in ('doodads\\doodads.slk', 'units\\destructabledata.slk'):
+                b = wc3_versions.read(version_num, fname)
+                for m in re.finditer(rb'K"([A-Za-z][A-Za-z0-9_]{3})"', b or b''):
+                    matches.add(m.group(1))
+                for m in re.finditer(rb'(?m)^([A-Za-z][A-Za-z0-9_]{3});', b or b''):
+                    matches.add(m.group(1))
+        except Exception:
+            matches = set()
+        _GAME_CACHE[hash_key] = matches
+        return matches
     disk_path = _ids_file(game, hd)
     if disk_path and os.path.isfile(disk_path):
         try:
