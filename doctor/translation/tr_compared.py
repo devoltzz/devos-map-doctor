@@ -76,7 +76,7 @@ def measure(jtexto, entries, tr):
     line_list, _sep = tx.line_break(jtexto, jass=True)
     scopes = _scopes(line_list)
     external_vars = external_variables(line_list, scopes)
-    for ln, line in enumerate(line_list):
+    for txt_ln, line in enumerate(line_list):
         for pos, lit in ki.literals(line):
             if lit not in by:
                 continue
@@ -87,7 +87,7 @@ def measure(jtexto, entries, tr):
                 lado = other_lado(line, pos, lit)
                 var = re.match(r'[\s(]*(\w+)\s*(?:\[[^\]]*\])?\s*\)*\s*$', lado or '')
                 if lado and (RX_EXTERNO.search(lado) or
-                             (var and _var_key(var.group(1), scopes[0][ln], scopes[1]) in external_vars)):
+                             (var and _var_key(var.group(1), scopes[0][txt_ln], scopes[1]) in external_vars)):
                     by[lit]['externo'] += 1
                 elif lado and RX_WINDOW.search(lado):
                     by[lit]['window'] += 1
