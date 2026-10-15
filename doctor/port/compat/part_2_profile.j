@@ -1333,6 +1333,30 @@ function DB_ef_modelo_assado takes string m,integer i returns string
     return ""
 endfunction
 
+function DB_car_passo takes integer i returns nothing
+    local real g
+    local integer k=0
+    if DB_ef_car[i]==null then
+        return
+    endif
+    set g=DB_ef_ry[i]*180.0/3.14159265358979
+    loop
+        exitwhen g<=90.0
+        set g=g-360.0
+    endloop
+    loop
+        exitwhen g>-270.0
+        set g=g+360.0
+    endloop
+    if g>1.0 or g<-1.0 then
+        set k=1+R2I((90.0-g)/2.0+0.5)
+        if k>180 then
+            set k=180
+        endif
+    endif
+    call SetUnitAnimationByIndex(DB_ef_car[i],k)
+endfunction
+
 function DB_ef_porta takes integer i,effect e returns nothing
     local unit u
     local string m=LoadStr(DB_ef_ht,GetHandleId(e),1)
@@ -1359,8 +1383,11 @@ function DB_ef_porta takes integer i,effect e returns nothing
     set m=KK_fx_m_vaga(m,i)
     //{{KK_FIMSE:KK_FX_LOCAL}}
     set DB_ef_vis[i]=AddSpecialEffectTarget(m,u,"origin")
-    if DB_ef_rx[i]!=0.0 or DB_ef_ry[i]!=0.0 then
-        call BlzSetSpecialEffectOrientation(DB_ef_vis[i], 0.0, DB_ef_ry[i], DB_ef_rx[i])
+    if DB_ef_rx[i]!=0.0 then
+        call BlzSetSpecialEffectOrientation(DB_ef_vis[i], 0.0, 0.0, DB_ef_rx[i])
+    endif
+    if DB_ef_ry[i]!=0.0 then
+        call DB_car_passo(i)
     endif
     call DB_ef_vis_estado(i)
     call BlzSetSpecialEffectAlpha(e,0)
