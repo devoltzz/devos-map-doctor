@@ -286,9 +286,9 @@ def list_files(path, progress=None, dictionary=True, classify=False):
         out['total'] = len(out['files']) + len(out['unnamed'])
         if not names:
             out['notes'].append('No name reaches the files of this map (its tables are scrambled or its names are '
-                                'gone): Unprotect rebuilds what can be rebuilt.' if out['unnamed'] else
+                                'gone): "Fix map" rebuilds what can be rebuilt.' if out['unnamed'] else
                                 'No entry of the hash table reaches a file of this map (its tables are scrambled): '
-                                'Unprotect rebuilds the map from its content.')
+                                '"Fix map" rebuilds the map from its content.')
     except (Exception, SystemExit) as e:
         out['error'] = _error(e)
     return out
@@ -522,7 +522,7 @@ def _mdx_info(data, has_file):
 
 
 RX_MDL_TEXTURE = re.compile(r'Bitmap\s*\{([^{}]*)\}', re.S)
-RX_MDL_SEQUENCE = re.compile(r'Anim\s+"([^"]*)"\s*\{(.*?)\n\s*\}', re.S)
+RX_MDL_SEQUENCE = re.compile(r'Anim\s+"([^"]*)"\s*\{((?:[^{}]|\{[^{}]*+\})*+)\}', re.S)
 MDL_NODES = (('Bone', 'bones'), ('Helper', 'helpers'), ('Attachment', 'attachments'), ('CollisionShape',
              'collision shapes'), ('EventObject', 'event objects'), ('Light', 'lights'), ('ParticleEmitter',
              'particle emitters'), ('ParticleEmitter2', 'particle emitters 2'), ('RibbonEmitter', 'ribbon emitters'))
