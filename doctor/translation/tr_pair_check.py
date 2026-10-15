@@ -199,9 +199,11 @@ def fix_levels_by_numbers(item, en):
         return en
     tgt = zh
     sols = []
+    steps = [0]
 
     def lookup(k, begin, cuts):
-        if len(sols) > 8:
+        steps[0] += 1
+        if len(sols) > 8 or steps[0] > 50000:
             return
         if k == n - 1:
             if _same_numbers(tgt[k], en[begin:]):
@@ -220,6 +222,8 @@ def fix_levels_by_numbers(item, en):
                 break
 
     lookup(0, 0, [])
+    if steps[0] > 50000:
+        return en
     if len(sols) > 1:
         def ok_color(c, z):
             mz = RX_OPEN_COLOR.match(z)
