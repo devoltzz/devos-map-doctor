@@ -3,7 +3,7 @@ import hashlib
 import re
 
 
-RX_STR = re.compile(r'"((?:[^"\\]|\\.)*)"', re.S)
+RX_STR = re.compile(r'//[^\n]*|"((?:[^"\\]|\\.)*)"', re.S)
 DEFAULT_GENERATOR = 'common/kk/tabela_chars.py'
 
 
@@ -11,6 +11,8 @@ def caracteres(texts):
     seen = set()
     for t in texts:
         for m in RX_STR.finditer(t):
+            if m.group(1) is None:
+                continue
             for ch in m.group(1):
                 o = ord(ch)
                 if o > 127 and not (0xDC80 <= o <= 0xDCFF):
