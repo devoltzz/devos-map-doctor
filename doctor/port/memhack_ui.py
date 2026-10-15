@@ -396,6 +396,20 @@ def apply_memui(line_list, ref, ref_text=''):
         line_list[i + 1:j] = [indent_trim + line for line in new]
         info['translated'].append(fname)
     info['translated'].reverse()
+    if 'BlzFrameSetSize' in ref.natives and 'BlzFrameGetHeight' in ref.natives and 'BlzGetOriginFrame' in ref.natives:
+        rx_tooltip = re.compile(r'\bJNMemorySetReal[ \t]*\([ \t]*JNMemoryGetInteger[ \t]*\([ \t]*'
+                                r'(?:DzFrameGetTooltip|GetTooltip|GetUberTooltip|DzFrameGetUberTooltip)[ \t]*\([ \t]*\)'
+                                r'[ \t]*\+[ \t]*40[ \t]*\)[ \t]*\+[ \t]*16[ \t]*,[ \t]*([^(),]+?)[ \t]*\)')
+        for k, line in enumerate(line_list):
+            if 'JNMemorySetReal' in line and rx_tooltip.search(line):
+                line_list[k] = rx_tooltip.sub(
+                    lambda mm: (
+                        'BlzFrameSetSize(BlzGetOriginFrame(ORIGIN_FRAME_UBERTOOLTIP, 0), %s, '
+                        'BlzFrameGetHeight(BlzGetOriginFrame(ORIGIN_FRAME_UBERTOOLTIP, 0)))' % mm.group(1).strip()
+                    ),
+                    line,
+                )
+                info['tooltip_width'] = info.get('tooltip_width', 0) + 1
     end = _memui_addresses(line_list)
     if end:
         name_list = '|'.join(map(re.escape, sorted(end, key=len, reverse=True)))
