@@ -10,7 +10,7 @@ CHUNK = 60
 PREFIX = 'dmd_preload'
 CARRIER = 'hpea'
 NEUTRAL = 'Player(PLAYER_NEUTRAL_PASSIVE)'
-RX_ID = re.compile(r'\A[\x21-\x7e]{4}\Z')
+RX_ID = re.compile(r'\A(?:(?![\'\\])[\x21-\x7e]){4}\Z')
 
 
 def _nothing(*_a, **_k):
