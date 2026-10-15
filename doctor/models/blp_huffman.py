@@ -25,6 +25,8 @@ class _LeBits:
             if b == 0xFF:
                 if d[self.p + 1] == 0x00:
                     self.p += 2
+                else:
+                    raise ValueError('JPEG: marker %02X inside the entropy data' % d[self.p + 1])
             else:
                 self.p += 1
             self.acc = ((self.acc << 8) | b) & 0xFFFFFFFFFFFF
@@ -265,6 +267,8 @@ def analyze(d):
     else:
         nmcu = ((ww + 8 * hmax - 1) // (8 * hmax)) * ((hh + 8 * vmax - 1) // (8 * vmax))
         block_list = [(sc, comps[sc[0]][0] * comps[sc[0]][1]) for sc in scan]
+    if nmcu * max(1, sum(n for _sc, n in block_list)) > 8 * max(1, len(d) - ent):
+        return None
     nat = _NATIVE_SOUND[0] if _NATIVE_SOUND[0] is not None else _native_sound()
     if nat:
         r = _analyze_native(nat[0], d, segs, ent, nmcu, dri, block_list, raw_data)
@@ -477,8 +481,8 @@ def otimiza_blp(c, proof=True):
     jpegs = {e: hdr + c[e[0]:e[0] + e[1]] for e in ent}
     try:
         an = {e: analyze(j) for e, j in jpegs.items()}
-    except (ValueError, IndexError, KeyError, struct.error) as ex:
-        return None, 'decodificacao: %s' % ex
+    except Exception as ex:
+        return None, 'decoding: %s: %s' % (type(ex).__name__, ex)
     if any(a is None for a in an.values()):
         return None, 'not baseline'
     in_header = [q <= hsz for a in an.values() for mk, p, q in a['segs'] if mk == 0xC4]
@@ -503,7 +507,11 @@ def otimiza_blp(c, proof=True):
         return None, 'the header is no longer a common one'
     if proof:
         for e in ent:
-            if not same_pixels(jpegs[e], new_ones[e]):
+            try:
+                identical = same_pixels(jpegs[e], new_ones[e])
+            except Exception as ex:
+                return None, 'pixel proof: %s: %s' % (type(ex).__name__, ex)
+            if not identical:
                 return None, 'PIXEL DIFFERENT (not written)'
     out = bytearray(c[:156]) + struct.pack('<I', nhsz) + nhdr
     new_pos = {}
