@@ -3,65 +3,22 @@ import os
 import struct
 import sys
 
+from doctor.mpq import mpqlib as _ML
 
 MPQ_MAGIC = b'MPQ\x1a'
 HASH_TABLE_INDEX, HASH_NAME_A, HASH_NAME_B, HASH_FILE_KEY = 0, 1, 2, 3
 MPQ_FILE_COMPRESS = 0x00000200
 MPQ_FILE_SINGLE_UNIT = 0x01000000
 MPQ_FILE_EXISTS = 0x80000000
-
-CRYPT = []
+CRYPT = _ML.CRYPT
+MPQ_UPPERCASE = _ML.MPQ_UPPERCASE
+hash_string = _ML.hashstr
+decrypt = _ML.decrypt_bytes
+encrypt = _ML.encrypt_bytes
 
 
 def init_crypt():
-    seed = 0x00100001
-    table = [0] * 0x500
-    for i in range(0x100):
-        idx = i
-        for _ in range(5):
-            seed = (seed * 125 + 3) % 0x2AAAAB
-            t1 = (seed & 0xFFFF) << 0x10
-            seed = (seed * 125 + 3) % 0x2AAAAB
-            t2 = seed & 0xFFFF
-            table[idx] = t1 | t2
-            idx += 0x100
-    return table
-
-
-MPQ_UPPERCASE = bytes(c - 32 if 0x61 <= c <= 0x7A else (0x5C if c == 0x2F else c) for c in range(256))
-
-
-def hash_string(s, htype):
-    seed1, seed2 = 0x7FED7FED, 0xEEEEEEEE
-    b = s if isinstance(s, (bytes, bytearray)) else s.encode('utf-8', 'surrogateescape')
-    for ch in b.translate(MPQ_UPPERCASE):
-        seed1 = (CRYPT[(htype << 8) + ch] ^ ((seed1 + seed2) & 0xFFFFFFFF)) & 0xFFFFFFFF
-        seed2 = (ch + seed1 + seed2 + (seed2 << 5) + 3) & 0xFFFFFFFF
-    return seed1
-
-
-def decrypt(data, key):
-    seed = 0xEEEEEEEE
-    out = bytearray()
-    for v in struct.unpack('<%dI' % (len(data) // 4), data[:len(data) // 4 * 4]):
-        seed = (seed + CRYPT[0x400 + (key & 0xFF)]) & 0xFFFFFFFF
-        ch = v ^ ((key + seed) & 0xFFFFFFFF)
-        key = (((~key << 0x15) + 0x11111111) | (key >> 0x0B)) & 0xFFFFFFFF
-        seed = (ch + seed + (seed << 5) + 3) & 0xFFFFFFFF
-        out += struct.pack('<I', ch)
-    return bytes(out)
-
-
-def encrypt(data, key):
-    seed = 0xEEEEEEEE
-    out = bytearray()
-    for ch in struct.unpack('<%dI' % (len(data) // 4), data[:len(data) // 4 * 4]):
-        seed = (seed + CRYPT[0x400 + (key & 0xFF)]) & 0xFFFFFFFF
-        v = ch ^ ((key + seed) & 0xFFFFFFFF)
-        key = (((~key << 0x15) + 0x11111111) | (key >> 0x0B)) & 0xFFFFFFFF
-        seed = (ch + seed + (seed << 5) + 3) & 0xFFFFFFFF
-        out += struct.pack('<I', v)
-    return bytes(out)
+    return _ML.CRYPT
 
 
 def find_mpq(buf):
