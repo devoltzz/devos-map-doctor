@@ -1359,6 +1359,9 @@ function DB_ef_porta takes integer i,effect e returns nothing
     set m=KK_fx_m_vaga(m,i)
     //{{KK_FIMSE:KK_FX_LOCAL}}
     set DB_ef_vis[i]=AddSpecialEffectTarget(m,u,"origin")
+    if DB_ef_rx[i]!=0.0 or DB_ef_ry[i]!=0.0 then
+        call BlzSetSpecialEffectOrientation(DB_ef_vis[i], 0.0, DB_ef_ry[i], DB_ef_rx[i])
+    endif
     call DB_ef_vis_estado(i)
     call BlzSetSpecialEffectAlpha(e,0)
     call BlzSetSpecialEffectScale(e,0.0)
