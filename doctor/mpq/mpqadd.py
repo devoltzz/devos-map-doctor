@@ -248,16 +248,18 @@ def _add_to_open_file(f, path, repl, to_delete, reset, all_entries, fake_count, 
         ha = m.hash_string(name, 1)
         hb = m.hash_string(name, 2)
         i = m.hash_string(name, 0) & (hcount - 1)
+        achou = 0
         for _ in range(hcount):
             n1, n2, loc, plat, bi = struct.unpack_from('<IIHHI', htab, i * 16)
             if bi == 0xFFFFFFFF:
-                log('delete: %s is not in the map' % name)
                 break
             if n1 == ha and n2 == hb and bi != 0xFFFFFFFE:
                 struct.pack_into('<IIHHI', htab, i * 16, n1, n2, loc, plat, 0xFFFFFFFE)
                 log('deleted %s: hash#%d (block %d is left orphaned)' % (name, i, bi))
-                break
+                achou += 1
             i = (i + 1) & (hcount - 1)
+        if not achou:
+            log('delete: %s is not in the map' % name)
     for name, content in repl:
         ia = m.hash_string(name, 0) & (hcount - 1)
         ha = m.hash_string(name, 1)
