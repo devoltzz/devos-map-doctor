@@ -9,10 +9,75 @@ from doctor.data import slk_patch
 FILES = (('w3u', 'unam', False), ('w3t', 'unam', False), ('w3a', 'anam', True), ('w3q', 'gnam', True),
          ('w3h', 'fnam', False), ('w3b', 'bnam', False), ('w3d', 'dnam', True))
 RX_GAME_STRINGS = re.compile(r'_locales\\enus\.w3mod:units\\\w+strings\.txt$')
-RX_WTS = re.compile(rb'^(?:\xef\xbb\xbf)?(?i:STRING)[ \t]+(\d+)[^\n]*\n(?:[ \t]*(?://[^\n]*)?\r?\n)*[ \t]*\{[^\n]*\n'
-                    rb'(.*?)\r?\n?^\}[ \t]*\r?$', re.S | re.M)
 RX_COLOR = re.compile(r'\|c[0-9a-fA-F]{8}|\|r|\|n', re.I)
 _GAME = None
+_RX_STRING_B = re.compile(rb'^(?:\xef\xbb\xbf)?(?i:STRING)[ \t]+(\d+)')
+_RX_STRING_S = re.compile(r'^(?:﻿)?(?i:STRING)[ \t]+(\d+)')
+_RX_SKIP_B = re.compile(rb'^[ \t]*(?://[^\r\n]*)?\r?$')
+_RX_SKIP_S = re.compile(r'^[ \t]*(?://[^\r\n]*)?\r?$')
+_RX_OPEN_B = re.compile(rb'^[ \t]*\{')
+_RX_OPEN_S = re.compile(r'^[ \t]*\{')
+_RX_CLOSE_B = re.compile(rb'^\}[ \t]*\r?$')
+_RX_CLOSE_S = re.compile(r'^\}[ \t]*\r?$')
+
+
+class WtsEntry(object):
+    __slots__ = ('_d', '_s', '_e', '_n', '_s2', '_e2')
+
+    def __init__(self, data, start, end, number_span, body_span):
+        self._d, self._s, self._e, self._n, (self._s2, self._e2) = data, start, end, number_span, body_span
+
+    def group(self, n=0):
+        if n == 1:
+            return self._d[self._n[0]:self._n[1]]
+        if n == 2:
+            return self._d[self._s2:self._e2]
+        return self._d[self._s:self._e]
+
+    def start(self, n=0):
+        return self._n[0] if n == 1 else self._s2 if n == 2 else self._s
+
+    def end(self, n=0):
+        return self._n[1] if n == 1 else self._e2 if n == 2 else self._e
+
+
+def wts_entries(data):
+    bts = isinstance(data, (bytes, bytearray))
+    rx_string, rx_skip, rx_open, rx_close = (_RX_STRING_B, _RX_SKIP_B, _RX_OPEN_B, _RX_CLOSE_B) if bts else \
+        (_RX_STRING_S, _RX_SKIP_S, _RX_OPEN_S, _RX_CLOSE_S)
+    nl = b'\n' if bts else '\n'
+    cr = b'\r' if bts else '\r'
+    lines = data.split(nl)
+    offs, off = [], 0
+    for ln in lines:
+        offs.append(off)
+        off += len(ln) + 1
+    out = []
+    i, n = 0, len(lines)
+    while i < n:
+        m = rx_string.match(lines[i])
+        if not m:
+            i += 1
+            continue
+        start, number = offs[i], (offs[i] + m.start(1), offs[i] + m.end(1))
+        j = i + 1
+        while j < n and rx_skip.match(lines[j]):
+            j += 1
+        if j >= n or not rx_open.match(lines[j]):
+            i += 1
+            continue
+        body_start = offs[j] + len(lines[j]) + 1
+        k = j + 1
+        while k < n and not rx_close.match(lines[k]):
+            k += 1
+        if k >= n:
+            break
+        body_end = max(body_start, offs[k] - 1)
+        if body_end > body_start and data[body_end - 1:body_end] == cr:
+            body_end -= 1
+        out.append(WtsEntry(data, start, offs[k] + len(lines[k]), number, (body_start, body_end)))
+        i = k + 1
+    return out
 
 
 def game_names():
@@ -28,7 +93,7 @@ def game_names():
                         for section, fields in slk.parse_ini_bytes(casc.read_data(casc.file_set[key][0])).items():
                             name = _name_field(fields)
                             if name and len(section) == 4:
-                                _GAME.setdefault(section, name.split(',')[0].strip('"'))
+                                _GAME.setdefault(section, first_value(name))
             finally:
                 casc.on_close()
         except Exception:
@@ -44,11 +109,16 @@ def _name_field(fields):
 
 
 def strings(wts):
-    return dict((int(m.group(1)), m.group(2).decode('utf-8', 'replace')) for m in RX_WTS.finditer(wts or b''))
+    return dict((int(m.group(1)), m.group(2).decode('utf-8', 'replace')) for m in wts_entries(wts or b''))
 
 
 def clean(name):
     return ' '.join(RX_COLOR.sub('', name).split())
+
+
+def first_value(value):
+    m = re.match(r'\s*"([^"]*)"', value or '')
+    return m.group(1) if m else (value or '').split(',')[0].strip('"')
 
 
 def profile_names(read, texts):
@@ -64,7 +134,7 @@ def profile_names(read, texts):
         for section, fields in sections.items():
             name = _name_field(fields)
             if name and len(section) == 4:
-                value = name.split(',')[0].strip('"')
+                value = first_value(name)
                 m = re.match(r'TRIGSTR_(\d+)$', value)
                 out.setdefault(section, texts.get(int(m.group(1)), value) if m else value)
     return out
