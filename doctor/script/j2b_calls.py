@@ -185,7 +185,7 @@ def corpus_pairs(bc, base_texts, scripts, known, log=None):
     for name, k0 in starts.items():
         ops, toks = bytearray(), []
         k = k0
-        while True:
+        while k < len(bc.op):
             o = bc.op[k]
             if o == HIDDEN and bc.b0[k] == 0 and bc.b1[k] == 0 and bc.b2[k] == 0:
                 toks.append(bc.arg[k] & 0xFFFFFFFF)
@@ -239,7 +239,7 @@ class Analysis(object):
         for k in self.starts:
             ps = []
             j = k + 1
-            while op[j] == FUNCARG:
+            while j < len(op) and op[j] == FUNCARG:
                 ps.append((b2[j], arg[j]))
                 j += 1
             self.fparams[k] = ps
@@ -291,7 +291,7 @@ class Analysis(object):
             stack = []
             reg = {}
             pend = []
-            while op[k] != ENDFUNCTION:
+            while k < len(op) and op[k] != ENDFUNCTION:
                 o = op[k]
                 if o == LOCAL:
                     local[arg[k]] = b2[k]
