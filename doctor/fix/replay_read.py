@@ -131,12 +131,17 @@ def _container(data):
         blk = data[pos + step:pos + step + size]
         if len(blk) < size:
             truncated = True
+        teto = max(usize, 8192)
         try:
             d = zlib.decompressobj()
-            out.append(d.decompress(blk))
+            pedaco = d.decompress(blk, teto + 1)
         except zlib.error:
             truncated = True
             break
+        if len(pedaco) > teto or (decompressed and sum(map(len, out)) > decompressed + teto):
+            truncated = True
+            break
+        out.append(pedaco)
         n += 1
         pos += step + size
         if len(blk) < size:
@@ -237,9 +242,11 @@ def _metadata(raw):
         except _Cut:
             msg = {}
         if sub == 3:
+            def _txt(v):
+                return v.decode('utf-8', 'replace') if isinstance(v, (bytes, bytearray)) else ''
             reforged.append({'id': (msg.get(1) or [0])[0],
-                             'name': (msg.get(2) or [b''])[0].decode('utf-8', 'replace'),
-                             'clan': (msg.get(3) or [b''])[0].decode('utf-8', 'replace')})
+                             'name': _txt((msg.get(2) or [b''])[0]),
+                             'clan': _txt((msg.get(3) or [b''])[0])})
         elif sub == 4:
             skins[(msg.get(1) or [0])[0]] = len(msg.get(2) or [])
     if b.u8() != 0x19:
@@ -608,6 +615,9 @@ def parse(data, source=None):
     return out
 
 
+MAX_REPLAY = 64 << 20
+
+
 def read(path):
     if os.path.isdir(path):
         for n in ('TempReplay.w3g', 'LastReplay.w3g'):
@@ -615,6 +625,12 @@ def read(path):
                 path = os.path.join(path, n)
                 break
     try:
+        if os.path.getsize(path) > MAX_REPLAY:
+            return {
+                'path': path,
+                'error': 'This file is too big to be a replay (%d MB).' % (os.path.getsize(path) >> 20),
+                'findings': [],
+            }
         with open(path, 'rb') as f:
             data = f.read()
     except OSError as e:
@@ -669,8 +685,13 @@ def _findings(r):
                           'action of this game version.' % (fmt['unreadable_command_blocks'], fmt['command_blocks'])))
     if r['stats'].get('unknown_block'):
         u = r['stats']['unknown_block']
-        f.append(('warn', 'The game data has a block this reader does not know (id 0x%02X at byte %d): the timeline '
-                          'stops there.' % (u['id'], u['at'])))
+        f.append(
+            (
+                'warn',
+                'The game data has a block the replay reader does not know (id 0x%02X at byte %d): the timeline '
+                'stops there.' % (u['id'], u['at']),
+            )
+        )
     bs = bursts(r['leaves'])
     for t, ev in bs[:3]:
         f.append(('warn', 'Suspected desync or disconnect: %d players left within %.1f s at %s (%s). A burst of leaves '
@@ -772,19 +793,26 @@ def folders(limit=20):
                     if f.lower().endswith('.w3g'):
                         out.append({'path': os.path.join(root, f), 'name': f,
                                     'kind': 'last' if f.lower() == 'lastreplay.w3g' else 'saved'})
+    vivos = []
     for x in out:
-        st = os.stat(x['path'])
+        try:
+            st = os.stat(x['path'])
+        except OSError:
+            continue
         x['modified'] = st.st_mtime
         x['bytes'] = st.st_size
+        vivos.append(x)
+    out = vivos
     out.sort(key=lambda x: -x['modified'])
     return out[:limit]
 
 
 def text(r, everything=False):
+    from doctor.fix import crash_report
     if r.get('error'):
-        return r['error']
-    out = ['Replay: %s' % r.get('path')]
-    out += ['- ' + t for _s, t in r['findings']]
+        return crash_report.sem_usuario(r['error'])
+    out = ['Replay: %s' % crash_report.sem_usuario(r.get('path') or '')]
+    out += ['- ' + crash_report.sem_usuario(t) for _s, t in r['findings']]
     if r['players']:
         out.append('Players: ' + ', '.join('%s (%d)' % (p['name'], p['id']) for p in r['players']))
     if r['leaves']:
