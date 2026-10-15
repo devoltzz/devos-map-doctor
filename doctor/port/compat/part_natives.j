@@ -147,7 +147,7 @@ function EXEffectMatRotateX takes effect e,real deg returns nothing
         return
     endif
     if DB_ef_car[i]!=null then
-        call BlzSetSpecialEffectOrientation(DB_ef_vis[i], 0.0, DB_ef_ry[i], DB_ef_rx[i])
+        call BlzSetSpecialEffectOrientation(DB_ef_vis[i], 0.0, 0.0, DB_ef_rx[i])
         return
     endif
     call BlzSetSpecialEffectOrientation(e, DB_ef_rz[i], DB_ef_ry[i], DB_ef_rx[i])
@@ -164,7 +164,7 @@ function EXEffectMatRotateY takes effect e,real deg returns nothing
         return
     endif
     if DB_ef_car[i]!=null then
-        call BlzSetSpecialEffectOrientation(DB_ef_vis[i], 0.0, DB_ef_ry[i], DB_ef_rx[i])
+        call DB_car_passo(i)
         return
     endif
     call BlzSetSpecialEffectOrientation(e, DB_ef_rz[i], DB_ef_ry[i], DB_ef_rx[i])
@@ -227,6 +227,7 @@ function DB_efp_aplica takes nothing returns nothing
             set DB_ef_pend[i]=false
             if DB_ef_car[i]!=null then
                 call BlzSetUnitFacingEx(DB_ef_car[i], DB_ef_rz[i]*180.0/3.14159265358979)
+                call DB_car_passo(i)
             else
                 call BlzSetSpecialEffectOrientation(e, DB_ef_rz[i], DB_ef_ry[i], DB_ef_rx[i])
             endif
@@ -283,6 +284,7 @@ function EXEffectMatReset takes effect e returns nothing
         set DB_ef_mz[i]=1.0
         if DB_ef_car[i]!=null then
             call BlzSetUnitFacingEx(DB_ef_car[i], 0.0)
+            call DB_car_passo(i)
             return
         endif
     endif
@@ -754,10 +756,18 @@ function DB_pai_mostra takes integer id returns nothing
         call BlzFrameSetVisible(DB_pai_fh[i*3+k], true)
         set k=k+1
     endloop
-    if k>1 and DB_ui_escondida and DB_pai_det_t==null then
-        call DB_pai_det_esconde()
-        set DB_pai_det_t=CreateTimer()
-        call TimerStart(DB_pai_det_t, 0.03, true, function DB_pai_det_esconde)
+    if k>1 and DB_ui_escondida then
+        set k=0
+        loop
+            exitwhen k>=3 or DB_pai_fh[i*3+k]==null
+            call BlzFrameSetSize(DB_pai_fh[i*3+k], 0.0001, 0.0001)
+            set k=k+1
+        endloop
+        if DB_pai_det_t==null then
+            call DB_pai_det_esconde()
+            set DB_pai_det_t=CreateTimer()
+            call TimerStart(DB_pai_det_t, 0.03, true, function DB_pai_det_esconde)
+        endif
     endif
 endfunction
 
@@ -1719,8 +1729,17 @@ function DB_ui_roda_registra takes framehandle f,integer id returns nothing
     set t=null
 endfunction
 
+function DB_ui_relogio_ok takes nothing returns nothing
+    if DB_ui_relogio==null then
+        set DB_ui_relogio=CreateTimer()
+        call TimerStart(DB_ui_relogio, 1000000.0, false, null)
+    endif
+endfunction
+
 function DB_ui_solta_foco takes nothing returns nothing
     local framehandle f
+    call DB_ui_relogio_ok()
+    call SaveReal(DB_ui_ht, LoadInteger(DB_ui_ht, GetHandleId(GetTriggeringTrigger()), 0), DB_UI_ECO+GetPlayerId(GetTriggerPlayer()), TimerGetElapsed(DB_ui_relogio))
     if GetLocalPlayer()==GetTriggerPlayer() then
         set f=DB_fh(LoadInteger(DB_ui_ht, GetHandleId(GetTriggeringTrigger()), 0))
         if f!=null then
@@ -1734,6 +1753,8 @@ endfunction
 constant real DB_DUPLO_JANELA=0.45
 constant integer DB_UI_DUPLO=400
 timer DB_ui_relogio=null
+constant integer DB_UI_ECO=430
+constant real DB_ECO_JANELA=0.25
 
 function DB_ui_duplo takes nothing returns boolean
     local integer q=LoadInteger(DB_ui_ht, GetHandleId(GetTriggeringTrigger()), 0)
@@ -1745,6 +1766,17 @@ function DB_ui_duplo takes nothing returns boolean
     endif
     call SaveReal(DB_ui_ht, q, k, agora)
     return false
+endfunction
+
+function DB_ui_eco takes nothing returns boolean
+    local integer q=LoadInteger(DB_ui_ht, GetHandleId(GetTriggeringTrigger()), 0)
+    local integer k=DB_UI_ECO+GetPlayerId(GetTriggerPlayer())
+    if DB_ui_relogio!=null and HaveSavedReal(DB_ui_ht, q, k) then
+        if TimerGetElapsed(DB_ui_relogio)-LoadReal(DB_ui_ht, q, k)<=DB_ECO_JANELA then
+            return false
+        endif
+    endif
+    return true
 endfunction
 
 function DzFrameSetScriptByCode takes integer frame,integer eventId,code funcHandle,boolean sync returns nothing
@@ -1793,6 +1825,9 @@ function DzFrameSetScriptByCode takes integer frame,integer eventId,code funcHan
     set t=CreateTrigger()
     call BlzTriggerRegisterFrameEvent(t, f, ev)
     call SaveInteger(DB_ui_ht, GetHandleId(t), 0, frame)
+    if eventId==2 and LoadBoolean(DB_ui_ht, frame, 2) then
+        call TriggerAddCondition(t, Condition(function DB_ui_eco))
+    endif
     if eventId==1 and LoadBoolean(DB_ui_ht, frame, 2) then
         call TriggerAddAction(t, function DB_ui_solta_foco)
     endif
