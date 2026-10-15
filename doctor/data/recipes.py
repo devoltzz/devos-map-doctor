@@ -24,6 +24,7 @@ MAX_CALL_WALKS = 20000
 MAX_FACT_WALKS = 400000
 MAX_TURNS = 24
 KINDS_SHOWN = ('recipe', 'upgrade')
+
 EVENTS = {'EVENT_PLAYER_UNIT_PICKUP_ITEM': 'acquires an item', 'EVENT_UNIT_PICKUP_ITEM': 'acquires an item',
           'EVENT_PLAYER_UNIT_USE_ITEM': 'uses an item', 'EVENT_UNIT_USE_ITEM': 'uses an item',
           'EVENT_PLAYER_UNIT_DROP_ITEM': 'loses an item', 'EVENT_PLAYER_UNIT_SELL_ITEM': 'sells an item',
@@ -1437,7 +1438,7 @@ def csv_text(r):
                 'level', 'kept', 'chance', 'kind', 'pattern', 'where'])
     for x in r.get('recipes') or []:
         res = x['results'][0]
-        w.writerow([' + '.join(it['id_text'] for it in x['results']),
+        w.writerow([_cell(v) for v in (' + '.join(it['id_text'] for it in x['results']),
                     ' + '.join(it.get('name') or '' for it in x['results']),
                     res['count'] if res['count'] is not None else '',
                     '; '.join('%s x %s' % (it['id_text'], it['count'] if it['count'] is not None else 'all')
@@ -1445,7 +1446,7 @@ def csv_text(r):
                     '; '.join(it.get('name') or '' for it in x['ingredients']),
                     x['gold'] or '', x['lumber'] or '', x['level'] or '',
                     '; '.join(it['id_text'] for it in x['kept']), x.get('chance') or '', x['kind'], x['pattern'],
-                    ' | '.join(_where(s) for s in x['sources'])])
+                    ' | '.join(_where(s) for s in x['sources']))])
     return buf.getvalue()
 
 
@@ -1465,6 +1466,17 @@ def file_text(r, path):
 
 
 def write(r, path):
-    with open(path, 'w', encoding='utf-8', newline='') as f:
+    for entrada in (r.get('file'), r.get('map'), r.get('path')):
+        if isinstance(entrada, str) and os.path.normcase(os.path.abspath(entrada)) == os.path.normcase(
+            os.path.abspath(path)
+        ):
+            raise ValueError('the output is the input itself: %s' % path)
+    part = path + '.part'
+    with open(part, 'w', encoding='utf-8', newline='') as f:
         f.write(file_text(r, path))
+    os.replace(part, path)
     return os.path.abspath(path)
+
+
+def _cell(x):
+    return ("'" + x) if isinstance(x, str) and x[:1] in ('=', '+', '-', '@') else x
