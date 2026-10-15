@@ -98,7 +98,16 @@ def write(m):
 
 
 def _text(b):
-    for enc in ('utf-8', 'gbk', 'latin-1'):
+    try:
+        return b.decode('utf-8')
+    except UnicodeDecodeError:
+        pass
+    try:
+        from doctor.viewers import map_files
+        return b.decode(map_files.guess_encoding(b), 'replace')
+    except Exception:
+        pass
+    for enc in ('gbk', 'latin-1'):
         try:
             return b.decode(enc)
         except UnicodeDecodeError:
