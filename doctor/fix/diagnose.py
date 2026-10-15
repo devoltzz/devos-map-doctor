@@ -37,7 +37,10 @@ class DiagnoseError(Exception):
 def _safe_name(path):
     base = os.path.splitext(os.path.basename(path))[0]
     s = re.sub(r'[^A-Za-z0-9_-]+', '_', base).strip('_')
-    return (s or 'map')[:40]
+    if s == base and len(s) <= 40:
+        return s or 'map'
+    import zlib
+    return '%s_%04x' % ((s or 'map')[:34], zlib.crc32(base.encode('utf-8')) & 0xFFFF)
 
 
 def _jass_str(s):
@@ -786,6 +789,7 @@ def log_folder():
 RX_INIT = re.compile(r'^DMD\d+ init (\w) (.*)$')
 INIT_TOLERANCE_NS = 50000000
 INIT_STAGES = ('script', 'config', 'main')
+INIT_STAGE_GAP_NS = 300 * 10 ** 9
 
 
 def init_folder_of(path):
@@ -828,7 +832,16 @@ def read_init(folder):
             ev.append({'kind': m.group(1), 'label': m.group(2), 'ns': st.st_mtime_ns, 'file': f})
     begins = dict((e['label'], e['ns']) for e in ev if e['kind'] == 'b')
     out['begin'] = begins
-    first = next((begins[s] for s in INIT_STAGES if s in begins), None)
+    stages = [begins[s] for s in INIT_STAGES if s in begins]
+    first = None
+    if stages:
+        k = max(range(len(stages)), key=lambda i: stages[i])
+        first = stages[k]
+        for b in reversed(stages[:k]):
+            if 0 <= first - b <= INIT_STAGE_GAP_NS:
+                first = b
+            else:
+                break
     if first is not None:
         keep = [e for e in ev if e['ns'] >= first - INIT_TOLERANCE_NS]
         out['stale'] = len(ev) - len(keep)
@@ -899,6 +912,9 @@ def _init_findings(r):
         f.append(('warn', 'main did not return and no frame is open: the markers stop, but the last one is not an '
                           'entry; see the newest marker.'))
     if r['last']:
+        idade = _idade(r['last'][-1]['ns'] / 1e9)
+        if idade:
+            f.append(idade)
         f.append(('muted', 'The newest marker on disk: %s%s.' % (
             '; '.join(_describe_init(e) for e in r['last'][:3]),
             ' (written in the same tick: their order is not known)' if len(r['last']) > 1 else '')))
@@ -907,10 +923,18 @@ def _init_findings(r):
                   % INIT_BUDGET))
     if r['stale']:
         f.append(('muted', '%d older file(s) from an earlier run were left out.' % r['stale']))
-    f.append(
-        ('muted', 'This reader cannot tell a hang from a crash: the game closing by itself leaves the same files.')
-    )
+    f.append(('muted', 'The Doctor cannot tell a hang from a crash: the game closing by itself leaves the same files.'))
     return f
+
+
+def _idade(mtime):
+    import time
+    s = time.time() - mtime
+    quando = time.strftime('%Y-%m-%d %H:%M', time.localtime(mtime))
+    if s > 86400:
+        return ('warn', 'These files were written on %s, %d day(s) ago: if the copy was played after that, the game '
+                        'did not get to write them this time, and they are from an earlier run.' % (quando, s // 86400))
+    return ('muted', 'Written on %s.' % quando)
 
 
 def logs(limit=20):
@@ -919,16 +943,28 @@ def logs(limit=20):
     if os.path.isdir(pasta):
         for f in os.listdir(pasta):
             p = os.path.join(pasta, f)
-            if f.lower().endswith('.pld') and os.path.isfile(p):
-                st = os.stat(p)
-                out.append({'path': p, 'name': f, 'modified': st.st_mtime, 'bytes': st.st_size, 'kind': 'log'})
-            elif f.endswith('_init') and os.path.isdir(p):
-                sts = [os.stat(os.path.join(p, x)) for x in os.listdir(p) if x.lower().endswith('.pld')]
-                if sts:
-                    out.append({'path': p, 'name': f, 'modified': max(x.st_mtime for x in sts),
-                                'bytes': sum(x.st_size for x in sts), 'kind': 'init'})
+            try:
+                if f.lower().endswith('.pld') and os.path.isfile(p):
+                    st = os.stat(p)
+                    out.append({'path': p, 'name': f, 'modified': st.st_mtime, 'bytes': st.st_size, 'kind': 'log'})
+                elif f.endswith('_init') and os.path.isdir(p):
+                    sts = []
+                    for x in os.listdir(p):
+                        if x.lower().endswith('.pld'):
+                            try:
+                                sts.append(os.stat(os.path.join(p, x)))
+                            except OSError:
+                                pass
+                    if sts:
+                        out.append({'path': p, 'name': f, 'modified': max(x.st_mtime for x in sts),
+                                    'bytes': sum(x.st_size for x in sts), 'kind': 'init'})
+            except OSError:
+                continue
     out.sort(key=lambda x: -x['modified'])
     return out[:limit]
+
+
+LOG_CAP = 64 << 20
 
 
 def _unescape(s):
@@ -964,6 +1000,11 @@ def read_log(path):
     if os.path.isdir(path):
         return _init_only(out, path)
     try:
+        if os.path.getsize(path) > LOG_CAP:
+            out['error'] = 'This file is too big to be a log of a diagnostic copy (%d MB).' % (
+                os.path.getsize(path) >> 20
+            )
+            return out
         with open(path, 'rb') as f:
             raw = f.read()
     except OSError as e:
@@ -1000,10 +1041,14 @@ def read_log(path):
             out['events'].append({'time': _num(parts[1]), 'name': parts[2].replace('~w', ''),
                                   'times': _num(parts[3], int)})
     out['findings'] = _findings(out)
+    try:
+        out['findings'].insert(0, _idade(os.path.getmtime(path)))
+    except OSError:
+        pass
     if folder:
         out['init'] = read_init(folder)
         out['findings'] += [(st, 'Load markers: ' + t) for st, t in out['init']['findings']
-                            if not t.startswith('This reader cannot tell')]
+                            if not t.startswith('The Doctor cannot tell')]
     return out
 
 
