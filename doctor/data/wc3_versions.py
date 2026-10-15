@@ -164,9 +164,27 @@ def download(progress=None):
     return d
 
 
+def _pack_velho(d):
+    for v in CLASSIC:
+        m = os.path.join(d, v, PACK_MANIFEST)
+        if not os.path.isfile(m):
+            continue
+        try:
+            with open(m, encoding='utf-8') as f:
+                pat = json.load(f).get('patterns') or []
+        except (OSError, ValueError):
+            return True
+        if set(pat) != set(DATA_PATTERNS):
+            return True
+    return False
+
+
 def ensure(progress=None):
-    if os.path.isdir(os.path.join(data_dir(), OBJECTS)):
-        return True
+    d = data_dir()
+    if os.path.isdir(os.path.join(d, OBJECTS)):
+        baixado = os.path.normcase(os.path.abspath(d)) == os.path.normcase(os.path.abspath(user_data_dir()))
+        if not (baixado and _pack_velho(d)):
+            return True
     if 'failed' in _DOWNLOAD or os.environ.get('WC3_VERSOES_DADOS'):
         return False
     try:
@@ -251,8 +269,6 @@ def pack_dir(version):
     v = normalize(version)
     if v in (None, REFORGED):
         return None
-    if getattr(sys, 'frozen', False):
-        ensure()
     d = os.path.join(data_dir(), v)
     return d if os.path.isfile(os.path.join(d, PACK_MANIFEST)) else None
 
