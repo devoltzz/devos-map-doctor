@@ -158,6 +158,8 @@ def facing_screen(data, direction=(1.0, 0.0, 0.0), name='DevoUIRoot'):
     buf = bytearray(data)
     for _t, o in nodes:
         oid, parent = struct.unpack_from('<ii', buf, o + 84)
+        if oid >= 0x7FFFFFFF or parent >= 0x7FFFFFFF:
+            raise ValueError('node id %d / parent %d out of range' % (oid, parent))
         if oid >= new_object_id:
             struct.pack_into('<i', buf, o + 84, oid + 1)
         if parent == -1:
@@ -212,6 +214,8 @@ def is_world_model(data, limit=2.0):
             if data[q + 4:q + 8] != b'VRTX' or sz < 12:
                 return False
             nv = struct.unpack_from('<I', data, q + 8)[0]
+            if q + 12 + 12 * nv > end:
+                return False
             vs = struct.unpack_from('<%df' % (nv * 3), data, q + 12)
             if vs and max(abs(v) for v in vs) > limit:
                 return True
