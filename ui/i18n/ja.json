@@ -3086,5 +3086,19 @@
  "... or only the ones that are copies of the game's file": "... またはゲームのファイルのコピーであるものだけ",
  "This map has a file name that the shared name list does not know yet. Share it on GitHub?": "このマップには、共有名前リストにまだないファイル名が1個あります。GitHubで共有しますか?",
  "World Editor: needs the fixes above.": "World Editor: 上記の修正が必要です。",
- "{0} of them are byte-for-byte copies of the game's own file: taking them out changes nothing the map shows, and the game uses its own. Needs the game installed.": "そのうち{0}個はゲーム本体のファイルとバイト単位で同一のコピーです。削除してもマップの表示は変わらず、ゲームは本体のファイルを使います。ゲームがインストールされている必要があります。"
+ "{0} of them are byte-for-byte copies of the game's own file: taking them out changes nothing the map shows, and the game uses its own. Needs the game installed.": "そのうち{0}個はゲーム本体のファイルとバイト単位で同一のコピーです。削除してもマップの表示は変わらず、ゲームは本体のファイルを使います。ゲームがインストールされている必要があります。",
+ "Port": "移植",
+ "Port to:": "移植先:",
+ "The game the ported map is for": "移植したマップの対象ゲーム",
+ "{0} (not for this map)": "{0}(このマップには非対応)",
+ "Made for: {0}.": "対応バージョン: {0}。",
+ "To Reforged. For KK or M16 maps (DzAPI, japi, JN): fills in the platform natives, makes the save local and ports the menus. Saves the map and a report next to it.": "Reforged向け。KKまたはM16のマップ(DzAPI、japi、JN)用: プラットフォームのネイティブ関数を補い、セーブをローカルにし、メニューを移植します。マップとレポートを隣に保存します。",
+ "Takes the map to {0}: the return bug gets its equivalent, the names the newer game also has are renamed and the script is checked with the scripts of {1}. The rest of the map stays. Saves the map and a report next to it.": "マップを{0}へ移植します: return bugには同等の処理を用意し、新しいゲームにも存在する名前はリネームし、スクリプトは{1}のスクリプトで確認します。マップのそれ以外の部分はそのままです。マップとレポートを隣に保存します。",
+ "Port to {0}": "{0}へ移植",
+ "Port to {0}: result": "{0}へ移植: 結果",
+ "Porting the map to {0}": "マップを{0}へ移植中",
+ "Porting the map to {0}...": "マップを{0}へ移植中...",
+ "to Reforged or a newer game": "Reforgedまたは新しいゲームへ",
+ "a map of the KK platform: Reforged only": "KKプラットフォームのマップ: Reforgedのみ",
+ "the map could not be read for this ({0})": "このためにマップを読み取れませんでした({0})"
 }
