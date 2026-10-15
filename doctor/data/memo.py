@@ -57,7 +57,7 @@ def load(kind, k):
         except OSError:
             pass
         return value
-    except (OSError, EOFError, pickle.PickleError, AttributeError, ImportError, ValueError, TypeError):
+    except Exception:
         return None
 
 
@@ -65,13 +65,14 @@ def save(kind, k, value):
     p = _path(kind, k)
     if p is None:
         return False
+    novo = '%s.new%d' % (p, os.getpid())
     try:
-        with open(p + '.new', 'wb') as f:
+        with open(novo, 'wb') as f:
             pickle.dump(value, f, protocol=pickle.HIGHEST_PROTOCOL)
-        os.replace(p + '.new', p)
+        os.replace(novo, p)
     except (OSError, pickle.PickleError, TypeError, AttributeError):
         try:
-            os.remove(p + '.new')
+            os.remove(novo)
         except OSError:
             pass
         return False
