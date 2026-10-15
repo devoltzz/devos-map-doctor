@@ -133,15 +133,27 @@ def read_member(d, base, m, sector_bytes):
         try:
             x = mpqread.decompress_sector(c, sector_bytes)
         except Exception:
-            if i < ns - 1:
+            x = _lenient_sector(c, sector_bytes)
+            if x is None and i < ns - 1:
                 raise
-            x = _last_sector(c)
+            if x is None:
+                x = _last_sector(c)
         if i == ns - 1 and len(x) <= len(c):
             x = c
         out += x
         if len(out) > READ_LIMIT:
             raise ValueError('member larger than %d MB' % (READ_LIMIT >> 20))
     return bytes(out)
+
+
+def _lenient_sector(c, sector_bytes):
+    import zlib
+    if not c or c[0] != 0x02 or len(c) < 4:
+        return None
+    try:
+        return zlib.decompressobj(-15).decompress(bytes(c[3:]), sector_bytes)[:sector_bytes] or None
+    except zlib.error:
+        return None
 
 
 def _implode(c):
@@ -343,7 +355,7 @@ def identify(b, w3e_dims=None):
         return None, '.mdx', 'mdx'
     if c4 in (b'BLP1', b'BLP2'):
         try:
-            w, hh = struct.unpack_from('<II', b, 12 if c4 == b'BLP1' else 12)
+            w, hh = struct.unpack_from('<II', b, 12)
         except struct.error:
             w = hh = 0
         return None, '.blp', 'blp_%dx%d' % (w, hh)
