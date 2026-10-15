@@ -218,14 +218,19 @@ def _mk(d):
     return d
 
 
+PARALLEL = 4
+
+
 class Engine(object):
     def __init__(self, name, threads=0):
         import ctranslate2
         import sentencepiece
         d = model_path(name)
         self.name = name
-        self.translator = ctranslate2.Translator(d, device='cpu', compute_type='int8',
-                                                 intra_threads=threads or max(1, min(8, os.cpu_count() or 1)))
+        total = threads or max(1, min(8, os.cpu_count() or 1))
+        inter = max(1, min(PARALLEL, total // 2))
+        self.translator = ctranslate2.Translator(d, device='cpu', compute_type='int8', inter_threads=inter,
+                                                 intra_threads=max(1, total // inter))
         self.src = sentencepiece.SentencePieceProcessor(model_file=os.path.join(d, 'source.spm'))
         self.tgt = sentencepiece.SentencePieceProcessor(model_file=os.path.join(d, 'target.spm'))
 
@@ -233,15 +238,17 @@ class Engine(object):
         p = progress or _nothing
         out = [None] * len(texts)
         order = sorted(range(len(texts)), key=lambda i: len(texts[i]))
+        jobs = []
         for start in range(0, len(order), batch):
             ids = order[start:start + batch]
             toks = [self.src.encode(texts[i], out_type=str)[:400] + ['</s>'] for i in ids]
-            res = self.translator.translate_batch(
+            jobs.append((start, ids, self.translator.translate_batch(
                 toks, beam_size=max(beam, n), num_hypotheses=n, max_batch_size=batch,
                 max_decoding_length=min(512, 3 * max(map(len, toks)) + 16), repetition_penalty=1.1,
-                no_repeat_ngram_size=4)
-            for i, t, r in zip(ids, toks, res):
-                hyps = [self.tgt.decode([x for x in h if x != '</s>']) for h in r.hypotheses]
+                no_repeat_ngram_size=4, asynchronous=True)))
+        for start, ids, res in jobs:
+            for i, r in zip(ids, res):
+                hyps = [self.tgt.decode([x for x in h if x != '</s>']) for h in r.result().hypotheses]
                 out[i] = hyps if n > 1 else hyps[0]
             p(min(len(order), start + batch), len(order))
         return out
