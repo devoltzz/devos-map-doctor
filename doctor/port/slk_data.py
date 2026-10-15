@@ -7,6 +7,7 @@ import sys
 import traceback
 
 from doctor.port import morph_chaos
+from doctor.data import objects
 from doctor.port import name_without_dot
 from doctor.data import slk_normalize
 
@@ -83,7 +84,7 @@ def applies(extract, data_bytes, raw_data, segment, tr_dir=None, expected_count=
     if os.path.isdir(data_bytes):
         shutil.rmtree(data_bytes)
     os.makedirs(units)
-    origin = os.path.join(extract, 'Units')
+    origin = objects.no_box(extract, 'Units')
     translated, info['translation'] = translate_txt(extract, tr_dir)
     for f in sorted(os.listdir(origin)):
         p = os.path.join(origin, f)
@@ -143,11 +144,11 @@ def applies(extract, data_bytes, raw_data, segment, tr_dir=None, expected_count=
                 failures.append('slk_fix %s: %s' % (f, out[-200:]))
             fix.append((f, out.strip().splitlines()[-1] if out.strip() else ''))
     info['slk_fix'] = fix
-    has_abil = os.path.isfile(os.path.join(units, 'AbilityData.slk'))
+    has_abil = os.path.isfile(objects.no_box(units, 'AbilityData.slk'))
     info['warnings'] = []
     if has_abil:
         from doctor.data import slk_levels
-        rc, out = run_action(slk_levels, [os.path.join(units, 'AbilityData.slk')])
+        rc, out = run_action(slk_levels, [objects.no_box(units, 'AbilityData.slk')])
         if rc:
             failures.append('slk_levels: %s' % out[-300:])
         info['slk_levels'] = out.strip().splitlines()[-3:]
@@ -167,13 +168,17 @@ def applies(extract, data_bytes, raw_data, segment, tr_dir=None, expected_count=
         info['warnings'] += ['morph_chaos: ' + f for f in target_sites]
     else:
         failures += ['morph_chaos: ' + f for f in target_sites]
-    slk = os.path.join(units, 'AbilityData.slk')
-    strings = os.path.join(units, 'campaignabilitystrings.txt')
+    slk = objects.no_box(units, 'AbilityData.slk')
+    strings = objects.no_box(units, 'campaignabilitystrings.txt')
     if has_abil and targets:
         pairs = list(zip(morph_chaos.aliases(len(targets), morph_chaos.slk_ids(slk)), targets))
         if not os.path.isfile(strings):
             open(strings, 'wb').close()
-        n_l, n_strings = morph_chaos.add_levels(slk, strings, pairs)
+        try:
+            n_l, n_strings = morph_chaos.add_levels(slk, strings, pairs)
+        except ValueError as e:
+            failures.append('morph_chaos: %s' % e)
+            pairs, n_l, n_strings = [], 0, 0
     else:
         pairs, n_l, n_strings = [], 0, 0
     open(segment, 'w', encoding='utf-8', newline='\n').write(morph_chaos.segment(pairs))
