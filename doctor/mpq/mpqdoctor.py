@@ -303,7 +303,7 @@ def diagnose(path):
         print('tables  : hash %d/%d in use, block %d/%d valid (standard keys)' % (used, hn_, okb, bn_))
     try:
         a = R.Archive(path)
-    except BaseException as e:
+    except Exception as e:
         print('          (the reader could not open it: %s)' % e)
         return hdr, issues, f
     if virtual_tables(a):
@@ -381,7 +381,11 @@ def _wts(body_text):
 
 def build_hm3w(a):
     from doctor.data import w3i
-    m = w3i.parse(a.read('war3map.w3i'))
+    _b = a.read('war3map.w3i')
+    try:
+        m = w3i.parse(_b)
+    except Exception:
+        m = w3i.parse_tolerant(_b)
     fname = m['name'].decode('utf-8', 'replace')
     tr = re.match(r'^TRIGSTR_(\d+)$', fname.strip())
     if tr:
