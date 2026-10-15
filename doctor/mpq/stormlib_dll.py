@@ -22,14 +22,16 @@ SFileMpqFlags = 39
 
 _dll = None
 _error_dll = None
+_dll_of = None
 
 
 def dll(file_path=None):
-    global _dll, _error_dll
-    if _dll is not None or _error_dll is not None:
-        return _dll
+    global _dll, _error_dll, _dll_of
     p = file_path or os.environ.get('STORMLIB_DLL') or DLL_DEFAULT
-    if struct.calcsize('P') != 8 or not os.path.isfile(p):
+    if _dll_of == p and (_dll is not None or _error_dll is not None):
+        return _dll
+    _dll, _error_dll, _dll_of = None, None, p
+    if struct.calcsize('P') != 8 or not os.path.isfile(p) or not hasattr(ctypes, 'WinDLL'):
         _error_dll = 'no_dll'
         return None
     try:
@@ -124,9 +126,7 @@ def read_data(file_path, name_list, dll_path=None, cap=256 << 20):
                 buf = ctypes.create_string_buffer(max(sz, 1))
                 read_count = ctypes.c_uint(0)
                 ok = d.SFileReadFile(f, buf, sz, ctypes.byref(read_count), None)
-                out[n] = (
-                    buf.raw[: read_count.value] if (ok or read_count.value == sz) and read_count.value == sz else None
-                )
+                out[n] = buf.raw[:read_count.value] if read_count.value == sz else None
             finally:
                 d.SFileCloseFile(f)
     finally:
