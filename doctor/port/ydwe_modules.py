@@ -181,7 +181,11 @@ def _classify(d):
             d[:65536].decode('utf-8')
         except UnicodeDecodeError as e:
             if not (len(d) > 65536 and e.start >= 65536 - 3):
-                return None
+                try:
+                    d[:65536].decode('gbk')
+                except UnicodeDecodeError as e2:
+                    if not (len(d) > 65536 and e2.start >= 65536 - 3):
+                        return None
         if b'end' in d or b'return' in d or _compile_lua(d):
             return 'body_text'
     return None
