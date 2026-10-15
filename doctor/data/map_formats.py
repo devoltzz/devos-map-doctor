@@ -273,6 +273,8 @@ def read_w3e(data):
         raise Unreadable('w3e: %d ground and %d cliff tiles, %dx%d points' % (nt, nc, w, h))
     rest = len(data) - p
     size = 7 if v == 11 else rest // (w * h) if rest % (w * h) == 0 else 7
+    if size <= 0:
+        raise Unreadable('w3e: no point data after the header (%d bytes for %dx%d points)' % (rest, w, h))
     if size * w * h > rest:
         raise Unreadable('w3e: %dx%d points of %d bytes in %d bytes' % (w, h, size, rest))
     return Grid('w3e', data[:p], data[p:p + size * w * h], size, data[p + size * w * h:],
