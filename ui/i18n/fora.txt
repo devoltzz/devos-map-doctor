@@ -174,3 +174,8 @@ de que não você para com uma os ao seu sua
 der die das und ist nicht mit sie ein eine
 le la les et est pas vous pour avec une des
 the and you your to of is for with this are have will
+NOT PORTED
+Note:
+Ported:
+The map
+already runs
