@@ -1,6 +1,5 @@
 # Reads and changes the name a map shows in the game list (the HM3W header).
 import io
-import struct
 
 
 TAM = 512
@@ -12,7 +11,9 @@ def renomeia(file_path, fname, do_write=True):
         header = f.read(TAM)
         if header[:4] != b'HM3W':
             raise ValueError('%s does not start with HM3W' % file_path)
-        end_pos = header.index(b'\x00', OFF_NAME)
+        end_pos = header.find(b'\x00', OFF_NAME)
+        if end_pos < 0:
+            raise ValueError('%s: the HM3W name does not end within the 512 bytes' % file_path)
         before = header[OFF_NAME:end_pos].decode('utf-8', 'replace')
         if before == fname:
             return False, before
@@ -42,6 +43,7 @@ def name_hm3w(p):
         header = f.read(0x200)
     if header[:4] != b'HM3W':
         return '(no HM3W: %r)' % header[:4]
-    n = struct.unpack_from('<I', header, 4)[0] if False else None
-    end_pos = header.index(b'\x00', 8)
+    end_pos = header.find(b'\x00', 8)
+    if end_pos < 0:
+        return '(HM3W without the end of the name)'
     return header[8:end_pos].decode('utf-8', 'replace')
