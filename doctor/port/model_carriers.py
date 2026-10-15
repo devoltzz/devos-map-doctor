@@ -315,3 +315,4 @@ def add_effect_carrier(units, body_text, extract=None):
         line_list[bi[0]] = 'B;X%d;Y%d;D0' % (mx, y)
         io.open(path, 'wb').write(C.join_lines(line_list, crlf))
     return EFFECT_CARRIER
+
