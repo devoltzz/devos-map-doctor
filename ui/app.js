@@ -467,6 +467,8 @@ async function openMap(path) {
   state.results = {};
   state.portResult = null;
   state.portPackages = [];
+  state.portTargets = null;
+  state.portTarget = '';
   state.extras = { card: null, translation: null, models: null, modelNames: null, singlePlayer: null, portraits: null,
     dataPointers: null, kkTextures: null, disabledIcons: null, uabi: null, preload: null, attributes: null, gameOverrides: null, requirements: null, fdf: null, slkObjects: null, lobbyImage: null };
   state.cheatpacks = null;
@@ -1106,7 +1108,7 @@ async function reportProblem() {
     '```', (state.lastError.trace || '').slice(-2500), '```');
   if (state.open) parts.push('Map: ' + state.open.name + ' (' + mb(state.open.size) + ')', '',
     '### Diagnosis', '```', plainReport(state.open.lines), '```');
-  const otherTitles = { port: 'Port to Reforged', cheatpacks: 'Cheat pack' };
+  const otherTitles = { port: 'Port', cheatpacks: 'Cheat pack' };
   for (const [action, r] of Object.entries(state.results)) {
     parts.push('', '### ' + (ACTIONS[action] ? ACTIONS[action].title : otherTitles[action] || action), '```',
       plainReport(r.lines || []), '```');
@@ -2579,15 +2581,59 @@ function renderCompare(result) {
     el('p', { class: 'lead', text: 'What changed against another version of this map.' }), pick, ...parts));
 }
 
+async function loadPortTargets(gen) {
+  try {
+    const r = await run('port_targets', {}, { quiet: true });
+    if (gen !== state.gen) return;
+    state.portTargets = r;
+  } catch (e) {
+    if (gen !== state.gen) return;
+    state.portTargets = { targets: [{ value: '', label: 'Reforged (3.0)', reason: null }] };
+  }
+  renderPort();
+}
+
+function portTargetPicker() {
+  const t = state.portTargets;
+  if (!t || !t.targets || t.targets.length < 2) return null;
+  const cur = state.portTarget || '';
+  return el('div', {},
+    el('div', { class: 'row' }, el('span', { class: 'muted', text: 'Port to:' }),
+      el('select', { class: 'field', style: 'width:auto', title: 'The game the ported map is for',
+        onchange: e => { state.portTarget = e.target.value; renderPort(); } },
+      ...t.targets.map(x => el('option', { value: x.value, text: x.reason ? x.label + ' (not for this map)' : x.label,
+        title: x.reason || '', disabled: !!x.reason, selected: (x.value || '') === cur })))),
+    t.made_for ? el('p', { class: 'faint', text: 'Made for: ' + t.made_for + '.' }) : null);
+}
+
 function renderPort() {
   const s = state.open ? state.open.summary : null;
   const platform = s && /kk|j2b/.test(s.script || '') ? 'The KK script is turned back into JASS first.' : '';
   const r = state.portResult;
+  if (state.open && !state.portTargets) {
+    state.portTargets = { targets: [{ value: '', label: 'Reforged (3.0)', reason: null }], loading: true };
+    loadPortTargets(state.gen);
+  }
+  const target = state.portTarget || '';
+  if (target) {
+    tabBody('port',
+      el('div', { class: 'card' },
+        el('h2', { text: 'Port' }),
+        portTargetPicker(),
+        el('p', { class: 'lead', text: 'Takes the map to ' + target + ': the return bug gets its equivalent, the ' +
+          'names the newer game also has are renamed and the script is checked with the scripts of ' + target +
+          '. The rest of the map stays. Saves the map and a report next to it.' }),
+        el('div', { class: 'foot' }, el('button', { class: 'btn primary needs-idle', text: 'Port to ' + target,
+          disabled: !!state.running, onclick: runPort }))),
+      r ? portResult(r) : null);
+    return;
+  }
   tabBody('port',
     el('div', { class: 'card' },
-      el('h2', { text: 'Port to Reforged' }),
-      el('p', { class: 'lead', text: 'For KK or M16 maps (DzAPI, japi, JN): fills in the platform natives, ' +
-        'makes the save local and ports the menus. Saves the map and a report next to it.' }),
+      el('h2', { text: 'Port' }),
+      portTargetPicker(),
+      el('p', { class: 'lead', text: 'To Reforged. For KK or M16 maps (DzAPI, japi, JN): fills in the platform ' +
+        'natives, makes the save local and ports the menus. Saves the map and a report next to it.' }),
       platform ? el('p', { class: 'muted', text: platform }) : null,
       el('p', { class: 'muted', text: 'Big maps take minutes.' }),
       packagesBox(),
@@ -2841,14 +2887,14 @@ async function runPort() {
     const r = await run('port', { packages: state.portPackages || [], memory: state.portMemory !== false,
       icons: state.portIcons !== false, textures: state.portTextures !== false, balance: state.portBalance === true,
       game_files: state.portGameFiles === true, lossy: state.portLossy === true, strip_indent: stripIndentOn(),
-      classic: state.portClassic === true },
-      { label: 'Porting the map to Reforged...' });
+      classic: state.portClassic === true, to: state.portTarget || '' },
+      { label: state.portTarget ? 'Porting the map to ' + state.portTarget + '...' : 'Porting the map to Reforged...' });
     state.portResult = r;
     state.results.port = r;
     renderPort();
     status(r.outcome === 'ok' ? 'Ported.' : 'The port stopped.');
   } catch (e) {
-    failed(e, 'Port to Reforged');
+    failed(e, 'Port');
     if (e && e.cancelled) return;
     const msg = (e && e.message) || String(e);
     const lines = [['bad', 'The port stopped: ' + msg]];
@@ -2863,7 +2909,8 @@ function portResult(r) {
   const badge = r.outcome === 'ok' ? ['good', 'Ported'] : ['bad', 'Stopped'];
   const stubs = p.stubs || [];
   return el('div', { class: 'card', id: 'result-port' },
-    el('div', { class: 'row' }, el('h2', { class: 'grow', text: 'Port to Reforged: result' }),
+    el('div', { class: 'row' }, el('h2', { class: 'grow', text: p.target ? 'Port to ' + p.target + ': result' :
+      'Port to Reforged: result' }),
       el('span', { class: 'badge ' + badge[0], text: badge[1] })),
     el('div', { class: 'badges' },
       p.g1 !== undefined && p.g1 !== null ? el('span', { class: 'badge ' + (p.g1 ? 'good' : 'bad'),
@@ -2872,8 +2919,8 @@ function portResult(r) {
         text: 'Compiler gate G2: ' + (p.g2 ? 'pass' : 'fail') }) : null,
       p.declared ? el('span', { class: 'badge', text: p.implemented + ' of ' + p.declared +
         ' platform natives implemented' }) : null,
-      el('span', { class: 'badge ' + (stubs.length ? 'warn' : 'good'), text: stubs.length + ' called stub' +
-        (stubs.length === 1 ? '' : 's') })),
+      p.target ? null : el('span', { class: 'badge ' + (stubs.length ? 'warn' : 'good'), text: stubs.length +
+        ' called stub' + (stubs.length === 1 ? '' : 's') })),
     linesView(r.lines),
     stubs.length ? el('div', {}, el('h3', { text: 'Stubs the map calls' }),
       el('div', { class: 'scroll', style: 'max-height:280px' }, el('table', { class: 'grid' },
