@@ -15,14 +15,14 @@ def occurrences(line_list, tem_text=None, protected=None, script_flow=None):
     present = tem_text or CJK.search
     inside = tx.lines_protected(line_list, tx.functions_protected(ta.TR) if protected is None else protected)
     out = []
-    for ln, line in enumerate(line_list):
+    for txt_ln, line in enumerate(line_list):
         for pos, lit in ki.literals(line):
             if not present(lit):
                 continue
-            if inside and inside[ln]:
-                out.append((ln, lit, 'datum'))
+            if inside and inside[txt_ln]:
+                out.append((txt_ln, lit, 'datum'))
             else:
-                out.append((ln, lit, ta.classifica_occurrence(line, pos, lit, False, script_flow, ln)))
+                out.append((txt_ln, lit, ta.classifica_occurrence(line, pos, lit, False, script_flow, txt_ln)))
     return out
 
 
@@ -32,13 +32,13 @@ def script(file_path):
     clusters = collections.Counter()
     ideog = collections.Counter()
     screen = collections.defaultdict(list)
-    for ln, lit, cat in occurrences(line_list):
+    for txt_ln, lit, cat in occurrences(line_list):
         g = cat.split(':', 1)[0]
         n = len(CJK.findall(lit))
         clusters[g] += 1
         ideog[g] += n
         if g == 'screen':
-            screen[lit].append(ln + 1)
+            screen[lit].append(txt_ln + 1)
     return clusters, ideog, screen, line_list
 
 
