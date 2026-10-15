@@ -96,6 +96,8 @@ def steps(diag):
         )
     for hash_key in ('gui_triggers', 'script_objects', 'safe_units'):
         place('editor', hash_key, ed == 'needs_work', reason=None if ed == 'needs_work' else 'editor_is_ready')
+    identical = bool((diag.get('editor') or {}).get('duplicate_textures'))
+    place('editor', 'duplicate_textures', identical, reason=None if identical else 'no_identical', default_on=False)
     for problem in slk_patch.PROBLEMS:
         present = SLK_CODE[problem] in code_part
         place('editor', 'dados:' + problem, present and needs_work, reason=None if present else 'tables_ok')
@@ -150,7 +152,7 @@ def apply_extras(entry, output, extras, progress=None):
                         details = attributes_check.fix(src, t, p)
                     elif extra == 'game_overrides':
                         from doctor.port import game_files
-                        details = game_files.fix(src, t, p)
+                        details = game_files.fix(src, t, p, scope='identical' if param == 'identical' else 'all')
                     elif extra == 'requirements':
                         from doctor.fix import requirement_check
                         details = requirement_check.fix(src, t, p)
@@ -212,7 +214,7 @@ def apply_extras(entry, output, extras, progress=None):
                     else:
                         from doctor.fix import shrink
                         details = shrink.shrink(src, t, param if isinstance(param, dict) else None, p)
-                if (details or {}).get('state') == 'nothing_to_do' and not os.path.isfile(t):
+                if (details or {}).get('state') in ('nothing_to_do', 'nothing_to_apply') and not os.path.isfile(t):
                     out['reports'][extra] = details
                     continue
                 if not os.path.isfile(t):
@@ -632,8 +634,9 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
         prot('inflated_counts', **x)
     try:
         _bd = _read(a, 'war3map.doo')
-        if _bd:
-            _valid = doodads.game_ids() | doodads.map_ids(a) | set(extra_ids)
+        _game = doodads.game_ids() if _bd else set()
+        if _bd and _game:
+            _valid = _game | doodads.map_ids(a) | set(extra_ids)
             if _valid:
                 _bad = doodads.invalid_ids(_bd, _valid)
                 if _bad:
@@ -719,7 +722,7 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
     elif ed['w3i'] in ('unreadable', 'missing'):
         ed['status'] = 'w3i_' + ed['w3i']
     elif ed['w3i'] in ('ok', 'new') and not ed['missing_items'] and not set(codes) & set(EDITOR_BLOCKERS) and \
-            not ed.get('duplicate_textures') and not ed.get('trigger_list'):
+            not ed.get('trigger_list'):
         ed['status'] = 'ready'
     else:
         ed['status'] = 'needs_work'
@@ -1001,7 +1004,11 @@ def _listfile_and_fake(file_path, name_list):
         del all_items[k]
     fake_count = count_fake(a)
     repl = []
-    if set(all_items) - set(current_names):
+    _originals = [
+        line.strip() for line in (lf.decode('utf-8', 'surrogateescape').splitlines() if lf else []) if line.strip()
+    ]
+    if set(all_items) - set(current_names) or any('/' in line for line in _originals) or \
+            set(line.replace('/', '\\').upper() for line in _originals) != set(all_items):
         listing = sorted(all_items.values(), key=lambda n: (n.lower(), n))
         repl.append(('(listfile)', ('\r\n'.join(listing) + '\r\n').encode('utf-8', 'surrogateescape')))
     rewritten = game_only_reads(a, sorted(all_items.values(), key=lambda n: (n.lower(), n)))
@@ -1020,6 +1027,20 @@ def _listfile_and_fake(file_path, name_list):
         'no_slot': no_slot,
         'rewritten': [n for n, _d in rewritten if n not in no_slot],
     }
+
+
+def check_untouched(a, b, name_list, done=()):
+    done = set(n.lower() for n in done)
+    n = 0
+    for fname in name_list:
+        if fname.lower() in done:
+            continue
+        x = _read(a, fname)
+        if x is not None:
+            if _read(b, fname) != x:
+                raise RuntimeError('%s changed' % fname)
+            n += 1
+    return n
 
 
 def check_content(original, output, exclude=()):
@@ -1377,13 +1398,7 @@ def target_version(file_path, version_num):
 
 def opens_in_editor(d, version_num=None):
     ed = d.get('editor') or {}
-    if ed.get('status') == 'ready':
-        return True
-    if version_num is None or ed.get('status') != 'needs_work' or not ed.get('duplicate_textures'):
-        return False
-    codes = set(x['code'] for x in d.get('protections') or [])
-    return ed.get('w3i') in ('ok', 'new') and not ed.get('missing_items') and not codes & set(EDITOR_BLOCKERS) and \
-        not ed.get('trigger_list')
+    return ed.get('status') == 'ready'
 
 
 def version_block(file_path, version_num):
@@ -1408,12 +1423,23 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
     res['editor_version_used'] = version_num
     if version_num is not None:
         from doctor.fix import editor_version
+        from doctor.data import wc3_versions
+        if getattr(sys, 'frozen', False):
+            p('download')
+            wc3_versions.ensure(lambda s: None)
         if not editor_version.available(version_num):
             res['status'] = 'no_version_files'
-            res['err'] = 'Warcraft III %s: %s' % (
-                version_num,
-                editor_version.where(version_num) or 'externos/wc3_versoes',
-            )
+            reason = getattr(wc3_versions, '_DOWNLOAD', {}).get('failed')
+            if getattr(sys, 'frozen', False):
+                res['err'] = ('the program downloads them once, %d MB from its own site%s; check the connection and '
+                              'try again, or choose the Reforged World Editor'
+                              % (wc3_versions.DATA_ZIP['size'] >> 20,
+                                 (', and the download failed: %s' % reason) if reason else ''))
+            else:
+                res['err'] = (
+                    'the data pack of that version is not here (WC3_VERSOES_DADOS, or common/cache/wc3_versoes '
+                    'built by wc3_versoes.py); choose the Reforged World Editor'
+                )
             return res
         options = dict(options or {}, **dict(('dados:' + x, False) for x in slk_patch.PROBLEMS))
     if _same_file(file_path, output):
@@ -1478,14 +1504,34 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
         p('editor')
         part = _part(output)
         res['output'] = part
+        _warnings = []
         with quiet():
-            details, _assembled = editor_prep.prepare(src, part, name_list, log=_nothing, safe_units=safe_units,
-                                                   extra_ids=extra_ids, options=options, version_num=version_num)
+            details, _assembled = editor_prep.prepare(src, part, name_list, log=lambda s: _warnings.append(str(s)),
+                                                   safe_units=safe_units, extra_ids=extra_ids,
+                                                   options=options, version_num=version_num)
+        details['warnings'] = [
+            x for x in _warnings if ': ' in x and ('Error' in x or 'error' in x or 'failed' in x or 'not ' in x)
+        ][:12]
         if res.get('script'):
             details['script_restore'] = res['script']
         res['editor'] = details
         if details['failures']:
             raise RuntimeError('editor_prep: %s' % '; '.join(details['failures']))
+        if step_on(options, 'slk_objects'):
+            _b = _open(part)
+            _slk = bool(_b.find('Units\\UnitData.slk') or _b.find('Units\\ItemData.slk')) and \
+                not (_b.find('war3map.w3u') or _b.find('war3map.w3t'))
+            del _b
+            if _slk:
+                p('slk_objects')
+                from doctor.fix import slk_objects
+                t = os.path.join(tmp, '4_slk_objects.w3x')
+                with quiet():
+                    slk_rep = slk_objects.fix(part, t, _nothing)
+                res['slk_objects'] = dict((k, v) for k, v in slk_rep.items()
+                                          if k in ('state', 'lines', 'written', 'reason', 'error'))
+                if slk_rep.get('state') == 'done' and os.path.isfile(t):
+                    shutil.move(t, part)
         p('verify')
         res['after_diag'] = after_diag = diagnose(part, extra_ids=extra_ids)
         os.replace(part, output)
