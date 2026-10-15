@@ -30,7 +30,10 @@ def renumber(main, table):
     if table == 'standard':
         return main
     for g in lua_bytecode.walk(main):
-        g['code'] = [(i & ~0x3F) | KK_YDWE_OPCODES[i & 0x3F] for i in g['code']]
+        try:
+            g['code'] = [(i & ~0x3F) | KK_YDWE_OPCODES[i & 0x3F] for i in g['code']]
+        except KeyError as e:
+            raise TranslateError('opcode %s is not in the KK YDWE numbering' % e)
     return main
 
 
@@ -81,6 +84,11 @@ local function __setlist(t, base, ...)
 end
 local F = {}
 '''
+
+
+def _fb2int(x):
+    e = (x >> 3) & 0x1F
+    return x if e == 0 else ((x & 7) + 8) << (e - 1)
 
 
 def _decode(i):
@@ -200,6 +208,9 @@ def _function(pr):
             targets.add(pc + 2)
         elif op == LOADBOOL and c:
             targets.add(pc + 2)
+    for t in targets:
+        if not 0 <= t < n:
+            raise TranslateError('a jump lands outside the code (pc %d of %d)' % (t, n))
     out = []
     params = ['r%d' % k if k not in captured else 'p%d' % k for k in range(f['params'])]
     if f['vararg']:
@@ -244,7 +255,7 @@ def _function(pr):
         elif op == LOADK:
             s = '%s = %s' % (R(a), K(bx))
         elif op == LOADKX:
-            nxt = _decode(code[pc + 1])
+            nxt = _decode(code[pc + 1]) if pc + 1 < n else (None,)
             if nxt[0] != EXTRAARG:
                 raise TranslateError('LOADKX without EXTRAARG at pc %d' % pc)
             s = '%s = %s' % (R(a), K(nxt[6]))
@@ -268,7 +279,8 @@ def _function(pr):
         elif op == SETTABLE:
             s = '%s[%s] = %s' % (R(a), RK(b), RK(c))
         elif op == NEWTABLE:
-            s = '%s = {}' % R(a)
+            size = _fb2int(b)
+            s = '%s = {%s}' % (R(a), ', '.join(['nil'] * size) if 0 < size <= 512 else '')
         elif op == SELF:
             s = '%s = %s %s = %s[%s]' % (R(a + 1), R(b), R(a), R(a + 1), RK(c))
         elif op in ARITH:
@@ -324,7 +336,7 @@ def _function(pr):
             s = 'if %s ~= nil then %s = %s goto L%d end' % (R(a + 1), R(a), R(a + 1), pc + 1 + sbx)
         elif op == SETLIST:
             if c == 0:
-                nxt = _decode(code[pc + 1])
+                nxt = _decode(code[pc + 1]) if pc + 1 < n else (None,)
                 if nxt[0] != EXTRAARG:
                     raise TranslateError('SETLIST without EXTRAARG at pc %d' % pc)
                 c = nxt[6]
