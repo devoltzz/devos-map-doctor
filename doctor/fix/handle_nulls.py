@@ -197,6 +197,9 @@ class _Flow(object):
 
     def loop(self, s, state, loops, record):
         exits = []
+        if not record:
+            self.block(s.body, state, loops + [exits], False)
+            return _join_all(exits)
         end = self.block(s.body, state, loops + [exits], False)
         start = state if end is None else _join(state, end)
         exits = []
@@ -310,8 +313,8 @@ def reforged_items(r, item=None):
     if r.get('error') or not r.get('counts') or not r['counts']['leaks']:
         return []
     c = r['counts']
-    text = ('%d handle locals in %d functions are not set to null before the function ends (%d run on a periodic '
-            'timer, %d on an event): each keeps a handle id from being recycled. The Fix map option "Null handle '
+    text = ('%d handle locals in %d functions are not set to null when the function ends (%d on a periodic timer, '
+            '%d on an event): each keeps its object\'s handle id from being recycled. The Fix map option "Null handle '
             'locals" writes the missing lines.' % (c['locals_leaking'], c['functions'], c['hot'], c['repeat']))
     make = item or (lambda code, sev, text_, fix, **data: dict(code=code, severity=sev, text=text_, fix=fix, data=data))
     return [make('handle_locals_not_nulled', 'info', text, 'doctor', locals=c['locals_leaking'],
@@ -463,11 +466,16 @@ def _pjass(text, common=None, blizzard=None, pjass=None, workdir=None):
     tmp = workdir or tempfile.mkdtemp(prefix='handle_nulls_')
     os.makedirs(tmp, exist_ok=True)
     path = os.path.join(tmp, 'war3map.j')
-    with open(path, 'wb') as fh:
-        fh.write(text.encode('latin-1') if isinstance(text, str) else text)
-    res = pj.run_action([(common or os.path.join(ref, 'common.j'), 'common.j'),
-                         (blizzard or os.path.join(ref, 'blizzard.j'), 'blizzard.j'), (path, 'war3map.j')],
-                        pjass=pjass, tmp=tmp)
+    try:
+        with open(path, 'wb') as fh:
+            fh.write(text.encode('latin-1') if isinstance(text, str) else text)
+        res = pj.run_action([(common or os.path.join(ref, 'common.j'), 'common.j'),
+                             (blizzard or os.path.join(ref, 'blizzard.j'), 'blizzard.j'), (path, 'war3map.j')],
+                            pjass=pjass, tmp=tmp)
+    finally:
+        if workdir is None:
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
     return res
 
 
