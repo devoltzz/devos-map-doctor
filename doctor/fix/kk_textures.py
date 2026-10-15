@@ -39,7 +39,7 @@ def scan(path):
 def fix(path_in, path_out, progress=None):
     p = progress or _nothing
     res = {'state': 'failed', 'written': [], 'failed': [], 'checked': 0}
-    if os.path.abspath(path_in) == os.path.abspath(path_out):
+    if os.path.normcase(os.path.abspath(path_in)) == os.path.normcase(os.path.abspath(path_out)):
         res['error'] = 'The output must be a new file.'
         return res
     from doctor.models import blpread
@@ -83,15 +83,7 @@ def fix(path_in, path_out, progress=None):
         for name, data in repl:
             if unprotect._read(b, name) != data:
                 raise RuntimeError('%s was not read back' % name)
-        done = set(n.lower() for n, _d in repl)
-        for n in names:
-            if n.lower() in done:
-                continue
-            x = unprotect._read(a, n)
-            if x is not None:
-                if unprotect._read(b, n) != x:
-                    raise RuntimeError('%s changed' % n)
-                res['checked'] += 1
+        res['checked'] += unprotect.check_untouched(a, b, names, [n for n, _d in repl])
         del a, b
         os.replace(part, path_out)
     except Exception as e:
