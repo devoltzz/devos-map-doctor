@@ -3087,5 +3087,19 @@
  "... or only the ones that are copies of the game's file": "... ou só os que são cópias do arquivo do jogo",
  "This map has a file name that the shared name list does not know yet. Share it on GitHub?": "Este mapa tem um nome de arquivo que a lista de nomes compartilhada ainda não conhece. Compartilhá-lo no GitHub?",
  "World Editor: needs the fixes above.": "World Editor: requer as correções acima.",
- "{0} of them are byte-for-byte copies of the game's own file: taking them out changes nothing the map shows, and the game uses its own. Needs the game installed.": "{0} deles são cópias byte a byte do arquivo do próprio jogo: removê-los não muda nada do que o mapa mostra, e o jogo usa o seu. Precisa do jogo instalado."
+ "{0} of them are byte-for-byte copies of the game's own file: taking them out changes nothing the map shows, and the game uses its own. Needs the game installed.": "{0} deles são cópias byte a byte do arquivo do próprio jogo: removê-los não muda nada do que o mapa mostra, e o jogo usa o seu. Precisa do jogo instalado.",
+ "Port": "Portar",
+ "Port to:": "Portar para:",
+ "The game the ported map is for": "O jogo para o qual o mapa portado se destina",
+ "To Reforged. For KK or M16 maps (DzAPI, japi, JN): fills in the platform natives, makes the save local and ports the menus. Saves the map and a report next to it.": "Para o Reforged. Para mapas KK ou M16 (DzAPI, japi, JN): preenche os natives da plataforma, torna o save local e porta os menus. Salva o mapa e um relatório ao lado dele.",
+ "a map of the KK platform: Reforged only": "um mapa da plataforma KK: só para o Reforged",
+ "to Reforged or a newer game": "para o Reforged ou um jogo mais novo",
+ "Made for: {0}.": "Feito para: {0}.",
+ "Port to {0}": "Portar para {0}",
+ "Port to {0}: result": "Portar para {0}: resultado",
+ "Porting the map to {0}": "Portando o mapa para {0}",
+ "Porting the map to {0}...": "Portando o mapa para {0}...",
+ "Takes the map to {0}: the return bug gets its equivalent, the names the newer game also has are renamed and the script is checked with the scripts of {1}. The rest of the map stays. Saves the map and a report next to it.": "Leva o mapa para {0}: o return bug ganha o seu equivalente, os nomes que o jogo mais novo também tem são renomeados e o script é verificado com os scripts da {1}. O resto do mapa fica como está. Salva o mapa e um relatório ao lado dele.",
+ "the map could not be read for this ({0})": "não foi possível ler o mapa para isso ({0})",
+ "{0} (not for this map)": "{0} (não serve para este mapa)"
 }
