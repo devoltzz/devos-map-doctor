@@ -95,6 +95,8 @@ def _jsonable(x):
         return [_jsonable(v) for v in x]
     if isinstance(x, bytes):
         return base64.b64encode(x).decode('ascii')
+    if isinstance(x, float) and (x != x or x in (float('inf'), float('-inf'))):
+        return None
     if isinstance(x, (str, int, float, bool)) or x is None:
         return x
     return str(x)
@@ -114,7 +116,7 @@ STEP_TEXT = {
     'fake_list': ('Remove the fake files', 'Junk the protector added.'),
     'listing': ('Write a real file list', 'A (listfile) with every real name.'),
     'ids': ('Restore the object ids', 'The ids scrambled in the map data.'),
-    'dados:file_column': ('Move the models out of the file column', 'Crashes 3.0 on the first unit.'),
+    'dados:file_column': ('Move the unit and item models to the skin files', 'Crashes 3.0 on the first unit.'),
     'dados:levels': ('Add ability levels 5 and 6', 'Copies of level 4.'),
     'dados:buttonpos': ('Complete half-written button positions', 'Like Buttonpos=,2.'),
     'dados:fdf_comment': ('Remove the stray */ in frame files', '3.0 closes on the loading screen.'),
@@ -122,14 +124,20 @@ STEP_TEXT = {
     'dados:quoted_numbers': ('Turn numbers stored as text back into numbers', 'Not a crash, cleaned up as well.'),
     'unprotection': ('Remove the protection first', 'The steps of "Fix map" the editor needs.'),
     'script_restore': ('Turn the compiled script back into JASS', 'The editor cannot read the KK bytecode.'),
-    'editor_only_files': ('Add the files only the editor reads',
-                          'Map info, triggers, import list and JassHelper.'),
+    'editor_only_files': ('Add the files only the editor reads', 'Map info, triggers, import list and JassHelper.'),
     'inflated_counts': ('Fix the counters that hang the editor', 'Huge counts in the editor files.'),
     'invalid_doodads': ('Remove the doodads whose id does not exist', 'The editor 3.0 crashes on them.'),
     'gui_triggers': ('Restore the triggers as GUI', 'Off: the whole script goes to the custom script.'),
-    'script_objects': ('Place what the script creates',
-                       'Units, items, regions, cameras and sounds the script creates.'),
+    'script_objects': (
+        'Place what the script creates',
+        'Units, items, regions, cameras and sounds the script creates.',
+    ),
     'safe_units': ('Leave out the units that crash the editor', 'Off: every unit is placed, also the bad ones.'),
+    'duplicate_textures': (
+        'Make identical textures distinct',
+        'Imported textures that are byte-for-byte copies of each other get a few bytes more each (the old '
+        'workaround for a World Editor 3.0 crash; the copies themselves are harmless).',
+    ),
 }
 REASON_TEXT = {
     'editor_requires': 'Required: the editor cannot open the map without it.',
@@ -141,6 +149,7 @@ REASON_TEXT = {
     'not_compiled': 'Not needed: the script is not compiled.',
     'not_needed': 'Not needed for this map.',
     'tables_ok': 'Not needed: the tables are fine.',
+    'no_identical': 'Not needed: no imported texture is a copy of another.',
 }
 
 
@@ -176,7 +185,8 @@ def editor_version_guess(path):
     out = {'guess': None, 'why': '', 'available': []}
     try:
         from doctor.fix import editor_version
-        out['available'] = [v for v in EDITOR_VERSIONS if editor_version.available(v)]
+        out['available'] = list(EDITOR_VERSIONS) if getattr(sys, 'frozen', False) else \
+            [v for v in EDITOR_VERSIONS if editor_version.available(v)]
         from doctor.mpq import mpqread
         a = mpqread.Archive(path)
         w3i_b = a.read('war3map.w3i') if a.find('war3map.w3i') else None
@@ -262,7 +272,7 @@ EXTRA_DONE = {
     'models': 'Fixed the imported models that crash the game.',
     'model_names': 'Gave the models their name back.',
     'portraits': 'Removed the portrait cameras (check the portraits in game).',
-    'data_pointers': 'Aligned the data pointers of the levelled fields.',
+    'data_pointers': 'Aligned the data pointers of the leveled fields.',
     'kk_textures': 'Decrypted the textures of the KK platform (BLX1).',
     'disabled_icons': 'Made the disabled art of the imported icons (no more green buttons).',
     'uabi': 'Moved the unit ability lists to the script (test the map before sharing it).',
@@ -356,7 +366,7 @@ def game_files_step(out, progress, remove):
     folders = ', '.join('%s %d' % (f, n) for f, n in game_files.count_by_folder(names)[:4])
     if not remove:
         return [['warn', '%d file(s) of the map replace the game\'s own (%s). If the game crashes on this map, port it '
-                         'again with "Remove the game\'s own files".' % (len(names), folders)]]
+                         'again with "Remove map files that replace the game\'s own".' % (len(names), folders)]]
     try:
         n = game_files.remove(out, names)
     except Exception as e:
@@ -432,7 +442,7 @@ def page_stub(s):
 
 
 def run_port(D, G, path, progress, emit, packages=(), memory=True, icons=False, textures=False, balance=False,
-             strip_indent=False, game_files=False, lossy=False):
+             strip_indent=False, game_files=False, lossy=False, classic=False):
     from doctor.port import map_port
     from doctor.app import job_progress
     out = D.free_output(path, '_reforged')
@@ -447,7 +457,7 @@ def run_port(D, G, path, progress, emit, packages=(), memory=True, icons=False, 
         try:
             r = map_port.map_port(path, os.path.join(work, 'port'), out, report, log=port_log, packages=list(packages),
                                   memory_hacks='neutralize' if memory else 'equivalents', balance_numbers=bool(balance),
-                                  shrink_with_loss=bool(lossy))
+                                  shrink_with_loss=bool(lossy), sd_models=bool(classic))
         except BaseException as e:
             import traceback
             write_port_failure(report, '%s: %s' % (type(e).__name__, e), traceback.format_exc()[-3000:])
@@ -532,6 +542,9 @@ def _run_job(job, emit, G, D, task, path, progress):
         return {'map': os.path.abspath(path), 'name': os.path.basename(path), 'size': os.path.getsize(path),
                 'lines': page_lines(G.diagnosis_text(d)), 'steps': page_steps(D, d),
                 'summary': page_summary(D, d), 'editor_version': editor_version_guess(path)}
+    if task == 'new_names':
+        from doctor.mpq import new_names
+        return new_names.new_to_list(path)
     if task in ('fix', 'editor'):
         return run_action(D, G, job, path, task, progress, emit)
     if task in MAP_ONLY and path and is_package(D, path):
@@ -540,7 +553,8 @@ def _run_job(job, emit, G, D, task, path, progress):
     if task == 'port':
         return run_port(D, G, path, progress, emit, job.get('packages') or [], job.get('memory', True),
                         job.get('icons', False), job.get('textures', False), job.get('balance', False),
-                        job.get('strip_indent', False), job.get('game_files', False), job.get('lossy', False))
+                        job.get('strip_indent', False), job.get('game_files', False), job.get('lossy', False),
+                        job.get('classic', False))
     if task == 'cheatpack_inject':
         return _cheatpack_inject(job, progress, emit)
     if task == 'qol_apply':
@@ -621,7 +635,10 @@ def _reforged(job, progress):
         x = items.get(code)
         return ((x.get('data') or {}).get(key) or 0) if x and x.get('fix') == 'doctor' and writable else 0
     r['attributes'] = {'fixable': _n('attributes_stale', 'fixable')}
-    r['game_overrides'] = {'count': _n('game_file_override', 'count')}
+    r['game_overrides'] = {
+        'count': _n('game_file_override', 'count'),
+        'identical': _n('game_file_override', 'identical'),
+    }
     r['requirements'] = {'fixable': _n('inherited_requirement', 'fixable')}
     _fdf = items.get('fdf_lint')
     r['fdf'] = {'fixable': 1 if _fdf and _fdf.get('fix') == 'doctor' and writable else 0}
@@ -835,6 +852,11 @@ def _diag_make(job, progress, emit, G):
         if r.get('init_folder'):
             what += (' The load is marked too: one file per step, written at once, in %s (a load that hangs still '
                      'leaves them).' % os.path.join(diagnose.game_folder(), 'CustomMapData', r['init_folder']))
+            ini = r.get('init') or {}
+            if ini.get('skipped_functions') or ini.get('skipped_calls'):
+                what += (' The load has more than the markers cover: %d function(s) and %d call(s) carry no marker, '
+                         'so a stop may be reported in the function that called them.'
+                         % (ini.get('skipped_functions') or 0, ini.get('skipped_calls') or 0))
     else:
         what = 'The callbacks the game runs, and main and config, run inside pcall: each Lua error is logged.'
     lines = [['good', 'The diagnostic copy is written. ' + what],
@@ -1019,6 +1041,7 @@ class Job:
         self.output = None
         self.cancelled = False
         self.started = time.time()
+        self.reader = None
 
 
 class Api:
@@ -1120,6 +1143,27 @@ class Api:
         webbrowser.open('https://github.com/%s/issues/new?%s' % (repo, query))
         return True
 
+    def report_names(self, names, map_path=None):
+        from doctor.mpq import new_names
+        repo = self.hello()['repository']
+        names = [n for n in (names or []) if isinstance(n, str) and n.strip()]
+        if not repo or not names:
+            return {'opened': False, 'file': None, 'count': len(names)}
+        title = 'New file names (%d)' % len(names)
+        body = new_names.body(names, self._version)
+        list_file = None
+        if len(urllib.parse.urlencode({'body': body})) > new_names.URL_CAP:
+            base = (
+                os.path.splitext(map_path)[0] if map_path else os.path.join(tempfile.gettempdir(), 'devos_map_doctor')
+            )
+            list_file = base + '_new_names.txt'
+            with open(list_file, 'w', encoding='utf-8', newline='\n') as f:
+                f.write('\n'.join(names) + '\n')
+            body = new_names.body(names, self._version, os.path.basename(list_file))
+        query = urllib.parse.urlencode({'title': title, 'body': body, 'labels': 'names'})
+        webbrowser.open('https://github.com/%s/issues/new?%s' % (repo, query))
+        return {'opened': True, 'file': list_file, 'count': len(names)}
+
     def start(self, task, params=None):
         with self._lock:
             self._next += 1
@@ -1138,7 +1182,8 @@ class Api:
             job.proc.stdin.close()
         except OSError:
             pass
-        threading.Thread(target=self._read, args=(job, log), daemon=True).start()
+        job.reader = threading.Thread(target=self._read, args=(job, log), daemon=True)
+        job.reader.start()
         self._refill()
         return ident
 
@@ -1255,8 +1300,15 @@ class Api:
             return
         try:
             self._window.evaluate_js('window.doctor && window.doctor.onEvent(%s)' % json.dumps(ev))
-        except Exception:
-            pass
+        except Exception as e:
+            if ev.get('type') in ('result', 'error') and ev.get('job'):
+                try:
+                    self._window.evaluate_js('window.doctor && window.doctor.onEvent(%s)' % json.dumps(
+                        {'type': 'error', 'job': ev['job'], 'elapsed': ev.get('elapsed'),
+                         'message': 'The result could not reach the page (%s: %s).' % (type(e).__name__,
+                                                                                        str(e)[:120])}))
+                except Exception:
+                    pass
 
     def cancel(self, ident):
         job = self._jobs.get(ident)
@@ -1312,8 +1364,11 @@ def run(version, initial_map=None, updater=None, icon=None):
 
     def closing():
         api._close_warm()
+        readers = [j.reader for j in api._jobs.values() if j.reader is not None]
         for ident in list(api._jobs):
             api.cancel(ident)
+        for t in readers:
+            t.join(2.0)
 
     def dropped(e):
         files = (e.get('dataTransfer') or {}).get('files') or []
