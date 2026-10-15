@@ -25,11 +25,9 @@ from doctor.mpq import mpqread
 from doctor.mpq import hm3w_names
 from doctor.translation import tr_gradient
 from doctor.data import w3i
-
+from doctor.data import object_names
 
 KNOWN_W3I = (18, 25, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39)
-RX_WTS = re.compile(rb'^(?:\xef\xbb\xbf)?(?i:STRING)[ \t]+(\d+)[^\n]*\n(?:[ \t]*(?://[^\n]*)?\r?\n)*[ \t]*\{[^\n]*\n'
-                    rb'(.*?)\r?\n?^\}[ \t]*\r?$', re.S | re.M)
 RX_TRIGSTR = re.compile(r'TRIGSTR_(\d+)\s*$')
 RX_COLOR = re.compile(r'\|[cC][0-9a-fA-F]{8}|\|[rRnN]')
 
@@ -110,10 +108,19 @@ def _nothing(_label):
     pass
 
 
+def _script_text(b):
+    from doctor.viewers import map_files
+    enc = map_files.guess_encoding(b, script=True)
+    if enc in ('utf-8', 'utf-8-sig'):
+        return b.decode('utf-8', 'surrogateescape')
+    return b.decode(enc, 'replace')
+
+
 def _text(b):
     if b is None:
         return None
-    return b.decode('utf-8', 'replace').replace('\r\n', '\n')
+    from doctor.viewers import map_files
+    return b.decode(map_files.guess_encoding(b), 'replace').replace('\r\n', '\n')
 
 
 def _b64(b):
@@ -138,7 +145,7 @@ def _get(a, name):
 
 def wts_strings(wts):
     out = {}
-    for m in RX_WTS.finditer(wts or b''):
+    for m in object_names.wts_entries(wts or b''):
         out.setdefault(int(m.group(1)), _text(m.group(2)))
     return out
 
@@ -154,7 +161,7 @@ def wts_set(wts, number, text):
     if any(x.lstrip().startswith('}') for x in lines):
         raise CardError('bad_text', 'A line of the text cannot start with "}".')
     body = eol.join(x.encode('utf-8') for x in lines)
-    found = [m for m in RX_WTS.finditer(wts) if int(m.group(1)) == number]
+    found = [m for m in object_names.wts_entries(wts) if int(m.group(1)) == number]
     if not found:
         sep = b'' if not wts or wts.endswith(b'\n') else eol
         return wts + sep + b'STRING %d' % number + eol + b'{' + eol + body + eol + b'}' + eol + eol
@@ -259,7 +266,7 @@ def _w3i_part(card, m, how, dev, strings):
         info['why_not'] = 'The map info file does not read back exactly (%s): only texts kept in the strings ' \
                           'file can be changed.' % (', '.join(dev) or 'damaged end')
     elif how == 'partial':
-        info['why_not'] = 'The map info file is version %d, newer than this reader: only texts kept in the ' \
+        info['why_not'] = 'The map info file is version %d, newer than the Doctor reads: only texts kept in the ' \
                           'strings file can be changed.' % v
     card['w3i'] = info
     card['trigstr'] = trig
@@ -331,7 +338,7 @@ def tga_decode(d):
         raise ValueError('TGA too short')
     idlen, cmtype, itype, cmfirst, cmlen, cmbits, _x, _y, w, h, bpp, desc = struct.unpack_from('<BBBHHBHHHHBB', d, 0)
     if itype not in (1, 2, 3, 9, 10, 11) or not w or not h or bpp not in (8, 15, 16, 24, 32):
-        raise ValueError('TGA type %d, %d bits: not an image this reader knows' % (itype, bpp))
+        raise ValueError('TGA type %d, %d bits: not an image the Doctor reads' % (itype, bpp))
     p = 18 + idlen
     cmap = None
     if cmtype:
@@ -505,7 +512,7 @@ def _loading_screen(a, m):
     elif not s['size']:
         s['why_not'] = 'The four loading screen textures do not fit together.'
     elif any(t['format'] not in ('BLP1', 'BLP2', 'TGA') for t in tx):
-        s['why_not'] = 'The loading screen texture is a %s file, which this version cannot write.' % \
+        s['why_not'] = 'The loading screen texture is a %s file, which the Doctor cannot write.' % \
                        next(t['format'] or 'unknown' for t in tx if t['format'] not in ('BLP1', 'BLP2', 'TGA'))
     else:
         s['replaceable'] = True
@@ -525,7 +532,7 @@ def _script(a, m):
             break
     lua = _get(a, 'war3map.lua')
     if lua is not None and (m.get('script_language') == 1 or j_name is None):
-        return 'lua', 'war3map.lua', lua.decode('utf-8', 'surrogateescape')
+        return 'lua', 'war3map.lua', _script_text(lua)
     if j_name is None:
         return None, None, ''
     kind = 'jass'
@@ -533,7 +540,7 @@ def _script(a, m):
         kind = 'j2b'
     elif len(j) < 450 and a.find('kkmap.jc'):
         kind = 'kkwe'
-    return kind, j_name, j.decode('utf-8', 'surrogateescape')
+    return kind, j_name, _script_text(j)
 
 
 def _literals(text, lua):
@@ -1391,7 +1398,10 @@ def _write(path_in, path_out, changes, p):
     except CardError as e:
         failure = (e.code, e.message)
     except BaseException as e:
-        failure = ('write_failed', 'The map could not be written (%s); unprotect it first.' % unprotect._error(e))
+        failure = (
+            'write_failed',
+            'The map could not be written (%s); run "Fix map" on it first.' % unprotect._error(e),
+        )
     if failure:
         _remove(part)
         raise CardError(*failure)
