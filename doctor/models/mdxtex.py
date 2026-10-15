@@ -23,10 +23,10 @@ def mdx_textures(data):
             q, end = body, body + size
             fixed_fields = size % 268 == 0
             while q + 4 <= end:
-                ln = int.from_bytes(data[q:q + 4], 'little')
-                if not fixed_fields and 4 <= ln <= end - q:
-                    raw = data[q + 4:q + ln]
-                    q += ln
+                txt_ln = int.from_bytes(data[q:q + 4], 'little')
+                if not fixed_fields and 4 <= txt_ln <= end - q:
+                    raw = data[q + 4:q + txt_ln]
+                    q += txt_ln
                 elif q + 268 <= end:
                     raw = data[q + 4:q + 264]
                     q += 268
