@@ -30,7 +30,7 @@ def rewrite(path_in, path_out, transform, progress=None, describe=None, compact=
         rep['lines'] = rep['lines'] or [why]
         return rep
 
-    if os.path.abspath(path_in) == os.path.abspath(path_out):
+    if os.path.normcase(os.path.abspath(path_in)) == os.path.normcase(os.path.abspath(path_out)):
         return stop('refused', 'The output must be a new file.')
     p('Reading the map script')
     try:
