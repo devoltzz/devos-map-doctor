@@ -81,7 +81,8 @@ def scan(map_path, progress=None, casc=None):
     from doctor.fix import game_paths
     from doctor.models import model_check
     p = progress or _nothing
-    out = {'files': [], 'counts': {'ui': 0, 'icons': 0, 'other': 0}, 'folders': [], 'severity': None, 'game': False}
+    out = {'files': [], 'counts': {'ui': 0, 'icons': 0, 'other': 0, 'identical': 0}, 'folders': [], 'severity': None,
+           'game': False, 'identical': [], 'different': [], 'unknown': []}
     g = game_paths.open_game(casc)
     if g is None:
         return out
@@ -100,6 +101,18 @@ def scan(map_path, progress=None, casc=None):
     out['folders'] = count_by_folder(out['files'])
     if out['files']:
         out['severity'] = 'warning' if out['counts']['ui'] or len(out['files']) >= BULK else 'info'
+    out['identical'], out['different'], out['unknown'] = [], [], []
+    if out['files']:
+        p('Comparing the content with the game files')
+    for n in out['files']:
+        hash_key = n.replace('/', '\\').lstrip('\\').lower()
+        game = g.read(n) if hash_key in have else None
+        if game is None:
+            out['unknown'].append(n)
+            continue
+        mine = unprotect._read(a, n)
+        (out['identical'] if mine == game else out['different']).append(n)
+    out['counts']['identical'] = len(out['identical'])
     return out
 
 
@@ -132,17 +145,22 @@ def fix(entry, output, progress=None, casc=None, scope='all'):
     from doctor.mpq import mpqadd
     p = progress or _nothing
     res = {'state': 'failed', 'removed': 0, 'folders': [], 'lines': []}
-    if os.path.abspath(entry) == os.path.abspath(output):
+    if os.path.normcase(os.path.abspath(entry)) == os.path.normcase(os.path.abspath(output)):
         res['error'] = 'The output must be a new file.'
         return res
     r = scan(entry, p, casc)
     if r.get('error'):
         res['error'] = r['error']
         return res
-    name_list = [n for n in r['files'] if scope != 'ui' or classe(n) == 'ui']
+    if scope == 'identical':
+        name_list = list(r.get('identical') or [])
+    else:
+        name_list = [n for n in r['files'] if scope != 'ui' or classe(n) == 'ui']
     if not name_list:
         res['state'] = 'nothing_to_do'
-        res['reason'] = 'The map has no %sfile with the path of a game file.' % ('UI ' if scope == 'ui' else '')
+        res['reason'] = ('The map has no file that is a byte-for-byte copy of a game file.' if scope == 'identical' else
+                         'The map has no UI file with the path of a game file.' if scope == 'ui' else
+                         'The map has no file with the path of a game file.')
         return res
     a, err = model_check._open(entry)
     if a is None:
@@ -170,13 +188,7 @@ def fix(entry, output, progress=None, casc=None, scope='all'):
         for n in name_list:
             if unprotect._read(b, n) is not None:
                 raise RuntimeError('%s is still in the map' % n)
-        done = set(n.lower() for n in name_list) | set(n.lower() for n, _d in repl)
-        for n in all_items:
-            if n.lower() in done:
-                continue
-            x = unprotect._read(a, n)
-            if x is not None and unprotect._read(b, n) != x:
-                raise RuntimeError('%s changed' % n)
+        unprotect.check_untouched(a, b, all_items, list(name_list) + [n for n, _d in repl])
         for n, d in repl:
             if unprotect._read(b, n) != d:
                 raise RuntimeError('%s was not read back' % n)
@@ -190,6 +202,12 @@ def fix(entry, output, progress=None, casc=None, scope='all'):
         res['error'] = 'The check of the new map failed (%s).' % (str(e) or type(e).__name__)
         return res
     res.update(state='done', removed=len(name_list), folders=count_by_folder(name_list)[:6])
-    res['lines'] = ['%d files that had the path of a game file left the map (%s).' % (
-        len(name_list), ', '.join('%s %d' % (f, n) for f, n in res['folders'][:4]))]
+    res['lines'] = [
+        '%d files that %s left the map (%s).'
+        % (
+            len(name_list),
+            'were byte-for-byte copies of a game file' if scope == 'identical' else 'had the path of a game file',
+            ', '.join('%s %d' % (f, n) for f, n in res['folders'][:4]),
+        )
+    ]
     return res
