@@ -64,8 +64,9 @@ def lint(path, progress=None, casc=None):
             out['imp'] = True
             for n in outside:
                 flag(n, 'not_in_imp')
-        except Exception:
-            pass
+        except Exception as e:
+            out['imp'] = None
+            out['imp_error'] = unprotect._error(e)
     for n in names:
         ext = os.path.splitext(n)[1].lower()
         if ext not in GAME_EXTENSIONS:
@@ -74,12 +75,15 @@ def lint(path, progress=None, casc=None):
     if c is not None:
         out['game'] = True
         p('Comparing with the game files')
+        erros = 0
         for n in names:
             if n.lower().endswith(ASSET_EXTENSIONS) and n.lower() not in by_game:
                 try:
                     if c.resolve(n) is not None:
                         flag(n, 'game_file')
                 except Exception:
-                    pass
+                    erros += 1
+        if erros:
+            out['game_errors'] = erros
     out['files'] = flags
     return out
