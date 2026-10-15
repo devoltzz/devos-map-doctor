@@ -48,6 +48,7 @@ SPECIES = {
     'ability': ('war3map.w3a', True, ('AbilityData',), None),
     'upgrade': ('war3map.w3q', True, ('UpgradeData',), None),
 }
+
 ABILITY_FIELDS = {
     'Adm1': (
         'combat',
@@ -1427,12 +1428,13 @@ def _num(text):
     if text is None:
         return None
     t = str(text).strip().strip('"')
-    if not t or t in ('-', '_'):
+    if not t or t in ('-', '_') or '_' in t:
         return None
     try:
-        return float(t)
+        v = float(t)
     except ValueError:
         return None
+    return v if math.isfinite(v) else None
 
 
 def _text(v, typ):
@@ -1905,6 +1907,11 @@ NOT_CONVERTED = ('BlzSetUnitRealField', 'BlzSetUnitIntegerField', 'BlzSetAbility
                  'BlzSetAbilityIntegerLevelField', 'BlzSetAbilityRealLevelArrayField',
                  'BlzSetAbilityIntegerLevelArrayField', 'BlzSetItemRealField', 'BlzSetItemIntegerField',
                  'EXSetAbilityDataReal', 'EXSetAbilityDataInteger', 'EXSetUnitInteger', 'EXSetUnitReal')
+NOT_CONVERTED_READS = ('BlzGetUnitRealField', 'BlzGetUnitIntegerField', 'BlzGetAbilityRealLevelField',
+                       'BlzGetAbilityIntegerLevelField', 'BlzGetAbilityRealLevelArrayField',
+                       'BlzGetAbilityIntegerLevelArrayField', 'BlzGetItemRealField', 'BlzGetItemIntegerField',
+                       'BlzGetUnitWeaponRealField', 'BlzGetUnitWeaponIntegerField', 'EXGetAbilityDataReal',
+                       'EXGetAbilityDataInteger', 'EXGetUnitInteger', 'EXGetUnitReal')
 PREFIX = 'devo_i32_'
 RX_SKIP = re.compile(r'"(?:[^"\\\n]|\\.)*"|//[^\n]*|\'[^\'\n]*\'')
 HELPERS = '''// [Devo's Map Doctor] the map's numbers were scaled down to fit the integer limit (int32_balance.py): the script
@@ -1948,7 +1955,7 @@ def rewrite_script(text, factors):
     if not names:
         return text, counts, other
     rx = re.compile(r'\b(%s)(\s*\()' % '|'.join(sorted(names, key=len, reverse=True)))
-    rx_other = re.compile(r'\b(%s)\s*\(' % '|'.join(NOT_CONVERTED))
+    rx_other = re.compile(r'\b(%s)\s*\(' % '|'.join(NOT_CONVERTED + NOT_CONVERTED_READS))
     out, pos = [], 0
 
     def code(seg):
@@ -2174,10 +2181,14 @@ def report_lines(info):
     if calls:
         L.append('- script: %d call(s) converted, so the script keeps its own numbers (%s)'
                  % (sum(calls.values()), ', '.join('%s %d' % (k, calls[k]) for k in sorted(calls)[:12])))
-    other = info.get('not_converted') or {}
+    other = dict((k, v) for k, v in (info.get('not_converted') or {}).items() if k not in NOT_CONVERTED_READS)
+    reads = dict((k, v) for k, v in (info.get('not_converted') or {}).items() if k in NOT_CONVERTED_READS)
     if other:
         L.append('- script: %d call(s) that write object fields at run time are NOT converted (%s): check those '
                  'values in game' % (sum(other.values()), ', '.join('%s %d' % (k, other[k]) for k in sorted(other))))
+    if reads:
+        L.append('- script: %d call(s) that read object fields at run time get the scaled value (%s): check those '
+                 'values in game' % (sum(reads.values()), ', '.join('%s %d' % (k, reads[k]) for k in sorted(reads))))
     if info.get('rounded_to_one'):
         L.append('- %d small whole value(s) became 1 instead of 0 (the precision lost by the division)'
                  % info['rounded_to_one'])
