@@ -5,7 +5,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 from doctor.fix import unprotect as D
 
-VERSION = '1.7.9.1'
+VERSION = '1.8.0'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -20,9 +20,11 @@ STAGES = {
     'repair': 'Fixing the MPQ header...',
     'listing': 'Writing a real file list...',
     'ids': 'Restoring the object IDs...',
-    'data_bytes': 'Fixing the data tables for 3.0...',
+    'data_bytes': 'Fixing the data tables for Reforged 3.0...',
     'script': 'Turning the script back into JASS...',
-    'editor': 'Preparing the World Editor...',
+    'editor': 'Preparing the map for the World Editor...',
+    'download': 'Downloading the game files of the old versions (4 MB, once)...',
+    'slk_objects': 'Making the editor object files from the SLK tables...',
     'save': 'Saving...',
     'verify': 'Checking the result...',
     'extra_models': 'Fixing the models...',
@@ -38,6 +40,15 @@ STAGES = {
     'extra_translation': 'Applying the translation...',
     'extra_strip_indent': 'Removing the script indentation...',
     'extra_shrink': 'Making the map smaller...',
+    'extra_attributes': 'Redoing the file checksums...',
+    'extra_game_overrides': 'Checking the game file overrides...',
+    'extra_requirements': 'Checking the requirements...',
+    'extra_fdf': 'Checking the frame definitions...',
+    'extra_null_handles': 'Nulling the handles the script leaks...',
+    'extra_minify': 'Minifying the script...',
+    'extra_shrink_models': 'Shrinking the models...',
+    'extra_lobby_image': 'Writing the lobby image...',
+    'extra_slk_objects': 'Making the editor object files from the SLK tables...',
 }
 
 MARKS = {'vexorian': ' (VxOP mark)', 'w3p': ' (w3p mark)', 'pg2': ' (PG2 mark)', 'sprotect': ' (SProtect)'}
@@ -93,9 +104,7 @@ def _short_names(file_set):
 def describe_data(p):
     c, n, where = p['code'], p.get('n', 0), _short_names(p.get('file_set'))
     if c == 'slk_file_column':
-        return ('%s %s %s in the `file` column: 3.0 crashes on it.'
-                % (where, 'keeps' if len(p.get('file_set') or []) == 1 else 'keep',
-                   pluralize(n, 'model', 'models')))
+        return '%s: %s in the `file` column; 3.0 crashes on it.' % (where, pluralize(n, 'model', 'models'))
     if c == 'slk_levels':
         return '%s has no columns for ability levels 5 and 6: in 3.0 their values read as 0.' % where
     if c == 'slk_buttonpos':
@@ -187,9 +196,9 @@ def describe(p):
                 % num(p.get('hash_entries', 0)))
     if c == 'alias':
         if p['block_list'] == 1:
-            return '1 file also answers to %s fake names.' % num(p['maximum'])
+            return '1 file also answers to extra fake names (up to %s).' % num(max(1, p['maximum'] - 1))
         return ('%s files also answer to extra fake names (up to %s each).'
-                % (num(p['block_list']), num(p['maximum'])))
+                % (num(p['block_list']), num(max(1, p['maximum'] - 1))))
     if c == 'fake_entries':
         return '%s to data that does not exist.' % pluralize(p['n'], 'file entry points', 'file entries point')
     if c == 'fake_files':
@@ -263,7 +272,7 @@ def package_text(d):
     if pk.get('err'):
         out.append(('warning', 'The file list could not be read: %s.' % pk['err']))
     out.append(('', ''))
-    out.append(('ok', 'It is not a map: open the Files tab to see and extract them.'))
+    out.append(('ok', 'It is not a map: open the Files tab to see and extract its files.'))
     return out
 
 
@@ -294,7 +303,7 @@ def diagnosis_text(d):
             out.append(('warning', '  - ' + describe(p)))
         out.append(('', ''))
         if d['fixable'] == 'impossible':
-            out.append(('invalid', "This map can't be unprotected: the real map is not inside this file."))
+            out.append(('invalid', "This map cannot be unprotected: the real map is not inside this file."))
             out.append(('info', NO_ENCRYPTION))
         elif set(p['code'] for p in protections) <= set(D.BUTTON3_ONLY):
             out.append(('ok', 'Can be fixed: click "Open in World Editor".'))
@@ -304,7 +313,7 @@ def diagnosis_text(d):
         out.append(('info', 'SLK mode: %s data table files.' % num(len(d['slk']))))
     if data_bytes:
         out.append(('', ''))
-        out.append(('heading2', 'Needs fixing for 3.0:'))
+        out.append(('heading2', 'Needs fixing for Reforged 3.0:'))
         for p in data_bytes:
             out.append(('warning', '  - ' + describe(p)))
         out.append(('', ''))
@@ -355,11 +364,10 @@ def diagnosis_text(d):
             gaps.append('war3map.w3i restored')
         if ed.get('trigger_list'):
             gaps.append('the YDWE triggers rewritten')
-        if ed.get('duplicate_textures'):
-            copies = sum(len(g) - 1 for g in ed['duplicate_textures'])
-            gaps.append('%s deduplicated' % pluralize(copies, 'imported texture', 'imported textures'))
-        for missing in gaps or ['see above']:
+        for missing in gaps:
             out.append(('warning', 'World Editor: needs %s.' % missing))
+        if not gaps:
+            out.append(('warning', 'World Editor: needs the fixes above.'))
         if ed.get('missing_items'):
             missing_items = list(ed['missing_items'])
             if len(missing_items) > 4:
@@ -374,6 +382,11 @@ def diagnosis_text(d):
         out.append(('ok', 'Click "Open in World Editor".'))
     else:
         out.append(('invalid', 'World Editor: ' + editor_reason(status)))
+    if ed.get('duplicate_textures'):
+        copies = sum(len(g) - 1 for g in ed['duplicate_textures'])
+        out.append(('info', 'One imported texture is a copy of another one (harmless; "Make the map smaller, '
+                    'losing nothing" stores them once).' if copies == 1 else '%s imported textures are copies of other '
+                    'ones (harmless; "Make the map smaller, losing nothing" stores them once).' % num(copies)))
     return out
 
 
@@ -418,7 +431,7 @@ def editor_reason(status):
         'impossible': 'the real map is encrypted outside this file (KK platform).',
         'unreadable': 'the file tables are scrambled and no name resolves.',
         'is_pack': 'this is an art package, not a map.',
-        'w3i_unreadable': 'war3map.w3i is in a format this tool cannot read.',
+        'w3i_unreadable': 'war3map.w3i is in a format the Doctor cannot read.',
         'w3i_missing': 'war3map.w3i is missing.',
     }.get(status, status)
 
@@ -484,17 +497,17 @@ def _common_failures(r, verb):
     if e == 'cannot_read':
         return [('invalid', 'The MPQ archive could not be read (%s).' % (r['before'] or {}).get('err'))]
     if e == 'impossible':
-        return [('invalid', "This map can't be %s: the real map is encrypted outside it (KK platform)." % verb),
+        return [('invalid', "This map cannot be %s: the real map is encrypted outside it (KK platform)." % verb),
                 ('info', 'No file was written.'),
                 ('info', NO_ENCRYPTION)]
     if e == 'incomplete':
-        return [('invalid', "This map can't be %s: the file is incomplete." % verb),
+        return [('invalid', "This map cannot be %s: the file is incomplete." % verb),
                 ('info', '%s.' % incomplete((r.get('before') or {}).get('incomplete'))),
                 ('info', 'Get a complete copy.')]
     if e == 'unreadable':
-        return [('invalid', "This map can't be %s: %s" % (verb, editor_reason('unreadable')))]
+        return [('invalid', "This map cannot be %s: %s" % (verb, editor_reason('unreadable')))]
     if e == 'is_pack':
-        return [('invalid', "This file can't be %s: it is an art package, not a map." % verb),
+        return [('invalid', "This file cannot be %s: it is an art package, not a map." % verb),
                 ('info', 'No file was written.'),
                 ('info', 'Open the Files tab to see and extract its files: Extract all, Extract models.')]
     if e == 'failed':
@@ -524,8 +537,8 @@ def unprotection_text(r):
         return out + [('ok', 'All steps turned off: nothing to do. No file was written.')]
     data_only = [k for k in r['steps'] if k != 'data_bytes'] == []
     if data_only:
-        out.append(('ok', 'Fixed for 3.0.' if r['status'] == 'done' else
-                    'Fixed for 3.0, with leftovers (see below).'))
+        out.append(('ok', 'Fixed for Reforged 3.0.' if r['status'] == 'done' else
+                    'Fixed for Reforged 3.0, with leftovers (see below).'))
     else:
         out.append(('ok', 'Protection removed.' if r['status'] == 'done' else
                     'Protection removed, with leftovers (see below).'))
@@ -618,6 +631,35 @@ def editor_text(r):
                 'Ready for the World Editor, with leftovers (see below).'))
     out.append(('file_path', 'Saved as: %s' % r['output']))
     out.extend(version_lines(r))
+    sl = r.get('slk_objects')
+    if sl:
+        if sl.get('state') == 'done':
+            out.append(('info', '  - The map keeps its objects in SLK tables, which no World Editor reads: the editor '
+                                'object files were made from them (%s).' % ', '.join(sl.get('written') or [])))
+            for _st, _tx in sl.get('lines') or []:
+                out.append(('info', '      ' + _tx))
+        elif sl.get('state') != 'nothing_to_do':
+            out.append(
+                (
+                    'warning',
+                    '  - The map keeps its objects in SLK tables, and the editor object files could not be '
+                    'made from them: %s. The editor will show the units as "Object ID".'
+                    % (sl.get('reason') or sl.get('error') or (sl.get('lines') or [('', sl.get('state'))])[0][1]),
+                )
+            )
+    ren = (r.get('editor') or {}).get('renamed_locals') or []
+    if ren:
+        out.append(
+            (
+                'info',
+                '  - %s renamed inside %s (JassHelper refuses a local named like a function or a '
+                'global; the game does not).'
+                % (
+                    pluralize(len(ren), 'local variable', 'local variables'),
+                    pluralize(len(set(x[0] for x in ren)), 'function', 'functions'),
+                ),
+            )
+        )
     out.append(('', ''))
     if (r.get('editor') or {}).get('campaign_info'):
         for m in r['editor'].get('map_list') or []:
@@ -769,6 +811,8 @@ def editor_text(r):
         n = sum(unnamed.values())
         out.append(('warning', '  - %s in the map %s no recoverable name (%s): the editor drops them.'
                     % (pluralize(n, 'file', 'files'), 'has' if n == 1 else 'have', ', '.join(pieces))))
+    for _warning in (details.get('warnings') or [])[:8]:
+        out.append(('warning', '  - A step was skipped: %s' % _warning))
     out.append(('', ''))
     out.append(('info', 'Good to know:'))
     ev = details.get('editor_target') or {}
