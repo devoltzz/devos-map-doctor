@@ -12,16 +12,21 @@ VAZIA = 'KKM_codigo_vazio'
 def null_code(body_text):
     line_list = body_text.split('\n')
     code, n = False, 0
-    for i, ln in enumerate(line_list):
-        s = ln.strip()
+    for i, txt_ln in enumerate(line_list):
+        s = txt_ln.strip()
         if s.startswith('function ') or s.startswith('constant function '):
-            code = bool(RX_CODE_FUNCTION.match(ln.rstrip('\r')))
+            code = bool(RX_CODE_FUNCTION.match(txt_ln.rstrip('\r')))
         elif s.startswith('endfunction'):
             code = False
         elif code:
-            m = RX_NULL_RETURN.match(ln.rstrip('\r'))
+            m = RX_NULL_RETURN.match(txt_ln.rstrip('\r'))
             if m:
-                line_list[i] = '%sfunction %s%s%s' % (m.group(1), VAZIA, m.group(2), '\r' if ln.endswith('\r') else '')
+                line_list[i] = '%sfunction %s%s%s' % (
+                    m.group(1),
+                    VAZIA,
+                    m.group(2),
+                    '\r' if txt_ln.endswith('\r') else '',
+                )
                 n += 1
     if not n:
         return body_text, 0
@@ -42,24 +47,35 @@ NEUTRAL = {'integer': '0', 'real': '0.0', 'boolean': 'false'}
 def empty_return(body_text):
     line_list = body_text.split('\n')
     kind, n = None, 0
-    for i, ln in enumerate(line_list):
-        s = ln.strip()
+    for i, txt_ln in enumerate(line_list):
+        s = txt_ln.strip()
         if s.startswith('function ') or s.startswith('constant function '):
-            m = RX_FUNCTION_TYPE.match(ln.rstrip('\r'))
+            m = RX_FUNCTION_TYPE.match(txt_ln.rstrip('\r'))
             kind = m.group(1) if m and m.group(1) != 'nothing' else None
         elif s.startswith('endfunction'):
             kind = None
         elif kind:
-            m = RX_EMPTY_RETURN.match(ln.rstrip('\r'))
+            m = RX_EMPTY_RETURN.match(txt_ln.rstrip('\r'))
             if m:
                 line_list[i] = '%s %s%s%s' % (m.group(1), NEUTRAL.get(kind, 'null'), m.group(2),
-                                              '\r' if ln.endswith('\r') else '')
+                                              '\r' if txt_ln.endswith('\r') else '')
                 n += 1
     return ('\n'.join(line_list), n) if n else (body_text, 0)
 
 
 RX_GLOBAL_ARRAY = re.compile(r'(?m)^[ \t]*\w+[ \t]+array[ \t]+(\w+)')
 RX_LOCAL = re.compile(r'^[ \t]*local[ \t]+\w+[ \t]+(\w+)')
+RX_NOT_CODE = re.compile(r'"(?:[^"\\]|\\.)*"|\'[^\'\n]*\'|//[^\n]*')
+
+
+def _code_only(rx, ln, repl):
+    out, pos = [], 0
+    for m in RX_NOT_CODE.finditer(ln):
+        out.append(rx.sub(repl, ln[pos:m.start()]))
+        out.append(m.group(0))
+        pos = m.end()
+    out.append(rx.sub(repl, ln[pos:]))
+    return ''.join(out)
 
 
 def shadow_local(body_text):
@@ -87,7 +103,7 @@ def shadow_local(body_text):
             if shadows:
                 rx = re.compile(r'\b(%s)\b' % '|'.join(map(re.escape, sorted(shadows))))
                 for k in range(i + 1, j):
-                    line_list[k] = rx.sub(r'\1_kkl', line_list[k])
+                    line_list[k] = _code_only(rx, line_list[k], r'\1_kkl')
                 n += len(shadows)
             i = j
         i += 1
@@ -122,9 +138,9 @@ def local_param_clash(body_text):
                 line = line_list[k]
                 mm = RX_LOCAL.match(line)
                 if not mm:
-                    line_list[k] = rx.sub(r'\1_kkl', line)
+                    line_list[k] = _code_only(rx, line, r'\1_kkl')
                     continue
-                rest = rx.sub(lambda m: m.group(1) + ('_kkl' if m.group(1) in seen else ''), line[mm.end(1):])
+                rest = _code_only(rx, line[mm.end(1):], lambda m: m.group(1) + ('_kkl' if m.group(1) in seen else ''))
                 if mm.group(1) in dup:
                     seen.add(mm.group(1))
                     line_list[k] = line[:mm.end(1)] + '_kkl' + rest
@@ -182,9 +198,9 @@ def integer_in_real(body_text):
         for i in (k - 1, k - 2):
             if not 0 <= i < len(line_list) or i in done_names:
                 continue
-            ln = line_list[i]
-            cr = '\r' if ln.endswith('\r') else ''
-            m = RX_RETURN_EXPR.match(ln.rstrip('\r'))
+            txt_ln = line_list[i]
+            cr = '\r' if txt_ln.endswith('\r') else ''
+            m = RX_RETURN_EXPR.match(txt_ln.rstrip('\r'))
             if m:
                 if '//' not in m.group(2):
                     line_list[i] = '%sI2R(%s)%s%s' % (m.group(1), m.group(2), m.group(3), cr)
