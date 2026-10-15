@@ -351,6 +351,10 @@ def translate_modules(lua_modules, log=None):
             except Exception as e:
                 error_list.append('%s: %s' % (fname, e))
                 continue
+            lua_error = _compile_error(src)
+            if lua_error:
+                error_list.append('%s: the translated source does not compile in Lua (%s)' % (fname, lua_error))
+                continue
             out.append((k, 'b', src))
         else:
             try:
@@ -560,11 +564,16 @@ def _runtime():
 
 
 def _compile_check(src):
+    return _compile_error(src) is None
+
+
+def _compile_error(src):
     if not has_lua():
-        return True
+        return None
     L = _runtime()
     f = L.eval('function(s) local f, e = load(s, "=x", "t", {}) if f then return nil end return e end')
-    return f(src.encode('utf-8', 'surrogateescape')) is None
+    e = f(src.encode('utf-8', 'surrogateescape'))
+    return None if e is None else str(e)[:200]
 
 
 def verify(body_text, common_module=None):
@@ -629,11 +638,15 @@ def fallback_templates(in_use, fdfs):
     defined = set()
     for t in fdfs:
         defined |= set(re.findall(r'(?i)Frame\s+"\w+"\s+"([^"]+)"', t))
-    missing_items = {}
+    import collections
+    pluralize = collections.Counter()
     for u in in_use:
         kind, _, fname = u.partition('|')
         if fname and fname not in defined and not RX_GAME_TEMPLATE.search(fname) and re.match(r'^[A-Za-z_]\w*$', fname):
-            missing_items.setdefault(fname, kind)
+            pluralize[(fname, kind)] += 1
+    missing_items = {}
+    for (fname, kind), _n in sorted(pluralize.items(), key=lambda kv: (kv[0][0], -kv[1], kv[0][1])):
+        missing_items.setdefault(fname, kind)
     line_list = []
     for fname, kind in sorted(missing_items.items()):
         body = '    ControlStyle "AUTOTRACK",\n' if kind.upper() in CLICKABLE_FDF else ''
@@ -773,12 +786,12 @@ def interface_copies(models, ler, log=None):
         if not m.endswith('.mdx') or m in table:
             continue
         data_bytes = ler(m)
-        if not data_bytes or data_bytes[:4] != b'MDLX' or not mdx_ui.is_world_model(data_bytes):
-            continue
         try:
+            if not data_bytes or data_bytes[:4] != b'MDLX' or not mdx_ui.is_world_model(data_bytes):
+                continue
             copy = mdx_ui.facing_screen(data_bytes)
-        except ValueError as e:
-            failures.append('%s (%s)' % (m, e))
+        except Exception as e:
+            failures.append('%s (%s: %s)' % (m, type(e).__name__, e))
             continue
         copy, n_time = mdx_ui.without_glow(copy, transparent=TRANSPARENT)
         if n_time:
