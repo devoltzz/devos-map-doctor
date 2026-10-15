@@ -3085,5 +3085,19 @@
  "... or only the ones that are copies of the game's file": "... 或只移除遊戲檔案的副本",
  "This map has a file name that the shared name list does not know yet. Share it on GitHub?": "此地圖有一個共用名稱清單尚不認得的檔案名稱。要在 GitHub 上分享它嗎？",
  "World Editor: needs the fixes above.": "World Editor：需要上述修復。",
- "{0} of them are byte-for-byte copies of the game's own file: taking them out changes nothing the map shows, and the game uses its own. Needs the game installed.": "其中 {0} 個是遊戲自身檔案的逐位元組副本：移除它們不會改變地圖顯示的任何內容，遊戲會使用自己的檔案。需要已安裝遊戲。"
+ "{0} of them are byte-for-byte copies of the game's own file: taking them out changes nothing the map shows, and the game uses its own. Needs the game installed.": "其中 {0} 個是遊戲自身檔案的逐位元組副本：移除它們不會改變地圖顯示的任何內容，遊戲會使用自己的檔案。需要已安裝遊戲。",
+ "Port": "移植",
+ "Port to:": "移植到：",
+ "The game the ported map is for": "移植後的地圖所適用的遊戲版本",
+ "To Reforged. For KK or M16 maps (DzAPI, japi, JN): fills in the platform natives, makes the save local and ports the menus. Saves the map and a report next to it.": "移植到 Reforged。適用於 KK 或 M16 地圖（DzAPI、japi、JN）：補全平台 native 函式，將存檔改為本機儲存，並移植選單。會將地圖和報告儲存在其旁邊。",
+ "a map of the KK platform: Reforged only": "KK 平台的地圖：僅限 Reforged",
+ "to Reforged or a newer game": "移植到 Reforged 或更新的遊戲版本",
+ "Made for: {0}.": "適用版本：{0}。",
+ "Port to {0}": "移植到 {0}",
+ "Port to {0}: result": "移植到 {0}：結果",
+ "Porting the map to {0}": "正在將地圖移植到 {0}",
+ "Porting the map to {0}...": "正在將地圖移植到 {0}...",
+ "Takes the map to {0}: the return bug gets its equivalent, the names the newer game also has are renamed and the script is checked with the scripts of {1}. The rest of the map stays. Saves the map and a report next to it.": "將地圖移植到 {0}：return bug 會改用等效寫法，新版遊戲同樣具有的名稱會被重新命名，並以 {1} 的腳本檢查腳本。地圖的其餘部分保持不變。會將地圖和報告儲存在其旁邊。",
+ "the map could not be read for this ({0})": "無法讀取地圖以進行此操作（{0}）",
+ "{0} (not for this map)": "{0}（不適用於此地圖）"
 }
