@@ -47,7 +47,7 @@ def gate(old_bytes, new_bytes):
 def write(path_in, path_out, files, progress=None, check=None):
     from doctor.mpq import mpqadd
     p = progress or _nothing
-    if os.path.abspath(path_out) == os.path.abspath(path_in):
+    if os.path.normcase(os.path.abspath(path_out)) == os.path.normcase(os.path.abspath(path_in)):
         raise RuntimeError('the output must be a new file')
     names = [n for n, _b in files]
     part = unprotect._part(path_out)
