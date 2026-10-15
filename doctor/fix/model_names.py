@@ -274,7 +274,9 @@ def fix(path_in, path_out, progress=None):
     pairs, rep['portraits'] = _pairs(a, base)
     if not pairs:
         rep['note'] = 'no model name carries the mark'
-        shutil.copyfile(path_in, path_out)
+        parte = path_out + '.part'
+        shutil.copyfile(path_in, parte)
+        os.replace(parte, path_out)
         return rep
     p('Rewriting the names in the map files')
     repl, touched = [], []
