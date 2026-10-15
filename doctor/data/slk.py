@@ -187,6 +187,8 @@ def parse_ini(path):
 
 
 def parse_ini_bytes(raw, native=True):
+    if raw[:3] == b'\xef\xbb\xbf':
+        raw = raw[3:]
     if native:
         r = native_ini(raw)
         if r is not None:
