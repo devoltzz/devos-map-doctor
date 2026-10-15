@@ -96,7 +96,7 @@
   function tooBig(file) {
     if (file.size <= SIZE_LIMIT) return false;
     say(file.name + ' is ' + mb(file.size) + ': maps above ' + mb(SIZE_LIMIT) + ' need more memory than a browser ' +
-      'gives a page. Use the Windows program (Download on GitHub).', { bad: true, sticky: true,
+      'gives a page. Use the program for Windows or Linux (Download on GitHub).', { bad: true, sticky: true,
       actions: CONFIG.repository ? [['Open GitHub', () => window.open('https://github.com/' + CONFIG.repository +
         '/releases/latest', '_blank', 'noopener')]] : [] });
     return true;
