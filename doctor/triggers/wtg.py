@@ -497,18 +497,22 @@ def iter_functions(functions):
 
 def tree(mt):
     stack, seen, out = [], {}, []
+    at = {}
     for c, item in mt.elements:
         pid = item.parent_id
         parent = None
-        for k in range(len(stack) - 1, -1, -1):
-            if stack[k].id == pid:
-                parent = stack[k]
-                del stack[k + 1:]
-                break
+        where = at.get(pid)
+        if where:
+            k = where[-1]
+            parent = stack[k]
+            for gone in stack[k + 1:]:
+                at[gone.id].pop()
+            del stack[k + 1:]
         else:
             parent = seen.get(pid)
         out.append((c, item, parent))
         if c in (ROOT, LIBRARY, CATEGORY):
+            at.setdefault(item.id, []).append(len(stack))
             stack.append(item)
             seen[item.id] = item
     return out
