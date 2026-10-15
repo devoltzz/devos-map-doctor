@@ -56,6 +56,10 @@ def _stale(a, progress):
         r = a.find(n)
         if r is None:
             continue
+        try:
+            r = a.find_locale(n) or r
+        except Exception:
+            pass
         bi = r[1]
         if bi in seen or bi >= len(crcs):
             continue
@@ -100,11 +104,11 @@ def fix(path_in, path_out, progress=None):
         res['error'] = err
         return res
     present, ok, _checked, rows = _stale(a, p)
+    if present and not ok:
+        res['error'] = 'The (attributes) file is in a layout the Doctor does not read, so it is left alone.'
+        return res
     if not present or not rows:
         res['state'] = 'nothing_to_do'
-        return res
-    if not ok:
-        res['error'] = 'The (attributes) file is not the layout this reads, so it is left alone.'
         return res
     data = a.read(ATTRIBUTES)
     swaps = [(bi, unprotect._read(a, n)) for n, bi, _s, _c in rows]
