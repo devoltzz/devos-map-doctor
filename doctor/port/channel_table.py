@@ -22,7 +22,7 @@ def fourcc(s):
 
 def ability_slk(units_folder, fields=('tip', 'ubertip')):
     slk = objects.common_module('slk')
-    _h, rows = slk.parse_slk(os.path.join(units_folder, 'AbilityData.slk'))
+    _h, rows = slk.parse_slk(objects.no_box(units_folder, 'AbilityData.slk'))
     abils = {}
     for rid, row in rows.items():
         abils[rid] = {k.lower(): v for k, v in row.items() if v not in ('', None)}
@@ -51,9 +51,9 @@ JN_FIELDS = ('tip', 'ubertip', 'untip', 'unubertip', 'researchtip', 'researchube
 
 
 def jn_ability(folder, method='auto'):
-    units = os.path.join(folder, 'Units')
+    units = objects.no_box(folder, 'Units')
     if method == 'auto':
-        method = 'slk' if os.path.isfile(os.path.join(units, 'AbilityData.slk')) else 'w3u'
+        method = 'slk' if os.path.isfile(objects.no_box(units, 'AbilityData.slk')) else 'w3u'
     abils = ability_slk(units, JN_FIELDS) if method == 'slk' else w3u_abilities(folder, JN_FIELDS)
     best = None
     for rid in sorted(abils):
@@ -136,9 +136,9 @@ def verify(txt, ids):
 
 
 def gera(folder, output, method='auto', source=None):
-    units = os.path.join(folder, 'Units')
+    units = objects.no_box(folder, 'Units')
     if method == 'auto':
-        method = 'slk' if os.path.isfile(os.path.join(units, 'AbilityData.slk')) else 'w3u'
+        method = 'slk' if os.path.isfile(objects.no_box(units, 'AbilityData.slk')) else 'w3u'
     print('mode: %s (%s)' % (method, folder))
     abils = ability_slk(units) if method == 'slk' else w3u_abilities(folder)
     ids = channel_ids(abils)
