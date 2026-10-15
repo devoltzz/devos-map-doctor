@@ -65,12 +65,14 @@ class _Script(object):
     def creates(self, name, seen=None):
         if name in self._creates:
             return self._creates[name]
+        top = seen is None
         seen = seen if seen is not None else set()
         out = set()
         f = self.functions.get(name)
         if f is None or name in seen:
             return out
         seen.add(name)
+        unit_events = None
         for x in existing.walk(f):
             if type(x) is not existing.Call:
                 continue
@@ -86,13 +88,18 @@ class _Script(object):
                 out.add('items')
             elif x.name in UNIT_CREATE:
                 out.add('units')
-            elif x.name == 'CreateTrigger' and not any(
-                    type(y) is existing.Call and y.name in ('TriggerRegisterDeathEvent', 'TriggerRegisterUnitEvent')
-                    for y in existing.walk(f)):
-                out.add('other')
+            elif x.name == 'CreateTrigger':
+                if unit_events is None:
+                    unit_events = any(
+                        type(y) is existing.Call and y.name in ('TriggerRegisterDeathEvent', 'TriggerRegisterUnitEvent')
+                        for y in existing.walk(f)
+                    )
+                if not unit_events:
+                    out.add('other')
             elif not x.args and x.name in self.functions:
                 out |= self.creates(x.name, seen)
-        self._creates[name] = out
+        if top:
+            self._creates[name] = out
         return out
 
 
