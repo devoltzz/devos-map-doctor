@@ -526,11 +526,15 @@ def read_parts(argv=None):
         while '//@SLOTGLOBALS' in t and '//@ENDSLOTGLOBALS' in t:
             i = t.index('//@SLOTGLOBALS')
             j = t.index('//@ENDSLOTGLOBALS')
+            if j < i:
+                raise SystemExit('ABORT: //@ENDSLOTGLOBALS before //@SLOTGLOBALS in a part of the layer')
             globals_block += [line.strip() for line in t[i + len('//@SLOTGLOBALS'):j].split('\n') if line.strip()]
             t = t[:i] + t[j + len('//@ENDSLOTGLOBALS'):]
         while '//@GLOBALS' in t and '//@ENDGLOBALS' in t:
             i = t.index('//@GLOBALS')
             j = t.index('//@ENDGLOBALS')
+            if j < i:
+                raise SystemExit('ABORT: //@ENDGLOBALS before //@GLOBALS in a part of the layer')
             globals_block += [line.strip() for line in t[i + 10:j].split('\n') if line.strip()]
             t = t[:i] + t[j + 13:]
         body = []
