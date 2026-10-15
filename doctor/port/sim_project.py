@@ -9,8 +9,14 @@ def parameter(fname, default_value=None, proj=None):
     p = proj or finds()
     file_ = os.path.join(p, 'port', 'simulador.json') if p else None
     if file_ and os.path.isfile(file_):
-        with open(file_, encoding='utf-8') as f:
-            return json.load(f).get(fname, default_value)
+        try:
+            with open(file_, encoding='utf-8') as f:
+                d = json.load(f)
+            if not isinstance(d, dict):
+                raise ValueError('the content is not a JSON object')
+        except ValueError as e:
+            raise ValueError('%s: %s' % (file_, e))
+        return d.get(fname, default_value)
     return default_value
 
 
