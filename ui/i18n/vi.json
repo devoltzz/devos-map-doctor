@@ -3085,5 +3085,19 @@
  "... or only the ones that are copies of the game's file": "... hoặc chỉ những tệp là bản sao của tệp game",
  "This map has a file name that the shared name list does not know yet. Share it on GitHub?": "Bản đồ này có một tên tệp mà danh sách tên dùng chung chưa biết. Chia sẻ nó trên GitHub?",
  "World Editor: needs the fixes above.": "World Editor: cần các bản sửa ở trên.",
- "{0} of them are byte-for-byte copies of the game's own file: taking them out changes nothing the map shows, and the game uses its own. Needs the game installed.": "{0} trong số đó là bản sao từng byte của chính tệp game: xóa chúng không thay đổi gì những gì bản đồ hiển thị, và game dùng tệp của nó. Cần cài game."
+ "{0} of them are byte-for-byte copies of the game's own file: taking them out changes nothing the map shows, and the game uses its own. Needs the game installed.": "{0} trong số đó là bản sao từng byte của chính tệp game: xóa chúng không thay đổi gì những gì bản đồ hiển thị, và game dùng tệp của nó. Cần cài game.",
+ "Port": "Chuyển đổi",
+ "Port to:": "Chuyển sang:",
+ "The game the ported map is for": "Phiên bản game mà bản đồ đã chuyển dành cho",
+ "To Reforged. For KK or M16 maps (DzAPI, japi, JN): fills in the platform natives, makes the save local and ports the menus. Saves the map and a report next to it.": "Sang Reforged. Dành cho bản đồ KK hoặc M16 (DzAPI, japi, JN): điền các native của nền tảng, chuyển phần lưu game sang cục bộ và chuyển đổi các menu. Lưu bản đồ cùng một báo cáo bên cạnh.",
+ "a map of the KK platform: Reforged only": "bản đồ của nền tảng KK: chỉ dành cho Reforged",
+ "to Reforged or a newer game": "sang Reforged hoặc một game mới hơn",
+ "Made for: {0}.": "Làm cho: {0}.",
+ "Port to {0}": "Chuyển sang {0}",
+ "Port to {0}: result": "Chuyển sang {0}: kết quả",
+ "Porting the map to {0}": "Chuyển bản đồ sang {0}",
+ "Porting the map to {0}...": "Đang chuyển bản đồ sang {0}...",
+ "Takes the map to {0}: the return bug gets its equivalent, the names the newer game also has are renamed and the script is checked with the scripts of {1}. The rest of the map stays. Saves the map and a report next to it.": "Chuyển bản đồ sang {0}: return bug được thay bằng cách tương đương, các tên mà game mới hơn cũng có sẽ được đổi tên và script được kiểm tra với các script của {1}. Phần còn lại của bản đồ giữ nguyên. Lưu bản đồ cùng một báo cáo bên cạnh.",
+ "the map could not be read for this ({0})": "không đọc được bản đồ cho việc này ({0})",
+ "{0} (not for this map)": "{0} (không dành cho bản đồ này)"
 }
