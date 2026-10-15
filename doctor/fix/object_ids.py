@@ -226,9 +226,10 @@ def main(argv):
     for _e, (_v, objs, _n, _d, _p) in files_.items():
         candidates |= set(o[2].encode('latin-1') for o in objs if o[0] == 1)
     avoid = {}
-    for n, d in others.items():
-        for k in candidates:
-            if k in d:
+    if candidates:
+        _rx = re.compile(b'|'.join(re.escape(k) for k in sorted(candidates)))
+        for n, d in others.items():
+            for k in set(_rx.findall(d)):
                 avoid.setdefault(k, []).append(n)
     new_ones = choose_ids(files_, script_rawcodes(j), avoid)
     by_kind = collections.Counter(v[1] for v in new_ones.values())
