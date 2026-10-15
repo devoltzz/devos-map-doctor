@@ -276,7 +276,11 @@ def applies(
         failures.append('InitCustomTriggers: %d, expected 1' % len(matches))
     elif matches:
         nl = '\r\n' if matches[0].group().endswith('\r\n') else '\n'
-        body_text = body_text[:matches[0].end()] + '\tcall DB_ui_boot()' + nl + body_text[matches[0].end():]
+        pos = matches[0].end()
+        rx_local = re.compile(r'[ \t]*local\b[^\r\n]*(?:\r\n|\r|\n)')
+        while rx_local.match(body_text, pos):
+            pos = rx_local.match(body_text, pos).end()
+        body_text = body_text[:pos] + '\tcall DB_ui_boot()' + nl + body_text[pos:]
         info['boot_info'] = 1
     else:
         m = RX_MAIN.search(body_text)
