@@ -6,7 +6,7 @@ function KK_tmr_destroi takes timer t returns nothing
 endfunction
 
 function KK_unid_morta takes unit u returns boolean
-    return IsUnitType(u, UNIT_TYPE_DEAD) or GetUnitTypeId(u)==0
+    return IsUnitType(u, UNIT_TYPE_DEAD) or (u!=null and GetUnitTypeId(u)==0)
 endfunction
 
 integer KK_dano_prof=0
