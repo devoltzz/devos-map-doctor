@@ -77,10 +77,11 @@ def main():
         if not os.path.isfile(p_en) and not os.path.isfile(p_orig):
             print('%-14s is not in the map: nothing to move' % slk)
             continue
-        source = p_en
-        _, col = read_models(p_en, id_column, 'file')
-        if 'file' not in [v.lower() for v in col.values()]:
-            source = p_orig
+        source = p_en if os.path.isfile(p_en) else p_orig
+        if source == p_en:
+            _, col = read_models(p_en, id_column, 'file')
+            if 'file' not in [v.lower() for v in col.values()]:
+                source = p_orig
             print('%s of extract_en already lacks the column; reading from port/extract' % slk)
         models, col = read_models(source, id_column, 'file')
         tgt = os.path.join(EN, dest)
