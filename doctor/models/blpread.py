@@ -66,6 +66,21 @@ def header_text(path):
     return header_bytes(d, path, os.path.getsize(path))
 
 
+def _as_blperror(f):
+    import functools
+
+    @functools.wraps(f)
+    def _w(*a, **k):
+        try:
+            return f(*a, **k)
+        except BLPError:
+            raise
+        except (IndexError, ValueError, struct.error, OSError, KeyError) as e:
+            raise BLPError('%s: %s' % (type(e).__name__, e))
+    return _w
+
+
+@_as_blperror
 def header_bytes(d, path='<bytes>', byte_size=None):
     byte_size = len(d) if byte_size is None else byte_size
     d = d[:1024]
@@ -139,7 +154,7 @@ def _raw_components(jpg):
     p, sof = 2, False
     while p + 4 <= len(out) and out[p] == 0xFF:
         m = out[p + 1]
-        ln = struct.unpack('>H', bytes(out[p + 2:p + 4]))[0]
+        txt_ln = struct.unpack('>H', bytes(out[p + 2:p + 4]))[0]
         if m == 0xEE and out[p + 4:p + 9] == b'Adobe':
             return jpg
         if m in (0xC2, 0xC3) or 0xC5 <= m <= 0xCF and m not in (0xC8, 0xCC):
@@ -160,7 +175,7 @@ def _raw_components(jpg):
                     return jpg
                 out[p + 5 + 2 * i] = IDS_CMYK[ids.index(c)]
             return bytes(out)
-        p += 2 + ln
+        p += 2 + txt_ln
     return jpg
 
 
@@ -320,6 +335,7 @@ def read_data(path, mip=0, info=None):
         return read_bytes(f.read(), mip, info, path)
 
 
+@_as_blperror
 def read_bytes(data_bytes, mip=0, info=None, path='<bytes>'):
     if data_bytes[:4] == BLX1:
         data_bytes = decrypt_blx(data_bytes)
