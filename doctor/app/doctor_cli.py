@@ -19,7 +19,8 @@ a .w3mod): a package is read as data, never run; diag, files and extract work on
                                   Editor to open it in, reforged (the default), 1.24 to 1.29 (keeps the map's
                                   version), or auto (the version the map was saved for)
   port <map> [--package=<name>] [--icons] [--textures] [--keep-memory] [--balance-numbers] [--strip-indent]
-       [--remove-game-files] [--lossy]
+       (every extra of fix and port is off unless given: the window turns the usual ones on by itself)
+       [--remove-game-files] [--lossy] [--classic-effects]
                                   Port to Reforged (KK and M16 maps): saves <map>_reforged.w3x and the report;
                                   --package: the art packages the map needs, comma separated, the first wins (a
                                   .mix, .asi, .dll or .mpq, or a folder of loose files the map read from the game
@@ -27,7 +28,10 @@ a .w3mod): a package is read as data, never run; diag, files and extract work on
                                   --remove-game-files: the map's images and models with the path of a game file
                                   (they replace the game's own; counted in the report either way) come out;
                                   --lossy: a map still above 512 MiB after the lossless shrink gets its biggest
-                                  textures halved and its WAV sounds mono at 22 kHz until it fits
+                                  textures halved and its WAV sounds mono at 22 kHz until it fits;
+                                  --classic-effects: the game's own effect models the map uses keep their classic
+                                  (SD) look, copied into the map under new names with the references rewritten
+                                  (Reforged shows their HD variant, another effect for many spells)
   check <map> [--game=<version>]  Runs on Reforged? (what crashes or misses on 3.0, and the threads of a JASS script's
                                   start that do more work than the game lets one thread do); --game=1.27 (or
                                   --version=1.27) checks an older game instead: 1.24a to 1.28.5 and 1.29.2
@@ -79,10 +83,12 @@ Steps of fix / editor (none given: the defaults the window ticks for this map; -
 Extras of fix / editor:
   --models --model-names --portraits --data-pointers --kk-textures --green-icons --uabi --preload
   --single-player --shrink --shrink-lossy --translation=<file> --strip-indent
-  --fix-attributes --remove-game-files --fix-requirements --fix-fdf --null-handles --minify --slk-objects
+  --fix-attributes --remove-game-files --remove-game-copies --fix-requirements --fix-fdf --null-handles --minify
+  --slk-objects
   --portraits=stamp|upgrade --shrink-models --shrink-models-lossy --lobby-image=<picture>
   --fix-attributes         redo the file checksums
   --remove-game-files      take out the map files that replace the game's own (needs the game installed)
+  --remove-game-copies     only the ones that are byte-for-byte copies of the game's file (needs the game installed)
   --fix-requirements       unlock abilities that require a tech the map lacks
   --fix-fdf                fix frame file lists
   --null-handles           null handle locals (JASS)
@@ -134,8 +140,26 @@ class UsageError(Exception):
     pass
 
 
+class _Opts(dict):
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        self.seen = set()
+
+    def get(self, k, d=None):
+        self.seen.add(k)
+        return super().get(k, d)
+
+    def __getitem__(self, k):
+        self.seen.add(k)
+        return super().__getitem__(k)
+
+    def __contains__(self, k):
+        self.seen.add(k)
+        return super().__contains__(k)
+
+
 def parse(argv):
-    pos, opts = [], {}
+    pos, opts = [], _Opts()
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -163,6 +187,8 @@ def parse(argv):
 def step_flag(key):
     if key.startswith(('dados:', 'data:')):
         return 'data'
+    if key in ('duplicate_textures', 'duplicate_textures'):
+        return 'identical-textures'
     return STEP_FLAGS.get(key) or key.replace('_', '-').replace(':', '-')
 
 
@@ -187,6 +213,10 @@ def pick_extras(action, opts):
     for flag, key in EXTRA_FLAGS.items():
         if opts.get(flag) is True and (action == 'fix' or flag in EDITOR_EXTRAS):
             extras[key] = True
+    if action == 'fix' and opts.get('remove-game-copies') is True and not extras.get('game_overrides'):
+        extras['game_overrides'] = 'identical'
+    if opts.get('translation') is True:
+        raise UsageError('--translation needs =<file>')
     if isinstance(opts.get('translation'), str):
         if not os.path.isfile(opts['translation']):
             raise UsageError('no such translation file: %s' % opts['translation'])
@@ -484,7 +514,8 @@ def build_job(command, pos, opts, run):
                         'memory': not opts.get('keep-memory'), 'icons': bool(opts.get('icons')),
                         'textures': bool(opts.get('textures')), 'balance': bool(opts.get('balance-numbers')),
                         'strip_indent': opts.get('strip-indent') is True,
-                        'game_files': bool(opts.get('remove-game-files')), 'lossy': bool(opts.get('lossy'))}
+                        'game_files': bool(opts.get('remove-game-files')), 'lossy': bool(opts.get('lossy')),
+                        'classic': bool(opts.get('classic-effects'))}
     if command == 'check':
         need(pos, 2, '<map>')
         job = {'task': 'reforged', 'map': pos[1]}
@@ -538,6 +569,8 @@ def build_job(command, pos, opts, run):
             return 'translation groups', {'task': 'translation_groups', 'map': rest[1]}
         if sub == 'export':
             need(rest, 3, '<map> <file>')
+            if opts.get('only') is True:
+                raise UsageError('--only needs =<group>[,<group>...]')
             only = [x for x in str(opts['only']).split(',') if x] if isinstance(opts.get('only'), str) else None
             return 'translation export', {'task': 'translation_export', 'map': rest[1],
                                           'file': os.path.abspath(rest[2]), 'only': only,
@@ -547,6 +580,8 @@ def build_job(command, pos, opts, run):
             return 'translation check', {'task': 'translation_check', 'map': rest[1], 'file': os.path.abspath(rest[2])}
         if sub == 'machine':
             need(rest, 3, '<map> <file.json>')
+            if opts.get('only') is True:
+                raise UsageError('--only needs =<group>[,<group>...]')
             only = [x for x in str(opts['only']).split(',') if x] if isinstance(opts.get('only'), str) else None
             quality = opts.get('quality') if isinstance(opts.get('quality'), str) else 'best'
             if quality not in ('best', 'fast'):
@@ -655,6 +690,13 @@ def main(argv, window, version=''):
 
     try:
         command, job = build_job(pos[0], pos, opts, run)
+        unknown = sorted(k for k in opts if k not in opts.seen and k not in ('json', 'quiet', 'out', 'to', 'help'))
+        if unknown:
+            named = ', '.join('--' + k for k in unknown)
+            if command in ('fix', 'editor'):
+                sys.stderr.write('doctor: not used (no such step or extra for this map, or a typo): %s\n' % named)
+            else:
+                raise UsageError('unknown option%s: %s' % ('s' if len(unknown) > 1 else '', named))
     except UsageError as e:
         sys.stderr.write('doctor: %s\n(doctor --help lists the commands)\n' % e)
         return 2
