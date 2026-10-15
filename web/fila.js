@@ -118,7 +118,7 @@
     for (const item of picked) {
       if (stop) { item.r.set('cancelled', ''); continue; }
       if (item.file.size > W.sizeLimit) {
-        item.r.set('skipped', 'Above ' + Math.round(W.sizeLimit / 1048576) + ' MB: use the Windows program.');
+        item.r.set('skipped', 'Above ' + Math.round(W.sizeLimit / 1048576) + ' MB: use the program for Windows or Linux.');
         continue;
       }
       item.r.set('running', 'Reading the script...');
@@ -145,7 +145,7 @@
       if (ACTIONS[action].perMap && !item.params) continue;
       if (stop) { r.set('cancelled', ''); continue; }
       if (file.size > W.sizeLimit) {
-        r.set('skipped', 'Above ' + Math.round(W.sizeLimit / 1048576) + ' MB: use the Windows program.');
+        r.set('skipped', 'Above ' + Math.round(W.sizeLimit / 1048576) + ' MB: use the program for Windows or Linux.');
         continue;
       }
       r.set('running', 'Starting...');
@@ -157,6 +157,7 @@
       const res = ev.data || {};
       const outs = [res.file, res.report].filter(Boolean);
       const saved = [];
+      let saveError = null;
       for (const p of outs) {
         try {
           const got = await W.read(p);
@@ -168,9 +169,11 @@
             saved.push(got.name);
           }
         } catch (e) {
-          r.set('failed', 'Could not save the result: ' + (e && e.message || e));
+          saveError = 'Could not save the result: ' + (e && e.message || e);
+          break;
         }
       }
+      if (saveError) { r.set('failed', saveError); continue; }
       const kind = res.outcome === 'ok' ? 'ok' : res.outcome || 'failed';
       const why = (res.lines || []).find(l => l[0] === 'bad') || (res.lines || []).find(l => l[0] === 'warn');
       r.set(kind, saved.length ? (picked.dir ? 'Saved ' : 'In the zip: ') + saved.join(', ') :
@@ -191,7 +194,7 @@
       el('option', { value: k, text: a.label })));
     const list = el('ul', { class: 'steps' });
     const foot = el('div', { class: 'foot row', style: 'margin-top:10px' });
-    const start = el('button', { class: 'btn', text: canWriteFolder ? 'Pick a folder...' : 'Pick maps...' });
+    const start = el('button', { class: 'btn', text: canWriteFolder ? 'Choose a folder...' : 'Choose maps...' });
     const cancel = el('button', { class: 'btn ghost hidden', text: 'Stop' });
     cancel.onclick = async () => { stop = true; await window.doctorWeb.cancelAll(); };
     const busy = on => {
@@ -249,16 +252,16 @@
           ACTIONS[action].label + ', one after the other.' }));
         go(action, picked);
       } });
-      foot.replaceChildren(el('span', { class: 'muted grow', text: 'Pick the pack and the activators of each map.' }),
+      foot.replaceChildren(el('span', { class: 'muted grow', text: 'Choose the pack and the activators of each map.' }),
         ready.length > 1 ? same : null, inject);
     };
     return el('div', { class: 'card', id: 'queue', style: 'margin-top:14px' },
       el('h3', { text: 'Several maps' }),
       el('p', { class: 'muted', text: canWriteFolder ?
-        'Run one action on every map of a folder: each result is saved next to its map. Fix, editor and port use ' +
-        'the default options; the cheat pack and its activators are chosen per map.' :
-        'Run one action on several maps: the results come back as one zip. Fix, editor and port use the default ' +
-        'options; the cheat pack and its activators are chosen per map.' }),
+        'Run one action on every map of a folder: each result is saved next to its map. Fix map, Open in World Editor and ' +
+        'Port to Reforged use the default options; the cheat pack and its activators are chosen per map.' :
+        'Run one action on several maps: the results come back as one zip. Fix map, Open in World Editor and Port to ' +
+        'Reforged use the default options; the cheat pack and its activators are chosen per map.' }),
       el('div', { class: 'row', style: 'gap:10px;align-items:center' }, select, start, cancel), list, foot);
   }
 
