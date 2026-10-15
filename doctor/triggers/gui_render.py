@@ -756,7 +756,7 @@ class _Trigger(_Syntax):
             return []
         name = f.name
         if name == 'CommentString':
-            return [] if self.lua else [(depth, '// ' + f.params[0].value)]
+            return [] if self.lua else [(depth, '// ' + _one_line(f.params[0].value))]
         if name == 'CustomScriptCode':
             return [(depth, f.params[0].value)]
         if name == 'ReturnAction':
@@ -892,8 +892,12 @@ class _Trigger(_Syntax):
         return self.functions
 
 
+def _one_line(s):
+    return re.sub(r'\r\n?|\n', ' ', s)
+
+
 def _banner(trigger, lang):
-    lines = [BANNER, '// Trigger: ' + trigger.name]
+    lines = [BANNER, '// Trigger: ' + _one_line(trigger.name)]
     if trigger.description:
         lines.append('//')
         lines += [('// ' + x).rstrip() for x in re.split(r'\r\n?|\n', trigger.description)]
@@ -1018,7 +1022,7 @@ def render_init_custom_triggers(mt, lang=JASS, editor=False, texts=None):
                 padrao = (
                     r'\bfunction\s+InitTrig_%s\b' if lang != LUA else r'\bInitTrig_%s\s*=|\bfunction\s+InitTrig_%s\b'
                 )
-                if 'InitTrig_' + i not in tx or not re.search(padrao.replace('%s', re.escape(i)), tx):
+                if 'InitTrig_' + i not in tx or not re.search(padrao.replace('%s', re.escape(i)), _code_only(tx)):
                     sem_init.add(id(t))
     if lang == LUA:
         idents = [trigger_identifier(t.name) for t in _enabled_triggers(mt, editor)
