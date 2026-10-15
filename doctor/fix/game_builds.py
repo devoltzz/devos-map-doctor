@@ -101,6 +101,6 @@ def describe_w3i(w3i_bytes):
         return None
     fmt, _saves, editor = struct.unpack_from('<iii', w3i_bytes, 0)
     gv = None
-    if fmt >= 28 and len(w3i_bytes) >= 28:
+    if fmt >= 27 and len(w3i_bytes) >= 28:
         gv = list(struct.unpack_from('<4i', w3i_bytes, 12))
     return describe(editor, gv)
