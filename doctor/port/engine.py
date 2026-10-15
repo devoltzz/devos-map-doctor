@@ -13,7 +13,7 @@ DAMAGE_KEYS = {
     'EXGetEventDamageData': 'damage_dealt',
 }
 
-RX_DESTROYS = re.compile(r'\bcall DestroyTimer\(')
+RX_DESTROYS = re.compile(r'\bcall[ \t]+DestroyTimer[ \t]*\(')
 RX_TYPE_CHECK = re.compile(r'(?<![\w.])IsUnitType\s*\(')
 
 
