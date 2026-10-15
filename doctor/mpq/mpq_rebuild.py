@@ -68,7 +68,10 @@ def rebuild(
         n = _norm(n)
         known.setdefault(pair(n), n)
     ht = [tuple(a.ht[i * 4:i * 4 + 4]) for i in range(hn_read)]
-    live = [i for i in range(hn_read) if (ht[i][3] & mpqread.BLOCK_MASK) < len(a.blocks)]
+    live = [i for i in range(hn_read) if a.exists(ht[i][3] & mpqread.BLOCK_MASK)]
+    dead = sum(1 for i in range(hn_read) if ht[i][3] not in (0xFFFFFFFF, 0xFFFFFFFE) and i not in set(live))
+    if dead:
+        log('warning: %d hash entries point to a block that does not exist (the game does not read them): out' % dead)
     clusters = {}
     for i in live:
         clusters.setdefault((ht[i][0], ht[i][1]), []).append(i)
@@ -85,6 +88,13 @@ def rebuild(
             continue
         if fname is not None:
             r = a.find(fname)
+            if r is None:
+                live_ones = [s for s in slots if a.exists(ht[s][3] & mpqread.BLOCK_MASK)]
+                neutrals = [s for s in live_ones if (ht[s][2] & 0xFFFFFF) == 0]
+                if not live_ones:
+                    raise RebuildError('%s: none of the %d entries of the name points to a block that exists'
+                                       % (fname, len(slots)))
+                r = ((neutrals or live_ones)[-1],)
             chosen = r[0]
         else:
             neutrals = [s for s in slots if (ht[s][2] & 0xFFFFFF) == 0]
