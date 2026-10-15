@@ -1,29 +1,13 @@
 # Renames calls in a script, outside strings and comments.
 import re
 
+from doctor.port import class1
+
 
 RX_NATIVE = re.compile(r'^\s*(?:constant\s+)?native\s')
 
 
-def skip_string(s, i):
-    n = len(s)
-    k = i + 1
-    while k < n:
-        c = s[k]
-        if c == '\\':
-            k += 2
-            continue
-        if c == '"':
-            return k + 1
-        k += 1
-    return n
-
-
-def skip_rawcode(s, i):
-    j = s.find("'", i + 1)
-    if 0 < j - i <= 5:
-        return j + 1
-    return i + 1
+skip_string, skip_rawcode = class1.skip_string, class1.skip_rawcode
 
 
 _RX_SITE = re.compile(r'''"(?:[^"\\]|\\[\s\S])*"?|(//)|'[^']{0,4}'|(?<![\w.])(\w+)(?=[ \t]*\()''')
