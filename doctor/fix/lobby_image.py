@@ -37,13 +37,23 @@ def _blp_size(data):
     return info['map_width'], info['map_height']
 
 
+def _blp_size_or_none(data):
+    try:
+        return _blp_size(data)
+    except Exception:
+        return None
+
+
 def _blp_from_image(path):
     with open(path, 'rb') as f:
         raw = f.read()
-    if raw[:4] in (b'BLP1', b'BLP2', b'BLX1'):
-        w, h = _blp_size(raw)
-        if raw[:4] == b'BLX1':
-            raise ValueError('%s is a BLX1 (KK platform) texture: make it a BLP1 first' % os.path.basename(path))
+    if raw[:4] == b'BLX1':
+        raise ValueError('%s is a BLX1 (KK platform) texture: make it a BLP1 first' % os.path.basename(path))
+    if raw[:4] in (b'BLP1', b'BLP2'):
+        try:
+            w, h = _blp_size(raw)
+        except Exception as e:
+            raise ValueError('%s is not a BLP the Doctor reads (%s)' % (os.path.basename(path), e))
         return raw, (w, h)
     try:
         from PIL import Image
@@ -116,8 +126,8 @@ def scan(path):
         )
         return out
     called = bool(RX_CALL.search(text))
-    out['minimap'] = _blp_size(mini) if mini else None
-    out['source'] = {'name': PREVIEW, 'size': _blp_size(prev)} if prev else None
+    out['minimap'] = _blp_size_or_none(mini) if mini else None
+    out['source'] = {'name': PREVIEW, 'size': _blp_size_or_none(prev)} if prev else None
     if ingame is not None and called:
         out['state'] = 'applied'
         out['why'] = 'The lobby image is already set (%s keeps the minimap, the script calls %s).' % (INGAME, NATIVE)
@@ -183,7 +193,7 @@ def fix(path_in, path_out, progress=None, image=None):
     if image:
         try:
             blp, size = _blp_from_image(image)
-        except (ValueError, OSError) as e:
+        except Exception as e:
             return stop('refused', str(e))
         rep['source'] = os.path.basename(image)
     else:
@@ -230,5 +240,5 @@ def fix(path_in, path_out, progress=None, image=None):
                                   'still draws the real minimap.' % (INGAME, NATIVE))]
     rep['lines'] += [('info', 'Do this last: the World Editor writes %s again on every save and does not keep these '
                               'files (they are not in the import list).' % MINIMAP),
-                     ('info', 'Not tested in the game: the Doctor never runs it.')]
+                     ('info', 'Not tested in game: the Doctor never runs it.')]
     return rep
