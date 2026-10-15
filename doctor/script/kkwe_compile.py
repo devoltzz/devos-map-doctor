@@ -46,7 +46,10 @@ def i32(v):
 
 
 def f32_bits(body_text):
-    return struct.unpack('<i', struct.pack('<f', float(body_text)))[0]
+    try:
+        return struct.unpack('<i', struct.pack('<f', float(body_text)))[0]
+    except OverflowError:
+        raise ValueError('real out of the game range: %s' % body_text)
 
 
 class Token(object):
@@ -645,6 +648,8 @@ class Compiler(object):
         if k == 'code':
             return 'code'
         if k == 'call':
+            if e[1] not in self.funcs:
+                raise NameError('unknown function: %s' % e[1])
             return self.funcs[e[1]][1]
         if k == 'neg':
             return self.type_of(e[1])
