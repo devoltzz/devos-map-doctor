@@ -3085,5 +3085,19 @@
  "... or only the ones that are copies of the game's file": "... або лише ті, що є копіями файлу гри",
  "This map has a file name that the shared name list does not know yet. Share it on GitHub?": "У цій мапі є назва файлу, якої спільний список назв ще не знає. Поділитися нею на GitHub?",
  "World Editor: needs the fixes above.": "World Editor: потрібні виправлення вище.",
- "{0} of them are byte-for-byte copies of the game's own file: taking them out changes nothing the map shows, and the game uses its own. Needs the game installed.": "Із них {0} — побайтові копії власного файлу гри: їх видалення нічого не змінює в тому, що показує мапа, а гра використовує свій файл. Потрібна встановлена гра."
+ "{0} of them are byte-for-byte copies of the game's own file: taking them out changes nothing the map shows, and the game uses its own. Needs the game installed.": "Із них {0} — побайтові копії власного файлу гри: їх видалення нічого не змінює в тому, що показує мапа, а гра використовує свій файл. Потрібна встановлена гра.",
+ "Port": "Портування",
+ "Port to:": "Портувати на:",
+ "The game the ported map is for": "Гра, для якої призначена портована мапа",
+ "{0} (not for this map)": "{0} (не для цієї мапи)",
+ "Made for: {0}.": "Створено для: {0}.",
+ "To Reforged. For KK or M16 maps (DzAPI, japi, JN): fills in the platform natives, makes the save local and ports the menus. Saves the map and a report next to it.": "На Reforged. Для мап KK або M16 (DzAPI, japi, JN): заповнює нативи платформи, робить збереження локальним і портує меню. Зберігає мапу та звіт поруч із нею.",
+ "Takes the map to {0}: the return bug gets its equivalent, the names the newer game also has are renamed and the script is checked with the scripts of {1}. The rest of the map stays. Saves the map and a report next to it.": "Переносить мапу на {0}: return bug отримує свій еквівалент, імена, які є і в новішій грі, перейменовуються, а скрипт перевіряється за скриптами {1}. Решта мапи залишається без змін. Зберігає мапу та звіт поруч із нею.",
+ "Port to {0}": "Портувати на {0}",
+ "Port to {0}: result": "Портування на {0}: результат",
+ "Porting the map to {0}": "Портування мапи на {0}",
+ "Porting the map to {0}...": "Портування мапи на {0}...",
+ "to Reforged or a newer game": "на Reforged або новішу гру",
+ "a map of the KK platform: Reforged only": "мапа платформи KK: лише Reforged",
+ "the map could not be read for this ({0})": "не вдалося прочитати мапу для цього ({0})"
 }
