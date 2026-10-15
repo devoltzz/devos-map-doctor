@@ -270,6 +270,14 @@ class CascWC3(object):
         ents = self.index_.get(ekey[:9])
         if not ents:
             raise CascError('EKey %s is not in the local indexes (file not installed?)' % ekey[:9].hex())
+        try:
+            return self._read_ekey(ekey, ents)
+        except CascError:
+            raise
+        except (struct.error, IndexError, ValueError, OSError) as e:
+            raise CascError('EKey %s: %s: %s' % (ekey[:9].hex(), type(e).__name__, e))
+
+    def _read_ekey(self, ekey, ents):
         error_list = []
         for file_, off, sz in ents:
             f = self._data_file(file_)
