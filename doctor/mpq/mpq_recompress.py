@@ -1,6 +1,7 @@
 # Compresses MPQ sectors with the best available deflate encoder (used by the shrink).
 import hashlib
 import os
+import re
 import struct
 import zlib
 
@@ -19,62 +20,12 @@ SLICE = 128
 CODIFICADORES = ('auto', 'zopfli', 'libdeflate', 'zlib9', 'zlib6')
 
 
-def _table_crypt():
-    seed = 0x00100001
-    tbl = [0] * 0x500
-    for i in range(0x100):
-        idx = i
-        for _ in range(5):
-            seed = (seed * 125 + 3) % 0x2AAAAB
-            t1 = (seed & 0xFFFF) << 0x10
-            seed = (seed * 125 + 3) % 0x2AAAAB
-            t2 = seed & 0xFFFF
-            tbl[idx] = t1 | t2
-            idx += 0x100
-    return tbl
-
-
-CRYPT = _table_crypt()
-
-
-MPQ_UPPERCASE = bytes(c - 32 if 0x61 <= c <= 0x7A else (0x5C if c == 0x2F else c) for c in range(256))
-
-
-def hash_string(s, htype):
-    seed1, seed2 = 0x7FED7FED, 0xEEEEEEEE
-    b = s if isinstance(s, (bytes, bytearray)) else s.encode('utf-8', 'surrogateescape')
-    for ch in b.translate(MPQ_UPPERCASE):
-        seed1 = (CRYPT[(htype << 8) + ch] ^ ((seed1 + seed2) & 0xFFFFFFFF)) & 0xFFFFFFFF
-        seed2 = (ch + seed1 + seed2 + (seed2 << 5) + 3) & 0xFFFFFFFF
-    return seed1
-
-
-def decrypt(data, key):
-    seed = 0xEEEEEEEE
-    out = bytearray(len(data))
-    n = len(data) // 4
-    for i in range(n):
-        seed = (seed + CRYPT[0x400 + (key & 0xFF)]) & 0xFFFFFFFF
-        ch = struct.unpack_from('<I', data, i * 4)[0] ^ ((key + seed) & 0xFFFFFFFF)
-        struct.pack_into('<I', out, i * 4, ch & 0xFFFFFFFF)
-        key = (((~key << 0x15) + 0x11111111) | (key >> 0x0B)) & 0xFFFFFFFF
-        seed = (ch + seed + (seed << 5) + 3) & 0xFFFFFFFF
-    out[n * 4:] = data[n * 4:]
-    return bytes(out)
-
-
-def encrypt(data, key):
-    seed = 0xEEEEEEEE
-    out = bytearray(len(data))
-    n = len(data) // 4
-    for i in range(n):
-        seed = (seed + CRYPT[0x400 + (key & 0xFF)]) & 0xFFFFFFFF
-        ch = struct.unpack_from('<I', data, i * 4)[0]
-        struct.pack_into('<I', out, i * 4, (ch ^ ((key + seed) & 0xFFFFFFFF)) & 0xFFFFFFFF)
-        key = (((~key << 0x15) + 0x11111111) | (key >> 0x0B)) & 0xFFFFFFFF
-        seed = (ch + seed + (seed << 5) + 3) & 0xFFFFFFFF
-    out[n * 4:] = data[n * 4:]
-    return bytes(out)
+from doctor.mpq import mpqlib as _ML
+CRYPT = _ML.CRYPT
+MPQ_UPPERCASE = _ML.MPQ_UPPERCASE
+hash_string = _ML.hashstr
+decrypt = _ML.decrypt_bytes
+encrypt = _ML.encrypt_bytes
 
 
 SPECIAL_FILES = ('(listfile)', '(attributes)', '(signature)')
@@ -189,6 +140,8 @@ class Cache:
         n = sz = 0
         for root, _, files_ in os.walk(self.folder):
             for f in files_:
+                if not re.fullmatch(r'[0-9a-f]{40}', f) or os.path.basename(root) != f[:2]:
+                    continue
                 p = os.path.normcase(os.path.abspath(os.path.join(root, f)))
                 if p not in self.in_use:
                     sz += os.path.getsize(p)
