@@ -3086,5 +3086,19 @@
  "... or only the ones that are copies of the game's file": "... ou seulement ceux qui sont des copies du fichier du jeu",
  "This map has a file name that the shared name list does not know yet. Share it on GitHub?": "Cette carte a un nom de fichier que la liste de noms partagée ne connaît pas encore. Le partager sur GitHub ?",
  "World Editor: needs the fixes above.": "World Editor : a besoin des corrections ci-dessus.",
- "{0} of them are byte-for-byte copies of the game's own file: taking them out changes nothing the map shows, and the game uses its own. Needs the game installed.": "{0} d'entre eux sont des copies octet pour octet du fichier du jeu lui-même : les retirer ne change rien à ce que la carte affiche, et le jeu utilise le sien. Nécessite le jeu installé."
+ "{0} of them are byte-for-byte copies of the game's own file: taking them out changes nothing the map shows, and the game uses its own. Needs the game installed.": "{0} d'entre eux sont des copies octet pour octet du fichier du jeu lui-même : les retirer ne change rien à ce que la carte affiche, et le jeu utilise le sien. Nécessite le jeu installé.",
+ "Port": "Portage",
+ "Port to:": "Porter vers :",
+ "The game the ported map is for": "Le jeu auquel la carte portée est destinée",
+ "To Reforged. For KK or M16 maps (DzAPI, japi, JN): fills in the platform natives, makes the save local and ports the menus. Saves the map and a report next to it.": "Vers Reforged. Pour les cartes KK ou M16 (DzAPI, japi, JN) : renseigne les natives de la plateforme, rend la sauvegarde locale et porte les menus. Enregistre la carte et un rapport à côté.",
+ "a map of the KK platform: Reforged only": "une carte de la plateforme KK : Reforged uniquement",
+ "to Reforged or a newer game": "vers Reforged ou un jeu plus récent",
+ "Made for: {0}.": "Conçue pour : {0}.",
+ "Port to {0}": "Porter vers {0}",
+ "Port to {0}: result": "Porter vers {0} : résultat",
+ "Porting the map to {0}": "Portage de la carte vers {0}",
+ "Porting the map to {0}...": "Portage de la carte vers {0}...",
+ "Takes the map to {0}: the return bug gets its equivalent, the names the newer game also has are renamed and the script is checked with the scripts of {1}. The rest of the map stays. Saves the map and a report next to it.": "Amène la carte vers {0} : le return bug reçoit son équivalent, les noms que le jeu plus récent possède aussi sont renommés et le script est vérifié avec les scripts de {1}. Le reste de la carte est conservé. Enregistre la carte et un rapport à côté.",
+ "the map could not be read for this ({0})": "la carte n'a pas pu être lue pour cela ({0})",
+ "{0} (not for this map)": "{0} (pas pour cette carte)"
 }
