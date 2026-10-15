@@ -20,6 +20,8 @@ BLOCK = 2500
 Z_BASE = 4096
 COLUMN_STEP = 16384
 PLATFORMS = {b'OTip': 64.0, b'OTis': 32.0}
+
+
 def read_w3e(file_path):
     b = open(file_path, 'rb').read()
     if b[:4] != b'W3E!':
@@ -94,11 +96,11 @@ def _tft_platforms(b):
     return out
 
 
-def apply_platforms(q, w, h, ox, oy, platforms):
+def apply_platforms(q, w, h, ox, oy, plat_items):
     n_platforms = 0
     raised_ones = set()
     chao = [ln[:] for ln in q]
-    for tid, x, y, z, sx, sy in platforms:
+    for tid, x, y, z, sx, sy in plat_items:
         i0 = int(round((x - ox) / 128.0))
         j0 = int(round((y - oy) / 128.0))
         if not (0 <= i0 < w and 0 <= j0 < h):
@@ -192,10 +194,10 @@ def block_grid(ext, extract=None):
     if not os.path.isfile(doo) and extract:
         doo = os.path.join(extract, 'war3map.doo')
     w, h, ox, oy, q = read_w3e(cpath)
-    platforms = read_platforms(doo)
-    n_platforms, n_tilepoints = apply_platforms(q, w, h, ox, oy, platforms)
+    plat_items = read_platforms(doo)
+    n_platforms, n_tilepoints = apply_platforms(q, w, h, ox, oy, plat_items)
     sha = hashlib.sha256(open(cpath, 'rb').read() + open(doo, 'rb').read()).hexdigest()[:16]
-    return w, h, ox, oy, q, n_platforms, n_tilepoints, len(platforms), sha
+    return w, h, ox, oy, q, n_platforms, n_tilepoints, len(plat_items), sha
 
 
 def terrain_spans(ext, extract=None):
@@ -290,6 +292,7 @@ def applies(body_text, cfg, to_report=False):
     failures = []
     info = {'failures': failures, 'done': False}
     if 'function KK_zt_carrega takes' in body_text:
+        info.update(replacements=0, voo=0, h=0, w=0, segments=0, platforms=0, platform_tilepoints=0)
         return body_text, info
     exp_len = cfg.get('expected_count') or {}
     body_text, replacements, voo, by_function, outside = swap_reads(body_text, cfg['raw_data'])
