@@ -2,9 +2,14 @@
 import re
 
 
-RX_EXEC = re.compile(r'\b(?:AbilityId|Cheat)\s*\(\s*"exec-lua:\s*(?:\\"|\')?([^"\'\\]+?)(?:\\"|\')?\s*"\s*\)')
+RX_EXEC = re.compile(r'\b(?:AbilityId|Cheat)\s*+\(\s*+"exec-lua:\s*+(?:\\"|\')?([^"\'\\\s]+)(?:\\"|\')?\s*+"\s*+\)')
 RX_LOADER = re.compile(r'StartCampaignAI\s*\([^\n]*"callback"\s*\)')
 RX_TRIGGER = re.compile(r'\b(?:CreateTrigger|TimerStart)\s*\(')
+_RX_STRING_OR_COMMENT = re.compile(r'"(?:[^"\\\n]|\\.)*+"|//[^\n]*')
+
+
+def sem_comentarios(script):
+    return _RX_STRING_OR_COMMENT.sub(lambda m: '' if m.group(0).startswith('//') else m.group(0), script or '')
 FOLDERS = ('scripts\\', 'w3x2lni\\plugin\\import\\scripts\\', '')
 
 
@@ -22,7 +27,8 @@ def _module(name, read):
 
 
 def detect(script, read=None):
-    entries = list(dict.fromkeys(RX_EXEC.findall(script or '')))
+    script = sem_comentarios(script)
+    entries = list(dict.fromkeys(RX_EXEC.findall(script)))
     if not entries:
         return None
     triggers = len(RX_TRIGGER.findall(script))
