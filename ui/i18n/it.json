@@ -3086,5 +3086,19 @@
  "... or only the ones that are copies of the game's file": "... o solo quelli che sono copie del file del gioco",
  "This map has a file name that the shared name list does not know yet. Share it on GitHub?": "Questa mappa ha un nome di file che l'elenco condiviso dei nomi non conosce ancora. Condividerlo su GitHub?",
  "World Editor: needs the fixes above.": "World Editor: richiede le correzioni qui sopra.",
- "{0} of them are byte-for-byte copies of the game's own file: taking them out changes nothing the map shows, and the game uses its own. Needs the game installed.": "{0} di essi sono copie byte per byte del file del gioco stesso: rimuoverli non cambia nulla di ciò che la mappa mostra, e il gioco usa il proprio. Richiede il gioco installato."
+ "{0} of them are byte-for-byte copies of the game's own file: taking them out changes nothing the map shows, and the game uses its own. Needs the game installed.": "{0} di essi sono copie byte per byte del file del gioco stesso: rimuoverli non cambia nulla di ciò che la mappa mostra, e il gioco usa il proprio. Richiede il gioco installato.",
+ "Port": "Port",
+ "Port to:": "Porta su:",
+ "The game the ported map is for": "Il gioco per cui è la mappa portata",
+ "To Reforged. For KK or M16 maps (DzAPI, japi, JN): fills in the platform natives, makes the save local and ports the menus. Saves the map and a report next to it.": "Su Reforged. Per mappe KK o M16 (DzAPI, japi, JN): completa i native della piattaforma, rende il salvataggio locale e porta i menu. Salva la mappa e un report accanto ad essa.",
+ "a map of the KK platform: Reforged only": "una mappa della piattaforma KK: solo Reforged",
+ "to Reforged or a newer game": "su Reforged o un gioco più recente",
+ "Made for: {0}.": "Fatta per: {0}.",
+ "Port to {0}": "Porta su {0}",
+ "Port to {0}: result": "Porta su {0}: risultato",
+ "Porting the map to {0}": "Port della mappa su {0}",
+ "Porting the map to {0}...": "Port della mappa su {0}...",
+ "Takes the map to {0}: the return bug gets its equivalent, the names the newer game also has are renamed and the script is checked with the scripts of {1}. The rest of the map stays. Saves the map and a report next to it.": "Porta la mappa su {0}: il return bug riceve il suo equivalente, i nomi che esistono anche nel gioco più recente vengono rinominati e lo script viene verificato con gli script di {1}. Il resto della mappa resta invariato. Salva la mappa e un report accanto ad essa.",
+ "the map could not be read for this ({0})": "non è stato possibile leggere la mappa per questo ({0})",
+ "{0} (not for this map)": "{0} (non per questa mappa)"
 }
