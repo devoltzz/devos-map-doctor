@@ -55,7 +55,12 @@ def read_materials(data, off, n, version_num):
         q += 8
         layers = []
         for _ in range(nlay):
+            if q + 28 > p + inc:
+                break
             linc = struct.unpack_from('<I', data, q)[0]
+            if linc < 28 or q + linc > p + inc:
+                layers.append({'err': 'layer of %d bytes' % linc})
+                break
             filtro, shade, texid, texanim, coord = struct.unpack_from('<5I', data, q + 4)
             alfa = struct.unpack_from('<f', data, q + 24)[0]
             layers.append({'filtro': filtro, 'shade': shade, 'tex': texid,
