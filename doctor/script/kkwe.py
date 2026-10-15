@@ -38,7 +38,10 @@ def read_container(data_bytes):
             raise ValueError('kkmap.jc: chunk %d runs past the end' % k)
         cs, us, _check = struct.unpack_from('<HHI', data_bytes, pos)
         o = zlib.decompressobj()
-        r = o.decompress(data_bytes[pos + 8:pos + 8 + cs]) + o.flush()
+        try:
+            r = o.decompress(data_bytes[pos + 8:pos + 8 + cs]) + o.flush()
+        except zlib.error as e:
+            raise ValueError('kkmap.jc: chunk %d does not decompress (%s)' % (k, e))
         if len(r) != us:
             raise ValueError('kkmap.jc: chunk %d gave %d B, expected %d' % (k, len(r), us))
         output += r
