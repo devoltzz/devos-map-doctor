@@ -24,9 +24,9 @@ def resolve(line_list):
             continue
         x = y = k = None
         for f in C.slk_fields(line):
-            if f[:1] == 'X' and f[1:2].isdigit():
+            if f[:1] == 'X' and '0' <= f[1:2] <= '9':
                 x = int(re.match(r'X(\d+)', f).group(1))
-            elif f[:1] == 'Y' and f[1:2].isdigit():
+            elif f[:1] == 'Y' and '0' <= f[1:2] <= '9':
                 y = int(re.match(r'Y(\d+)', f).group(1))
             elif f[:1] == 'K':
                 k = f[1:]
@@ -42,15 +42,15 @@ def add_levels(line_list):
     col, _ = C.slk_columns(line_list)
     if not col:
         return None
-    inv = dict((v, x) for x, v in col.items())
-    if any(('%s5' % c) in inv for c in LEVEL_FIELDS):
+    inv = dict((v.lower(), x) for x, v in col.items())
+    if any(('%s5' % c).lower() in inv for c in LEVEL_FIELDS):
         return None
 
     next_item = max(col)
     plain_name = []
     warnings = []
     for c in LEVEL_FIELDS:
-        x4 = inv.get('%s4' % c)
+        x4 = inv.get(('%s4' % c).lower())
         if x4 is None:
             warnings.append(c)
             continue
