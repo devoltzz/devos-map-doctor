@@ -3085,5 +3085,19 @@
  "... or only the ones that are copies of the game's file": "... หรือเฉพาะไฟล์ที่เป็นสำเนาของไฟล์เกม",
  "This map has a file name that the shared name list does not know yet. Share it on GitHub?": "แมพนี้มีชื่อไฟล์หนึ่งชื่อที่รายชื่อที่ใช้ร่วมกันยังไม่รู้จัก แชร์ไว้บน GitHub หรือไม่?",
  "World Editor: needs the fixes above.": "World Editor: ต้องการการซ่อมด้านบน",
- "{0} of them are byte-for-byte copies of the game's own file: taking them out changes nothing the map shows, and the game uses its own. Needs the game installed.": "{0} ไฟล์ในนั้นเป็นสำเนาตรงกันทุกไบต์กับไฟล์ของเกมเอง: การลบออกไม่เปลี่ยนสิ่งที่แมพแสดง และเกมใช้ไฟล์ของมันเอง ต้องติดตั้งเกมไว้"
+ "{0} of them are byte-for-byte copies of the game's own file: taking them out changes nothing the map shows, and the game uses its own. Needs the game installed.": "{0} ไฟล์ในนั้นเป็นสำเนาตรงกันทุกไบต์กับไฟล์ของเกมเอง: การลบออกไม่เปลี่ยนสิ่งที่แมพแสดง และเกมใช้ไฟล์ของมันเอง ต้องติดตั้งเกมไว้",
+ "Port": "พอร์ต",
+ "Port to:": "พอร์ตไปยัง:",
+ "The game the ported map is for": "เกมที่แมพที่พอร์ตแล้วใช้งานด้วย",
+ "To Reforged. For KK or M16 maps (DzAPI, japi, JN): fills in the platform natives, makes the save local and ports the menus. Saves the map and a report next to it.": "ไปยัง Reforged สำหรับแมพ KK หรือ M16 (DzAPI, japi, JN): เติม native ของแพลตฟอร์ม ทำให้การเซฟเป็นแบบในเครื่อง และพอร์ตเมนู บันทึกแมพพร้อมรายงานไว้ข้างกัน",
+ "a map of the KK platform: Reforged only": "แมพของแพลตฟอร์ม KK: ใช้ได้เฉพาะ Reforged",
+ "to Reforged or a newer game": "ไปยัง Reforged หรือเกมที่ใหม่กว่า",
+ "Made for: {0}.": "สร้างสำหรับ: {0}",
+ "Port to {0}": "พอร์ตไปยัง {0}",
+ "Port to {0}: result": "พอร์ตไปยัง {0}: ผลลัพธ์",
+ "Porting the map to {0}": "กำลังพอร์ตแมพไปยัง {0}",
+ "Porting the map to {0}...": "กำลังพอร์ตแมพไปยัง {0}...",
+ "Takes the map to {0}: the return bug gets its equivalent, the names the newer game also has are renamed and the script is checked with the scripts of {1}. The rest of the map stays. Saves the map and a report next to it.": "พาแมพไปยัง {0}: return bug จะได้ตัวเทียบเท่า ชื่อที่เกมใหม่กว่ามีเหมือนกันจะถูกเปลี่ยนชื่อ และสคริปต์จะถูกตรวจสอบกับสคริปต์ของ {1} ส่วนที่เหลือของแมพคงเดิม บันทึกแมพพร้อมรายงานไว้ข้างกัน",
+ "the map could not be read for this ({0})": "ไม่สามารถอ่านแมพสำหรับสิ่งนี้ได้ ({0})",
+ "{0} (not for this map)": "{0} (ไม่ใช่สำหรับแมพนี้)"
 }
