@@ -93,3 +93,84 @@ FrameFont "{0}", 0.010, "",
 Every player of the map needs the same files.
 These are the art files the ported map reads from the game folder, outside the map (the map is
 too big to carry them: the game opens maps up to 512 MiB).
+Error
+The page
+The program ({0})
+(1.8.0, triggers A A2) the instruction budget: a count hook that, once spent, is re-armed to fire at EVERY
+Alpha AlphaMode Anchor Backdrop BackdropBackground BackdropBackgroundInsets BackdropBackgroundSize BackdropBlendAll BackdropBottomFile BackdropCornerFile BackdropCornerFlags BackdropCornerSize BackdropEdgeFile BackdropHalfSides BackdropLeftFile BackdropMirrored BackdropRightFile BackdropTileBackground BackdropTopFile BackgroundArt BarTexture ButtonPushedTextOffset ButtonText ChatDisplayBorderSize ChatDisplayEditBox ChatDisplayLineHeight ChatDisplayScrollBar CheckBoxCheckHighlight CheckBoxDisabledCheckHighlight Checked CheckedTexture ControlBackdrop ControlDisabledBackdrop ControlDisabledPushedBackdrop ControlFocusHighlight ControlMouseOverHighlight ControlPushedBackdrop ControlShortcutKey ControlStyle CursorSprite DecorateFileNames DialogBackdrop DialogCancelButton DialogOkButton DisabledText DisabledTexture DoNotRegisterName EditBorderSize EditCursorColor EditHighlightColor EditHighlightInitial EditMaxChars EditSetFocus EditText EditTextColor EditTextFrame EditTextHeight EditTextOffset File Font FontCharSpacing FontColor FontDisabledColor FontFlags FontHeight FontHighlightColor FontJustificationH FontJustificationOffset FontJustificationV FontShadowColor FontShadowOffset Frame FrameFont Height HighlightAlphaFile HighlightAlphaMode HighlightColor HighlightOutlineOffset HighlightText HighlightType ID IncludeFile Layer LayerStyle ListBoxBorder ListBoxItem ListBoxItemHeight ListBoxScrollBar ListBoxStyle MenuBorder MenuItem MenuItemHeight MenuTextHighlightColor NAMED NormalText NormalTexture PopupArrowFrame PopupButtonInset PopupMenuFrame PopupTitleFrame PushedTexture ScrollBarDecButtonFrame ScrollBarIncButtonFrame SetAllPoints SetPoint SliderInitialValue SliderLayoutHorizontal SliderLayoutVertical SliderMaxValue SliderMinValue SliderStepSize SliderThumbButtonFrame SpriteCamera SpriteScale StatusBarSprite String StringList TabFocusDefault TabFocusNext TabFocusPush TexCoord Text TextAreaInset TextAreaLineGap TextAreaLineHeight TextAreaMaxLines TextAreaScrollBar TextLength Texture ToolTip UseActiveContext UseBackdrop UseHighlight Width
+KFC3
+WAR3
+Warcraft III maps campaigns and art packages (*.w3x;*.w3m;*.w3n;*.mix;*.asi;*.dll;*.mpq;*.w3mod)
+YDWEGetItemOfTypeFromUnitBJNull
+YDWENewItemsFormula
+behalf: the source of the running function alone said "sandbox" and disarmed it); with no such frame control
+error('the sandbox ran too long', 0)
+instruction (a `pcall` in the map catches the first error, and a loop around it went on for ever) while a frame
+is back in the sandbox and the hook goes. Lua's hook is per thread: the coroutines the map creates get it too,
+of the map's code is on the stack (the sandbox's own helpers, the `__index` of _G among them, run on the map's
+on the same budget
+syntax error|expected|unexpected|invalid|unclosed|token|already defined|allready defined|redefinition|redefined|type mismatch|cannot convert|undeclared|undefined|non-function|cannot assign
+while true do
+player.{0}
+{0}set {1} = null
+Profile
+all of
+Devo lobby image
+The Doctor cannot tell
+{0}: the real minimap back in game
+BSDIFF40: data past the new size
+BSDIFF40: extra past the new size
+BSDIFF40: the control block ends before the new file
+BSDIFF40: the old offset went below zero
+Common
+Installer Tome.mpq
+a BSDIFF entry needs its source file
+build takes classic versions only: {0}
+no BNUpdate header
+no base file with the CRC32 {0}
+no jassdoc in {0}: the ruler was not made
+no pjass
+no scripts of {0}
+not a BSDIFF40 patch
+the Installer Tome.mpq has no {0}
+the patch lists it but has no entry {0}
+the result has {0} bytes, the header says {1}
+the source is not the one the diff was made on (size or CRC32)
+{0} names, {1} dated by our scripts, {2} only in 3.0 without a jassdoc date
+{0}: no MPQ in {1}
+{0}: the patch has no patch.lst
+// Devo's Map Doctor: the models and abilities the map uses in its first seconds, loaded under the
+// Devo's Map Doctor: the normal abilities of each unit type (uabi), added by the script as each unit is
+// created instead of by the object data.
+// loading screen and removed again.
+// the engine natives the map declares
+<!doctype html>
+Gtk
+PYTHONUTF8
+exitwhen i > n
+exitwhen k <= 0
+for k, v in pairs(_G) do
+rawset(t, k, v)
+setmetatable(_G, dmd_mt)
+exitwhen i > {0}cn
+exitwhen i > {0}cn or i > {1}
+setmetatable(G, {0})
+CJK restante
+DHT parte no cabecalho
+PIXEL DIFERENTE
+aspas sem escape
+barra invertida solta
+codigos de cor diferentes
+muito longo
+numeros diferentes
+sobra no fim
+niveis: {0} aspas, esperado {1}
+niveis: {0} virgulas, esperado {1}
+dados:
+jass do acervo
+mencao a IA
+de que el los las para con una por tu su
+de que não você para com uma os ao seu sua
+der die das und ist nicht mit sie ein eine
+le la les et est pas vous pour avec une des
+the and you your to of is for with this are have will
