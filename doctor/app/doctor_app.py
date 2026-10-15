@@ -222,7 +222,7 @@ PACKAGE_ONLY = ('This is an art package, not a map: only its files can be seen a
 MAP_ONLY = ('port', 'reforged', 'card', 'card_image', 'gradient', 'script', 'script_checks', 'triggers', 'cheatpacks',
             'cheatpack_inject', 'qol', 'qol_apply', 'translation_export', 'translation_groups', 'translation_check',
             'translation_machine', 'translation_images', 'translation_image_preview', 'translation_update',
-            'rawcodes', 'recipes', 'diag_make', 'downgrade_w3i')
+            'rawcodes', 'recipes', 'diag_make', 'downgrade_w3i', 'port_targets')
 
 
 def is_package(D, path):
@@ -442,7 +442,11 @@ def page_stub(s):
 
 
 def run_port(D, G, path, progress, emit, packages=(), memory=True, icons=False, textures=False, balance=False,
-             strip_indent=False, game_files=False, lossy=False, classic=False):
+             strip_indent=False, game_files=False, lossy=False, classic=False, to=''):
+    if to:
+        from doctor.data import wc3_versions
+        if wc3_versions.normalize(to) != wc3_versions.REFORGED:
+            return run_port_version(D, G, path, to, progress, emit)
     from doctor.port import map_port
     from doctor.app import job_progress
     out = D.free_output(path, '_reforged')
@@ -489,6 +493,50 @@ def run_port(D, G, path, progress, emit, packages=(), memory=True, icons=False, 
                      'implemented': len((r.get('diagnostico') or {}).get('implemented_count') or []),
                      'declared': len((r.get('diagnostico') or {}).get('plataforma') or []),
                      'size': r.get('bytes'), 'seconds': r.get('seconds')}}
+
+
+def run_port_version(D, G, path, to, progress, emit):
+    from doctor.app import job_progress
+    from doctor.port import version_port
+    from doctor.data import wc3_versions
+    version = wc3_versions.normalize(to)
+    out = D.free_output(path, '_' + version)
+    emit({'type': 'output', 'path': out})
+    report = os.path.splitext(out)[0] + '.report.txt'
+    job_progress.topo('port', 'Porting the map to %s' % version)
+    r = version_port.map_port(path, version, out, report, log=lambda s: None)
+    ok = r.get('resultado') in ('ported', 'already runs')
+    lines = []
+    for i, text in enumerate(version_port.report_text(r).split('\n')):
+        if not text.strip() or set(text.strip()) == {'='}:
+            continue
+        style = 'heading' if i == 0 else 'invalid' if text.startswith(('NOT PORTED', 'FAILED')) else \
+            'warning' if text.startswith('Note:') else 'ok' if text.startswith(('Ported:', 'The map')) else 'info'
+        lines.append((style, text))
+    return {'lines': page_lines(lines), 'file': out if ok else None, 'report': report,
+            'outcome': 'ok' if ok else 'failed',
+            'port': {'target': version, 'result': r.get('resultado'), 'refusal': r.get('refusal'),
+                     'warnings': r.get('warnings') or [], 'size': r.get('bytes'), 'seconds': r.get('seconds')}}
+
+
+def _port_targets(job, progress):
+    from doctor.fix import unprotect as D
+    out = {'targets': [{'value': '', 'label': 'Reforged (3.0)', 'reason': None}], 'made_for': None, 'floor': None}
+    d = cached_diagnosis(D, job['map'], progress)
+    kk = d.get('script') in ('kkwe', 'j2b', 'kk_encrypted')
+    try:
+        from doctor.port import version_port
+        an = version_port.analyze(job['map'])
+    except Exception as e:
+        an, why = None, 'the map could not be read for this (%s)' % e
+    if an:
+        out['made_for'], out['floor'] = an['origin'].get('label'), an['floor_version']
+    for v in (version_port.targets()[1:] if an else []):
+        reason = 'a map of the KK platform: Reforged only' if kk else an['targets'].get(v)
+        out['targets'].append({'value': v, 'label': v, 'reason': reason})
+    if not an:
+        out['error'] = why
+    return out
 
 
 def port_step(out, progress, module, nothing):
@@ -554,7 +602,7 @@ def _run_job(job, emit, G, D, task, path, progress):
         return run_port(D, G, path, progress, emit, job.get('packages') or [], job.get('memory', True),
                         job.get('icons', False), job.get('textures', False), job.get('balance', False),
                         job.get('strip_indent', False), job.get('game_files', False), job.get('lossy', False),
-                        job.get('classic', False))
+                        job.get('classic', False), job.get('to') or '')
     if task == 'cheatpack_inject':
         return _cheatpack_inject(job, progress, emit)
     if task == 'qol_apply':
@@ -962,6 +1010,7 @@ TOOLS = {
     'replay_read': _replay_read,
     'replay_compare': _replay_compare,
     'desync_compare': _desync_compare,
+    'port_targets': _port_targets,
 }
 
 
