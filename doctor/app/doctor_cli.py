@@ -18,10 +18,13 @@ a .w3mod): a package is read as data, never run; diag, files and extract work on
                                   Open in World Editor: saves <map>_editor.w3x; --editor-version: the World
                                   Editor to open it in, reforged (the default), 1.24 to 1.29 (keeps the map's
                                   version), or auto (the version the map was saved for)
-  port <map> [--package=<name>] [--icons] [--textures] [--keep-memory] [--balance-numbers] [--strip-indent]
+  port <map> [--to=<version>] [--package=<name>] [--icons] [--textures] [--keep-memory] [--balance-numbers]
+       [--strip-indent]
        (every extra of fix and port is off unless given: the window turns the usual ones on by itself)
        [--remove-game-files] [--lossy] [--classic-effects]
                                   Port to Reforged (KK and M16 maps): saves <map>_reforged.w3x and the report;
+                                  --to=<version>: to a NEWER game of the classic game instead (1.24a to 1.29.2;
+                                  a map of an older game, no platform): saves <map>_<version>.w3x;
                                   --package: the art packages the map needs, comma separated, the first wins (a
                                   .mix, .asi, .dll or .mpq, or a folder of loose files the map read from the game
                                   folder with "Allow Local Files");
@@ -515,7 +518,8 @@ def build_job(command, pos, opts, run):
                         'textures': bool(opts.get('textures')), 'balance': bool(opts.get('balance-numbers')),
                         'strip_indent': opts.get('strip-indent') is True,
                         'game_files': bool(opts.get('remove-game-files')), 'lossy': bool(opts.get('lossy')),
-                        'classic': bool(opts.get('classic-effects'))}
+                        'classic': bool(opts.get('classic-effects')),
+                        'to': opts.get('to') if isinstance(opts.get('to'), str) else ''}
     if command == 'check':
         need(pos, 2, '<map>')
         job = {'task': 'reforged', 'map': pos[1]}
