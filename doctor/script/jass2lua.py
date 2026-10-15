@@ -112,6 +112,8 @@ def lex(src):
                     raise JassError('unterminated fourcc on line %d' % line)
                 ch = src[k]
                 if ch == '\\':
+                    if k + 1 >= len(src):
+                        raise JassError('unterminated fourcc on line %d' % line)
                     buf.append(src[k + 1])
                     k += 2
                     continue
@@ -549,7 +551,7 @@ def lua_string(s):
         elif ch == '\t':
             out.append('\\t')
         elif o < 32 or o == 127:
-            out.append('\\%d' % o)
+            out.append('\\%03d' % o)
         else:
             out.append(ch)
     out.append('"')
@@ -906,18 +908,18 @@ class Transpiler(object):
                 type_, name = s.a, s.b
                 is_array, init = s.c
                 self.scope[name] = (type_, is_array)
-                ln = self.name(name)
+                txt_ln = self.name(name)
                 decl = '' if name in self.spill else 'local '
                 if is_array:
-                    lines.append('%s%s%s = %s' % (evidence, decl, ln, self.array_ctor(type_)))
+                    lines.append('%s%s%s = %s' % (evidence, decl, txt_ln, self.array_ctor(type_)))
                 elif init is not None:
-                    lines.append('%s%s%s = %s' % (evidence, decl, ln, self.expr_as(init, type_)))
+                    lines.append('%s%s%s = %s' % (evidence, decl, txt_ln, self.expr_as(init, type_)))
                 else:
                     d = self.default_for(type_)
                     if d is not None:
-                        lines.append('%s%s%s = %s' % (evidence, decl, ln, d))
+                        lines.append('%s%s%s = %s' % (evidence, decl, txt_ln, d))
                     elif decl:
-                        lines.append('%slocal %s' % (evidence, ln))
+                        lines.append('%slocal %s' % (evidence, txt_ln))
             elif k == 'SET':
                 vtype = self.var_type(s.a)[0]
                 if s.b is None:
