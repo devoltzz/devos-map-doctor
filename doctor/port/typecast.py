@@ -20,6 +20,8 @@ def body(retorno, params):
             return ['return %s!=0' % fname]
         if retorno == 'integer' and kind == 'string':
             return ['return StringHash(%s)' % fname]
+        if retorno == 'integer' and kind not in ('integer', 'real', 'boolean', 'string', 'code'):
+            return ['return GetHandleId(%s)' % fname]
     if retorno == 'nothing':
         return []
     if retorno == 'code':
