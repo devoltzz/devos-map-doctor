@@ -52,16 +52,29 @@ def _crypt(data, key):
     return r
 
 
-def inflate(body):
-    try:
-        return zlib.decompress(body)
-    except zlib.error:
-        pass
-    try:
-        return zlib.decompressobj(-15).decompress(body[2:])
-    except zlib.error:
-        pass
+def inflate(body, expected=None):
+    cap = expected + 1 if expected is not None else None
+    for wbits, payload in ((zlib.MAX_WBITS, body), (-15, body[2:])):
+        try:
+            d = zlib.decompressobj(wbits)
+            out = d.decompress(payload, cap) if cap else d.decompress(payload)
+        except zlib.error:
+            continue
+        if cap and len(out) > expected:
+            raise ValueError('inflate: the stream gives more than the %d B of the sector' % expected)
+        if d.eof:
+            return out
     raise ValueError('inflate failed: %s' % body[:8].hex())
+
+
+def bunzip(body, expected=None):
+    d = bz2.BZ2Decompressor()
+    out = d.decompress(body, expected + 1) if expected is not None else d.decompress(body)
+    if expected is not None and len(out) > expected:
+        raise ValueError('bzip2: the stream gives more than the %d B of the sector' % expected)
+    if not d.eof:
+        raise ValueError('bzip2: incomplete stream')
+    return out
 
 
 def key_from_name(name, off, fs, fl):
@@ -73,6 +86,7 @@ def key_from_name(name, off, fs, fl):
 
 
 SOUND_MASKS = (0x01, 0x40, 0x80, 0x41, 0x81)
+FILE_SIZE_CAP = 1 << 30
 
 
 def decompress_sector(sector, expected):
@@ -83,24 +97,24 @@ def decompress_sector(sector, expected):
     mask = sector[0]
     body = sector[1:]
     if mask == 0x02:
-        return inflate(body)
+        return inflate(body, expected)
     if mask == 0x08:
         return pkware.decompress(sector, expected=expected)
     if mask == 0x00:
         return body
     if mask == 0x10:
-        return bz2.decompress(body)
+        return bunzip(body, expected)
     if mask == 0x20:
         return decompress_sparse(body, expected)
     if mask == 0x22:
-        return decompress_sparse(inflate(body), expected)
+        return decompress_sparse(inflate(body, expected + expected // 64 + 16), expected)
     if mask == 0x30:
-        return decompress_sparse(bz2.decompress(body), expected)
+        return decompress_sparse(bunzip(body, expected + expected // 64 + 16), expected)
     if mask in SOUND_MASKS or mask == 0x12:
         from doctor.mpq import mpq_wave
         return mpq_wave.decompress_sector_chain(sector, expected)
     try:
-        return inflate(sector)
+        return inflate(sector, expected)
     except ValueError:
         from doctor.mpq import mpq_wave
         try:
@@ -140,7 +154,7 @@ def _sector_prefix(chunk, wanted, fl, whole, expected_len):
         if fl & FLAG_COMPRESS and mask == 0x10:
             return bz2.BZ2Decompressor().decompress(chunk[1:], wanted)
         if not fl & FLAG_COMPRESS or mask == 0x08:
-            return pkware.decompress(chunk if not fl & FLAG_COMPRESS else chunk, expected=wanted)
+            return pkware.decompress(chunk, expected=wanted)
         if whole:
             d = decompress_by_flag(chunk, expected_len, fl)
             return d if len(d) == expected_len else None
@@ -291,9 +305,9 @@ class Archive:
         self.d = open(path, 'rb').read()
         self.h, self.skipped = M.find_header(self.d, path)
         if self.h is None:
-            raise SystemExit('no valid MPQ header')
+            raise M.MPQError('no valid MPQ header')
         if M.header_sector(self.h.block_shift) == 0:
-            raise SystemExit('invalid sector size in the MPQ header (wSectorSize gives sector 0)')
+            raise M.MPQError('invalid sector size in the MPQ header (wSectorSize gives sector 0)')
         self.hash_n = self.h.hash_n & 0x0FFFFFFF
         self.block_n = self.h.block_n & 0x0FFFFFFF
         hm = M.Header()
@@ -496,6 +510,10 @@ class Archive:
         sec = self.sector_size
         nsec = (fs + sec - 1) // sec
         compressed = bool(fl & (FLAG_IMPLODE | FLAG_COMPRESS))
+        if fs > FILE_SIZE_CAP:
+            raise ValueError(
+                'block %d: the declared size (%d B) is above the limit of %d MB' % (bi, fs, FILE_SIZE_CAP >> 20)
+            )
 
         if fl & FLAG_SINGLE:
             data = self.d[p:p + cs]
