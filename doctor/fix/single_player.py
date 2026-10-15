@@ -1282,7 +1282,7 @@ def unlock(path_in, path_out, progress=None):
         rep['state'], rep['reason'] = state, why
         return rep
 
-    if os.path.abspath(path_out) == os.path.abspath(path_in):
+    if os.path.normcase(os.path.abspath(path_out)) == os.path.normcase(os.path.abspath(path_in)):
         return stop('refused', 'The output must be a new file.')
     p('Reading the map')
     res, sites, tree, text, sc, a, strings = _find(path_in)
@@ -1304,7 +1304,10 @@ def unlock(path_in, path_out, progress=None):
     rep['changes'], rep['proof'] = changes, proof
     if sc['language'] == 'jass':
         p('Running pjass')
-        proof['pjass'] = _pjass(sc['bytes'], new_bytes)
+        try:
+            proof['pjass'] = _pjass(sc['bytes'], new_bytes)
+        except Exception as e:
+            return stop('failed', 'pjass could not run (%s).' % (str(e) or type(e).__name__))
         if proof['pjass']['state'] == 'failed':
             return stop('refused', 'pjass does not accept the changed script (%s).' % proof['pjass']['new'])
     p('Writing the map')
