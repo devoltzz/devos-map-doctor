@@ -275,8 +275,11 @@ def _min_sound(v):
     return n
 
 
+SOUND_CAP = 1 << 20
+
+
 def read_sound(r, v):
-    sound = {'fname': r.s(), 'file_path': r.s(), 'eax': r.s(), 'flags': r.i32()}
+    sound = {'fname': r.s(SOUND_CAP), 'file_path': r.s(SOUND_CAP), 'eax': r.s(SOUND_CAP), 'flags': r.i32()}
     for _c in range(3):
         r.i32()
     r.f32()
@@ -291,18 +294,18 @@ def read_sound(r, v):
     for _c in range(3):
         r.f32()
     if v > 1:
-        r.s()
-        r.s()
-        r.s()
+        r.s(SOUND_CAP)
+        r.s(SOUND_CAP)
+        r.s(SOUND_CAP)
         r.i32()
-        r.s()
+        r.s(SOUND_CAP)
         r.i32()
-        r.s()
+        r.s(SOUND_CAP)
         r.bs(3)
-        r.s()
-        r.s()
-        r.s()
-        r.s()
+        r.s(SOUND_CAP)
+        r.s(SOUND_CAP)
+        r.s(SOUND_CAP)
+        r.s(SOUND_CAP)
     if v > 2:
         r.bs(1)
         r.i32()
@@ -1212,15 +1215,25 @@ def update_units_doo(b, script, context=None):
                         regions=_waygate_regions(script, context.get('mpq')))
     if not objs:
         return None
+    for o in objs:
+        if o.get('creation') is not None and not (0 <= o['creation'] <= 0x7FFFFFFF):
+            o['creation'] = None
     free_slots = {}
     for i, r in enumerate(regs):
-        free_slots.setdefault(r['ident'], []).append(i)
+        free_slots.setdefault((r['ident'], int(r['xyz'][0] // NEAR), int(r['xyz'][1] // NEAR)), []).append(i)
     in_use = set()
     pairs = []
     for o in objs:
         ident = _id4(o['id'])
         best = None
-        for i in free_slots.get(ident, ()):
+        try:
+            cx, cy = int(float(o['x']) // NEAR), int(float(o['y']) // NEAR)
+        except (TypeError, ValueError):
+            pairs.append((o, None))
+            continue
+        candidates = sorted(i for dx_ in (-1, 0, 1) for dy_ in (-1, 0, 1)
+                            for i in free_slots.get((ident, cx + dx_, cy + dy_), ()))
+        for i in candidates:
             if i in in_use:
                 continue
             r = regs[i]
@@ -1654,6 +1667,11 @@ RX_CREATE_ITEM = re.compile(
 RX_START_PLAYER = re.compile(r'SetPlayerStartLocation\(\s*Player\(\s*(\d+)\s*\)\s*,\s*(\d+)\s*\)')
 RX_CREATE_CALL = re.compile(r'(?<![\w.:])(Create\w+)[ \t]*\([ \t]*\)')
 RX_GG = re.compile(r'gg_(?:unit|item)_\w{4}_(\d+)$')
+
+
+def _creation_of(digits):
+    n = int(digits)
+    return n if 0 <= n <= 0x7FFFFFFF else None
 RX_DROP_ITEM = re.compile(r'RandomDistAddItem\(\s*((?:ChooseRandomItemEx|FourCC)\([^()]*\)|[^,()]+?)\s*,'
                           r'\s*(-?\d+)\s*\)')
 RX_ITEM_CLASS = re.compile(r'ChooseRandomItemEx\(\s*(ITEM_TYPE_\w+)\s*,\s*(-?\d+)\s*\)$')
@@ -1745,23 +1763,30 @@ def _first(rx, segment, var, g=1):
     return next((m for m in rx.finditer(segment) if not var or m.group(g) == var), None)
 
 
+def _real_or_none(s):
+    try:
+        return float(s)
+    except (TypeError, ValueError):
+        return None
+
+
 def _unit_fields(segment, var, bodies, regions):
     u = {}
     m = _first(RXU_GOLD, segment, var)
     if m:
         u['gold'] = int(m.group(2))
     m = _first(RXU_RANGE, segment, var)
-    if m:
+    if m and _real_or_none(m.group(2)) is not None:
         acquire_range = _num(m.group(2))
         if acquire_range == 200.0:
             u['campaign_info'] = True
         else:
             u['acquisition'] = acquire_range
     m = _first(RXU_LIFE, segment, var)
-    if m:
+    if m and _real_or_none(m.group(2)) is not None:
         u['life_pct'] = int(round(float(m.group(2)) * 100))
     m = _first(RXU_MANA, segment, var)
-    if m:
+    if m and _real_or_none(m.group(2)) is not None:
         u['mana'] = int(round(float(m.group(2))))
     m = _first(RXU_LEVEL, segment, var)
     if m:
@@ -1941,8 +1966,8 @@ def script_units(body_text, how_many=12, reforged=True, regions=None):
             end_pos = matches[k + 1][0] if k + 1 < len(matches) else len(body)
             u.update(_unit_fields(body[m.end():end_pos], m.group(1), bodies, regions))
             g = RX_GG.match(m.group(1) or '')
-            if g:
-                u['creation'] = int(g.group(1))
+            if g and _creation_of(g.group(1)) is not None:
+                u['creation'] = _creation_of(g.group(1))
             (goldmines if goldmine else out).append(u)
     out += goldmines
     item_entries = (
@@ -1962,8 +1987,8 @@ def script_units(body_text, how_many=12, reforged=True, regions=None):
         if skin_id:
             it['skin_id'] = skin_id
         g = RX_GG.match(m.group(1) or '')
-        if g:
-            it['creation'] = int(g.group(1))
+        if g and _creation_of(g.group(1)) is not None:
+            it['creation'] = _creation_of(g.group(1))
         out.append(it)
     in_use = set(u['creation'] for u in out if 'creation' in u)
     free = max(list(in_use) + [999 + len(out)]) + 1
