@@ -3086,5 +3086,19 @@
  "... or only the ones that are copies of the game's file": "... lub tylko te, które są kopiami pliku gry",
  "This map has a file name that the shared name list does not know yet. Share it on GitHub?": "Ta mapa ma nazwę pliku, której wspólna lista nazw jeszcze nie zna. Udostępnić ją na GitHubie?",
  "World Editor: needs the fixes above.": "World Editor: wymaga powyższych napraw.",
- "{0} of them are byte-for-byte copies of the game's own file: taking them out changes nothing the map shows, and the game uses its own. Needs the game installed.": "{0} z nich to kopie bajt w bajt własnego pliku gry: usunięcie ich niczego nie zmienia w tym, co pokazuje mapa, a gra używa własnego. Wymaga zainstalowanej gry."
+ "{0} of them are byte-for-byte copies of the game's own file: taking them out changes nothing the map shows, and the game uses its own. Needs the game installed.": "{0} z nich to kopie bajt w bajt własnego pliku gry: usunięcie ich niczego nie zmienia w tym, co pokazuje mapa, a gra używa własnego. Wymaga zainstalowanej gry.",
+ "Port": "Portowanie",
+ "Port to:": "Portuj na:",
+ "The game the ported map is for": "Gra, dla której jest przeportowana mapa",
+ "To Reforged. For KK or M16 maps (DzAPI, japi, JN): fills in the platform natives, makes the save local and ports the menus. Saves the map and a report next to it.": "Na Reforged. Dla map KK lub M16 (DzAPI, japi, JN): uzupełnia natywy platformy, czyni zapis lokalnym i portuje menu. Zapisuje mapę i raport obok niej.",
+ "a map of the KK platform: Reforged only": "mapa platformy KK: tylko Reforged",
+ "to Reforged or a newer game": "na Reforged lub nowszą grę",
+ "Made for: {0}.": "Wykonana dla: {0}.",
+ "Port to {0}": "Portuj na {0}",
+ "Port to {0}: result": "Portowanie na {0}: wynik",
+ "Porting the map to {0}": "Portowanie mapy na {0}",
+ "Porting the map to {0}...": "Portowanie mapy na {0}...",
+ "Takes the map to {0}: the return bug gets its equivalent, the names the newer game also has are renamed and the script is checked with the scripts of {1}. The rest of the map stays. Saves the map and a report next to it.": "Przenosi mapę na {0}: return bug dostaje swój odpowiednik, nazwy, które ma też nowsza gra, są zmieniane, a skrypt jest sprawdzany ze skryptami {1}. Reszta mapy zostaje bez zmian. Zapisuje mapę i raport obok niej.",
+ "the map could not be read for this ({0})": "nie udało się odczytać mapy w tym celu ({0})",
+ "{0} (not for this map)": "{0} (nie dla tej mapy)"
 }
