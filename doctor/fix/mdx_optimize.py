@@ -173,6 +173,8 @@ def rdp_keep(v, seqs, tol):
                     u = (v.frames[idx[k]] - fa) / float(fb - fa) if fb != fa else 0.0
                     est = (_slerp if rot else _lerp)(v.values[idx[a]], v.values[idx[b]], u)
                     e = _error(cls, v.values[idx[k]], est)
+                    if e != e:
+                        e = float('inf')
                     if e > worst:
                         worst, at = e, k
                 if worst > tol:
@@ -307,6 +309,14 @@ def optimize(data, lossy=False, tolerance=1.0):
 def optimize_map(path_in, path_out, options=None, progress=None):
     from doctor.models import model_check
     opts = options or {}
+    if os.path.normcase(os.path.abspath(path_in)) == os.path.normcase(os.path.abspath(path_out)):
+        return {
+            'state': 'failed',
+            'error': 'The output must be a new file.',
+            'fixed': [],
+            'not_fixed': [],
+            'checked': 0,
+        }
 
     def transform(name, data):
         try:
@@ -334,7 +344,7 @@ def optimize_map(path_in, path_out, options=None, progress=None):
             from doctor.fix import shrink
             try:
                 if progress:
-                    progress('Dropping the space of the old models')
+                    progress('Freeing the space of the old models')
                 s = shrink.shrink(pre, path_out, {'recompress': False, 'blp': False, 'dedup': False})
                 done = s.get('state') == 'done' and os.path.isfile(path_out)
             except Exception as e:
@@ -343,8 +353,10 @@ def optimize_map(path_in, path_out, options=None, progress=None):
                 os.remove(pre)
             else:
                 os.replace(pre, path_out)
-                rep['warning'] = 'The space of the old models was not dropped (%s): run Shrink.' % (
-                    s.get('error') or s.get('reason') or s.get('state'))
+                rep['warning'] = (
+                    'The space of the old models was not freed (%s): run "Make the map smaller, losing nothing".'
+                    % (s.get('error') or s.get('reason') or s.get('state'))
+                )
     if rep['state'] == 'done' and os.path.isfile(path_out):
         rep['size_before'], rep['size_after'] = os.path.getsize(path_in), os.path.getsize(path_out)
     return rep
