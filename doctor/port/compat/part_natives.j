@@ -146,10 +146,8 @@ function EXEffectMatRotateX takes effect e,real deg returns nothing
     if DB_ef_uni[i]!=null then
         return
     endif
-    if DB_ef_car[i]!=null and DB_ef_rx[i]!=0.0 then
-        call DB_ef_solta(i, e)
-    endif
     if DB_ef_car[i]!=null then
+        call BlzSetSpecialEffectOrientation(DB_ef_vis[i], 0.0, DB_ef_ry[i], DB_ef_rx[i])
         return
     endif
     call BlzSetSpecialEffectOrientation(e, DB_ef_rz[i], DB_ef_ry[i], DB_ef_rx[i])
@@ -165,10 +163,8 @@ function EXEffectMatRotateY takes effect e,real deg returns nothing
     if DB_ef_uni[i]!=null then
         return
     endif
-    if DB_ef_car[i]!=null and DB_ef_ry[i]!=0.0 then
-        call DB_ef_solta(i, e)
-    endif
     if DB_ef_car[i]!=null then
+        call BlzSetSpecialEffectOrientation(DB_ef_vis[i], 0.0, DB_ef_ry[i], DB_ef_rx[i])
         return
     endif
     call BlzSetSpecialEffectOrientation(e, DB_ef_rz[i], DB_ef_ry[i], DB_ef_rx[i])
@@ -185,7 +181,7 @@ function EXEffectMatRotateZ takes effect e,real deg returns nothing
         call BlzSetUnitFacingEx(DB_ef_uni[i], DB_ef_rz[i]*180.0/3.14159265358979)
         return
     endif
-    if DB_ef_car[i]==null and DB_CAR_LIGADO and DB_ef_sinc[i] and not DB_ef_solto[i] and DB_ef_rx[i]==0.0 and DB_ef_ry[i]==0.0 then
+    if DB_ef_car[i]==null and DB_CAR_LIGADO and DB_ef_sinc[i] and not DB_ef_solto[i] then
         call DB_ef_porta(i, e)
     endif
     if DB_ef_car[i]!=null then
@@ -633,6 +629,13 @@ function DB_origin takes originframetype tipo,integer index returns integer
         set DB_origem_chave[DB_origem_n]=chave
         set DB_origem_n=DB_origem_n+1
     endif
+    if index==0 then
+        if tipo==ORIGIN_FRAME_UBERTOOLTIP then
+            set DB_dica_id=i
+        elseif tipo==ORIGIN_FRAME_TOOLTIP then
+            set DB_dica_id2=i
+        endif
+    endif
     return i
 endfunction
 
@@ -678,6 +681,8 @@ function DzFrameGetTooltip takes nothing returns integer
     return DB_origin(ORIGIN_FRAME_TOOLTIP, 0)
 endfunction
 
+boolean DB_ui_escondida=false
+
 //{{KK_SE:KK_UI_PAI}}
 integer array DB_pai_id
 framehandle array DB_pai_fh
@@ -711,6 +716,29 @@ function DB_pai_marca takes integer id returns integer
     return id
 endfunction
 
+framehandle array DB_pai_det
+integer DB_pai_det_n=-1
+timer DB_pai_det_t=null
+
+function DB_pai_det_esconde takes nothing returns nothing
+    local integer i=0
+    if DB_pai_det_n<0 then
+        set DB_pai_det[0]=BlzGetFrameByName("SimpleInfoPanelUnitDetail", 0)
+        set DB_pai_det[1]=BlzGetFrameByName("SimpleInfoPanelBuildingDetail", 0)
+        set DB_pai_det[2]=BlzGetFrameByName("SimpleInfoPanelItemDetail", 0)
+        set DB_pai_det[3]=BlzGetFrameByName("SimpleInfoPanelDestructableDetail", 0)
+        set DB_pai_det[4]=BlzGetFrameByName("SimpleInfoPanelCargoDetail", 0)
+        set DB_pai_det_n=5
+    endif
+    loop
+        exitwhen i>=DB_pai_det_n
+        if DB_pai_det[i]!=null and BlzFrameIsVisible(DB_pai_det[i]) then
+            call BlzFrameSetVisible(DB_pai_det[i], false)
+        endif
+        set i=i+1
+    endloop
+endfunction
+
 function DB_pai_mostra takes integer id returns nothing
     local integer i
     local integer k=0
@@ -726,6 +754,11 @@ function DB_pai_mostra takes integer id returns nothing
         call BlzFrameSetVisible(DB_pai_fh[i*3+k], true)
         set k=k+1
     endloop
+    if k>1 and DB_ui_escondida and DB_pai_det_t==null then
+        call DB_pai_det_esconde()
+        set DB_pai_det_t=CreateTimer()
+        call TimerStart(DB_pai_det_t, 0.03, true, function DB_pai_det_esconde)
+    endif
 endfunction
 
 function DB_item_nome takes integer index returns integer
@@ -802,24 +835,30 @@ endfunction
 //{{KK_SE:KK_UI_ALFA}}
 function DB_ui_alfa takes string s returns string
     local integer i=0
+    local integer ult=0
     local integer n=StringLength(s)
     local string r=""
     local string c
+    local boolean achou=false
     if s==null or n<4 then
         return s
     endif
     loop
-        exitwhen i>=n
+        exitwhen i>n-4
         set c=SubString(s, i, i+4)
         if c=="|c00" or c=="|C00" then
-            set r=r+"|cff"
+            set r=r+SubString(s, ult, i)+"|cff"
             set i=i+4
+            set ult=i
+            set achou=true
         else
-            set r=r+SubString(s, i, i+1)
             set i=i+1
         endif
     endloop
-    return r
+    if not achou then
+        return s
+    endif
+    return r+SubString(s, ult, n)
 endfunction
 //{{KK_FIMSE:KK_UI_ALFA}}
 
@@ -1194,11 +1233,17 @@ function DzFrameSimpleUnBindFrame takes integer frame returns nothing
 endfunction
 //{{KK_FIMSE:KK_UI_PAINEL}}
 
+integer DB_dica_id=-1
+integer DB_dica_id2=-1
+
 function DzFrameSetPoint takes integer frame,integer point,integer relativeFrame,integer relativePoint,real x,real y returns nothing
     local framehandle f=DB_fh(frame)
     local framehandle r=DB_fh(relativeFrame)
     local real pad
     if f==null then
+        return
+    endif
+    if frame==DB_dica_id or frame==DB_dica_id2 then
         return
     endif
     //{{KK_SE:KK_UI_MSG}}
@@ -1259,6 +1304,9 @@ function DzFrameSetAbsolutePoint takes integer frame,integer point,real x,real y
     endif
     //{{KK_FIMSE:KK_UI_MSG}}
     if f!=null then
+        if frame==DB_dica_id or frame==DB_dica_id2 then
+            return
+        endif
         //{{KK_SE:KK_UI_PAI}}
         call DB_pai_mostra(frame)
         //{{KK_FIMSE:KK_UI_PAI}}
@@ -1280,6 +1328,9 @@ function DzFrameClearAllPoints takes integer frame returns nothing
     endif
     //{{KK_FIMSE:KK_UI_MSG}}
     if f!=null then
+        if frame==DB_dica_id or frame==DB_dica_id2 then
+            return
+        endif
         //{{KK_SE:KK_UI_CICLO}}
         call DB_anc_limpa(frame)
         //{{KK_FIMSE:KK_UI_CICLO}}
@@ -1303,6 +1354,9 @@ function DzFrameSetAllPoints takes integer frame,integer relativeFrame returns b
     local framehandle f=DB_fh(frame)
     local framehandle r=DB_fh(relativeFrame)
     if f==null or r==null then
+        return false
+    endif
+    if frame==DB_dica_id or frame==DB_dica_id2 then
         return false
     endif
     //{{KK_SE:KK_UI_MSG}}
@@ -3083,11 +3137,29 @@ function DB_morph_skin takes unit u,integer alvo returns nothing
     set art=null
 endfunction
 
+function DB_morph_solta takes unit u returns boolean
+    if DB_pausa_ht!=null and HaveSavedInteger(DB_pausa_ht,GetHandleId(u),0) then
+        if LoadInteger(DB_pausa_ht,GetHandleId(u),0)==GetUnitTypeId(u) then
+            call BlzPauseUnitEx(u, false)
+            return true
+        endif
+    endif
+    return false
+endfunction
+
+function DB_morph_repausa takes unit u,boolean pausada returns nothing
+    if pausada then
+        call SaveInteger(DB_pausa_ht,GetHandleId(u),0,GetUnitTypeId(u))
+        call BlzPauseUnitEx(u, true)
+    endif
+endfunction
+
 function DB_morph takes unit u,integer alvo returns nothing
     local integer chaos
     local real vida
     local real mana
     local real m
+    local boolean pausada
     if u==null or alvo==0 then
         return
     endif
@@ -3106,12 +3178,14 @@ function DB_morph takes unit u,integer alvo returns nothing
             call DB_morfo_anuncia(u)
         endif
         //{{KK_FIMSE:KK_MORFO_ESTADO}}
+        set pausada=DB_morph_solta(u)
         call UnitAddAbility(u,chaos)
         if GetUnitTypeId(u)==alvo then
             call UnitRemoveAbility(u,chaos)
             if GetUnitTypeId(u)!=alvo then
                 call UnitAddAbility(u,chaos)
             endif
+            call DB_morph_repausa(u, pausada)
             //{{KK_SE:KK_MORFO_ESTADO}}
             call DB_morfo_confere(u)
             //{{KK_FIMSE:KK_MORFO_ESTADO}}
@@ -3134,6 +3208,7 @@ function DB_morph takes unit u,integer alvo returns nothing
             return
         endif
         call UnitRemoveAbility(u,chaos)
+        call DB_morph_repausa(u, pausada)
     endif
     call DB_morph_skin(u,alvo)
 endfunction
