@@ -3,6 +3,25 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 1.8.1 (2026-10-15)
+
+### New
+
+- **Port between versions.** The "Port to Reforged" tab is now **Port**, with a **Port to:** picker: Reforged as
+  before, or a newer version of the classic game (1.24a to 1.29.2) for a map made for an older one. The map's return
+  bug gets its equivalent, the names the newer game also declares are renamed, and the script is checked with the
+  scripts of that version; the rest of the map stays as it is. A map that already runs on the version you pick comes
+  out unchanged. KK and M16 maps go to Reforged only, and the picker says why a version is not available for a map (a
+  platform map, a map that needs a newer game, a map too big for that game, a protected map that Fix map has to open
+  first). On the command line: `port <map> --to=<version>`.
+
+### Fixed
+
+- **Port to Reforged: tilted effects** (issue 31): an effect the map tilts up or down is drawn at its angle again. In
+  1.8.0 the fire of the Hoshino R in gggf8952 went straight up instead of along the shot.
+- **Port to Reforged: menu sounds in multiplayer** (issue 31): the hover sound of some menu cards played for every
+  player when one of them moved the mouse over the card; now it plays only for that player.
+
 ## 1.8.0 (2026-10-15)
 
 ### New
