@@ -153,10 +153,17 @@ def _decrypt_3raw(data):
     plain = struct.pack('<%dI' % (len(words) - 1), *words[:-1])[:size]
     if plain[:3] == b'BZh':
         try:
-            plain = bz2.decompress(plain)
+            dec = bz2.BZ2Decompressor()
+            out = dec.decompress(plain, max_length=TETO_BZ2)
+            if not dec.eof:
+                raise J2bError('"2SAJ3raw": the bzip2 stream inflates past %d MB' % (TETO_BZ2 >> 20))
+            plain = out
         except (OSError, ValueError) as e:
             raise J2bError('"2SAJ3raw": the bzip2 stream does not decompress (%s)' % e)
     return plain
+
+
+TETO_BZ2 = 512 << 20
 
 
 RX_PRIMEIRO_NOME = re.compile(rb'[A-Za-z_][A-Za-z0-9_]{0,80}\x00')
