@@ -18,6 +18,7 @@ from doctor.port import typecast
 from doctor.port import shadowed
 from doctor.port import dead_type
 from doctor.port import save_wiring
+from doctor.port import hud_lol
 from doctor.port import return_fixes
 from doctor.port import swap_calls
 from doctor.port import inject
@@ -376,6 +377,12 @@ def assemble(r, argv=None):
         'platforms': info['platforms'],
         'platform_tilepoints': info['platform_tilepoints'],
     }
+
+    if getattr(r, 'HUD_LOL', False):
+        t, info = hud_lol.applies(t)
+        if info['failures']:
+            aborts('9b (hud_lol)', info['failures'])
+        hud_lol.report_data(info)
 
     job_progress.step_size('10-12', 'Building the script: the port layer')
     source = ['--source=' + r.NATIVES_SOURCE] if getattr(r, 'NATIVES_SOURCE', None) else []
