@@ -79,7 +79,8 @@ def _functions(line_list):
             while j < len(line_list) and not RX_END.match(line_list[j]):
                 j += 1
             ps = [] if m.group(3).strip() == 'nothing' else [tuple(p.split()[-2:]) for p in m.group(3).split(',')]
-            out.append((i, j, m.group(1), m.group(2), ps, m.group(4)))
+            if all(len(p) == 2 for p in ps):
+                out.append((i, j, m.group(1), m.group(2), ps, m.group(4)))
             i = j
         i += 1
     return out
@@ -271,6 +272,8 @@ def applies(body_text, ref_text, equivalents=True, neutralize=False, suffix=''):
             new = _conversion_body(ref, ps[0][0], ret, ps[0][1])
             if new is not None:
                 info['conversions'].append((fname, ps[0][0], ret))
+                if {ps[0][0], ret} == {'real', 'integer'}:
+                    info.setdefault('approximate', []).append(fname)
         if new is None:
             if uses is None:
                 uses = _uses(line_list)
@@ -415,6 +418,9 @@ def report_data(info):
     pieces = []
     if info['conversions']:
         pieces.append('%d return bug conversion function(s) with the 3.0 equivalent' % len(info['conversions']))
+    if info.get('approximate'):
+        pieces.append('%d of them real<->integer by the VALUE (the return bug copied the bits): %s'
+                      % (len(info['approximate']), ', '.join(info['approximate'][:6])))
     if info['effects']:
         pieces.append('%d effect function(s) through the Blz native' % len(info['effects']))
     if info['arrays']:
