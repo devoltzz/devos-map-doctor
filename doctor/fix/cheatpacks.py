@@ -23,14 +23,6 @@ def _mod():
     raise RuntimeError('the engine module (desprotege/unprotect) is not loaded')
 
 
-def _api(mod, *names):
-    for n in names:
-        f = getattr(mod, n, None)
-        if f is not None:
-            return f
-    raise RuntimeError('%s has none of: %s' % (getattr(mod, '__name__', mod), ', '.join(names)))
-
-
 def _open_map(path):
     return _api(_mod(), '_abre', '_open')(path)
 
@@ -325,6 +317,10 @@ def _apply_options(pack, text, opcoes):
             val = 'true' if str(val).lower() in ('1', 'true', 'sim', 'yes', 'on') else 'false'
         else:
             val = str(val if val is not None else default)
+            if any(c in val for c in '"\\\r\n'):
+                raise RuntimeError(
+                    'the %s option %r cannot hold a quote, a backslash or a line break' % (pack['id'], key)
+                )
         rx = pack['finds'][key]
 
         def swap(m, val=val, key=key):
@@ -546,7 +542,7 @@ def _pjass_check(script, mapa=None, original=None, _cru=False, mesclado=None):
             x
             for x in nosso
             if re.search(
-                r'syntax error|expected|unexpected|invalid|unclosed|token|already defined|allready defined|redefinition|redefined|type mismatch|cannot convert',
+                r'syntax error|expected|unexpected|invalid|unclosed|token|already defined|allready defined|redefinition|redefined|type mismatch|cannot convert|undeclared|undefined|non-function|cannot assign',
                 x,
                 re.I,
             )
@@ -712,7 +708,7 @@ def inject(mapa, out_path, pack_id, opcoes=None, progresso=None, durable=False):
     from doctor.mpq import mpqadd
     if _api(mpqadd, 'formato', 'format')(mapa) != 0:
         out['lines'] = [('bad', 'The cheat pack was not injected: %s' % (
-            'The archive header is not a normal MPQ v1 header (a protected map): unprotect it first.'))]
+            'The archive header is not a normal MPQ v1 header (a protected map): run "Fix map" on it first.'))]
         return out
     name = s.get('name')
     try:
@@ -796,6 +792,16 @@ def _injeta(p, pack, text, name, bruto, opcoes, mapa, out_path, out, durable=Fal
         shutil.copyfile(mapa, parte)
         from doctor.mpq import mpqadd
         files = [(name, new_text.encode('utf-8', 'surrogateescape'))]
+        if before:
+            try:
+                _a0 = _open_map(mapa)
+                for _n in ('war3map.j', 'scripts\\war3map.j'):
+                    if _n.lower() != (name or '').lower() and (_read_file(_a0, _n) or b'') == before:
+                        files.append((_n, files[0][1]))
+                        out['copies'] = out.get('copies', []) + [_n]
+                del _a0
+            except Exception:
+                pass
         if durable_code is not None:
             wct_new, out['durable'] = _durable_wct(mapa, pack, durable_code)
             if wct_new is not None:
