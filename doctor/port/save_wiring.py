@@ -42,8 +42,13 @@ def readers(body_text, fs):
 def _insert(body_text, fs, fname, line_list):
     begin, end_pos = next((i, f) for n, i, f in fs if n == fname)
     body = body_text[begin:end_pos].split('\n')
-    k = 1
-    while k < len(body) and (body[k].strip().startswith('local ') or not body[k].strip()):
+    k, last = 1, 0
+    while k < len(body) and (body[k].strip().startswith(('local ', '//')) or not body[k].strip()):
+        if body[k].strip().startswith('local '):
+            last = k
+        k += 1
+    k = last + 1 if last else 1
+    while k < len(body) and not body[k].strip():
         k += 1
     nl = '\r' if body[0].endswith('\r') else ''
     body[k:k] = [line + nl for line in line_list]
@@ -70,6 +75,7 @@ def applies(body_text):
     action_only = dict(
         (action_code, _uses(action_code, body_text) == 2) for action_code in action_codes if action_code in read_data
     )
+    insertions = []
     for action_code in sorted(action_codes):
         if action_code not in read_data or action_code not in body:
             continue
@@ -97,7 +103,11 @@ def applies(body_text):
                 '    endif',
             ]
             info['kept_list'].append(action_code)
+        insertions.append((action_code, line_list))
+    start_of = dict((n, i) for n, i, f in fs)
+    for action_code, line_list in sorted(insertions, key=lambda x: start_of[x[0]], reverse=True):
         body_text = _insert(body_text, fs, action_code, line_list)
+    if insertions:
         fs = dead_type.functions(body_text)
     if 'main' not in body:
         info['failures'].append('the script has no main')
