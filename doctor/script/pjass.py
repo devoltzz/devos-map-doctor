@@ -69,6 +69,9 @@ RX_WHERE = re.compile(r'^(?:[A-Za-z]:)?[^:]*:\d+:')
 RX_TOTAL = re.compile(r'(?:failed with|Parse failed:) (\d+) errors?')
 
 
+MAX_TIME = 600
+
+
 def compiles(paths, pjass=None, tmp=None):
     if tmp:
         paths = [os.path.relpath(c, tmp) if os.path.dirname(os.path.abspath(c)) == os.path.abspath(tmp) else c
@@ -76,8 +79,11 @@ def compiles(paths, pjass=None, tmp=None):
     hash_key = _cache_key(paths, pjass, tmp)
     if hash_key is not None and hash_key in _CACHE:
         return copy.deepcopy(_CACHE[hash_key])
-    r = subprocess.run([exe(pjass)] + list(paths), capture_output=True, text=True,
-                       errors='replace', cwd=tmp, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+    try:
+        r = subprocess.run([exe(pjass)] + list(paths), capture_output=True, text=True, errors='replace', cwd=tmp,
+                           creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0), timeout=MAX_TIME)
+    except subprocess.TimeoutExpired:
+        raise TimeoutError('pjass: no answer in %d s' % MAX_TIME)
     out = (r.stdout or '') + (r.stderr or '')
     line_list = [line for line in out.splitlines() if line.strip()]
     warnings = [line for line in line_list if 'warning' in line.lower()]
@@ -192,10 +198,10 @@ def main(argv=None, root=None, ref=None, pjass=None, tmp=None):
         m = re.match(r'^([^()]+)\((\d+)\):\s*(.*)$', line) or re.match(r'^((?:[A-Za-z]:)?[^:]*):(\d+):\s*(.*)$', line)
         if not m:
             return line
-        file_, ln, msg = m.group(1), int(m.group(2)), m.group(3)
+        file_, txt_ln, msg = m.group(1), int(m.group(2)), m.group(3)
         base = os.path.basename(file_)
         if base in line_counts:
-            return '%s:%d (de %d): %s' % (base, ln, line_counts[base][1], msg)
+            return '%s:%d (de %d): %s' % (base, txt_ln, line_counts[base][1], msg)
         return line
 
     line_list, error_list, warnings, others = res['line_list'], res['error_list'], res['warnings'], res['others']
