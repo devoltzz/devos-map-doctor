@@ -23,9 +23,9 @@ def slk_cells(line_list):
         x = y = k = None
         for c in (slk_cols.slk_fields(line) if '"' in line else line.split(';')[1:]):
             c0 = c[:1]
-            if c0 == 'X' and c[1:2].isdigit():
+            if c0 == 'X' and '0' <= c[1:2] <= '9':
                 x = int(slk_cols.RX_X.match(c).group(1))
-            elif c0 == 'Y' and c[1:2].isdigit():
+            elif c0 == 'Y' and '0' <= c[1:2] <= '9':
                 y = int(slk_cols.RX_Y.match(c).group(1))
             elif c0 == 'K':
                 k = c[1:]
