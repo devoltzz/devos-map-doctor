@@ -573,14 +573,14 @@ RX_INTEGER_RETURN = re.compile(r'^(\s*return\s+)(-?\d+)(\s*(?://.*)?)$')
 def real_literal_return(body_text):
     line_list = body_text.split('\n')
     real, n = False, 0
-    for i, ln in enumerate(line_list):
-        s = ln.strip()
+    for i, txt_ln in enumerate(line_list):
+        s = txt_ln.strip()
         if s.startswith('function ') or s.startswith('constant function '):
-            real = bool(RX_REAL_FUNCTION.match(ln))
+            real = bool(RX_REAL_FUNCTION.match(txt_ln))
         elif s.startswith('endfunction'):
             real = False
         elif real:
-            m = RX_INTEGER_RETURN.match(ln)
+            m = RX_INTEGER_RETURN.match(txt_ln)
             if m:
                 line_list[i] = '%s%s.0%s' % (m.group(1), m.group(2), m.group(3))
                 n += 1
@@ -695,6 +695,34 @@ EDITOR_FILE_NAMES = ('war3map.w3i', 'war3map.w3r', 'war3map.w3c', 'war3map.w3s',
                      'war3map.w3a', 'war3mapSkin.w3a', 'war3map.w3b', 'war3mapSkin.w3b')
 
 
+def locals_without_clash(body_text, log=print):
+    try:
+        from doctor.script import jass_ast
+        tree = jass_ast.parse(body_text)
+    except Exception as e:
+        log('locals without clash: the script does not parse (%s: %s)' % (type(e).__name__, e))
+        return body_text, []
+    name_list = jass_ast.declared_names(tree)
+    line_list = body_text.split('\n')
+    replacements = []
+    for f_name, f_start, f_end, parameters, local_vars in jass_ast.function_specs(tree):
+        decl = list(parameters) + list(local_vars)
+        bad_ones = sorted(set(n for n in decl if n in name_list))
+        if not bad_ones:
+            continue
+        in_use = set(decl) | name_list
+        for old in bad_ones:
+            new, k = old + '_l', 2
+            while new in in_use:
+                new, k = '%s_l%d' % (old, k), k + 1
+            in_use.add(new)
+            rx = re.compile(r'"(?:[^"\\\n]|\\.)*"|\'[^\'\n]*\'|//[^\n]*|(?<!function )\b%s\b(?!\s*\()' % re.escape(old))
+            for i in range(f_start - 1, min(f_end, len(line_list))):
+                line_list[i] = rx.sub(lambda m: new if m.group(0) == old else m.group(0), line_list[i])
+            replacements.append((f_name, old, new))
+    return '\n'.join(line_list), replacements
+
+
 def fit_to_editor(header_text, file_set, original, log=print, tgt=None):
     try:
         from doctor.triggers import editor_render
@@ -751,6 +779,8 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
                                                          a.read('war3map.doo') if a.find('war3map.doo') else None,
                                                          tgt['ref'] if tgt is not None else None)
         details['optimizer'] = default_value
+        if tgt is not None:
+            body_text, details['renamed_locals'] = locals_without_clash(body_text, log)
     expected_len = body_text
     counts = inflated_counts.analyze_map(a)
     broken = dict((x['file_name'], x) for x in counts)
@@ -816,8 +846,9 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
         context['w3s_version'] = tgt['w3s']
     try:
         _bd = a.read('war3map.doo')
-        if _bd:
-            _valid = doodads.game_ids() | doodads.map_ids(a) | set(extra_ids)
+        _game = (doodads.game_ids(version_num=version_num) if version_num else doodads.game_ids()) if _bd else set()
+        if _bd and _game:
+            _valid = _game | doodads.map_ids(a) | set(extra_ids)
             if _valid:
                 _new_doo, _bad = doodads.without_invalid_ids(_bd, _valid)
                 if _bad:
@@ -829,7 +860,7 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
     try:
         _duplicates, details['duplicate_textures'] = (
             duplicate_textures.make_distinct(a, sorted(name_list, key=lambda n: (n.lower(), n)))
-            if tgt is None
+            if tgt is None and (options or {}).get('duplicate_textures') is True
             else ({}, [])
         )
         replacements.update(_duplicates)
