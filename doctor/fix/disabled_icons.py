@@ -5,6 +5,7 @@ import struct
 import tempfile
 
 from doctor.fix import unprotect
+from doctor.mpq import import_lint
 
 
 DISABLED_FOLDER = 'ReplaceableTextures\\CommandButtonsDisabled\\'
@@ -117,18 +118,7 @@ def icons(a, names):
     return out
 
 
-_CASC = []
-
-
-def game_storage():
-    if not _CASC:
-        try:
-            from doctor.data import casc_wc3
-            with unprotect.quiet():
-                _CASC.append(casc_wc3.CascWC3())
-        except Exception:
-            _CASC.append(None)
-    return _CASC[0]
+game_storage = import_lint.game_storage
 
 
 def _in_game(casc, path):
@@ -234,7 +224,7 @@ def make_disabled(data, name=''):
 def fix(path_in, path_out, progress=None):
     p = progress or _nothing
     res = {'state': 'failed', 'written': [], 'failed': [], 'checked': 0, 'collisions': [], 'unreadable': []}
-    if os.path.abspath(path_in) == os.path.abspath(path_out):
+    if os.path.normcase(os.path.abspath(path_in)) == os.path.normcase(os.path.abspath(path_out)):
         res['error'] = 'The output must be a new file.'
         return res
     from doctor.models import model_check
@@ -289,15 +279,7 @@ def fix(path_in, path_out, progress=None):
         for name, data in repl + extra:
             if unprotect._read(b, name) != data:
                 raise RuntimeError('%s was not read back' % name)
-        done = set(n.lower() for n, _d in repl + extra)
-        for n in names:
-            if n.lower() in done:
-                continue
-            x = unprotect._read(a, n)
-            if x is not None:
-                if unprotect._read(b, n) != x:
-                    raise RuntimeError('%s changed' % n)
-                res['checked'] += 1
+        res['checked'] += unprotect.check_untouched(a, b, names, [n for n, _d in repl + extra])
         del a, b
         os.replace(part, path_out)
     except Exception as e:
