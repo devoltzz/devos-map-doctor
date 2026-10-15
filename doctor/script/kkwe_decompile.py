@@ -86,10 +86,12 @@ class Reference(object):
                                              re.search(r'\b%s\b' % re.escape(t), body_text)]
         output, seen_types = [], set()
 
-        def place(t):
+        def place(t, in_progress=()):
             if t in seen_types or t not in self.extra_types:
                 return
-            place(self.extra_types[t])
+            if t in in_progress:
+                raise DecompileError('the type hierarchy has a cycle at %s' % t)
+            place(self.extra_types[t], in_progress + (t,))
             seen_types.add(t)
             output.append('type %s extends %s' % (t, self.extra_types[t]))
         for t in wanted:
@@ -119,6 +121,8 @@ class Reference(object):
     def ancestors(self, t):
         out = []
         while t is not None:
+            if t in out:
+                raise DecompileError('the type hierarchy has a cycle at %s' % t)
             out.append(t)
             t = self.parent.get(t)
         return out
@@ -1389,23 +1393,33 @@ def _decompile(bc, common, blizzard, extra_natives, map_own, header_text, no_cla
     if extra_natives is None:
         with open(DEFAULT_NATIVES, 'rb') as fh:
             extra_natives = fh.read().decode('utf-8', 'surrogateescape')
-    ref = Reference(common, blizzard, extra_natives, map_own)
-    ref.bytecode_types(bc)
-    constant_calls, constants_skipped = strip_constant_calls(bc, ref)
+    try:
+        ref = Reference(common, blizzard, extra_natives, map_own)
+        ref.bytecode_types(bc)
+        constant_calls, constants_skipped = strip_constant_calls(bc, ref)
+    except DecompileError:
+        raise
+    except (SyntaxError, NameError, IndexError, KeyError, ValueError, OverflowError, struct.error, RecursionError) as e:
+        raise DecompileError('the map reference does not read (%s: %s)' % (type(e).__name__, str(e)[:120]))
     try:
         globals_block, funcs, natives, _region = decompile(bc, ref)
     except (IndexError, KeyError, struct.error, RecursionError) as e:
         raise DecompileError('the bytecode cannot be read (%s: %s)' % (type(e).__name__, e))
-    inf = Inference(ref, globals_block, funcs)
-    inf.collect(globals_block)
-    if bc.order == kkwe.REVERSE_ORDER:
-        inf.pin_hook_types(funcs)
-    types = inf.resolve()
-    imp = Printer(ref, inf)
-    faithful = imp.program(globals_block, funcs, natives, list(header_text))
+    try:
+        inf = Inference(ref, globals_block, funcs)
+        inf.collect(globals_block)
+        if bc.order == kkwe.REVERSE_ORDER:
+            inf.pin_hook_types(funcs)
+        types = inf.resolve()
+        imp = Printer(ref, inf)
+        faithful = imp.program(globals_block, funcs, natives, list(header_text))
+    except DecompileError:
+        raise
+    except (SyntaxError, NameError, IndexError, KeyError, ValueError, OverflowError, struct.error, RecursionError) as e:
+        raise DecompileError('the inference/printing failed (%s: %s)' % (type(e).__name__, str(e)[:120]))
     try:
         n, total, identical, diffs, real_blocks, _c, grafted = prove_map(bc, ref, common, blizzard, faithful)
-    except (SyntaxError, NameError, ValueError, KeyError, RecursionError) as e:
+    except (SyntaxError, NameError, ValueError, OverflowError, KeyError, RecursionError) as e:
         raise DecompileError('the restored script does not compile again (%s: %s)' % (type(e).__name__, e))
     if diffs or real_blocks or n != total:
         where = ''
