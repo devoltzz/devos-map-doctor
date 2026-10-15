@@ -116,5 +116,8 @@ self.onmessage = ev => {
       post({ type: 'event', event: JSON.stringify({ type: 'index_done' }) });
     }).catch(e => post({ type: 'event', event: JSON.stringify({ type: 'index_failed', message: String(e) }) }));
     else if (m.type === 'job') runJob(JSON.stringify(m.job), s => post({ type: 'event', event: s }));
-  }).catch(() => {});
+  }).catch(e => {
+    if (m.type === 'job' && m.job && m.job.id) post({ type: 'event', event: JSON.stringify({
+      type: 'error', job: m.job.id, message: 'The engine stopped: ' + String(e && e.message || e) }) });
+  });
 };
