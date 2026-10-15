@@ -145,6 +145,7 @@ function DzFrameGetTopMessage takes nothing returns integer
 endfunction
 
 function DzFrameHideInterface takes nothing returns nothing
+    set DB_ui_escondida=true
     call BlzHideOriginFrames(true)
 endfunction
 
