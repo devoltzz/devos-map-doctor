@@ -150,6 +150,11 @@ def rewrite(data, has_levels, change):
                     other_value = change(ti, oi, mi, mid, data[v_start:v_end])
                     mi += 1
                     if other_value is not None:
+                        if vt == 3:
+                            if b'\0' in other_value:
+                                raise ValueError('field %r: the new text cannot hold a NUL character' % mid)
+                        elif len(other_value) != v_end - v_start:
+                            raise ValueError('field %r: the new value must keep its %d bytes' % (mid, v_end - v_start))
                         output.append(data[begin:v_start])
                         output.append(other_value)
                         output.append(data[v_end:p])
