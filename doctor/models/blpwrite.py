@@ -85,7 +85,7 @@ def _patch_component_ids(data):
         if out[p] != 0xFF:
             break
         m = out[p + 1]
-        ln = struct.unpack('>H', bytes(out[p + 2:p + 4]))[0]
+        txt_ln = struct.unpack('>H', bytes(out[p + 2:p + 4]))[0]
         if m == 0xC0:
             n = out[p + 9]
             for i in range(n):
@@ -95,7 +95,7 @@ def _patch_component_ids(data):
             for i in range(n):
                 out[p + 5 + i * 2] = i
             break
-        p += 2 + ln
+        p += 2 + txt_ln
     return bytes(out)
 
 
