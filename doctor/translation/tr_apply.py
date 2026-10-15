@@ -1,6 +1,7 @@
 # Applies translated texts to the script and the data files of a map.
 import collections
 import json
+import functools
 import os
 import re
 from collections import Counter
@@ -131,14 +132,14 @@ def call_envolvente(before):
     return None, None
 
 
-def classifica_occurrence(line_str, pos, lit, caution_as_screen=False, script_flow=None, ln=None):
+def classifica_occurrence(line_str, pos, lit, caution_as_screen=False, script_flow=None, txt_ln=None):
     before = line_str[max(0, pos - 400):pos]
     after_diag = line_str[pos + len(lit) + 2:pos + len(lit) + 13]
     if re.search(r'[=!]=\s*$', before) or after_diag.lstrip().startswith(('==', '!=')):
         return 'caution:comparison'
     fn, idx = call_envolvente(before)
-    if script_flow is not None and ln is not None:
-        tgt = script_flow.dest(line_str, pos, lit, fn, idx, ln)
+    if script_flow is not None and txt_ln is not None:
+        tgt = script_flow.dest(line_str, pos, lit, fn, idx, txt_ln)
         if tgt:
             return 'caution:flow ' + tgt
     if fn is None:
@@ -252,6 +253,7 @@ def _target(m):
     return (a.group(1) or a.group(3) or a.group(4)), a.group(2), a.end()
 
 
+@functools.lru_cache(maxsize=4096)
 def _mask(line_str):
     lits = ki.literals(line_str)
     if not lits:
@@ -729,10 +731,10 @@ class ScriptFlow(object):
             return self._use(line, m, c0, _closes(m, c0 + len(fname)), fn, max_depth + 1)
         return None
 
-    def dest(self, line_str, pos, lit, fn, idx, ln):
-        if ln >= len(self.of_line) or (self.outside and self.outside[ln]):
+    def dest(self, line_str, pos, lit, fn, idx, txt_ln):
+        if txt_ln >= len(self.of_line) or (self.outside and self.outside[txt_ln]):
             return ''
-        current = self.of_line[ln]
+        current = self.of_line[txt_ln]
         if fn is None:
             m = _mask(line_str)
             tgt = _target(m)
@@ -740,7 +742,7 @@ class ScriptFlow(object):
                 no = self._node(tgt[0], current, tgt[1], write_site=True)
                 label = tgt[0] + (tgt[1] if tgt[1] and no and len(no) == 3 and no[2] != '*w' else '')
                 if self._temporary(no):
-                    s = self.sensitive_temp(current, tgt[0], ln)
+                    s = self.sensitive_temp(current, tgt[0], txt_ln)
                     return label if s is not None and self.finds(s, lit) else ''
             elif current is not None and re.match(r'\s*return\b', m):
                 no, label = ('r', current), 'return of ' + current
