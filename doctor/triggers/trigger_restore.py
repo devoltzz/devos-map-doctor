@@ -5,6 +5,7 @@ import inspect
 import os
 import re
 import tempfile
+import threading
 import time
 
 from doctor.triggers import gui_render
@@ -41,6 +42,8 @@ OBJECT_PREFIXES = ('gg_unit_', 'gg_rct_', 'gg_cam_', 'gg_snd_', 'gg_dest_', 'gg_
 RX_WORD = re.compile(r'[A-Za-z_]\w*')
 RX_STRING_OR_COMMENT = re.compile(r'("(?:[^"\\]|\\.)*")|//[^\n]*')
 RX_BANNER = re.compile(r'^//\s?Trigger:\s?(.*)$')
+RX_BANNER_BLOCK = {JASS: re.compile(r'//=+[ \t]*\n//[ \t]?Trigger:[^\n]*\n(?://=+[ \t]*\n)?'),
+                   LUA: re.compile(r'--=+[ \t]*\n--[ \t]?Trigger:[^\n]*\n(?:--=+[ \t]*\n)?')}
 REGISTRATION_CALLS = re.compile(r'^(?:TriggerRegister\w+|TriggerAddCondition|TriggerAddAction|DisableTrigger)$')
 
 
@@ -1289,24 +1292,41 @@ def _init_per_trigger(src, sk, names):
     if k < 0 or calls[k + 1:k + 2] != [rit]:
         return src.text, [], 'main does not call RunInitializationTriggers right after InitCustomTriggers'
     edits, made, held = [], [], 0
+    whole, cands = [], {}
     for init in sk['triggers']:
         f = src.functions[init]
         node = f.node
+        body = [s for s in node.body if type(s) is not jass_ast.CommentStmt]
         if node.locals or node.params or init in sk.get('wrappers', ()):
+            whole.append(body)
             continue
-        move = [s for s in node.body if type(s) is not jass_ast.CommentStmt and not _is_registration(s)]
+        move = [s for s in body if not _is_registration(s)]
         if not move:
+            whole.append(body)
             continue
-        ident = init[len('InitTrig_'):]
-        new = ident + '_Init'
+        new = init[len('InitTrig_'):] + '_Init'
         if ('InitTrig_' + new in src.functions or 'Trig_%s_Actions' % new in src.functions or
                 'gg_trg_' + new in src.globals):
+            whole.append(body)
             continue
-        keep = [s for s in node.body if s not in move]
-        assigned = _assigned(move)
-        if _returns(move) or any(_touch(s, assigned)[0] for s in keep):
+        if _returns(move):
+            whole.append(body)
             held += 1
             continue
+        cands[init] = (move, [s for s in body if s not in move])
+    stays = [s for b in whole for s in b] + [s for mv, kp in cands.values() for s in kp]
+    while cands:
+        read = set(x.name for s in stays for x in jass_ast.walk(s) if type(x) is jass_ast.Name)
+        hold = [init for init, (mv, kp) in cands.items() if _assigned(mv) & read]
+        if not hold:
+            break
+        for init in hold:
+            stays += cands.pop(init)[0]
+            held += 1
+    for init, (move, keep) in cands.items():
+        f = src.functions[init]
+        ident = init[len('InitTrig_'):]
+        new = ident + '_Init'
         header = f.text.split('\n', 1)[0]
         code = ['function Trig_%s_Actions takes nothing returns nothing' % new] + _indented(move) + ['endfunction', '',
                 'function InitTrig_%s takes nothing returns nothing' % new,
@@ -1536,6 +1556,8 @@ class _Context(object):
 
 def _gui(ctx, d, obfuscated):
     src, td, lang = ctx.src, ctx.td, ctx.lang
+    if any('\x00' in src.texts[f] for f in d.own):
+        return 'a NUL byte in its code, which the wtg cannot hold'
     try:
         m = ctx.mod.match_trigger(ctx.nodes, d.init, td, ctx.gtypes, d.name, **ctx.kw)
     except Exception as e:
@@ -1666,6 +1688,17 @@ def _remove_spans(text, spans):
         pos = b
     out.append(text[pos:])
     return ''.join(out)
+
+
+def _own_text(src, name):
+    fn = src.functions[name]
+    lead = src.text[fn.lead:fn.start]
+    last = None
+    for m in RX_BANNER_BLOCK[src.lang].finditer(lead):
+        last = m
+    if last is not None:
+        lead = lead[last.end():]
+    return lead + fn.text
 
 
 def _header_text(src, removed_functions, removed_globals):
@@ -2139,7 +2172,7 @@ def _restore(res, text, td, init_per_trigger, say, matcher, editor_files=None, o
                 '', NOTE_RENAMED) else d.trigger.description
         triggers.append(d.trigger)
         if d.kind == 'text':
-            texts.append(''.join(src.texts[f].rstrip('\n') + '\n' for f in sorted(d.own, key=pos.get)))
+            texts.append(''.join(_own_text(src, f).rstrip('\n') + '\n' for f in sorted(d.own, key=pos.get)))
         else:
             texts.append(None)
     mt = wtg.MapTriggers(7, None, 2, [wtg.Category(0, CATEGORY, 0)], wtg_vars, triggers)
@@ -2284,7 +2317,10 @@ def _pjass_errors(result):
     return collections.Counter(RX_PJASS_WHERE.sub('', x) for x in result['line_list'] if RX_PJASS_WHERE.match(x))
 
 
-def _pjass_proof(expected, original, ref_dir=None):
+def _pjass_proof(expected, original, ref_dir=None, raw_vjass=0):
+    if raw_vjass:
+        return True, ('skipped: the script has %d raw vJass block(s) (scope/library), which neither pjass nor the game '
+                      'compiles without JassHelper' % raw_vjass)
     try:
         from doctor.script import pjass
     except ImportError as e:
@@ -2305,6 +2341,10 @@ def _pjass_proof(expected, original, ref_dir=None):
             out[tag] = pjass.run_action([(os.path.join(ref, 'common.j'), 'common.j'),
                                          (os.path.join(ref, 'blizzard.j'), 'Blizzard.j'),
                                          (path, 'war3map.j')], tmp=os.path.join(tmp, tag))
+    except TimeoutError as e:
+        return False, str(e)
+    except OSError as e:
+        return True, 'skipped: pjass could not run (%s)' % str(e)[:120]
     finally:
         import shutil
         shutil.rmtree(tmp, ignore_errors=True)
@@ -2326,7 +2366,7 @@ def _lua_compiles(code, what):
 
 
 LUA_SANDBOX = r'''
-return function(chunk, idents, probe_var)
+return function(chunk, idents, probe_var, budget)
   local stub
   local smt = {}
   stub = setmetatable({}, smt)
@@ -2339,26 +2379,68 @@ return function(chunk, idents, probe_var)
   smt.__lt = function() return false end
   smt.__le = function() return false end
   smt.__len = function() return 0 end
+  -- (1.8.0, triggers A A2) the instruction budget: a count hook that, once spent, is re-armed to fire at EVERY
+  -- instruction (a `pcall` in the map catches the first error, and a loop around it went on for ever) while a frame
+  -- of the map's code is on the stack (the sandbox's own helpers, the `__index` of _G among them, run on the map's
+  -- behalf: the source of the running function alone said "sandbox" and disarmed it); with no such frame control
+  -- is back in the sandbox and the hook goes. Lua's hook is per thread: the coroutines the map creates get it too,
+  -- on the same budget
+  local USER = '=war3map.lua'
+  local STEP = 1000
+  local left, spent = budget, false
+  local function in_map_code()
+    local lv = 2
+    while true do
+      local info = debug.getinfo(lv, 'S')
+      if not info then return false end
+      if info.source == USER then return true end
+      lv = lv + 1
+    end
+  end
+  local function hook()
+    if spent then
+      if not in_map_code() then debug.sethook() return end
+      debug.sethook(hook, '', 1)
+      error('the sandbox ran too long', 0)
+    end
+    left = left - STEP
+    if left <= 0 then spent = true debug.sethook(hook, '', 1) error('the sandbox ran too long', 0) end
+  end
+  local function arm() spent = false debug.sethook(hook, '', STEP) end
+  local co_create = coroutine.create
+  local co = setmetatable({}, {__index = coroutine})
+  co.create = function(f) local c = co_create(f) debug.sethook(c, hook, '', STEP) return c end
+  co.wrap = function(f)
+    local c = co.create(f)
+    return function(...)
+      local r = table.pack(coroutine.resume(c, ...))
+      if not r[1] then error(r[2], 0) end
+      return table.unpack(r, 2, r.n)
+    end
+  end
   local base = {string = string, math = math, table = table, setmetatable = setmetatable, getmetatable = getmetatable,
     rawset = rawset, rawget = rawget, rawequal = rawequal, rawlen = rawlen, pairs = pairs, ipairs = ipairs,
     next = next, type = type, tostring = tostring, tonumber = tonumber, select = select, error = error,
-    pcall = pcall, xpcall = xpcall, assert = assert, print = function() end, coroutine = coroutine, utf8 = utf8}
+    pcall = pcall, xpcall = xpcall, assert = assert, print = function() end, coroutine = co, utf8 = utf8}
   local G = {}
   setmetatable(G, {__index = function(t, k) local v = base[k] if v ~= nil then return v end return stub end})
   G._G = G
   local r = {}
-  debug.sethook(function() error('the sandbox ran too long') end, '', 20000000)
+  arm()
   local f, err = load(chunk, '=war3map.lua', 't', G)
   if not f then debug.sethook() r.error = 'compile: ' .. tostring(err) return r end
   local ok, e = pcall(f)
-  if not ok then debug.sethook() r.error = 'load: ' .. tostring(e) return r end
+  debug.sethook()
+  if not ok then r.error = 'load: ' .. tostring(e) return r end
   local main = rawget(G, 'main')
   r.ict = rawget(G, 'InitCustomTriggers') ~= nil
   local missing = {}
   for _, x in ipairs(idents) do if rawget(G, 'InitTrig_' .. x) == nil then missing[#missing + 1] = x end end
   r.missing = table.concat(missing, ' ')
   if main then
+    arm()
     local ok2, e2 = pcall(main)
+    debug.sethook()
     r.main_error = ok2 and '' or tostring(e2)
   else
     r.main_error = 'no main in _G'
@@ -2369,14 +2451,16 @@ return function(chunk, idents, probe_var)
   r.unset = table.concat(unset, ' ')
   r.by = 'main'
   if #unset > 0 and rawget(G, 'InitCustomTriggers') then
+    arm()
     pcall(rawget(G, 'InitCustomTriggers'))
+    debug.sethook()
     local still = {}
     for _, x in ipairs(idents) do if rawget(G, 'gg_trg_' .. x) == nil then still[#still + 1] = x end end
     r.unset = table.concat(still, ' ')
     r.by = 'InitCustomTriggers'
   end
   local w = rawget(G, '__devo_probe_write')
-  if w then pcall(w) end
+  if w then arm() pcall(w) debug.sethook() end
   r.write = rawget(G, probe_var) == 12345
   local rd = rawget(G, '__devo_probe_read')
   r.read = rd ~= nil and main ~= nil and rd() == main
@@ -2384,6 +2468,9 @@ return function(chunk, idents, probe_var)
   return r
 end
 '''
+SANDBOX_BUDGET = 20000000
+SANDBOX_MEMORY = 512 << 20
+SANDBOX_SECONDS = 120.0
 
 
 def _lua_env_proof(header_text, private, mt, td, texts, generated_src):
@@ -2408,13 +2495,25 @@ def _lua_env_proof(header_text, private, mt, td, texts, generated_src):
                      'function __devo_probe_write()\n    %s = 12345\nend\n' % probe,
                      'function __devo_probe_read()\n    return main\nend\n'])
     idents = [gui_render.trigger_identifier(t.name) for t in mt.triggers if t.enabled and not t.is_comment]
-    try:
-        lua = lua53.LuaRuntime(register_eval=False, unpack_returned_tuples=True)
-        run = lua.execute(LUA_SANDBOX)
-        r = run(chunk.encode('utf-8', 'surrogateescape'), lua.table_from(idents), probe)
-        r = dict((k, r[k]) for k in r)
-    except Exception as e:
+    box = {}
+
+    def run_sandbox():
+        try:
+            lua = lua53.LuaRuntime(register_eval=False, unpack_returned_tuples=True, max_memory=SANDBOX_MEMORY)
+            run = lua.execute(LUA_SANDBOX)
+            r = run(chunk.encode('utf-8', 'surrogateescape'), lua.table_from(idents), probe, SANDBOX_BUDGET)
+            box['r'] = dict((k, r[k]) for k in r)
+        except Exception as e:
+            box['e'] = e
+    t = threading.Thread(target=run_sandbox, name='lua_sandbox', daemon=True)
+    t.start()
+    t.join(SANDBOX_SECONDS)
+    if t.is_alive():
+        return False, 'the sandbox ran too long (%d s): a function of the map does not come back' % SANDBOX_SECONDS
+    if 'e' in box:
+        e = box['e']
         return False, 'the sandbox failed: %s: %s' % (type(e).__name__, str(e)[:200])
+    r = box['r']
     r = dict((k, v.decode('utf-8', 'replace') if isinstance(v, bytes) else v) for k, v in r.items())
     if r.get('error'):
         return False, r['error'][:200]
@@ -2452,7 +2551,8 @@ def _editor_fit(res, src, td, mt, texts, header_text, editor_files):
     res.report['editor_save'] = {'ok': f.ok, 'level': f.level, 'globals_to_editor': len(f.dropped),
                                  'functions_to_editor': list(f.replaced), 'objects_named': len(f.objects),
                                  'inject': f.inject, 'lines': list(f.lines), 'reason': f.reason, 'notes': f.notes[:3],
-                                 'vanilla': f.vanilla}
+                                 'vanilla': f.vanilla,
+                                 'proofs': dict((k, [bool(ok), str(d)]) for k, (ok, d) in (f.proofs or {}).items())}
     return f if f.ok else None
 
 
@@ -2550,7 +2650,7 @@ def _assemble(res, src, td, mt, texts, header_text, decisions, editor_files=None
         proofs['expected_equals_original'] = (ok, detail)
         rep['expected_differences'] = problems[:20]
     if lang == JASS:
-        proofs['pjass'] = _pjass_proof(res.expected_script, src.text)
+        proofs['pjass'] = _pjass_proof(res.expected_script, src.text, raw_vjass=src.vjass)
         if fitted is not None:
             res.expected_script = fitted.script
             proofs.update(fitted.proofs)
@@ -2646,6 +2746,8 @@ def optimizer_lines(o):
                      'Player(15)) and now use its constant, which stays right when the World Editor saves the map for '
                      '24 players. Code that counts players another way (a loop to 12 or 16) still needs a look.'
                      % o['neutral_players'])
+    if o.get('error'):
+        lines.append('The optimizer step could not run (%s): the script was restored as it came.' % o['error'][:160])
     return lines
 
 
@@ -2710,10 +2812,15 @@ def summary(res):
                          '' if fit['inject'] else ', main and config too',
                          '' if not fit['objects_named'] else '; %d placed objects named in the disabled trigger %r'
                          % (fit['objects_named'], 'Custom script objects')))
+        not_run = [k for k, v in (fit.get('proofs') or {}).items() if v[0] and str(v[1]).startswith('skipped')]
+        if not_run:
+            lines[-1] += ' Not run: %s.' % ', '.join(not_run)
     elif fit:
         lines.append('Saving from the World Editor not proven (%s): the custom script stays as before.'
                      % (fit.get('reason') or '?')[:160])
     bad = [k for k, (ok, _d) in res.proofs.items() if not ok]
-    lines.append('Proofs: %s' % ('all passed' if not bad else 'FAILED: ' + ', '.join(bad)))
+    skipped = [k for k, (ok, d) in res.proofs.items() if ok and str(d).startswith('skipped')]
+    lines.append('Proofs: %s%s' % ('all passed' if not bad else 'FAILED: ' + ', '.join(bad),
+                                   '' if not skipped else '; not run: %s' % ', '.join(skipped)))
     return lines
 
