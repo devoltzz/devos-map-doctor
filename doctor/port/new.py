@@ -367,6 +367,17 @@ def ui_parent(body_text):
     )
 
 
+def ui_hud_lol(body_text):
+    for rx in (r'(?m)^\s*integer\s+LoLHUD_LastHover\b', r'(?m)^\s*integer\s+array\s+LoLHUD_SlotAbil\b',
+               r'(?m)^\s*unit\s+LoLHUD_Hero\b', r'(?m)^\s*boolean\s+AltDown\b'):
+        if not re.search(rx, body_text):
+            return 'false'
+    for s in 'AFGZQWERD':
+        if not re.search(r'(?m)^\s*constant\s+integer\s+SLOT_%s\b' % s, body_text):
+            return 'false'
+    return 'true'
+
+
 RX_CARD = re.compile(r'\bJNMemoryGetInteger[ \t]*\([ \t]*\(?[ \t]*\w+[ \t]*\+[ \t]*400[ \t]*\)?[ \t]*\)')
 
 
