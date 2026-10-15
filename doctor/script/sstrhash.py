@@ -11,7 +11,7 @@ def _norm(b):
 
 
 def sstrhash2(body_text):
-    return sstrhash2_bytes(body_text.encode('utf-8'))
+    return sstrhash2_bytes(body_text.encode('utf-8', 'surrogateescape'))
 
 
 def stringhash_reforged(body_text, dobra=True):
