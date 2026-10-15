@@ -18,6 +18,8 @@ TETO = 512 << 20
 FIXES = ('matrix_groups',)
 PORTRAIT_VERSION = 900
 PORTRAIT_STAMP = 1800
+
+
 def _nothing(*_a, **_k):
     pass
 
@@ -63,9 +65,12 @@ def _fixed(data):
         if _holds(data, out):
             info['method'] = 'split'
             return out, info
-    except Exception:
-        pass
+    except Exception as e:
+        _FIXED_ERROR[0] = '%s: %s' % (type(e).__name__, str(e)[:80])
     return None
+
+
+_FIXED_ERROR = [None]
 
 
 def _check(data):
@@ -86,11 +91,13 @@ def _check(data):
     over = [(i, n) for i, n in enumerate(groups) if n > mdxgroups.LIMIT]
     if not over:
         return [], None
+    _FIXED_ERROR[0] = None
     fixed = _fixed(data)
     worst = max(over, key=lambda x: x[1])
+    why = (' The fix failed: %s.' % _FIXED_ERROR[0]) if fixed is None and _FIXED_ERROR[0] else ''
     return [{'code': 'matrix_groups', 'fixable': fixed is not None, 'geosets': [i for i, _n in over],
              'groups': worst[1], 'text': 'Geoset %d has %d matrix groups (255 at most): the game hangs when the mouse '
-                                         'is over this model.' % worst}], fixed
+                                         'is over this model.' % worst + why}], fixed
 
 
 def model_version(data):
@@ -150,6 +157,31 @@ def stamp_version(data, version=PORTRAIT_STAMP):
         if tag == b'VERS' and size >= 4:
             return data[:off] + struct.pack('<I', version) + data[off + 4:]
     raise ValueError('no VERS chunk')
+
+
+_TRACK_TAGS = (b'KMTF', b'KMTA', b'KMTE', b'KFC3', b'KFCA', b'KFTC')
+
+
+def retag_800_layout(data):
+    data = bytes(data)
+    if len(data) < 16 or data[:4] != b'MDLX' or data[4:8] != b'VERS':
+        return None, None
+    version = struct.unpack_from('<I', data, 12)[0]
+    if version <= 800:
+        return None, version
+    from doctor.fix import mdx_struct
+    try:
+        m = mdx_struct.read(data)
+    except ValueError:
+        return None, version
+    layers = [lay for mat in m.mats for lay in mat['layers']]
+    if not layers:
+        return None, version
+    for lay in layers:
+        fim, q = lay['end'], lay['off']
+        if fim - q != 28 and data[q + 28:q + 32] not in _TRACK_TAGS:
+            return None, version
+    return stamp_version(data, 800), version
 
 
 def _layer_widening(texture):
@@ -410,7 +442,7 @@ def _same_except(a, b, blocks, slots):
 def fix(path_in, path_out, files=None, progress=None, what=FIXES, transform=None):
     p = progress or _nothing
     res = {'state': 'failed', 'fixed': [], 'not_fixed': [], 'checked': 0}
-    if os.path.abspath(path_in) == os.path.abspath(path_out):
+    if os.path.normcase(os.path.abspath(path_in)) == os.path.normcase(os.path.abspath(path_out)):
         res['error'] = 'The output must be a new file.'
         return res
     p('Reading the map')
@@ -497,7 +529,9 @@ def fix(path_in, path_out, files=None, progress=None, what=FIXES, transform=None
         del a, b
         os.replace(part, path_out)
         if os.path.getsize(path_out) > TETO:
-            res['warning'] = 'The new map is over 512 MiB: the game does not list it. Shrink it.'
+            res['warning'] = (
+                'The new map is over 512 MiB: the game does not list it. Run "Make the map smaller, losing nothing" on it.'
+            )
     except Exception as e:
         a = b = None
         try:
