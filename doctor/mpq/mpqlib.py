@@ -238,10 +238,14 @@ def file_header(file_path, block_entry=1 << 20):
     return h, skipped
 
 
+class MPQError(SystemExit, Exception):
+    pass
+
+
 def header_offset(file_path):
     h, _p = file_header(file_path)
     if h is None:
-        raise SystemExit('MPQ header not found: %s' % file_path)
+        raise MPQError('MPQ header not found: %s' % file_path)
     return h.offset
 
 
@@ -302,4 +306,3 @@ def read_tables(d, h, hash_key=HASH_TABLE_KEY, block_key=BLOCK_TABLE_KEY):
     ht = decrypt_array(raw_h, hash_key) if len(raw_h) > BIG_TABLE else decrypt(raw_h, hash_key)
     bt = decrypt_array(raw_b, block_key) if len(raw_b) > BIG_TABLE else decrypt(raw_b, block_key)
     return ht, bt
-
