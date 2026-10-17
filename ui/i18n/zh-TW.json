@@ -3099,5 +3099,6 @@
  "Porting the map to {0}...": "正在將地圖移植到 {0}...",
  "Takes the map to {0}: the return bug gets its equivalent, the names the newer game also has are renamed and the script is checked with the scripts of {1}. The rest of the map stays. Saves the map and a report next to it.": "將地圖移植到 {0}：return bug 會改用等效寫法，新版遊戲同樣具有的名稱會被重新命名，並以 {1} 的腳本檢查腳本。地圖的其餘部分保持不變。會將地圖和報告儲存在其旁邊。",
  "the map could not be read for this ({0})": "無法讀取地圖以進行此操作（{0}）",
- "{0} (not for this map)": "{0}（不適用於此地圖）"
+ "{0} (not for this map)": "{0}（不適用於此地圖）",
+ "{0} kept the name of a global array ({1}): that is how a memory library reads the array's address in the game. JassHelper may refuse it when you save; renaming it would stop the map in the game.": "{0}沿用了全域陣列的名稱（{1}）：記憶體函式庫正是以此在遊戲中讀取陣列的位址。儲存時 JassHelper 可能會拒絕；但若改名，地圖會在遊戲中停止運作。"
 }
