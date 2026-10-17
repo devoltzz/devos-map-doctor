@@ -31,7 +31,7 @@ def no_box(folder, *pieces):
 def common_module(fname):
     hash_key = '_kk_' + fname
     mod = sys.modules.get(hash_key)
-    if mod is None and getattr(sys, 'frozen', False) and not os.path.isfile(os.path.join(SCRIPTS, fname + '.py')):
+    if mod is None and not os.path.isfile(os.path.join(SCRIPTS, fname + '.py')):
         mod = sys.modules[hash_key] = importlib.import_module('doctor.data.' + fname)
     if mod is None:
         spec = importlib.util.spec_from_file_location(hash_key, os.path.join(SCRIPTS, fname + '.py'))
