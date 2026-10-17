@@ -8,6 +8,9 @@ import sys
 JASS, LUA = 'jass', 'lua'
 BANNER = '//' + '=' * 75
 _ALNUM = frozenset(b'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz')
+RAWCODE_TYPES = frozenset(
+    ('abilcode', 'unitcode', 'itemcode', 'buffcode', 'heroskillcode', 'destructablecode', 'techcode', 'doodadcode')
+)
 RX_REF = re.compile(r'\b((?:Init)?Trig_\w+)')
 
 
@@ -604,8 +607,8 @@ class _Syntax(object):
             return text
         if base == 'string':
             return '"%s"' % _escape(text)
-        if base == 'integer' and gui_type != 'integer' and (not RX_INTEGER.match(text) or
-                                                             (len(text) == 4 and text.isalnum())):
+        if base == 'integer' and gui_type in RAWCODE_TYPES and (not RX_INTEGER.match(text) or
+                                                                (len(text) == 4 and text.isalnum())):
             return self.rawcode(text)
         return text
 
