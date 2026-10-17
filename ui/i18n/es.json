@@ -3101,5 +3101,6 @@
  "Porting the map to {0}...": "Portando el mapa a {0}...",
  "Takes the map to {0}: the return bug gets its equivalent, the names the newer game also has are renamed and the script is checked with the scripts of {1}. The rest of the map stays. Saves the map and a report next to it.": "Lleva el mapa a {0}: el return bug recibe su equivalente, los nombres que el juego más nuevo también tiene se renombran y el script se comprueba con los scripts de {1}. El resto del mapa se queda igual. Guarda el mapa y un reporte junto a él.",
  "the map could not be read for this ({0})": "no se pudo leer el mapa para esto ({0})",
- "{0} (not for this map)": "{0} (no es para este mapa)"
+ "{0} (not for this map)": "{0} (no es para este mapa)",
+ "{0} kept the name of a global array ({1}): that is how a memory library reads the array's address in the game. JassHelper may refuse it when you save; renaming it would stop the map in the game.": "Se conservó el nombre de un array global ({1}) en {0}: así es como una biblioteca de memoria lee la dirección del array en el juego. JassHelper puede rechazarlo al guardar; renombrarlo detendría el mapa en el juego."
 }
