@@ -1640,7 +1640,7 @@ function DB_perfil_diag takes string linha returns nothing
     call PreloadGenClear()
     call PreloadGenStart()
     call Preload("\")\n// "+DB_esc_jass(linha)+"\n//")
-    call PreloadGenEnd("DreamS5\\perfil_diag.pld")
+    call PreloadGenEnd(DB_RAIZ+"perfil_diag.pld")
 endfunction
 
 function DB_le_blob takes string prefixo returns string
