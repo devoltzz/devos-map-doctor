@@ -3100,5 +3100,6 @@
  "Porting the map to {0}...": "Portage de la carte vers {0}...",
  "Takes the map to {0}: the return bug gets its equivalent, the names the newer game also has are renamed and the script is checked with the scripts of {1}. The rest of the map stays. Saves the map and a report next to it.": "Amène la carte vers {0} : le return bug reçoit son équivalent, les noms que le jeu plus récent possède aussi sont renommés et le script est vérifié avec les scripts de {1}. Le reste de la carte est conservé. Enregistre la carte et un rapport à côté.",
  "the map could not be read for this ({0})": "la carte n'a pas pu être lue pour cela ({0})",
- "{0} (not for this map)": "{0} (pas pour cette carte)"
+ "{0} (not for this map)": "{0} (pas pour cette carte)",
+ "{0} kept the name of a global array ({1}): that is how a memory library reads the array's address in the game. JassHelper may refuse it when you save; renaming it would stop the map in the game.": "{0} : nom de tableau global conservé ({1}), car c'est ainsi qu'une bibliothèque de mémoire lit l'adresse du tableau dans le jeu. JassHelper peut refuser ce nom à l'enregistrement ; le renommer arrêterait la carte dans le jeu."
 }
