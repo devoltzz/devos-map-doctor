@@ -243,6 +243,24 @@ def operands(lin, texts, a, b):
     return out
 
 
+def arguments(lin, texts, a, q):
+    out = []
+    max_depth = 0
+    begin = a + 1
+    for c in range(a + 1, q):
+        t = texts[lin[c]]
+        if t == '(' or t == '[':
+            max_depth += 1
+        elif t == ')' or t == ']':
+            max_depth -= 1
+        elif t == ',' and max_depth == 0:
+            out.append((begin, c - 1))
+            begin = c + 1
+    if begin < q:
+        out.append((begin, q - 1))
+    return out
+
+
 def literal_only(lin, texts, kinds, a, b):
     while a < b and texts[lin[a]] == '(' and texts[lin[b]] == ')':
         a += 1
@@ -331,13 +349,37 @@ def main():
                         if all(v is not None for v in vals) and ''.join(vals) in functions:
                             tgt.add(''.join(vals))
         called[f.fname] = tgt
-    from_config = set()
-    stack = ['config'] if 'config' in functions else []
+    fm = functions['main']
+    li_first = None
+    local_inits = []
+    for li in range(fm.li0 + 1, fm.li1):
+        lin = line_list[li]
+        if not lin:
+            continue
+        if texts[lin[0]] == 'local':
+            if len(lin) > 3:
+                eq = [p for p, ti in enumerate(lin) if texts[ti] == '=']
+                if eq:
+                    local_inits.append((lin, eq[0] + 1))
+            continue
+        li_first = li
+        break
+    if li_first is None:
+        li_first = fm.li1
+    roots = ['config'] if 'config' in functions else []
+    for lin, a in local_inits:
+        for p in range(a, len(lin)):
+            fname = texts[lin[p]]
+            if kinds[lin[p]] == 'id' and fname in functions and fname != 'main' and \
+                    ((p + 1 < len(lin) and texts[lin[p + 1]] == '(') or texts[lin[p - 1]] == 'function'):
+                roots.append(fname)
+    early = set()
+    stack = roots
     while stack:
         n = stack.pop()
-        if n in from_config:
+        if n in early:
             continue
-        from_config.add(n)
+        early.add(n)
         stack.extend(called.get(n, ()))
 
     frozen = set()
@@ -348,32 +390,18 @@ def main():
                 frozen.add(ti)
                 if kinds[ti] == 'id':
                     read_early.add(texts[ti])
-    for n in from_config:
+    for n in early:
         f = functions[n]
         for li in range(f.li0, (f.li1 or f.li0) + 1):
             for ti in line_list[li]:
                 frozen.add(ti)
                 if kinds[ti] == 'id':
                     read_early.add(texts[ti])
-    fm = functions['main']
-    li_first = None
-    for li in range(fm.li0 + 1, fm.li1):
-        lin = line_list[li]
-        if not lin:
-            continue
-        if texts[lin[0]] == 'local':
-            if len(lin) > 3:
-                eq = [p for p, ti in enumerate(lin) if texts[ti] == '=']
-                if eq:
-                    for ti in lin[eq[0] + 1:]:
-                        frozen.add(ti)
-                        if kinds[ti] == 'id':
-                            read_early.add(texts[ti])
-            continue
-        li_first = li
-        break
-    if li_first is None:
-        li_first = fm.li1
+    for lin, a in local_inits:
+        for ti in lin[a:]:
+            frozen.add(ti)
+            if kinds[ti] == 'id':
+                read_early.add(texts[ti])
 
     converted = {}
     for g in globals_block:
@@ -392,8 +420,38 @@ def main():
             converted[g['fname']] = ti
             frozen.discard(ti)
 
+    var_lit = []
+    var_pat = set()
+    n_var_dyn = 0
+    for lin in line_list:
+        for p, ti in enumerate(lin):
+            if kinds[ti] != 'id' or texts[ti] != 'TriggerRegisterVariableEvent':
+                continue
+            if p + 1 >= len(lin) or texts[lin[p + 1]] != '(':
+                continue
+            q = on_close(lin, texts, p + 1)
+            args = arguments(lin, texts, p + 1, q) if q is not None else []
+            if len(args) < 2:
+                continue
+            a, b = args[1]
+            vals = [literal_only(lin, texts, kinds, x, y) for x, y in operands(lin, texts, a, b)]
+            if all(v is not None for v in vals):
+                var_lit.append((lin, a, b, ''.join(vals)))
+                continue
+            var_pat.add((vals[0] if len(vals) > 1 and vals[0] is not None else '',
+                         vals[-1] if len(vals) > 1 and vals[-1] is not None else ''))
+            n_var_dyn += 1
+    keep_var = set(g['fname'] for g in globals_block if g['kind'] == 'real' and
+                   any(g['fname'].startswith(pa) and g['fname'].endswith(su) for pa, su in var_pat))
+
     forbidden = (
-        set(engine) | KEYWORDS | set(natives) | keep_names | set(functions) | set(g['fname'] for g in globals_block)
+        set(engine)
+        | KEYWORDS
+        | set(natives)
+        | keep_names
+        | set(functions)
+        | set(g['fname'] for g in globals_block)
+        | set(v[3] for v in var_lit)
     )
     ger = Generator(rng, forbidden)
     keep_f = set(['main', 'config']) | keep_names | engine | natives
@@ -403,7 +461,7 @@ def main():
         for n in f_names:
             fmap[n] = ger.new(10, 16)
         for g in globals_block:
-            if g['fname'] not in keep_names and g['fname'] not in engine:
+            if g['fname'] not in keep_names and g['fname'] not in engine and g['fname'] not in keep_var:
                 gmap[g['fname']] = ger.new(10, 16)
         for f in functions.values():
             in_use = set()
@@ -462,6 +520,23 @@ def main():
             after_diag[tb] = ')' + after_diag.get(tb, '')
     print('ExecuteFunc: %d literal name(s) renamed, %d built at run time (patterns %s); '
           'name table: %d' % (n_ef_literal, n_ef_dynamic, sorted(patterns), len(name_table)))
+    n_var_lit = 0
+    for lin, a, b, fname in var_lit:
+        if fname in gmap:
+            subst[lin[a]] = '"%s"' % gmap[fname]
+            kinds[lin[a]] = 'str'
+            for c in range(a + 1, b + 1):
+                to_delete.add(lin[c])
+            n_var_lit += 1
+    if var_lit or n_var_dyn:
+        print('TriggerRegisterVariableEvent: %d literal(s) renamed, %d built at run time '
+              '(patterns %s); real globals kept: %d' % (n_var_lit, n_var_dyn, sorted(var_pat), len(keep_var)))
+    if keep_var:
+        print(
+            'WARNING: TriggerRegisterVariableEvent with a name built at run time: %d real global(s) keep '
+            'their name (%s)'
+            % (len(keep_var), ', '.join(sorted(keep_var)[:10]) + (' ...' if len(keep_var) > 10 else ''))
+        )
 
     str_index, raw_index = {}, {}
     str_uses = raw_uses = 0
@@ -582,11 +657,12 @@ def main():
     a2, b2 = rng.randint(1000, 49999), rng.randint(0, 65535)
 
     def rawval(c):
+        c = re.sub(r'\\(.)', r'\1', c, flags=re.S)
         if not c:
             return 0
         v = 0
         for ch in c.encode('utf-8', 'surrogateescape'):
-            v = v * 256 + ch
+            v = v * 256 + (ch - 256 if ch >= 128 else ch)
         return v & 0xFFFFFFFF
 
     def encrypt_raw(c):
