@@ -4,7 +4,7 @@
 (function () {
   const D = window.I18N_DATA || { linguas: {}, modelos: [], textos: {} };
   const LANGS = Object.assign({ en: 'English' }, D.linguas);
-  const KEY = 'doctor.lang';
+  const KEY = D.storageKey || 'doctor.lang';
   const ATTRS = ['title', 'placeholder', 'aria-label'];
   const SKIP = 'pre, code, textarea, script, style, input, [translate="no"], .mono, .cmd';
   const orig = new WeakMap();
