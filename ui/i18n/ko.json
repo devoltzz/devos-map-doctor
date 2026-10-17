@@ -3100,5 +3100,6 @@
  "Porting the map to {0}...": "맵을 {0}(으)로 포팅하는 중...",
  "Takes the map to {0}: the return bug gets its equivalent, the names the newer game also has are renamed and the script is checked with the scripts of {1}. The rest of the map stays. Saves the map and a report next to it.": "맵을 {0}(으)로 옮깁니다. 리턴 버그는 대응 기능으로 바뀌고, 최신 게임에도 있는 이름은 변경되며, 스크립트는 {1}의 스크립트로 검사합니다. 맵의 나머지는 그대로 유지됩니다. 맵과 보고서를 같은 위치에 저장합니다.",
  "the map could not be read for this ({0})": "이 작업을 위해 맵을 읽을 수 없음 ({0})",
- "{0} (not for this map)": "{0} (이 맵에는 사용 불가)"
+ "{0} (not for this map)": "{0} (이 맵에는 사용 불가)",
+ "{0} kept the name of a global array ({1}): that is how a memory library reads the array's address in the game. JassHelper may refuse it when you save; renaming it would stop the map in the game.": "{0}은(는) 전역 배열({1})의 이름을 그대로 유지했습니다: 메모리 라이브러리가 게임에서 배열의 주소를 읽는 방식이기 때문입니다. 저장할 때 JassHelper가 거부할 수 있지만, 이름을 바꾸면 게임에서 맵이 멈춥니다."
 }
