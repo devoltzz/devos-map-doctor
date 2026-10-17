@@ -40,6 +40,9 @@ RX_LINE_BREAK = re.compile(r'\r\n|\r|\n')
 RX_INTEGER = re.compile(r'^-?(?:\d+|0[xX][0-9A-Fa-f]+)$')
 RX_REAL = re.compile(r'^-?(?:\d+\.\d*|\.\d+)(?:[eE][-+]?\d+)?$|^-?\d+[eE][-+]?\d+$')
 RAWCODE_VARIABLE_TYPE = 'unitcode'
+RAWCODE_TYPES = frozenset(
+    ('abilcode', 'unitcode', 'itemcode', 'buffcode', 'heroskillcode', 'destructablecode', 'techcode', 'doodadcode')
+)
 JARRAY = {'0': 'integer', '0.0': 'real', 'false': 'boolean', '""': 'string'}
 
 
@@ -524,7 +527,7 @@ class _Matcher(object):
         code = _fourcc(e.args[0]) if len(e.args) == 1 else None
         if code is None or RX_INTEGER.match(code):
             return None
-        if t is not None and (self.k.base(t) != 'integer' or t in ('integer', 'integervar')):
+        if t is not None and t not in RAWCODE_TYPES:
             return None
         return wtg.Parameter(LITERAL, code)
 
