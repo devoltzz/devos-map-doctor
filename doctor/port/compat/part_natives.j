@@ -721,6 +721,7 @@ endfunction
 framehandle array DB_pai_det
 integer DB_pai_det_n=-1
 timer DB_pai_det_t=null
+boolean DB_pai_det_on=false
 
 function DB_pai_det_esconde takes nothing returns nothing
     local integer i=0
@@ -763,9 +764,12 @@ function DB_pai_mostra takes integer id returns nothing
             call BlzFrameSetSize(DB_pai_fh[i*3+k], 0.0001, 0.0001)
             set k=k+1
         endloop
-        if DB_pai_det_t==null then
+        if not DB_pai_det_on then
+            set DB_pai_det_on=true
             call DB_pai_det_esconde()
-            set DB_pai_det_t=CreateTimer()
+            if DB_pai_det_t==null then
+                set DB_pai_det_t=CreateTimer()
+            endif
             call TimerStart(DB_pai_det_t, 0.03, true, function DB_pai_det_esconde)
         endif
     endif
