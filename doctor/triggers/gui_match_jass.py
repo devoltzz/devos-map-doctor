@@ -29,6 +29,9 @@ RX_LINE_BREAK = re.compile(r'\r\n|\r|\n')
 ONE_LINE_DEFAULT = {'A': False, 'B': False, 'Var': False, 'callback': False}
 CUSTOM_SCRIPT_IDIOMS = frozenset(('RemoveLocation', 'DestroyGroup'))
 RAWCODE_VARIABLE_TYPE = 'unitcode'
+RAWCODE_TYPES = frozenset(
+    ('abilcode', 'unitcode', 'itemcode', 'buffcode', 'heroskillcode', 'destructablecode', 'techcode', 'doodadcode')
+)
 
 
 class Match(object):
@@ -533,7 +536,7 @@ class _Matcher(object):
         if kind == 'rawcode' and len(text) == 3 and self.relaxed and t is not None and base in ('integer', 'real'):
             return wtg.Parameter(LITERAL, str(jass_normal.number(e)[1]))
         if kind == 'rawcode':
-            if t is not None and (base != 'integer' or t in ('integer', 'integervar')):
+            if t is not None and t not in RAWCODE_TYPES:
                 return None
             body = text[1:-1]
             return None if '\\' in body or _RX_INTEGER.match(body) else wtg.Parameter(LITERAL, body)
