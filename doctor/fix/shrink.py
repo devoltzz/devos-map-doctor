@@ -85,12 +85,10 @@ def _layout(a):
 
 
 def _names(a):
-    from doctor.fix import unprotect
     from doctor.mpq import mpqdoctor
     from doctor.mpq import mpqnames
     out = {}
-    with unprotect.quiet():
-        names = unprotect.listfile_names(a)
+    names = mpqread.listfile_names(a)
     seen = set()
     for n in list(SPECIAL) + list(MAP_INFO) + list(mpqnames.BASE_NAMES) + list(mpqdoctor.PROBES) + names:
         if n.lower() in seen:
@@ -482,7 +480,10 @@ def _verify(part, a, kept, data, group_of, plan, rewritten, names, shift, progre
         x, y = a.read(n, bi=r[1]), b.read(n, bi=r[1])
         if x != y and not (group_of[r[1]] in rewritten and blp_huffman.same_texture(x, y)):
             return '%s does not read back equal by its name' % n, None
-    from doctor.mpq import stormlib_dll
+    try:
+        from doctor.mpq import stormlib_dll
+    except ImportError:
+        return '', 'not checked (no DLL)'
     r = stormlib_dll.opens(part)
     if r.get('opens') is False or r.get('is_malformed'):
         return 'StormLib does not open it normally (%s)' % (r.get('err') or 'malformed'), None
@@ -607,10 +608,13 @@ def lossy(path_in, path_out, need, progress=None):
     if a is None:
         res['error'] = err
         return res
-    from doctor.fix import unprotect
     p('Finding the art')
-    with unprotect.quiet():
-        every = unprotect.map_names(a)
+    unprotect = sys.modules.get('unprotect')
+    if unprotect is not None:
+        with unprotect.quiet():
+            every = unprotect.map_names(a)
+    else:
+        every = sorted(set(n for ns in _names(a).values() for n in ns))
     cands, seen = [], set()
     for n in every:
         if not n.lower().endswith(('.blp', '.tga', '.wav')):
