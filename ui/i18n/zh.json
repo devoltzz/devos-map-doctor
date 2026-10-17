@@ -3100,5 +3100,6 @@
  "Porting the map to {0}...": "正在把地图移植到 {0}...",
  "Takes the map to {0}: the return bug gets its equivalent, the names the newer game also has are renamed and the script is checked with the scripts of {1}. The rest of the map stays. Saves the map and a report next to it.": "把地图移植到 {0}：返回值漏洞改用等价函数，较新游戏版本中同名的名称会被重命名，并用 {1} 的脚本检查脚本。地图的其余部分保持不变。会把地图和报告保存在其旁边。",
  "the map could not be read for this ({0})": "无法读取地图以进行此操作（{0}）",
- "{0} (not for this map)": "{0}（不适用于此地图）"
+ "{0} (not for this map)": "{0}（不适用于此地图）",
+ "{0} kept the name of a global array ({1}): that is how a memory library reads the array's address in the game. JassHelper may refuse it when you save; renaming it would stop the map in the game.": "{0} 保留了全局数组 ({1}) 的名称：地图的内存库正是靠它在游戏中读取数组的地址。保存时 JassHelper 可能会拒绝；但若重命名，地图将在游戏中停止运行。"
 }
