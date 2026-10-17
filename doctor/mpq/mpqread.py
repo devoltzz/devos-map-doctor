@@ -296,6 +296,20 @@ def _file_identity(path):
     return (os.path.normcase(os.path.abspath(path)), st.st_size, st.st_mtime_ns)
 
 
+def read_as_game(a, fname):
+    try:
+        r = a.find_locale(fname) if a.find(fname) else None
+        return a.read(fname, bi=r[1]) if r else None
+    except Exception:
+        return None
+
+
+def listfile_names(a):
+    lf = read_as_game(a, '(listfile)')
+    return [line.strip().replace('/', '\\') for line in (lf or b'').decode('utf-8', 'surrogateescape').splitlines()
+            if line.strip()]
+
+
 class Archive:
     VALIDATED_LIMIT = 1 << 17
 
