@@ -3100,5 +3100,6 @@
  "Porting the map to {0}...": "Portuji mapu na {0}...",
  "Takes the map to {0}: the return bug gets its equivalent, the names the newer game also has are renamed and the script is checked with the scripts of {1}. The rest of the map stays. Saves the map and a report next to it.": "Převede mapu na {0}: return bug dostane svůj ekvivalent, názvy, které má i novější hra, se přejmenují a skript se zkontroluje se skripty verze {1}. Zbytek mapy zůstane. Uloží mapu a zprávu vedle ní.",
  "the map could not be read for this ({0})": "mapu se pro tento účel nepodařilo přečíst ({0})",
- "{0} (not for this map)": "{0} (ne pro tuto mapu)"
+ "{0} (not for this map)": "{0} (ne pro tuto mapu)",
+ "{0} kept the name of a global array ({1}): that is how a memory library reads the array's address in the game. JassHelper may refuse it when you save; renaming it would stop the map in the game.": "{0} ponecháno s názvem globálního pole ({1}): právě tak paměťová knihovna čte adresu pole ve hře. JassHelper je může při uložení odmítnout; přejmenování by ve hře zastavilo mapu."
 }
