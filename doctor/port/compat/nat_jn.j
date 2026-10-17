@@ -26,15 +26,16 @@ function JNLogin takes string id,string password returns boolean
     return true
 endfunction
 
-timer KKN_sw_relogio = null
+timer KKN_sw_relogio = CreateTimer()
+boolean KKN_sw_ligado = false
 integer KKN_sw_n = 0
 real array KKN_sw_ini
 real array KKN_sw_acum
 boolean array KKN_sw_roda
 
 function KKN_sw_agora takes nothing returns real
-    if KKN_sw_relogio==null then
-        set KKN_sw_relogio=CreateTimer()
+    if not KKN_sw_ligado then
+        set KKN_sw_ligado=true
         call TimerStart(KKN_sw_relogio, 1000000.0, false, null)
     endif
     return TimerGetElapsed(KKN_sw_relogio)
