@@ -695,7 +695,33 @@ EDITOR_FILE_NAMES = ('war3map.w3i', 'war3map.w3r', 'war3map.w3c', 'war3map.w3s',
                      'war3map.w3a', 'war3mapSkin.w3a', 'war3map.w3b', 'war3mapSkin.w3b')
 
 
-def locals_without_clash(body_text, log=print):
+def _without_text(fname):
+    return re.compile(r'"(?:[^"\\\n]|\\.)*"|\'[^\'\n]*\'|//[^\n]*|\b%s\b' % re.escape(fname))
+
+
+def _typecasts(line_list, specs, candidates):
+    body_text = '\n'.join(line_list)
+    vectors = set(
+        m.group(1) for m in re.finditer(r'(?m)^[ \t]*(?:constant[ \t]+)?\w+[ \t]+array[ \t]+(\w+)', body_text)
+    )
+    out = set()
+    for fname in sorted(candidates & vectors):
+        inside = set()
+        for _f, f_start, f_end, parameters, local_vars in specs:
+            if fname in parameters or fname in local_vars:
+                inside.update(range(f_start - 1, min(f_end, len(line_list))))
+        rx = _without_text(fname)
+        decl = re.compile(r'^[ \t]*(?:constant[ \t]+)?\w+[ \t]+array[ \t]+%s\b' % re.escape(fname))
+        for i, ln in enumerate(line_list):
+            if i in inside or fname not in ln or decl.match(ln):
+                continue
+            if any(m.group(0) == fname and not ln[m.end():].lstrip().startswith('[') for m in rx.finditer(ln)):
+                out.add(fname)
+                break
+    return out
+
+
+def locals_without_clash(body_text, log=print, kept=None):
     try:
         from doctor.script import jass_ast
         tree = jass_ast.parse(body_text)
@@ -704,14 +730,23 @@ def locals_without_clash(body_text, log=print):
         return body_text, []
     name_list = jass_ast.declared_names(tree)
     line_list = body_text.split('\n')
+    specs = list(jass_ast.function_specs(tree))
+    name_conflicts = set(
+        n for _f, _i, _e, parameters, local_vars in specs for n in list(parameters) + list(local_vars) if n in name_list
+    )
+    typecast = _typecasts(line_list, specs, name_conflicts) if name_conflicts else set()
     replacements = []
-    for f_name, f_start, f_end, parameters, local_vars in jass_ast.function_specs(tree):
+    for f_name, f_start, f_end, parameters, local_vars in specs:
         decl = list(parameters) + list(local_vars)
         bad_ones = sorted(set(n for n in decl if n in name_list))
         if not bad_ones:
             continue
         in_use = set(decl) | name_list
         for old in bad_ones:
+            if old in typecast:
+                if kept is not None:
+                    kept.append((f_name, old))
+                continue
             new, k = old + '_l', 2
             while new in in_use:
                 new, k = '%s_l%d' % (old, k), k + 1
@@ -780,7 +815,8 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
                                                          tgt['ref'] if tgt is not None else None)
         details['optimizer'] = default_value
         if tgt is not None:
-            body_text, details['renamed_locals'] = locals_without_clash(body_text, log)
+            details['kept_locals'] = []
+            body_text, details['renamed_locals'] = locals_without_clash(body_text, log, kept=details['kept_locals'])
     expected_len = body_text
     counts = inflated_counts.analyze_map(a)
     broken = dict((x['file_name'], x) for x in counts)
