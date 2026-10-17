@@ -3099,5 +3099,6 @@
  "Porting the map to {0}...": "Harita {0} sürümüne port ediliyor...",
  "Takes the map to {0}: the return bug gets its equivalent, the names the newer game also has are renamed and the script is checked with the scripts of {1}. The rest of the map stays. Saves the map and a report next to it.": "Haritayı {0} sürümüne taşır: return bug karşılığını alır, yeni oyunda da bulunan adlar yeniden adlandırılır ve script, {1} script'leriyle denetlenir. Haritanın geri kalanı olduğu gibi kalır. Haritayı ve yanına bir rapor kaydeder.",
  "the map could not be read for this ({0})": "harita bunun için okunamadı ({0})",
- "{0} (not for this map)": "{0} (bu harita için değil)"
+ "{0} (not for this map)": "{0} (bu harita için değil)",
+ "{0} kept the name of a global array ({1}): that is how a memory library reads the array's address in the game. JassHelper may refuse it when you save; renaming it would stop the map in the game.": "{0}, bir global dizinin adını ({1}) korudu: bir bellek kitaplığı dizinin adresini oyunda bu şekilde okur. JassHelper, kaydederken bunu reddedebilir; yeniden adlandırmak haritanın oyunda durmasına yol açar."
 }
