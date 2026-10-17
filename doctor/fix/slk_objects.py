@@ -251,7 +251,7 @@ def convert(read, names, species, base, w3i=None, progress=None):
     meta = base.metadata(species)
     cols = Columns(species, meta)
     base_tab = base.table(species)
-    base_cru = base.cru(species)
+    base_cru = base.raw_data(species)
     base_norm = _prepare_base(base_tab, cols)
     rep['rows'] = len(tab)
     objs = []
