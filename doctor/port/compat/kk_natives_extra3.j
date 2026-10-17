@@ -1,6 +1,7 @@
 //{{KK_SE:KK_UI_BOTOES}}
 //@GLOBALS
-hashtable DB_ui_botoes=null
+hashtable DB_ui_botoes=InitHashtable()
+boolean DB_ui_botoes_ok=false
 //@ENDGLOBALS
 
 function DB_ui_e_botao takes string nome returns boolean
@@ -8,8 +9,8 @@ function DB_ui_e_botao takes string nome returns boolean
     local integer i=0
     local integer n
     local integer ini=0
-    if DB_ui_botoes==null then
-        set DB_ui_botoes=InitHashtable()
+    if not DB_ui_botoes_ok then
+        set DB_ui_botoes_ok=true
         set n=StringLength(lista)
         loop
             exitwhen i>n
