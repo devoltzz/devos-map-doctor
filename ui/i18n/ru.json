@@ -3100,5 +3100,6 @@
  "Porting the map to {0}...": "Портирую карту на {0}...",
  "to Reforged or a newer game": "на Reforged или более новую игру",
  "a map of the KK platform: Reforged only": "карта платформы KK: только Reforged",
- "the map could not be read for this ({0})": "не удалось прочитать карту для этого ({0})"
+ "the map could not be read for this ({0})": "не удалось прочитать карту для этого ({0})",
+ "{0} kept the name of a global array ({1}): that is how a memory library reads the array's address in the game. JassHelper may refuse it when you save; renaming it would stop the map in the game.": "Не переименовано: {0} (имя глобального массива, {1}): так библиотека памяти читает адрес массива в игре. JassHelper может отклонить это при сохранении, но переименование остановит карту в игре."
 }
