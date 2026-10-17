@@ -42,6 +42,23 @@ def id_value(idb):
     return struct.unpack('>I', idb)[0]
 
 
+def jass_literal(idb):
+    if all(32 <= c < 127 for c in idb) and b"'" not in idb and b'\\' not in idb:
+        return b"'" + idb + b"'"
+    return b'0x%08X' % id_value(idb)
+
+
+def number_value(t):
+    if t[:2] in (b'0x', b'0X'):
+        return int(t[2:], 16)
+    if t[:1] == b'$':
+        return int(t[1:], 16)
+    if re.fullmatch(rb'0[0-7]+', t):
+        return int(t, 8)
+    t = t.lstrip(b'0') or b'0'
+    return int(t) if len(t) <= 10 else M32 + 1
+
+
 def object_name(mods):
     for m in mods:
         if m[0].encode('latin-1') in NAME_FIELDS and m[1] == 3:
@@ -163,19 +180,19 @@ def rewrite_script(j, new_ones):
             v = (rawcode_value(unescape(m.group('a'))) + rawcode_value(unescape(m.group('b')))) & M32
             if v in ids:
                 tally['sum of two rawcodes'] += 1
-                return b"'" + ids[v] + b"'"
+                return jass_literal(ids[v])
             return m.group(0)
         if m.group('raw'):
             v = rawcode_value(unescape(m.group('r')))
             if v in ids:
                 tally['direct rawcode'] += 1
-                return b"'" + ids[v] + b"'"
+                return jass_literal(ids[v])
             return m.group(0)
         t = m.group('num')
-        v = int(t[2:], 16) if t[:2] in (b'0x', b'0X') else (int(t[1:], 16) if t[:1] == b'$' else int(t))
+        v = number_value(t)
         if v & M32 in ids and v <= M32:
             tally['numeric'] += 1
-            return b"'" + ids[v & M32] + b"'"
+            return jass_literal(ids[v & M32])
         return t
 
     return RX_SCRIPT.sub(swap, j), tally
