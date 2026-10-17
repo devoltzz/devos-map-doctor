@@ -3,6 +3,35 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 1.8.2 (2026-10-17)
+
+### Fixed
+
+- **Open in World Editor: the objects of a map in SLK mode** (issue 32). Since 1.8.0 the Doctor writes the editor's
+  object files (`war3map.w3u`, `war3map.w3t`) from the SLK tables of an optimized map, so the classic editors show its
+  units instead of "Object ID: U004". In the program and on the site this step always failed (an error in how the
+  release is built; the report gave "Object files made from the SLK tables" as the reason), so the editor showed
+  "Custom units (0)" and every placed custom unit as "Object ID". It works now: on "Fight Of Characters 9.7 C03" the
+  editor gets 760 new and 311 changed units and 231 new items. When the step fails, the report gives the real reason.
+- **Open in World Editor: the editor crashed loading the units of those maps** (issue 32). "Leave out the units that
+  crash the editor" knows a unit's model only from the object files, and in a map in SLK mode those were made after it
+  ran, so it left nothing out. They're made first now: on "Fight Of Characters 9.7 C03" it leaves out 46 units whose
+  model is a file of the map.
+- **Open in World Editor: "Undeclared variable" when saving** (issue 32). A map's own buff in "Unit - Add Expiration
+  Timer" became that GUI action, which only takes the game's expiration timers; the 1.26/1.27 editor then wrote the
+  buff without quotes (`B025`) and the save failed. Those lines stay as custom script now (46 in "Fight Of Characters
+  9.7 C03").
+- **Port to Reforged: players dropped in multiplayer** (issue 33). The port's layer created some of its tables and
+  timers the first time they were needed, and its save engine could build part of itself again after a player's own
+  save was read. Both could happen on one player's PC only (only that PC has that save, or only that player clicked a
+  menu), and a game object made on one PC only makes Warcraft drop a player. The save engine is now built once at load
+  on every PC, and everything the layer created "the first time" is created at load too. The save diagnostic file no
+  longer goes to a "DreamS5" folder.
+- **Open in World Editor for a classic editor: memory libraries** (issue 32). Since 1.8.0 a local variable with the
+  name of a function or a global is renamed, because JassHelper refuses it. A memory library reads the address of a
+  global array through a local with the same name, and renaming that local stopped the map in the game. That local
+  keeps its name now, and the report says so.
+
 ## 1.8.1 (2026-10-15)
 
 ### New
