@@ -3099,5 +3099,6 @@
  "Porting the map to {0}...": "Đang chuyển bản đồ sang {0}...",
  "Takes the map to {0}: the return bug gets its equivalent, the names the newer game also has are renamed and the script is checked with the scripts of {1}. The rest of the map stays. Saves the map and a report next to it.": "Chuyển bản đồ sang {0}: return bug được thay bằng cách tương đương, các tên mà game mới hơn cũng có sẽ được đổi tên và script được kiểm tra với các script của {1}. Phần còn lại của bản đồ giữ nguyên. Lưu bản đồ cùng một báo cáo bên cạnh.",
  "the map could not be read for this ({0})": "không đọc được bản đồ cho việc này ({0})",
- "{0} (not for this map)": "{0} (không dành cho bản đồ này)"
+ "{0} (not for this map)": "{0} (không dành cho bản đồ này)",
+ "{0} kept the name of a global array ({1}): that is how a memory library reads the array's address in the game. JassHelper may refuse it when you save; renaming it would stop the map in the game.": "{0} giữ nguyên tên của một mảng toàn cục ({1}): thư viện bộ nhớ đọc địa chỉ của mảng trong game theo cách đó. JassHelper có thể từ chối khi bạn lưu; đổi tên sẽ làm bản đồ dừng chạy trong game."
 }
