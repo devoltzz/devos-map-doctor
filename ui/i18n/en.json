@@ -2764,6 +2764,7 @@
   "{0} item drop roll(s) found. {1} item(s) in the item tables of the World Editor.",
   "{0} item on the ground",
   "{0} items on the ground",
+  "{0} kept the name of a global array ({1}): that is how a memory library reads the array's address in the game. JassHelper may refuse it when you save; renaming it would stop the map in the game.",
   "{0} lang={1} mode={2} map={3} doctor={4}",
   "{0} leave(s); the last: {1} at {2} ({3}, {4}).",
   "{0} leveled field points to another data column on some levels.",
