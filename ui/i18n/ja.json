@@ -3100,5 +3100,6 @@
  "Porting the map to {0}...": "マップを{0}へ移植中...",
  "to Reforged or a newer game": "Reforgedまたは新しいゲームへ",
  "a map of the KK platform: Reforged only": "KKプラットフォームのマップ: Reforgedのみ",
- "the map could not be read for this ({0})": "このためにマップを読み取れませんでした({0})"
+ "the map could not be read for this ({0})": "このためにマップを読み取れませんでした({0})",
+ "{0} kept the name of a global array ({1}): that is how a memory library reads the array's address in the game. JassHelper may refuse it when you save; renaming it would stop the map in the game.": "{0}はグローバル配列({1})と同じ名前のままにしました。メモリライブラリはこの名前でゲーム内の配列のアドレスを読み取ります。保存時にJassHelperが拒否することがありますが、名前を変更するとゲーム内でマップが停止します。"
 }
