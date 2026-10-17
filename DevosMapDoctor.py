@@ -5,7 +5,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 from doctor.fix import unprotect as D
 
-VERSION = '1.8.1'
+VERSION = '1.8.2'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -639,12 +639,14 @@ def editor_text(r):
             for _st, _tx in sl.get('lines') or []:
                 out.append(('info', '      ' + _tx))
         elif sl.get('state') != 'nothing_to_do':
+            why = sl.get('reason') or sl.get('error') or '; '.join(
+                _tx.rstrip('.') for _st, _tx in sl.get('lines') or [] if _st == 'bad') or '; '.join(
+                _tx.rstrip('.') for _st, _tx in sl.get('lines') or [] if _st == 'warn') or sl.get('state')
             out.append(
                 (
                     'warning',
                     '  - The map keeps its objects in SLK tables, and the editor object files could not be '
-                    'made from them: %s. The editor will show the units as "Object ID".'
-                    % (sl.get('reason') or sl.get('error') or (sl.get('lines') or [('', sl.get('state'))])[0][1]),
+                    'made from them: %s. The editor will show the units as "Object ID".' % why,
                 )
             )
     ren = (r.get('editor') or {}).get('renamed_locals') or []
@@ -660,6 +662,12 @@ def editor_text(r):
                 ),
             )
         )
+    kept = (r.get('editor') or {}).get('kept_locals') or []
+    if kept:
+        out.append(('warning', '  - %s kept the name of a global array (%s): that is how a memory library reads the '
+                               "array's address in the game. JassHelper may refuse it when you save; renaming it would "
+                               'stop the map in the game.' % (pluralize(len(kept), 'local variable', 'local variables'),
+                                                           ', '.join(sorted(set(x[1] for x in kept))[:3]))))
     out.append(('', ''))
     if (r.get('editor') or {}).get('campaign_info'):
         for m in r['editor'].get('map_list') or []:
