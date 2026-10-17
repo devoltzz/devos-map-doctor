@@ -3099,5 +3099,6 @@
  "Porting the map to {0}...": "กำลังพอร์ตแมพไปยัง {0}...",
  "Takes the map to {0}: the return bug gets its equivalent, the names the newer game also has are renamed and the script is checked with the scripts of {1}. The rest of the map stays. Saves the map and a report next to it.": "พาแมพไปยัง {0}: return bug จะได้ตัวเทียบเท่า ชื่อที่เกมใหม่กว่ามีเหมือนกันจะถูกเปลี่ยนชื่อ และสคริปต์จะถูกตรวจสอบกับสคริปต์ของ {1} ส่วนที่เหลือของแมพคงเดิม บันทึกแมพพร้อมรายงานไว้ข้างกัน",
  "the map could not be read for this ({0})": "ไม่สามารถอ่านแมพสำหรับสิ่งนี้ได้ ({0})",
- "{0} (not for this map)": "{0} (ไม่ใช่สำหรับแมพนี้)"
+ "{0} (not for this map)": "{0} (ไม่ใช่สำหรับแมพนี้)",
+ "{0} kept the name of a global array ({1}): that is how a memory library reads the array's address in the game. JassHelper may refuse it when you save; renaming it would stop the map in the game.": "{0} คงชื่อของอาร์เรย์โกลบอลไว้ ({1}): ไลบรารีหน่วยความจำใช้วิธีนี้อ่านที่อยู่ของอาร์เรย์ในเกม JassHelper อาจปฏิเสธเมื่อคุณบันทึก แต่หากเปลี่ยนชื่อ แมพจะหยุดทำงานในเกม"
 }
