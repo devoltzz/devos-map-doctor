@@ -1,4 +1,5 @@
 hashtable DB_sv_ht=null
+boolean DB_sv_preparado=false
 constant integer DB_SV_FATIAS=16
 constant integer DB_SV_ORCAMENTO=6000
 trigger DB_sv_trig_grava=null
@@ -86,6 +87,10 @@ function DB_sv_prepara takes nothing returns nothing
     local integer a=0
     local integer b
     local trigger t
+    if DB_sv_preparado then
+        return
+    endif
+    set DB_sv_preparado=true
     call DB_perfil_ht()
     call DB_nomes_crus()
     call DB_exit_garante()
@@ -93,6 +98,22 @@ function DB_sv_prepara takes nothing returns nothing
     call DB_est_garante()
     call DB_ord_init()
     call DB_ui_ht_ok()
+    //{{KK_SE:KK_UI_CICLO}}
+    if DB_anc_ht==null then
+        set DB_anc_ht=InitHashtable()
+    endif
+    //{{KK_FIMSE:KK_UI_CICLO}}
+    //{{KK_SE:KK_UI_ANCORA}}
+    if DB_ancora_timer==null then
+        set DB_ancora_timer=CreateTimer()
+    endif
+    //{{KK_FIMSE:KK_UI_ANCORA}}
+    //{{KK_SE:KK_UI_PAI}}
+    if DB_pai_det_t==null then
+        set DB_pai_det_t=CreateTimer()
+    endif
+    //{{KK_FIMSE:KK_UI_PAI}}
+    call DB_ui_relogio_ok()
     //{{KK_INCLUI:sv_prepara_lua}}
     if DB_frame_ht==null then
         set DB_frame_ht=InitHashtable()
