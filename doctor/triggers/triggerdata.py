@@ -445,11 +445,15 @@ def _game_build(game):
         return None, None
 
 
+def from_file(path, cache_dir=None):
+    with open(path, 'rb') as f:
+        return _from_bytes(f.read(), os.path.abspath(path), cache_dir or CACHE_DIR)
+
+
 def load(path=None, cache_dir=None, game=None):
     cache_dir = cache_dir or CACHE_DIR
     if path is not None:
-        with open(path, 'rb') as f:
-            return _from_bytes(f.read(), os.path.abspath(path), cache_dir)
+        return from_file(path, cache_dir)
     build, version = _game_build(game)
     if build:
         try:
@@ -480,7 +484,14 @@ def load(path=None, cache_dir=None, game=None):
     return td
 
 
-REF_DIR = os.path.normpath(os.path.join(HERE, '..', 'ref', '3.0'))
+REF_DIR = next(
+    (
+        p
+        for p in (os.path.normpath(os.path.join(HERE, '..', 'ref', '3.0')), os.path.join(HERE, 'ref', '3.0'))
+        if os.path.isfile(os.path.join(p, 'common.j'))
+    ),
+    os.path.normpath(os.path.join(HERE, '..', 'ref', '3.0')),
+)
 REF_SCRIPTS = ('common.j', 'blizzard.j', 'common.ai')
 RX_SIGNATURE = re.compile(r'(?m)^[ \t]*+(?:constant[ \t]++)?(?:native|function)[ \t]++(\w+)[ \t]++takes[ \t]++'
                           r'([^\n]*?)[ \t]++returns[ \t]++(\w+)')
