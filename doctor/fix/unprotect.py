@@ -537,7 +537,7 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
         reasons.append(('sector_bytes', h.block_shift))
     if reasons:
         prot('read_only', reasons=reasons, mark=HEADER_MARKS.get(h.header_size))
-    if h.block_shift == 0:
+    if (h.block_shift & 0xFF) == 0:
         prot('sector512')
     if h.archive_size != len(d) - hdr:
         r['warnings'].append({'code': 'declared_size'})
@@ -1501,6 +1501,24 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
         if name_list is None:
             p('name_list')
             name_list = map_names(_open(src))
+        if step_on(options, 'slk_objects'):
+            _b = _open(src)
+            _slk = bool(_b.find('Units\\UnitData.slk') or _b.find('Units\\ItemData.slk')) and \
+                not (_b.find('war3map.w3u') or _b.find('war3map.w3t'))
+            del _b
+            if _slk:
+                p('slk_objects')
+                from doctor.fix import slk_objects
+                t = os.path.join(tmp, '3_slk_objects.w3x')
+                with quiet():
+                    slk_rep = slk_objects.fix(src, t, _nothing)
+                res['slk_objects'] = dict((k, v) for k, v in slk_rep.items()
+                                          if k in ('state', 'lines', 'written', 'reason', 'error'))
+                if slk_rep.get('state') == 'done' and os.path.isfile(t):
+                    src = t
+                    name_list = list(name_list or []) + [
+                        n for n in slk_rep.get('written') or [] if n not in (name_list or [])
+                    ]
         p('editor')
         part = _part(output)
         res['output'] = part
@@ -1517,21 +1535,6 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
         res['editor'] = details
         if details['failures']:
             raise RuntimeError('editor_prep: %s' % '; '.join(details['failures']))
-        if step_on(options, 'slk_objects'):
-            _b = _open(part)
-            _slk = bool(_b.find('Units\\UnitData.slk') or _b.find('Units\\ItemData.slk')) and \
-                not (_b.find('war3map.w3u') or _b.find('war3map.w3t'))
-            del _b
-            if _slk:
-                p('slk_objects')
-                from doctor.fix import slk_objects
-                t = os.path.join(tmp, '4_slk_objects.w3x')
-                with quiet():
-                    slk_rep = slk_objects.fix(part, t, _nothing)
-                res['slk_objects'] = dict((k, v) for k, v in slk_rep.items()
-                                          if k in ('state', 'lines', 'written', 'reason', 'error'))
-                if slk_rep.get('state') == 'done' and os.path.isfile(t):
-                    shutil.move(t, part)
         p('verify')
         res['after_diag'] = after_diag = diagnose(part, extra_ids=extra_ids)
         os.replace(part, output)
