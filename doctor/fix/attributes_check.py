@@ -2,6 +2,7 @@
 import os
 import shutil
 import struct
+import sys
 import zlib
 
 
@@ -11,6 +12,46 @@ ATTRIBUTES = '(attributes)'
 
 def _nothing(*_a, **_k):
     pass
+
+
+def _unprotector():
+    return sys.modules.get('unprotect')
+
+
+def _open(path):
+    from doctor.mpq import mpqread
+    u = _unprotector()
+    try:
+        return (u._open(path) if u is not None else mpqread.Archive(path)), None
+    except BaseException as e:
+        if isinstance(e, KeyboardInterrupt):
+            raise
+        return None, 'The map does not open (%s).' % (str(e) or type(e).__name__)
+
+
+def _names(a):
+    from doctor.data import map_formats
+    from doctor.mpq import mpqread
+    u = _unprotector()
+    if u is not None:
+        with u.quiet():
+            if u._listfile_status(a)['status'] == 'ok':
+                return u.listfile_names(a)
+            return u.map_names(a)
+    names = mpqread.listfile_names(a)
+    seen = set(n.lower() for n in names)
+    return names + [n for n in map_formats.standard_names() if n.lower() not in seen and a.find(n)]
+
+
+def _read(a, name):
+    from doctor.mpq import mpqread
+    u = _unprotector()
+    return u._read(a, name) if u is not None else mpqread.read_as_game(a, name)
+
+
+def _part(path):
+    base, ext = os.path.splitext(path)
+    return base + '.part' + (ext or '.w3x')
 
 
 def _vectors(data, n_blocks):
@@ -36,8 +77,6 @@ def _vectors(data, n_blocks):
 
 
 def _stale(a, progress):
-    from doctor.fix import unprotect
-    from doctor.models import model_check
     if a.find(ATTRIBUTES) is None:
         return False, True, 0, []
     try:
@@ -49,7 +88,7 @@ def _stale(a, progress):
         return True, got is not None, 0, []
     crcs = got[0][1]
     out, checked, seen = [], 0, set()
-    names = [n for n in model_check._names(a) if n.lower() != ATTRIBUTES]
+    names = [n for n in _names(a) if n.lower() != ATTRIBUTES]
     for k, n in enumerate(names):
         if k % 200 == 0:
             progress('Checking CRC %d/%d' % (k, len(names)))
@@ -67,7 +106,7 @@ def _stale(a, progress):
         stored = struct.unpack('<I', crcs[bi])[0]
         if stored == 0:
             continue
-        body = unprotect._read(a, n)
+        body = _read(a, n)
         if body is None:
             continue
         checked += 1
@@ -78,10 +117,9 @@ def _stale(a, progress):
 
 
 def scan(path, progress=None):
-    from doctor.models import model_check
     p = progress or _nothing
     out = {'present': False, 'checked': 0, 'stale': [], 'format': True}
-    a, err = model_check._open(path)
+    a, err = _open(path)
     if a is None:
         out['error'] = err
         return out
@@ -91,15 +129,15 @@ def scan(path, progress=None):
 
 
 def fix(path_in, path_out, progress=None):
-    from doctor.fix import unprotect
-    from doctor.models import model_check
+    import contextlib
+    import io
     from doctor.mpq import mpqadd
     p = progress or _nothing
     res = {'state': 'failed', 'fixed': 0, 'files': []}
     if os.path.abspath(path_in) == os.path.abspath(path_out):
         res['error'] = 'The output must be a new file.'
         return res
-    a, err = model_check._open(path_in)
+    a, err = _open(path_in)
     if a is None:
         res['error'] = err
         return res
@@ -111,22 +149,23 @@ def fix(path_in, path_out, progress=None):
         res['state'] = 'nothing_to_do'
         return res
     data = a.read(ATTRIBUTES)
-    swaps = [(bi, unprotect._read(a, n)) for n, bi, _s, _c in rows]
+    swaps = [(bi, _read(a, n)) for n, bi, _s, _c in rows]
     new = mpqadd.attributes_with(data, len(a.blocks), swaps)
     if new is None:
         res['error'] = 'The (attributes) file could not be rewritten.'
         return res
-    names = model_check._names(a)
-    part = model_check._part(path_out)
+    names = _names(a)
+    part = _part(path_out)
     try:
         p('Writing the new map')
         shutil.copyfile(path_in, part)
         no_room = []
-        with unprotect.quiet():
+        quiet = io.StringIO()
+        with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
             mpqadd.add_files(part, [(ATTRIBUTES, new)], log=_nothing, no_slot=no_room, hero_attributes=False)
         if no_room:
             raise RuntimeError('no room in the hash table for (attributes)')
-        b, err = model_check._open(part)
+        b, err = _open(part)
         if b is None:
             raise RuntimeError(err)
         _p, _ok, _c, still = _stale(b, _nothing)
@@ -135,8 +174,8 @@ def fix(path_in, path_out, progress=None):
         for n in names:
             if n.lower() == ATTRIBUTES:
                 continue
-            x = unprotect._read(a, n)
-            if x is not None and unprotect._read(b, n) != x:
+            x = _read(a, n)
+            if x is not None and _read(b, n) != x:
                 raise RuntimeError('%s changed' % n)
         del a, b
         os.replace(part, path_out)
