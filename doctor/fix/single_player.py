@@ -938,7 +938,53 @@ def _find(path):
     text = sc['bytes'].decode('utf-8', 'surrogateescape')
     out, sites, tree = _analyze(text, sc['language'], strings)
     out['file'] = sc['file']
+    files = _file_locks(a, text, strings)
+    if files:
+        sites = sites + files
+        out['sites'] = sorted(
+            out['sites'] + [dict((k, v) for k, v in x.items() if not k.startswith('_')) for x in files],
+            key=lambda x: x['line'],
+        )
+        out['found'] = True
     return out, sites, tree, text, sc, a, strings
+
+
+RX_PRELOADER = re.compile(r'(?<![\w.])Preloader\s*\(\s*"((?:[^"\\\n]|\\.)*)"\s*\)')
+RX_FUNC_AT = re.compile(r'^[ \t]*(?:local[ \t]+)?(?:constant[ \t]+)?function[ \t]+([A-Za-z_][\w.:]*)', re.M)
+RX_EMPTY_HEAD = re.compile(
+    r'(?im)^[ \t]*function[ \t]+[A-Za-z_]\w*[ \t]+takes[ \t]+nothing[ \t]+returns[ \t]+nothing[ \t\r]*$'
+)
+RX_ENDFUNC = re.compile(r'(?im)^[ \t]*endfunction\b')
+PRELOAD_FILE_MAX = 1 << 20
+
+
+def _literal(lit):
+    return re.sub(r'\\(.)', lambda m: {'n': '\n', 't': '\t', 'r': '\r'}.get(m.group(1), m.group(1)), lit)
+
+
+def _file_locks(a, text, strings=None):
+    if 'Preloader' not in text:
+        return []
+    out = []
+    for m in RX_PRELOADER.finditer(text):
+        name = _literal(m.group(1))
+        raw = unprotect._read(a, name) if name else None
+        if not raw or len(raw) > PRELOAD_FILE_MAX or b'\0' in raw[:1024]:
+            continue
+        ftext = raw.decode('utf-8', 'surrogateescape')
+        if not RX_ANY.search(ftext):
+            continue
+        _res, fsites, ftree = _analyze(ftext, 'jass', strings)
+        if not fsites:
+            continue
+        funcs = RX_FUNC_AT.findall(text, 0, m.start())
+        labels = []
+        for x in fsites:
+            labels += [w for w in x['what'].split(', ') if w and w not in labels]
+        out.append({'function': funcs[-1] if funcs else None, 'line': text.count('\n', 0, m.start()) + 1,
+                    'detection': 'a file read by Preloader (%s)' % name, 'what': ', '.join(labels), 'file': name,
+                    '_file_text': ftext, '_file_bytes': raw, '_file_sites': fsites, '_file_tree': ftree})
+    return out
 
 
 def find(path):
@@ -1273,6 +1319,25 @@ def _change(text, language, sites, tree, strings):
     return new, changes, proof
 
 
+def neutralize_file(text, strings=None):
+    res, sites, tree = _analyze(text, 'jass', strings)
+    if res['reason']:
+        raise _Refused(res['reason'])
+    if not sites:
+        raise _Refused('The file holds no single player lock.')
+    head = RX_EMPTY_HEAD.search(text)
+    if head and len(RX_FUNC_AT.findall(text)) == 1 and len(RX_ENDFUNC.findall(text)) == 1:
+        eol = '\r\n' if '\r\n' in text else '\n'
+        new, how = head.group(0).strip() + eol + 'endfunction' + eol, 'emptied'
+    else:
+        new, _changes, _proof = _change(text, 'jass', sites, tree, strings)
+        how = 'conditions'
+    again = _analyze(new, 'jass', strings)[0]
+    if again['found'] or again['reason']:
+        raise _Refused('The neutralized file still ends the game in single player.')
+    return new, how
+
+
 def unlock(path_in, path_out, progress=None):
     p = progress or _nothing
     rep = {'state': None, 'reason': None, 'language': None, 'file': None, 'sites': [], 'changes': [], 'proof': {},
@@ -1296,13 +1361,32 @@ def unlock(path_in, path_out, progress=None):
     if protected:
         return stop('refused', 'The archive is protected: remove the protection first.')
     p('Changing the script')
-    try:
-        new, changes, proof = _change(text, sc['language'], sites, tree, strings)
-    except _Refused as e:
-        return stop('refused', str(e))
+    file_sites = [x for x in sites if '_file_text' in x]
+    sites = [x for x in sites if '_file_text' not in x]
+    new, changes, proof = text, [], {'parses': True, 'same_tree': True, 'sites_left': 0, 'terms': 0, 'cheat_codes': 0}
+    if sites:
+        try:
+            new, changes, proof = _change(text, sc['language'], sites, tree, strings)
+        except _Refused as e:
+            return stop('refused', str(e))
+    file_out = {}
+    for x in file_sites:
+        if x['file'] in file_out:
+            continue
+        try:
+            ftext, how = neutralize_file(x['_file_text'], strings)
+        except _Refused as e:
+            return stop('refused', 'The file %s: %s' % (x['file'], e))
+        file_out[x['file']] = (ftext.encode('utf-8', 'surrogateescape'), how)
+        changes.append({'function': x['function'], 'line': x['line'], 'file': x['file'],
+                        'before': 'Preloader("%s") runs a file that %s in single player' % (x['file'], x['what']),
+                        'after': 'the file %s %s' % (x['file'], 'is an empty function' if how == 'emptied'
+                                                     else 'has its conditions wrapped')})
+    if file_out:
+        proof['files'] = dict((n, h) for n, (_b, h) in file_out.items())
     new_bytes = new.encode('utf-8', 'surrogateescape')
     rep['changes'], rep['proof'] = changes, proof
-    if sc['language'] == 'jass':
+    if sites and sc['language'] == 'jass':
         p('Running pjass')
         try:
             proof['pjass'] = _pjass(sc['bytes'], new_bytes)
@@ -1311,23 +1395,24 @@ def unlock(path_in, path_out, progress=None):
         if proof['pjass']['state'] == 'failed':
             return stop('refused', 'pjass does not accept the changed script (%s).' % proof['pjass']['new'])
     p('Writing the map')
-    names = [sc['file']] + sc['copies']
+    names = ([sc['file']] + sc['copies']) if sites else []
+    writes = [(n, new_bytes) for n in names] + [(n, b) for n, (b, _h) in file_out.items()]
     part = unprotect._part(path_out)
     try:
         shutil.copyfile(path_in, part)
         no_room = []
         with unprotect.quiet():
-            mpqadd.add_files(part, [(n, new_bytes) for n in names], all_entries=True, log=_nothing, no_slot=no_room)
+            mpqadd.add_files(part, writes, all_entries=True, log=_nothing, no_slot=no_room)
         if no_room:
             raise RuntimeError('no room in the hash table for %s' % ', '.join(no_room))
         p('Checking the written map')
         b = unprotect._open(part)
-        for n in names:
-            if unprotect._read(b, n) != new_bytes:
+        for n, want in writes:
+            if unprotect._read(b, n) != want:
                 raise RuntimeError('%s is not read back as written' % n)
         del b
         with unprotect.quiet():
-            same = unprotect.check_content(path_in, part, exclude=names)
+            same = unprotect.check_content(path_in, part, exclude=[n for n, _w in writes])
         if same['different'] or same['missing_items']:
             raise RuntimeError('other files changed: %s' % ', '.join((same['different'] + same['missing_items'])[:5]))
         if _find(part)[0]['found']:
@@ -1339,6 +1424,6 @@ def unlock(path_in, path_out, progress=None):
         except OSError:
             pass
         return stop('failed', 'The map could not be written (%s).' % unprotect._error(e))
-    proof['map'] = {'script_read_back': True, 'same_files': same['identical'], 'sites_left': 0}
+    proof['map'] = {'script_read_back': bool(names), 'same_files': same['identical'], 'sites_left': 0}
     rep['state'], rep['output'] = 'done', os.path.abspath(path_out)
     return rep
