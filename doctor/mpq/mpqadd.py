@@ -1,4 +1,5 @@
 # Adds and replaces files inside an existing MPQ archive.
+import os
 import struct
 
 from doctor.mpq import mpqpatch as m
@@ -70,14 +71,31 @@ def _known_pairs(name_list):
     return out
 
 
-def format(path):
+def format(path, reason=False):
+    def failure(body_text):
+        return (None, body_text) if reason else None
+    if os.path.isdir(path):
+        return failure('it is a folder, not a file')
     try:
-        off = _ML.header_offset(path)
+        sz = os.path.getsize(path)
+        if sz == 0:
+            return failure('the file is empty, 0 bytes')
+        h, _skipped = _ML.file_header(path)
+        if h is None:
+            return failure('not an MPQ file: no MPQ header the game opens')
         with open(path, 'rb') as f:
-            f.seek(off)
-            return struct.unpack('<4sIIH', f.read(14))[3]
-    except (Exception, SystemExit):
-        return None
+            f.seek(h.offset)
+            header = f.read(14)
+    except FileNotFoundError:
+        return failure('the file does not exist')
+    except OSError as e:
+        return failure('the file does not open: %s' % (e.strerror or e))
+    except Exception as e:
+        return failure('the MPQ header does not read: %s: %s' % (type(e).__name__, e))
+    if len(header) < 14:
+        return failure('the MPQ header is cut short')
+    version_num = struct.unpack('<4sIIH', header)[3]
+    return (version_num, None) if reason else version_num
 
 
 ATTRIBUTES = '(attributes)'
@@ -163,9 +181,13 @@ def add_files(
     grow=None,
     slack=0,
     hero_attributes=True,
+    weight=(),
+    together=False,
 ):
     with open(path, 'r+b') as f:
-        sz = _add_to_open_file(f, path, repl, to_delete, reset, all_entries, fake_count, log, no_slot, grow, slack)
+        sz = _add_to_open_file(
+            f, path, repl, to_delete, reset, all_entries, fake_count, log, no_slot, grow, slack, weight, together
+        )
     if hero_attributes and repl:
         new = _update_attributes(path, repl, to_delete, all_entries, log)
         if new is not None:
@@ -173,7 +195,43 @@ def add_files(
     return sz
 
 
-def _add_to_open_file(f, path, repl, to_delete, reset, all_entries, fake_count, log, no_slot, grow, slack):
+class _NoFreeIndex:
+    def __init__(self, htab, hcount):
+        self.n = hcount
+        self.by_pair = {}
+        self.deleted_slots = []
+        for s in range(hcount):
+            n1, n2, _l, _p, bi = struct.unpack_from('<IIHHI', htab, s * 16)
+            if bi == 0xFFFFFFFE:
+                self.deleted_slots.append(s)
+            else:
+                self.by_pair.setdefault((n1, n2), []).append(s)
+
+    @classmethod
+    def if_needed(cls, htab, hcount):
+        for s in range(hcount):
+            if struct.unpack_from('<I', htab, s * 16 + 12)[0] == 0xFFFFFFFF:
+                return None
+        return cls(htab, hcount)
+
+    def lookup(self, ia, pair):
+        import bisect
+        slots = sorted(self.by_pair.get(pair, ()), key=lambda s: (s - ia) % self.n)
+        k = bisect.bisect_left(self.deleted_slots, ia)
+        if k < len(self.deleted_slots):
+            return slots, self.deleted_slots[k]
+        return slots, (self.deleted_slots[0] if self.deleted_slots else None)
+
+    def occupy(self, s, pair):
+        import bisect
+        k = bisect.bisect_left(self.deleted_slots, s)
+        if k < len(self.deleted_slots) and self.deleted_slots[k] == s:
+            del self.deleted_slots[k]
+        self.by_pair.setdefault(pair, []).append(s)
+
+
+def _add_to_open_file(f, path, repl, to_delete, reset, all_entries, fake_count, log, no_slot, grow, slack, weight=(),
+                      together=False):
     m._crypt = m._init_crypt()
     head = f.read(4096)
     off = _ML.header_offset(path)
@@ -215,7 +273,7 @@ def _add_to_open_file(f, path, repl, to_delete, reset, all_entries, fake_count, 
                 available += 1
             elif (bi & 0x0FFFFFFF) < bcount:
                 pairs.add((n1, n2))
-        new_ones = sum(1 for fname, _c in repl
+        new_ones = sum(1 for fname, _c in list(repl) + [(x[0], None) for x in weight]
                        if (m.hash_string(fname, 1), m.hash_string(fname, 2)) not in pairs)
         tgt = new_ones + max(1, slack)
         if (new_ones or slack) and available < tgt:
@@ -242,6 +300,7 @@ def _add_to_open_file(f, path, repl, to_delete, reset, all_entries, fake_count, 
         f.truncate(tables_end)
         end = tables_end
     new_end = end
+    bcount0 = bcount
     sector = _ML.header_sector(bshift)
     uses = None
     for name in to_delete:
@@ -260,14 +319,21 @@ def _add_to_open_file(f, path, repl, to_delete, reset, all_entries, fake_count, 
             i = (i + 1) & (hcount - 1)
         if not achou:
             log('delete: %s is not in the map' % name)
+    no_free = _NoFreeIndex.if_needed(htab, hcount) if (repl or weight) else None
     for name, content in repl:
         ia = m.hash_string(name, 0) & (hcount - 1)
         ha = m.hash_string(name, 1)
         hb = m.hash_string(name, 2)
         hits = []
         free = None
+        if no_free is not None:
+            slots, free = no_free.lookup(ia, (ha, hb))
+            for i in slots:
+                n1, n2, loc, plat, bi = struct.unpack_from('<IIHHI', htab, i * 16)
+                if (bi & 0x0FFFFFFF) < len(btab) // 16:
+                    hits.append((i, bi & 0x0FFFFFFF, loc, plat))
         i = ia
-        for _ in range(hcount):
+        for _ in (range(hcount) if no_free is None else ()):
             n1, n2, loc, plat, bi = struct.unpack_from('<IIHHI', htab, i * 16)
             if bi == 0xFFFFFFFF:
                 if free is None:
@@ -314,8 +380,60 @@ def _add_to_open_file(f, path, repl, to_delete, reset, all_entries, fake_count, 
             bi = len(btab) // 16
             btab += struct.pack('<IIII', details, len(packed), len(content), nflags)
             struct.pack_into('<IIHHI', htab, free * 16, ha, hb, 0, 0, bi)
+            if no_free is not None:
+                no_free.occupy(free, (ha, hb))
             log('added %s: hash#%d block#%d size=%d packed=%d' % (name, free, bi, len(content), len(packed)))
         new_end += len(packed)
+    for name, tgt in weight:
+        ia = m.hash_string(name, 0) & (hcount - 1)
+        ha = m.hash_string(name, 1)
+        hb = m.hash_string(name, 2)
+        i = ia
+        free = None
+        if no_free is not None:
+            slots, free = no_free.lookup(ia, (ha, hb))
+            if slots:
+                raise SystemExit(
+                    'add: the forged name %s is already in the map (the weight does not collide with the live one)'
+                    % name
+                )
+        for _ in (range(hcount) if no_free is None else ()):
+            n1, n2, loc, plat, bi = struct.unpack_from('<IIHHI', htab, i * 16)
+            if n1 == ha and n2 == hb and bi not in (0xFFFFFFFF, 0xFFFFFFFE):
+                raise SystemExit(
+                    'add: the forged name %s is already in the map (the weight does not collide with the live one)'
+                    % name
+                )
+            if bi == 0xFFFFFFFF:
+                if free is None:
+                    free = i
+                break
+            if bi == 0xFFFFFFFE and free is None:
+                free = i
+            i = (i + 1) & (hcount - 1)
+        if free is None:
+            raise SystemExit('add: hash table full for %s (the weight)' % name)
+        if no_free is not None:
+            no_free.occupy(free, (ha, hb))
+        bi = len(btab) // 16
+        if tgt[0] == 'band':
+            _, rel_off, byte_size = tgt
+            btab += struct.pack('<IIII', rel_off, byte_size, byte_size, MPQ_FILE_EXISTS)
+            struct.pack_into('<IIHHI', htab, free * 16, ha, hb, 0, 0, bi)
+            log(
+                'added %s: hash#%d block#%d RANGE at +%d x %d B (nothing written)'
+                % (name, free, bi, rel_off, byte_size)
+            )
+        else:
+            _, block_entry, fsize, nflags = tgt
+            f.seek(new_end)
+            f.write(block_entry)
+            rel_off = new_end - off
+            btab += struct.pack('<IIII', rel_off, len(block_entry), fsize, nflags)
+            struct.pack_into('<IIHHI', htab, free * 16, ha, hb, 0, 0, bi)
+            log('added %s: hash#%d block#%d BOMB size=%d packed=%d (the sector table by its size)'
+                % (name, free, bi, fsize, len(block_entry)))
+            new_end += len(block_entry)
     data_bytes = []
     for i in range(bcount):
         b_off, b_cs, _b_fs, b_fl = struct.unpack_from('<IIII', btab, i * 16)
@@ -330,6 +448,8 @@ def _add_to_open_file(f, path, repl, to_delete, reset, all_entries, fake_count, 
         new_hash = True
         log('hash table overlaps something else: moving it to the end of the file')
     block_at_end = _touches(babs0, babs0 + bcount * 16, data_bytes + [(habs0, habs0 + len(htab)), header])
+    if together:
+        new_hash = block_at_end = True
     if new_hash:
         hoff = new_end - off
         f.seek(new_end)
