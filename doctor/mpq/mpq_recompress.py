@@ -3,6 +3,8 @@ import hashlib
 import os
 import re
 import struct
+import sys
+import time
 import zlib
 
 
@@ -31,17 +33,34 @@ encrypt = _ML.encrypt_bytes
 SPECIAL_FILES = ('(listfile)', '(attributes)', '(signature)')
 
 
+_NATIVE_SOUND = [None]
+
+
+def _native_codec(code_part):
+    if code_part not in ('zopfli', 'zlib9') or _libdeflate is not None:
+        return None
+    if _zopfli is not None and 'zlib-ng' in zlib.ZLIB_RUNTIME_VERSION:
+        return None
+    if _NATIVE_SOUND[0] is None or sys.platform == 'emscripten':
+        try:
+            from doctor.mpq import sector512_native
+            _NATIVE_SOUND[0] = sector512_native.load_data() or False
+        except Exception:
+            _NATIVE_SOUND[0] = False
+    return _NATIVE_SOUND[0] or None
+
+
 def resolve_encoder(code_part):
     if code_part not in CODIFICADORES:
         raise SystemExit('--codificador=%s: use one of %s' % (code_part, ', '.join(CODIFICADORES)))
     if code_part == 'auto':
-        code_part = 'zopfli' if _zopfli else 'libdeflate' if _libdeflate else 'zlib9'
+        code_part = 'zopfli' if (_zopfli or _native_codec('zopfli')) else 'libdeflate' if _libdeflate else 'zlib9'
         if code_part != 'zopfli':
             print(
                 'NOTE: zopfli is not installed (pip install zopfli deflate): using %s, the map comes out bigger'
                 % code_part
             )
-    if code_part == 'zopfli' and not _zopfli:
+    if code_part == 'zopfli' and not (_zopfli or _native_codec('zopfli')):
         raise SystemExit('--codificador=zopfli without the zopfli package (pip install zopfli)')
     if code_part == 'libdeflate' and not _libdeflate:
         raise SystemExit('--codificador=libdeflate without the deflate package (pip install deflate)')
@@ -55,6 +74,10 @@ def signature(code_part, margem):
             return version(pkg)
         except Exception:
             return '?'
+    if _native_codec(code_part):
+        from doctor.mpq import sector512_native
+        return '|'.join(['setor512/2', code_part, 'native', sector512_native.VERSION] +
+                        (['margem=%d' % margem] if code_part == 'zopfli' else []))
     pieces = ['setor512/2', code_part, 'zlib=%s' % zlib.ZLIB_RUNTIME_VERSION]
     if code_part in ('zopfli', 'libdeflate'):
         pieces.append('deflate=%s' % version_num('deflate'))
@@ -65,6 +88,11 @@ def signature(code_part, margem):
 
 def encode_sector(s, code_part, margem=8):
     L = len(s)
+    nat = _native_codec(code_part) if L else None
+    if nat:
+        r = nat(s, L, margem, code_part)
+        if r is not None:
+            return r[0]
     if code_part == 'zlib6':
         z = zlib.compress(s, 6)
     else:
@@ -83,10 +111,41 @@ def encode_sector(s, code_part, margem=8):
 def _slice(job):
     data_bytes, code_part, margem = job[:3]
     sector_bytes = job[3] if len(job) > 3 else SECTOR_NEW
+    nat = _native_codec(code_part)
+    if nat:
+        r = nat(data_bytes, sector_bytes, margem, code_part)
+        if r is not None:
+            return r
     return [
         encode_sector(data_bytes[i : i + sector_bytes], code_part, margem)
         for i in range(0, len(data_bytes), sector_bytes)
     ]
+
+
+class _Threads:
+    def __init__(self, n):
+        from concurrent.futures import ThreadPoolExecutor
+        self.ex = ThreadPoolExecutor(n)
+
+    def imap(self, fn, item_entries, chunksize=1):
+        return self.ex.map(fn, item_entries)
+
+    imap_unordered = imap
+
+    def close(self):
+        self.ex.shutdown(wait=True)
+
+    def join(self):
+        pass
+
+
+def open_pool(n):
+    if n <= 1 or sys.platform == 'emscripten':
+        return None
+    if getattr(sys, 'frozen', False):
+        return _Threads(n)
+    import multiprocessing as mp
+    return mp.Pool(n)
 
 
 def build_block(pieces):
@@ -113,26 +172,52 @@ class Cache:
     def _path_of(self, inv_slot, hash_key):
         return os.path.join(self.folder, inv_slot, hash_key[:2], hash_key)
 
+    ATTEMPTS = 5
+
     def read_data(self, inv_slot, hash_key):
         if not self.folder:
             return None
         p = self._path_of(inv_slot, hash_key)
-        if os.path.exists(p):
+        for k in range(self.ATTEMPTS):
+            if not os.path.exists(p):
+                return None
+            try:
+                with open(p, 'rb') as fh:
+                    data_bytes = fh.read()
+            except PermissionError:
+                time.sleep(0.02 * (k + 1))
+                continue
             self.in_use.add(os.path.normcase(os.path.abspath(p)))
-            with open(p, 'rb') as fh:
-                return fh.read()
+            return data_bytes
         return None
 
     def save(self, inv_slot, hash_key, data_bytes):
         if not self.folder:
             return
         p = self._path_of(inv_slot, hash_key)
+        mark = os.path.normcase(os.path.abspath(p))
+        if os.path.isfile(p):
+            self.in_use.add(mark)
+            return
         os.makedirs(os.path.dirname(p), exist_ok=True)
         tmp = p + '.tmp%d' % os.getpid()
         with open(tmp, 'wb') as fh:
             fh.write(data_bytes)
-        os.replace(tmp, p)
-        self.in_use.add(os.path.normcase(os.path.abspath(p)))
+        for k in range(self.ATTEMPTS):
+            try:
+                os.replace(tmp, p)
+                break
+            except PermissionError:
+                if os.path.isfile(p):
+                    try:
+                        os.remove(tmp)
+                    except OSError:
+                        pass
+                    break
+                if k == self.ATTEMPTS - 1:
+                    raise
+                time.sleep(0.02 * (k + 1))
+        self.in_use.add(mark)
 
     def prune(self):
         if not self.folder or not os.path.isdir(self.folder):
