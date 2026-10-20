@@ -189,14 +189,15 @@ def _mods_of(species, cols, meta, row, cru_row, base_row, base_cru, rep):
                     out.append((code, 3, i + 1, 0, _value(3, v, True)))
                 continue
             btext = base_row.get(col) if base_row else None
+            part = text
             if idx >= 0 and (meta[code].get('slk') or '', col) in cols.multi:
                 mine, theirs = _parts(text), _parts(btext)
-                text = mine[idx] if idx < len(mine) else ''
+                part = mine[idx] if idx < len(mine) else ''
                 btext = theirs[idx] if idx < len(theirs) else ''
-            tipo = _tipo(mtype, text)
-            if base_row is not None and _equal(text, btext, tipo):
+            tipo = _tipo(mtype, part)
+            if base_row is not None and _equal(part, btext, tipo):
                 continue
-            out.append((code, tipo, level, data, _value(tipo, text, (meta[code].get('slk') or '') == 'Profile')))
+            out.append((code, tipo, level, data, _value(tipo, part, (meta[code].get('slk') or '') == 'Profile')))
     final = []
     taken = set()
     for m in out:
