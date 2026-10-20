@@ -374,12 +374,16 @@ def show(command, r):
     if command == 'translation groups':
         for g in r.get('groups') or []:
             print('%-24s %5d  %s' % (g.get('key'), g.get('count') or 0, g.get('label')))
+        if r.get('script_note'):
+            print(r['script_note'])
         return
     if command == 'translation export':
         if r.get('error'):
             print(r['error'])
         else:
             print('Exported %d texts to %s' % (r.get('entries') or 0, r.get('file')))
+        if r.get('script_note'):
+            print(r['script_note'])
         return
     if command == 'translation machine':
         if r.get('error'):
