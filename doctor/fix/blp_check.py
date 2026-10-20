@@ -67,6 +67,18 @@ def _jpeg_size(data, info, i):
         return None
 
 
+def _jpeg_decodes(data, info, i):
+    from PIL import Image
+    h0 = HEADER + 4
+    jpg = data[h0:h0 + info['jpeg_header']] + data[info['offsets'][i]:info['offsets'][i] + info['sizes'][i]]
+    try:
+        with Image.open(io.BytesIO(jpg)) as im:
+            im.load()
+        return True
+    except Exception:
+        return False
+
+
 def _jpeg_alpha_opaque(data, info, i):
     from PIL import Image
     h0 = HEADER + 4
@@ -125,10 +137,14 @@ def check(data, version=None):
     expect = min(_levels(w, h), MIP_LEVELS) if info['has_mips'] else 1
     present = [i for i in range(MIP_LEVELS) if info['sizes'][i]]
     beyond = [i for i in present if info['offsets'][i] + info['sizes'][i] > n]
-    if beyond:
+    stray = [i for i in range(MIP_LEVELS) if not info['sizes'][i] and info['offsets'][i] > n]
+    if beyond or stray:
+        first = min(beyond + stray)
         out.append(_issue('blp_mip_past_eof', 'warning',
-                          'Mip level %d starts or ends past the end of the file: the game reads outside its buffer '
-                          '(Dr Super Good\'s BLP specification; not measured here).' % beyond[0], mips=beyond))
+                          'Mip level %d %s past the end of the file: the game reads outside its buffer '
+                          '(Dr Super Good\'s BLP specification; not measured here).'
+                          % (first, 'starts or ends' if first in beyond else 'is empty but its offset points'),
+                          mips=sorted(beyond + stray)))
     missing = [i for i in range(expect) if not info['sizes'][i]]
     if info['has_mips'] and missing:
         out.append(
@@ -178,6 +194,19 @@ def check(data, version=None):
             elif info['sizes'][i] > need:
                 wrong.append((i, 'level %d declares %d bytes, its %dx%d pixels need %d' % (
                     i, info['sizes'][i], lw, lh, need)))
+    if content == 0:
+        junk = [i for i in present if i >= expect and i not in beyond and i not in fake
+                and not _jpeg_decodes(data, info, i)]
+        if junk:
+            out.append(
+                _issue(
+                    'blp_mip_extra',
+                    'info',
+                    'Mip level %d lies beyond the %d-level chain and its JPEG does not decode: the engine most '
+                    'likely never reads it (not measured; `fix` drops it).' % (junk[0], expect),
+                    mips=junk,
+                )
+            )
     if short:
         out.append(_issue('blp_mip_size', 'warning',
                           '%d mip levels cannot be read as they are (%s): the game reads the bytes the level needs, '
@@ -210,6 +239,50 @@ def check(data, version=None):
                 )
             )
     return out
+
+
+def fix(data):
+    data = bytes(data)
+    info = inspect(data)
+    if info['version'] != 1:
+        raise ValueError('only BLP1 (the game\'s format) is repaired')
+    n = len(data)
+    expect = min(_levels(info['width'], info['height']), MIP_LEVELS) if info['has_mips'] else 1
+    jpeg = info['content'] == 0
+    for i in range(expect):
+        off, size = info['offsets'][i], info['sizes'][i]
+        if size and (off + size > n or (jpeg and not _jpeg_decodes(data, info, i))):
+            raise ValueError('level %d of the chain cannot be read: not repairable by cutting the tail' % i)
+    dropped = [i for i in range(expect, MIP_LEVELS)
+               if (info['offsets'][i] or info['sizes'][i])
+               and (info['offsets'][i] + info['sizes'][i] > n
+                    or (jpeg and info['sizes'][i] and not _jpeg_decodes(data, info, i)))]
+    out = dict(dropped=dropped, cut=0, size_before=n, size_after=n)
+    if not dropped:
+        return data, out
+    offs, sizes = list(info['offsets']), list(info['sizes'])
+    for i in dropped:
+        offs[i] = sizes[i] = 0
+    end = max([info['data_at']] + [o + s for o, s in zip(offs, sizes) if s])
+    body = bytearray(data[:end])
+    struct.pack_into('<16I', body, 28, *offs)
+    struct.pack_into('<16I', body, 92, *sizes)
+    new = bytes(body)
+    again = inspect(new)
+    for i in range(expect):
+        if again['offsets'][i] != info['offsets'][i] or again['sizes'][i] != info['sizes'][i]:
+            raise ValueError('level %d moved' % i)
+        a = data[info['offsets'][i]:info['offsets'][i] + info['sizes'][i]]
+        b = new[again['offsets'][i]:again['offsets'][i] + again['sizes'][i]]
+        if a != b:
+            raise ValueError('level %d changed' % i)
+        if jpeg and info['sizes'][i] and not _jpeg_decodes(new, again, i):
+            raise ValueError('level %d no longer decodes' % i)
+    left = [c['code'] for c in check(new) if c['code'] in ('blp_mip_past_eof', 'blp_mip_extra')]
+    if left:
+        raise ValueError('the repair did not hold: %s' % ', '.join(left))
+    out.update(cut=n - len(new), size_after=len(new))
+    return new, out
 
 
 def summary(result, version=None):
@@ -267,6 +340,7 @@ def summary(result, version=None):
         ('blp_jpeg_alpha', 'info'),
         ('blp_mip_over_512', 'info'),
         ('blp_mip_chain', 'info'),
+        ('blp_mip_extra', 'info'),
     )
     if odd:
         out.append(
