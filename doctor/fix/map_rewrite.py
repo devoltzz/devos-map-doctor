@@ -44,7 +44,7 @@ def gate(old_bytes, new_bytes):
     return single_player._pjass(old_bytes, new_bytes)
 
 
-def write(path_in, path_out, files, progress=None, check=None):
+def write(path_in, path_out, files, progress=None, check=None, grow=None):
     from doctor.mpq import mpqadd
     p = progress or _nothing
     if os.path.normcase(os.path.abspath(path_out)) == os.path.normcase(os.path.abspath(path_in)):
@@ -56,7 +56,7 @@ def write(path_in, path_out, files, progress=None, check=None):
         shutil.copyfile(path_in, part)
         no_room = []
         with unprotect.quiet():
-            mpqadd.add_files(part, list(files), all_entries=True, log=_nothing, no_slot=no_room)
+            mpqadd.add_files(part, list(files), all_entries=True, log=_nothing, no_slot=no_room, grow=grow)
         if no_room:
             raise RuntimeError('no room in the hash table for %s' % ', '.join(no_room))
         p('Checking the written map')
