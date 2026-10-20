@@ -367,6 +367,7 @@ def _jass_parts(text):
 
 
 def _declara(text):
+    text = text.replace('﻿', '')
     names = set(re.findall(r'(?m)^\s*function\s+([A-Za-z_]\w*)\s+takes', text))
     for m in re.finditer(r'(?ms)^\s*globals\b(.*?)^\s*endglobals\b', text):
         for l in m.group(1).split('\n'):
@@ -430,7 +431,33 @@ def _jass_merge(script, pack_text, mark_line=None):
     if fim_main is None:
         raise RuntimeError('the map script has a main function without endfunction')
     if principal.strip():
-        lines = lines[:fim_main] + principal.split('\n') + lines[fim_main:]
+        plines = principal.split('\n')
+        locais = [x for x in plines if re.match(r'^\s*local\s', x)]
+        plines = [x for x in plines if not re.match(r'^\s*local\s', x)]
+        fim_loc = ini_main + 1
+        for k in range(ini_main + 1, fim_main):
+            s = lines[k].strip()
+            if re.match(r'^local\s', s):
+                fim_loc = k + 1
+            elif s and not s.startswith('//'):
+                break
+        usados = set(
+            re.findall(
+                r'(?m)^\s*local\s+(?:\w+\s+)?(?:array\s+)?([A-Za-z_]\w*)', '\n'.join(lines[ini_main + 1 : fim_loc])
+            )
+        )
+        for x in list(locais):
+            n = re.match(r'^\s*local\s+(?:\w+\s+)?(?:array\s+)?([A-Za-z_]\w*)', x)
+            n = n.group(1) if n else None
+            if n and n in usados:
+                novo = 'Cp_' + n
+                while novo in usados:
+                    novo = 'Cp_' + novo
+                rx = re.compile(r'\b%s\b' % re.escape(n))
+                locais = [rx.sub(novo, y) for y in locais]
+                plines = [rx.sub(novo, y) for y in plines]
+        lines = lines[:fim_main] + plines + lines[fim_main:]
+        lines = lines[:fim_loc] + locais + lines[fim_loc:]
     lines = lines[:ini_main] + ['', funcoes, ''] + lines[ini_main:]
     return '\n'.join(lines)
 
@@ -538,18 +565,11 @@ def _pjass_check(script, mapa=None, original=None, _cru=False, mesclado=None):
                 return True, 'pjass: %d complaint(s) of the map\'s own script, none new' % sum(ja.values()), 'own'
         from_map = [x for x in ruins if 'mapa_' in x]
         nosso = [x for x in ruins if x not in from_map]
-        sintaxe = [
-            x
-            for x in nosso
-            if re.search(
-                r'syntax error|expected|unexpected|invalid|unclosed|token|already defined|allready defined|redefinition|redefined|type mismatch|cannot convert|undeclared|undefined|non-function|cannot assign',
-                x,
-                re.I,
-            )
-        ]
-        if sintaxe:
-            return False, 'pjass: %s' % ' | '.join(sintaxe)[:400], False
-        rest = nosso or from_map
+        if nosso:
+            return False, 'pjass: %s' % ' | '.join(nosso)[:400], False
+        rest = from_map
+        if not rest and r.returncode != 0:
+            return False, 'pjass: exit %s without a message' % r.returncode, False
         return True, 'pjass: %s' % (' | '.join(rest)[:400] if rest else 'ok'), bool(rest)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
