@@ -1,4 +1,5 @@
 # Exports the texts a player sees to one file and imports a translation back, checked.
+import bisect
 import collections
 import gc
 import hashlib
@@ -9,6 +10,7 @@ import shutil
 import struct
 
 from doctor.fix import unprotect
+from doctor.script import lua_ast
 from doctor.mpq import mpqadd
 from doctor.data import object_names
 from doctor.data import objbin
@@ -17,6 +19,7 @@ from doctor.translation import tr_apply
 from doctor.translation import tr_compared
 from doctor.translation import tr_extract
 from doctor.translation import tr_pair_check
+from doctor.translation import tr_lua
 from doctor.translation import tr_screen_cjk
 from doctor.data import w3i
 
@@ -79,6 +82,7 @@ HELP = (
     'When the original gives each character its own color, keep the codes between whole words, with the space before '
     'the code: "Fire |cffff8000Rain |cffffff00Bow", not "Fire|cffff8000Rain|cffffff00Bow".',
     'Script entries are JASS strings: keep \\" and \\\\ as they are and write no real line break.',
+    'Lua entries are the text itself: write quotes and backslashes as they should read.',
     'Profile entries with commas are lists of levels: keep the same number of commas.',
     'Chat commands stay as they are, also when a tooltip quotes them.',
     'An entry with a "note" about the script comparing it: give every entry with that text the same translation.',
@@ -128,8 +132,10 @@ def is_text(s):
 
 def path_like(s, script=False):
     v = s.strip()
-    if not v or ' ' in v:
+    if not v:
         return False
+    if ' ' in v:
+        return ('\\' in v or '/' in v) and bool(RX_FILE.search(v))
     return ('\\\\' in v if script else '\\' in v) or bool(RX_FILE.search(v))
 
 
@@ -184,6 +190,7 @@ class MapText(object):
         self.w3i_format = None
         self.longest_object_text = 0
         self.flow = None
+        self.script_note = None
 
     def add(self, **kw):
         self.entries.append(kw)
@@ -520,6 +527,13 @@ def _functions_by_line(lines):
     return out
 
 
+SCRIPT_NOTE_LUA_ROUTE = ('The map was ported by the Lua route of Port to Reforged: the texts of its converted script '
+                         '(quests, dialogs, menus) are not exported, only those of its Lua modules. Translate the '
+                         'original map instead (export its texts, then Fix map with the translated file) and port the '
+                         'translated map: the port keeps the translation.')
+SCRIPT_NOTE_LUA = 'The map script is Lua that does not read as Lua 5.3: its texts are not exported.'
+
+
 def script_language(a, read):
     name = next((n for n in SCRIPTS if read(n) is not None), None)
     j = read(name) if name else None
@@ -541,6 +555,8 @@ def _collect_script(mt, a, read):
     if mt.script != 'jass':
         if mt.script != 'none':
             mt.skipped['script: %s, literals not exported' % mt.script] += 1
+        if mt.script == 'lua' and b'__ydwe' in b:
+            mt.script_note = SCRIPT_NOTE_LUA_ROUTE
         return None, []
     mt.script_file = name
     mt.files[name] = b
@@ -606,6 +622,131 @@ def _collect_script(mt, a, read):
         if groups['hash_key']:
             entry['note'] = 'Also used as a key by the script: those %d copies stay as they are.' % groups['hash_key']
     return src, found
+
+
+def _lua_sources(mt, a, read):
+    out, context = [], []
+    if mt.script == 'lua':
+        b = read('war3map.lua')
+        names = ['war3map.lua'] if b is not None else []
+    elif mt.script == 'jass' and mt.script_file:
+        from doctor.script import ydwe_lua
+        if not ydwe_lua.detect(_decode(mt.files[mt.script_file]), read):
+            return out, context
+        from doctor.port import ydwe_modules
+        try:
+            found = ydwe_modules.collect(a)['lua_modules']
+        except Exception:
+            found = {}
+        names = sorted(n for n, m in found.items() if m.get('forma') == 'body_text' and n.lower() != 'war3map.lua')
+    else:
+        return out, context
+    for name in names:
+        b = read(name)
+        if b is None or b.startswith(b'\x1bLua'):
+            continue
+        text = _decode(b)
+        try:
+            srcs = tr_lua.sources(name, text)
+            for s in srcs:
+                s.lexed()
+        except (lua_ast.LuaSyntaxError, RecursionError, ValueError):
+            mt.skipped['lua: %s does not read as Lua' % name] += 1
+            if name == 'war3map.lua':
+                mt.script_note = SCRIPT_NOTE_LUA
+            continue
+        mt.files[name] = b
+        out += srcs
+        if srcs and srcs[0].module is not None:
+            whole = tr_lua.Source(name, text)
+            try:
+                whole.lexed()
+                context.append(whole)
+            except (lua_ast.LuaSyntaxError, RecursionError):
+                pass
+    return out, context
+
+
+def _collect_lua(mt, a, read, script_entries):
+    srcs, context = _lua_sources(mt, a, read)
+    if not srcs:
+        return
+    flow = tr_lua.flow_of(srcs + context)
+    jass_out = set(e['text'] for e in script_entries if e['kind'] != 'script')
+    cats = collections.defaultdict(collections.Counter)
+    calls = collections.defaultdict(set)
+    where = collections.OrderedDict()
+    for s in context:
+        for _i, _start, _end, value, cat in tr_lua.occurrences(s, flow):
+            if cat.partition(':')[0] != 'screen':
+                cats[value][cat.partition(':')[0]] += 1
+    for s in srcs:
+        newlines = [m.start() for m in re.finditer('\n', s.text)]
+        for _i, start, stop, value, cat in tr_lua.occurrences(s, flow):
+            group, _, detail = cat.partition(':')
+            cats[value][group] += 1
+            if group == 'screen':
+                calls[value].add(detail)
+            key = (s.file, s.module, value)
+            if key not in where:
+                ln = bisect.bisect_left(newlines, start)
+                lo = max(newlines[ln - 1] + 1 if ln else 0, start - 120)
+                hi = min(newlines[ln] if ln < len(newlines) else len(s.text), stop + 120)
+                where[key] = [s, ln + 1, s.text[lo:hi].strip(), 0]
+            where[key][3] += 1
+    reasons = {}
+    for value, c in cats.items():
+        if not is_text(value) or path_like(value):
+            reason = None if not is_text(value) else 'a file path'
+        elif c['hash_key'] or c['caution']:
+            reason = 'compared or used as a key'
+        elif not c['screen']:
+            reason = 'not screen text'
+        elif value in jass_out:
+            reason = 'compared or used as a key by the JASS script'
+        elif tr_lua.module_like(value):
+            reason = 'a module name'
+        elif tr_lua.pattern_like(value):
+            reason = 'a Lua pattern'
+        elif all(f.startswith(NOT_TEXT_CALLS) or tr_lua._last(f).startswith(NOT_TEXT_CALLS) for f in calls[value]):
+            reason = 'not screen text'
+        elif not _cjk(value) and not (any(tr_lua._last(f).startswith(DISPLAY_CALLS) for f in calls[value]) or
+                                      ' ' in RX_COLOR.sub('', value).strip() or RX_COLOR.search(value)):
+            reason = 'not screen text'
+        else:
+            reason = False
+        reasons[value] = reason
+    for (file, module, value), (s, line, code, n) in where.items():
+        reason = reasons[value]
+        if reason is None:
+            continue
+        if reason:
+            mt.skipped['lua: ' + reason] += 1
+            continue
+        place = module or file
+        mt.add(id='lua:%s:%s' % (place, hashlib.sha1(_encode(value)).hexdigest()[:12]), source='lua', file=file,
+               context='%s line %d: %s' % (place, line, _short(code)), text=value, _kind='lua', _where=None,
+               _module=module, _count=n)
+
+
+def _lua_links(mt):
+    lua = collections.defaultdict(list)
+    other = collections.defaultdict(set)
+    for e in mt.entries:
+        if e['source'] == 'lua':
+            lua[e['text']].append(e)
+        else:
+            other[e['text']].add(e['file'])
+    for text, members in lua.items():
+        if len(members) > 1 and not any(m.get('_group') for m in members):
+            for m in members:
+                m['_group'] = 'lua'
+                m['note'] = 'The same text is in %d Lua files of the map: give every entry with it the same ' \
+                            'translation.' % len(members)
+        elif other.get(text) and not members[0].get('note'):
+            for m in members:
+                m['note'] = 'The same text is also in %s: give it the same translation there.' % \
+                            sorted(other[text])[0]
 
 
 def _comparison_rules(mt, src, script_entries, wts_texts):
@@ -674,7 +815,10 @@ def collect(a, progress=None):
     src, script_entries = _collect_script(mt, a, read)
     p('frame definitions')
     _collect_fdf(mt, a, read)
+    p('Lua')
+    _collect_lua(mt, a, read, script_entries)
     _comparison_rules(mt, src, script_entries, wts_texts)
+    _lua_links(mt)
     _object_limits(mt)
     _wts_contexts(mt)
     m = RX_TRIGSTR.match(mt.map_name)
@@ -703,7 +847,7 @@ def _error(e):
 
 OBJECT_LABEL = {'w3u': 'Units', 'w3t': 'Items', 'w3a': 'Abilities', 'w3h': 'Buffs', 'w3q': 'Upgrades',
                 'w3b': 'Destructables'}
-GROUP_ORDER = {'w3i': 0, 'wts': 1, 'script': 2, 'object': 3, 'profile': 4, 'fdf': 5}
+GROUP_ORDER = {'w3i': 0, 'wts': 1, 'script': 2, 'lua': 3, 'object': 4, 'profile': 5, 'fdf': 6}
 
 
 def group_label(key, source):
@@ -715,6 +859,8 @@ def group_label(key, source):
         return 'Trigger strings'
     if source == 'script':
         return 'Script'
+    if source == 'lua':
+        return 'Lua script'
     if source == 'fdf':
         return 'Frame definitions (FDF)'
     if source == 'object' and ext in OBJECT_LABEL:
@@ -749,7 +895,7 @@ def _only(entries, only):
 
 def groups(path, progress=None):
     p = progress or _nothing
-    rep = {'state': None, 'error': None, 'groups': [], 'entries': 0}
+    rep = {'state': None, 'error': None, 'groups': [], 'entries': 0, 'script_note': None}
     try:
         p('reading map')
         mt = collect(_open(path), p)
@@ -757,7 +903,7 @@ def groups(path, progress=None):
         rep.update(state='failed', error='cannot read the map (%s)' % _error(e))
         return rep
     rep.update(groups=_groups_of(mt.entries), entries=len(mt.entries),
-               state='done' if mt.entries else 'no_text')
+               state='done' if mt.entries else 'no_text', script_note=mt.script_note)
     try:
         from doctor.translation import machine_translate
         rep['machine'] = machine_translate.info(machine_translate.detect_language(e['text'] for e in mt.entries))
@@ -807,13 +953,14 @@ def export(path, out_file, progress=None, only=None, images=False):
     if images:
         n, _lang, err = add_images(mt, path, p)
         rep['images'] = {'entries': n, 'error': err}
-    rep.update(map_name=mt.map_name, script=mt.script, skipped=dict(sorted(mt.skipped.items())),
+    rep.update(map_name=mt.map_name, script=mt.script, script_note=mt.script_note,
+               skipped=dict(sorted(mt.skipped.items())),
                entries=len(mt.entries), linked=sum(1 for e in mt.entries if e.get('_group')),
                by_source=dict(collections.Counter(e['source'] for e in mt.entries)))
     if not mt.entries:
         rep['state'] = 'no_text'
         return rep
-    order = {'w3i': 0, 'wts': 1, 'object': 2, 'profile': 3, 'fdf': 4, 'script': 5, 'image': 6}
+    order = {'w3i': 0, 'wts': 1, 'object': 2, 'profile': 3, 'fdf': 4, 'script': 5, 'lua': 6, 'image': 7}
     entries = [public(e) for e in sorted(mt.entries, key=lambda e: order[e['source']])]
     doc = collections.OrderedDict([('format', FORMAT), ('version', VERSION), ('map', os.path.basename(path)),
                                    ('map_name', mt.map_name), ('language', ''), ('help', list(HELP)),
@@ -1069,10 +1216,26 @@ def _build(mt, wanted, linked):
             by_file[e['file']].append((e, t))
     if linked and mt.script_file:
         by_file.setdefault(mt.script_file, [])
-    out, script = {}, {'replaced': 0, 'categories': {}, 'per_literal': {}}
+    out, script = {}, {'replaced': 0, 'categories': {}, 'per_literal': {}, 'lua': {}}
     for name, items in sorted(by_file.items()):
         orig = mt.files[name]
-        if name == 'war3map.wts':
+        if items and items[0][0]['source'] == 'lua':
+            text = _decode(orig)
+            want = collections.defaultdict(dict)
+            for e, tr in items:
+                want[e.get('_module')][e['text']] = tr
+            pieces, last = [], 0
+            for s in tr_lua.sources(name, text):
+                if not want.get(s.module):
+                    continue
+                new_text, n = tr_lua.apply(s, want[s.module])
+                for value, k in n.items():
+                    script['lua'][(name, s.module, value)] = k
+                pieces += [text[last:s.base], new_text]
+                last = s.base + len(s.text)
+            pieces.append(text[last:])
+            new = _encode(''.join(pieces))
+        elif name == 'war3map.wts':
             new = _encode(replace_wts(_decode(orig), dict((e['_where'], tr) for e, tr in items)))
         elif name == 'war3map.w3i':
             m = w3i.parse(orig)
@@ -1131,6 +1294,36 @@ def _build(mt, wanted, linked):
     return out, script
 
 
+def _lua_readback(mt, wanted, replaced, data):
+    missing = []
+    files = collections.defaultdict(lambda: collections.defaultdict(dict))
+    for e, tr in wanted:
+        if e['source'] == 'lua':
+            files[e['file']][e.get('_module')][e['text']] = tr
+            if replaced.get((e['file'], e.get('_module'), e['text']), 0) != e['_count']:
+                missing.append((e['id'], '%d of %d copies' % (replaced.get((e['file'], e.get('_module'), e['text']),
+                                                                           0), e['_count'])))
+    for name, modules in sorted(files.items()):
+        before, after = _decode(mt.files[name]), _decode(data(name))
+        try:
+            b_srcs, a_srcs = tr_lua.sources(name, before), tr_lua.sources(name, after)
+        except (lua_ast.LuaSyntaxError, ValueError) as ex:
+            missing.append((name, 'does not read as Lua (%s)' % ex))
+            continue
+        if [s.module for s in b_srcs] != [s.module for s in a_srcs]:
+            missing.append((name, 'the Lua modules changed'))
+            continue
+        outside_b = [before[x.base + len(x.text):y.base] for x, y in zip(b_srcs, b_srcs[1:])]
+        outside_a = [after[x.base + len(x.text):y.base] for x, y in zip(a_srcs, a_srcs[1:])]
+        if before[:b_srcs[0].base] != after[:a_srcs[0].base] or outside_b != outside_a or \
+                before[b_srcs[-1].base + len(b_srcs[-1].text):] != after[a_srcs[-1].base + len(a_srcs[-1].text):]:
+            missing.append((name, 'the code around the Lua modules changed'))
+        for sb, sa in zip(b_srcs, a_srcs):
+            for why in tr_lua.readback(sb.text, sa.text, modules.get(sb.module) or {}):
+                missing.append(('%s%s' % (name, ' [%s]' % sb.module if sb.module else ''), why))
+    return missing
+
+
 def _script_counts(text, watch):
     lines = script_view(text)[3]
     return collections.Counter(lit for _ln, lit, _c in tr_screen_cjk.occurrences(lines, lambda x: x in watch,
@@ -1163,8 +1356,9 @@ def _readback(a, mt, wanted, linked, script):
                 v = tr_extract.line_break(_decode(b))[0]
             parsed[e['file']] = v
         return parsed[e['file']]
+    missing += _lua_readback(mt, wanted, script.get('lua') or {}, data)
     for e, tr in wanted:
-        if e['source'] in ('script', 'image'):
+        if e['source'] in ('script', 'image', 'lua'):
             continue
         v = view(e)
         if e['source'] == 'wts':
