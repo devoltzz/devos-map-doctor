@@ -43,6 +43,91 @@ function DB_est_esquece takes unit u returns nothing
     call FlushChildHashtable(DB_est_ht,GetHandleId(u))
 endfunction
 
+hashtable DB_est_diario_ht=null
+integer DB_est_diario_n=0
+constant integer DB_EST_DIARIO_MAX=64
+
+function DB_est_diario_liga takes unit u returns nothing
+    local integer h
+    if u==null then
+        return
+    endif
+    if DB_est_diario_ht==null then
+        set DB_est_diario_ht=InitHashtable()
+    endif
+    set h=GetHandleId(u)
+    if not HaveSavedInteger(DB_est_diario_ht,h,0) then
+        call SaveInteger(DB_est_diario_ht,h,0,0)
+        set DB_est_diario_n=DB_est_diario_n+1
+    endif
+endfunction
+
+function DB_est_diario_desliga takes unit u returns nothing
+    local integer h
+    if u==null or DB_est_diario_ht==null then
+        return
+    endif
+    set h=GetHandleId(u)
+    if HaveSavedInteger(DB_est_diario_ht,h,0) then
+        call FlushChildHashtable(DB_est_diario_ht,h)
+        set DB_est_diario_n=DB_est_diario_n-1
+    endif
+endfunction
+
+function DB_est_diario_anota takes unit u,integer st,real v returns nothing
+    local integer h=GetHandleId(u)
+    local integer n
+    local integer k
+    if not HaveSavedInteger(DB_est_diario_ht,h,0) then
+        return
+    endif
+    if HaveSavedInteger(DB_est_diario_ht,h,1000+st) then
+        set k=LoadInteger(DB_est_diario_ht,h,1000+st)
+    else
+        set n=LoadInteger(DB_est_diario_ht,h,0)
+        if n>=DB_EST_DIARIO_MAX then
+            return
+        endif
+        set k=n
+        call SaveInteger(DB_est_diario_ht,h,0,n+1)
+        call SaveInteger(DB_est_diario_ht,h,1000+st,k)
+        call SaveInteger(DB_est_diario_ht,h,10+k,st)
+    endif
+    call SaveReal(DB_est_diario_ht,h,10+k,v)
+endfunction
+
+function DB_est_diario_repete takes unit u returns nothing
+    local integer h
+    local integer n
+    local integer k=0
+    local integer st
+    local real v
+    if u==null or DB_est_diario_ht==null then
+        return
+    endif
+    set h=GetHandleId(u)
+    if not HaveSavedInteger(DB_est_diario_ht,h,0) then
+        return
+    endif
+    set n=LoadInteger(DB_est_diario_ht,h,0)
+    call RemoveSavedInteger(DB_est_diario_ht,h,0)
+    set DB_est_diario_n=DB_est_diario_n-1
+    loop
+        exitwhen k>=n
+        set st=LoadInteger(DB_est_diario_ht,h,10+k)
+        set v=LoadReal(DB_est_diario_ht,h,10+k)
+        if st==-1 then
+            call DB_estado_max_vida(u,v)
+        elseif st==-2 then
+            call DB_estado_max_mana(u,v)
+        else
+            call DB_estado_set(u,st,v)
+        endif
+        set k=k+1
+    endloop
+    call FlushChildHashtable(DB_est_diario_ht,h)
+endfunction
+
 function DB_est_piso takes real x returns integer
     local integer i
     if x>=2147483000.0 then
@@ -79,6 +164,9 @@ function DB_estado_max_vida takes unit u,real v returns nothing
     //{{KK_FIMSE:KK_EST_VIDA_GRANDE}}
     if u==null then
         return
+    endif
+    if DB_est_diario_n>0 then
+        call DB_est_diario_anota(u,-1,v)
     endif
     //{{KK_SE:KK_MORFO_ESTADO}}
     call DB_morfo_confere(u)
@@ -118,6 +206,9 @@ function DB_estado_max_mana takes unit u,real v returns nothing
     local integer n
     if u==null then
         return
+    endif
+    if DB_est_diario_n>0 then
+        call DB_est_diario_anota(u,-2,v)
     endif
     //{{KK_SE:KK_MORFO_ESTADO}}
     call DB_morfo_confere(u)
@@ -554,6 +645,9 @@ function DB_estado_set takes unit u,integer st,real v returns nothing
     local integer h
     if u==null then
         return
+    endif
+    if DB_est_diario_n>0 then
+        call DB_est_diario_anota(u,st,v)
     endif
     //{{KK_SE:KK_MORFO_ESTADO}}
     call DB_morfo_confere(u)
