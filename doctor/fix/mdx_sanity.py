@@ -63,6 +63,7 @@ def check(data, version=None):
     _textures(m, f)
     _materials(m, f)
     _geosets(m, f, game)
+    _nodes(m, f)
     _references(m, f)
     _tracks(m, f)
     return f.result()
@@ -208,6 +209,21 @@ def _geosets(m, f, game):
                       'have.', '%s: a matrix names a node that does not exist' % where)
 
 
+def _nodes(m, f):
+    if m.nodes or m.pivots or not m.version or m.version >= 900:
+        return
+    loose = [i for i, g in enumerate(m.geos) if g.get('skin') is None and g['parts'].get('VRTX', (0,))[0]]
+    if loose:
+        f.add(
+            'mdx_no_nodes',
+            'info',
+            'The model has geosets but no node at all (no bone, no PIVT): the matrix group '
+            'their vertices name does not exist. The 3.0 draws such a model as a doodad (measured on 318 placed in the '
+            'Lusin release); as a unit it was not measured (the Pride RPG goddess statue).',
+            'geoset %d of %d' % (loose[0], len(m.geos)),
+        )
+
+
 def _references(m, f):
     ntex, nmat, ngeo = len(m.texs), len(m.mats), len(m.geos)
     for i, a in enumerate(m.geoa):
@@ -330,7 +346,8 @@ def summary(result, version=None):
     if odd:
         out.append({'code': 'model_odd', 'severity': 'info', 'files': odd[:30], 'count': len(odd),
                     'text': '%d models have oddities (%s): sequences with no length or overlapping, empty bounds, '
-                            'emitter settings, geosets of the classic skinning with 7,433 vertices or more.'
+                            'emitter settings, geosets of the classic skinning with 7,433 vertices or more, a model '
+                            'with no bone at all.'
                             % (len(odd), ', '.join(sorted(c[4:] for c in rest)))})
     return out
 
