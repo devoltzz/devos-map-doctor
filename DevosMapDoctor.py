@@ -5,7 +5,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 from doctor.fix import unprotect as D
 
-VERSION = '1.8.2'
+VERSION = '1.8.3'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -840,6 +840,19 @@ def editor_text(r):
         placed_files = set(x['file_name'] for x in details.get('count') or [] if x.get('from_script'))
         if not placed_files:
             out.append(('info', '  - Units, regions and sounds the script creates do not show in the editor.'))
+    if details.get('renamed_doodads'):
+        out.append(
+            (
+                'info',
+                '  - Gave %s the ID the game renamed it to in patch 3.0.1.24371 (%s).'
+                % (
+                    pluralize(sum(x['n'] for x in details['renamed_doodads']), 'doodad', 'doodads'),
+                    ', '.join(
+                        '%s -> %s x%d' % (x['from_'], x['new_value'], x['n']) for x in details['renamed_doodads']
+                    ),
+                ),
+            )
+        )
     if details.get('doodads_outside'):
         out.append(('info', '  - Removed %s whose object ID does not exist (%s).'
                     % (pluralize(details['doodads_outside'], 'doodad', 'doodads'),
