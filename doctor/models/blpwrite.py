@@ -1,4 +1,4 @@
-# Writes BLP1 textures with JPEG compression.
+# Writes BLP1 textures, JPEG or paletted.
 import io
 import struct
 
@@ -74,8 +74,14 @@ QTABLE = [
 ]
 
 
-def _scaled_table(scale):
-    return [max(1, min(255, int(round(v * scale)))) for v in QTABLE]
+LUMA_K = [16, 11, 10, 16, 24, 40, 51, 61, 12, 12, 14, 19, 26, 58, 60, 55, 14, 13, 16, 24, 40, 57, 69, 56,
+          14, 17, 22, 29, 51, 87, 80, 62, 18, 22, 37, 56, 68, 109, 103, 77, 24, 35, 55, 64, 81, 104, 113, 92,
+          49, 64, 78, 87, 103, 121, 120, 101, 72, 92, 95, 98, 112, 100, 103, 99]
+QTABLE_HIGH = [max(1, (v * 20 + 50) // 100) for v in LUMA_K]
+
+
+def _scaled_table(scale, base=None):
+    return [max(1, min(255, int(round(v * scale)))) for v in (QTABLE if base is None else base)]
 
 
 def _patch_component_ids(data):
@@ -99,11 +105,11 @@ def _patch_component_ids(data):
     return bytes(out)
 
 
-def _jpeg_bgra(im, quality):
+def _jpeg_bgra(im, quality, base=None):
     r, g, b, a = im.split()
     cmyk = Image.merge('CMYK', tuple(ImageChops.invert(c) for c in (b, g, r, a)))
     buf = io.BytesIO()
-    cmyk.save(buf, 'JPEG', qtables=[_scaled_table(quality / 100.0)] * 4, subsampling=0)
+    cmyk.save(buf, 'JPEG', qtables=[_scaled_table(quality / 100.0, base)] * 4, subsampling=0)
     data = _patch_component_ids(buf.getvalue())
     out = bytearray(data[:2])
     p = 2
@@ -123,7 +129,7 @@ def _jpeg_bgra(im, quality):
     return bytes(out)
 
 
-def save_blp(im, path, quality=90, alpha_bits=None, mipmaps=True, extra=None):
+def blp_jpeg_bytes(im, quality=90, alpha_bits=None, mipmaps=True, extra=None, qtable=None):
     im = im.convert('RGBA')
     w, h = im.size
     if alpha_bits is None:
@@ -134,7 +140,7 @@ def save_blp(im, path, quality=90, alpha_bits=None, mipmaps=True, extra=None):
     levels = []
     cur = im
     while True:
-        levels.append(_jpeg_bgra(cur, quality if not levels else int(quality * 1.3)))
+        levels.append(_jpeg_bgra(cur, quality if not levels else int(quality * 1.3), qtable))
         if not mipmaps or (cur.width == 1 and cur.height == 1) or len(levels) == 16:
             break
         cur = cur.resize((max(1, cur.width // 2), max(1, cur.height // 2)), Image.LANCZOS)
@@ -150,9 +156,12 @@ def save_blp(im, path, quality=90, alpha_bits=None, mipmaps=True, extra=None):
     sizes += [0] * (16 - len(sizes))
     hdr = b'BLP1' + struct.pack('<IIIIII', 0, alpha_bits, w, h, 4 if extra is None else extra, 1 if mipmaps else 0)
     hdr += struct.pack('<16I', *offs) + struct.pack('<16I', *sizes) + struct.pack('<I', 0)
+    return len(levels), hdr + b''.join(levels)
+
+
+def save_blp(im, path, quality=90, alpha_bits=None, mipmaps=True, extra=None):
+    n, data_bytes = blp_jpeg_bytes(im, quality, alpha_bits, mipmaps, extra)
     with open(path, 'wb') as f:
-        f.write(hdr)
-        for lv in levels:
-            f.write(lv)
-    return len(levels), pos
+        f.write(data_bytes)
+    return n, len(data_bytes)
 
