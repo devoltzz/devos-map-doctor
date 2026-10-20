@@ -16,6 +16,10 @@ from doctor.script import sstrhash
 TOKEN = re.compile(r'''(?P<comment>//[^\n]*)|(?P<str>"(?:[^"\\]|\\.)*")|(?P<raw>'(?:[^'\\]|\\.)*')'''
                    r'''|(?P<num>0[xX][0-9A-Fa-f]+|\$[0-9A-Fa-f]+|\d+\.\d*|\.\d+|\d+)|(?P<id>[A-Za-z_]\w*)'''
                    r'''|(?P<nl>\r?\n)|(?P<ws>[ \t\r\f\v]+)|(?P<op>.)''', re.S)
+TOKEN_CR = re.compile(r'''(?P<com>//[^\r\n]*)|(?P<str>"(?:[^"\\]|\\.)*")|(?P<raw>'(?:[^'\\]|\\.)*')'''
+                      r'''|(?P<num>0[xX][0-9A-Fa-f]+|\$[0-9A-Fa-f]+|\d+\.\d*|\.\d+|\d+)|(?P<id>[A-Za-z_]\w*)'''
+                      r'''|(?P<nl>\r\n|\n|\r)|(?P<ws>[ \t\f\v]+)|(?P<op>.)''', re.S)
+_RX_BARE_CR = re.compile(r'\r(?!\n)')
 PIECE = re.compile(r'\\.|.', re.S)
 WORD_PIECE = re.compile(r'\\.|[A-Za-z0-9]+|.', re.S)
 KEYWORDS = set('''function takes returns return nothing endfunction local set call if then else elseif
@@ -54,6 +58,8 @@ def _native_lexer():
 
 
 def tokenize(body_text):
+    if _token_of(body_text) is TOKEN_CR:
+        return tokenize_regex(body_text)
     lex = _native_lexer()
     r = lex(body_text, 0) if lex is not None else None
     if r is not None:
@@ -64,10 +70,14 @@ def tokenize(body_text):
     return tokenize_regex(body_text)
 
 
+def _token_of(body_text):
+    return TOKEN_CR if '\r' in body_text and _RX_BARE_CR.search(body_text) else TOKEN
+
+
 def tokenize_regex(body_text):
     kinds, texts = [], []
     ka, ta = kinds.append, texts.append
-    for m in TOKEN.finditer(body_text):
+    for m in _token_of(body_text).finditer(body_text):
         ka(m.lastgroup)
         ta(m.group())
     return kinds, texts
@@ -504,16 +514,16 @@ def main():
                 n_ef_dynamic += 1
     name_table = []
     if patterns and fmap:
-        seen = {}
         for orig, new in fmap.items():
             if any(orig.startswith(pa) and orig.endswith(su) for pa, su in patterns):
-                for dobra in (True, False):
-                    h = (dobra, sstrhash.stringhash_reforged(orig, dobra))
-                    if h in seen:
-                        raise SystemExit('ERROR: the Reforged StringHash repeats between %s and %s (use --manter)'
-                                         % (seen[h], orig))
-                    seen[h] = orig
                 name_table.append((orig, new))
+    colisoes = name_collisions(name_table)
+    if colisoes:
+        print(
+            'WARNING: %d Reforged StringHash value(s) repeated in the name table (StringHash does not tell the letter case apart): %s; '
+            'the table keeps the names of the group in a chain, checked by text'
+            % (len(colisoes), '; '.join('/'.join(g) for g in colisoes[:5]) + (' ...' if len(colisoes) > 5 else ''))
+        )
     if name_table:
         for ta, tb in dynamic_fields:
             before[ta] = before.get(ta, '') + '\x00NOMEFN('
@@ -831,6 +841,23 @@ def write_verification(file_path, str_list, raw_list, rawval, ref_s, ref_r, name
           % (file_path, len(str_list), len(raw_list), len(name_table)))
 
 
+def hash_groups(name_table):
+    n_by_hash = collections.Counter()
+    output = []
+    for orig, new in name_table:
+        h = sstrhash.hybrid_stringhash(orig, True)
+        output.append((orig, new, 2 * n_by_hash[h]))
+        n_by_hash[h] += 1
+    return output
+
+
+def name_collisions(name_table):
+    by_hash = collections.defaultdict(list)
+    for orig, _ in name_table:
+        by_hash[sstrhash.hybrid_stringhash(orig, True)].append(orig)
+    return [g for g in by_hash.values() if len(g) > 1]
+
+
 def new_pieces(L):
     F_D, F_R, F_INI, F_NAME = L['F_D'], L['F_R'], L['F_INI'], L['F_NAME']
     V_T, V_I, H_ALF, H_NAME = L['V_T'], L['V_I'], L['H_ALF'], L['H_NAME']
@@ -909,15 +936,30 @@ def new_pieces(L):
     if name_table:
         u = set()
         s, h = n(3, 9, u), n(3, 9, u)
-        out += ['function %s takes string %s returns string' % (F_NAME, s),
-                'local integer %s=StringHash(%s)' % (h, s),
-                'if HaveSavedString(%s,%s,1) then' % (H_NAME, h),
-                'if LoadStr(%s,%s,1)==%s then' % (H_NAME, h, s),
-                'return LoadStr(%s,%s,0)' % (H_NAME, h),
-                'endif',
-                'endif',
-                'return %s' % s,
-                'endfunction']
+        if name_collisions(name_table):
+            k = n(3, 9, u)
+            out += ['function %s takes string %s returns string' % (F_NAME, s),
+                    'local integer %s=StringHash(%s)' % (h, s),
+                    'local integer %s=0' % k,
+                    'loop',
+                    'exitwhen not HaveSavedString(%s,%s,%s+1)' % (H_NAME, h, k),
+                    'if LoadStr(%s,%s,%s+1)==%s then' % (H_NAME, h, k, s),
+                    'return LoadStr(%s,%s,%s)' % (H_NAME, h, k),
+                    'endif',
+                    'set %s=%s+2' % (k, k),
+                    'endloop',
+                    'return %s' % s,
+                    'endfunction']
+        else:
+            out += ['function %s takes string %s returns string' % (F_NAME, s),
+                    'local integer %s=StringHash(%s)' % (h, s),
+                    'if HaveSavedString(%s,%s,1) then' % (H_NAME, h),
+                    'if LoadStr(%s,%s,1)==%s then' % (H_NAME, h, s),
+                    'return LoadStr(%s,%s,0)' % (H_NAME, h),
+                    'endif',
+                    'endif',
+                    'return %s' % s,
+                    'endfunction']
     block_list = []
 
     def new_block(lines_):
@@ -956,9 +998,9 @@ def new_pieces(L):
     if ls:
         new_block(ls)
     txt_ln = []
-    for orig, nv in name_table:
-        txt_ln.append('call SaveStr(%s,StringHash(%s),0,"%s")' % (H_NAME, ref_s(orig), nv))
-        txt_ln.append('call SaveStr(%s,StringHash(%s),1,%s)' % (H_NAME, ref_s(orig), ref_s(orig)))
+    for orig, nv, slot in hash_groups(name_table):
+        txt_ln.append('call SaveStr(%s,StringHash(%s),%d,"%s")' % (H_NAME, ref_s(orig), slot, nv))
+        txt_ln.append('call SaveStr(%s,StringHash(%s),%d,%s)' % (H_NAME, ref_s(orig), slot + 1, ref_s(orig)))
         if len(txt_ln) >= 3000:
             new_block(txt_ln)
             txt_ln = []
