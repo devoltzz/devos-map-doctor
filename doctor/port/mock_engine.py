@@ -374,6 +374,36 @@ local _sorteio = math.random
 function GetRandomInt(a, b) if b < a then return a end return _sorteio(a, b) end
 function GetRandomReal(a, b) return a + (b - a) * _sorteio() end
 function SetRandomSeed(s) end
+-- [18/10/2026] o que o JOGO da' ao `war3map.lua` antes do script e o mapa Lua usa sem definir: o `__jarray` (o World
+-- Editor escreve `udg_X = __jarray(0)`, `__jarray("")`... nas globais `array`) e o `FourCC`. Os dois sao o `luahelper` do
+-- Reforged, tirado do executavel (`terceiros/jassdoc/extra-lua/luahelper.lua`), com a mesma conta. Sem eles o mapa Lua
+-- morria na carga, e o pack que os guarda em `local` (o OzzyCP) morria calado no `pcall` dele (achado pelo
+-- `anticheat_bj_lua`). Os guardas `X = X or ...` do `jass_para_lua` mantem os daqui.
+function __jarray(default)
+  return setmetatable({}, { __index = function() return default end })
+end
+-- o `FourCC` soma os 4 primeiros bytes SEM sinal (o `string.byte`): a string mais longa vale pelos 4 primeiros (o
+-- `FourCC('H01F:Hblm')` da skin do World Editor), a curta da' erro como no jogo. O inteiro do Lua do jogo e' de 32
+-- bits (LUA_32BITS): o 1.o byte acima de 127 da' a volta para negativo; aqui (lupa, 64 bits) a volta e' explicita, e no
+-- `lua53_32` do `ydwe/simula.py --lua32` o `n > 0x7FFFFFFF` nunca vale. NAO e' o rawcode do JASS (que soma o byte COM
+-- sinal, o `jass2lua`): os dois so' batem no ASCII.
+function FourCC(id)
+  local n = 0x1000000 * string.byte(id:sub(1, 1)) + 0x10000 * string.byte(id:sub(2, 2))
+            + 0x100 * string.byte(id:sub(3, 3)) + string.byte(id:sub(4, 4))
+  if n > 0x7FFFFFFF then n = n - 4294967296 end
+  return n
+end
+-- o relogio de parede que o `war3map.lua` le': o `os.time()` (e o `os.date` sem hora) era o da maquina, e o mapa que o
+-- le' dava rastros diferentes entre duas partidas do MESMO script (o Monster Defense manda o valor num
+-- `BlzSendSyncData`: 1 chamada de 8.772, medido pelo `anticheat_bj_lua` em 18/10/2026). No motor ele anda com o tempo
+-- de jogo a partir de uma data fixa: a mesma partida da' o mesmo numero. O `os.time(tabela)` (a conversao de uma data)
+-- fica o do Lua. O `os.clock` ja' nao e' o da maquina: o `rt_core` o troca pelo relogio de jogo (`__clock`).
+__MOCK_EPOCA = 1700000000
+if type(os) == "table" then
+  local _os_time, _os_date = os.time, os.date
+  os.time = function(t) if t ~= nil then return _os_time(t) end return __MOCK_EPOCA + math.floor(M.now) end
+  os.date = function(f, t) return _os_date(f, t or os.time()) end
+end
 -- watchdog: aborta callbacks que passam de N instrucoes (loop infinito)
 local WATCHDOG = 20000000
 local wd_depth = 0
@@ -572,6 +602,7 @@ function __mock_advance(seconds, step)
   local target = M.now + seconds
   while M.now < target do
     M.now = M.now + step
+    M.passo = (M.passo or 0) + 1   -- [18/10/2026] o tique do motor: a Chaos pendente pega no tique SEGUINTE ao da chamada
     local perf_t0, perf_itens                                   -- [R1F2:stutter]
     if __PERF_ON then perf_t0 = __wall() perf_itens = {} end     -- [R1F2:stutter]
     __mock_deliver_sync()
@@ -610,6 +641,7 @@ function __mock_advance(seconds, step)
     if __mock_vida_tick then __mock_vida_tick() end -- [F5:priest] tempo de vida de unidade (cenario --priest-e)
     if __mock_tt_tick then __mock_tt_tick() end -- [C2] texto flutuante de vida curta
     if __mock_cheat_tick then __mock_cheat_tick() end -- [R1F1:anticheat] efeito continuo dos codigos
+    if __mock_chaos_tick then __mock_chaos_tick() end -- [18/10/2026] a troca de tipo da Chaos, depois dos relogios
     if __PERF_ON then perf_fecha(perf_t0, perf_itens, M.now) end -- [R1F2:stutter]
   end
 end
@@ -940,7 +972,46 @@ function TriggerRegisterPlayerChatEvent(t, p, s, e) return reg(t, "chat", s, e =
 function TriggerRegisterEnterRegion(t, r, f) M.enter_triggers = M.enter_triggers or {} M.enter_triggers[#M.enter_triggers + 1] = { t, f } return reg(t, "enter", r) end
 function TriggerRegisterLeaveRegion(t, r, f) return reg(t, "leave", r) end
 function TriggerRegisterGameEvent(t, e) return reg(t, "game", e) end
-function TriggerRegisterVariableEvent(t, v, o, l) return reg(t, "var", v) end
+-- [18/10/2026] o evento "Value of Real Variable" do GUI fica guardado pelo NOME da global, para o `globals` do Lua
+-- disparar (abaixo). No JASS transpilado o `set` da global nao passa por aqui: la' ele continua sem disparar.
+function TriggerRegisterVariableEvent(t, v, o, l)
+  if t and type(v) == "string" then
+    M.var_ev = M.var_ev or {}
+    local lista = M.var_ev[v] or {}
+    M.var_ev[v] = lista
+    lista[#lista + 1] = { t = t, op = type(o) == "table" and o.__h or o, lim = l }
+  end
+  return reg(t, "var", v)
+end
+-- [18/10/2026] o `globals` que o JOGO da' ao `war3map.lua` (o World Editor 2.0.x o usa; nao esta' no `luahelper` do
+-- jassdoc): a global vigiada por um "Value of Real Variable" (no Daemonic Sword, as 2 do `TriggerRegisterVariableEvent`,
+-- e so' elas) o World Editor escreve `globals.udg_X = v` e inicia em `globals(function(_ENV) udg_X = 0.0 end)`; o Lua
+-- nao avisa quando uma global muda, e e' por essa tabela que o jogo ve a escrita. Aqui: o valor mora no `_G` (o `udg_X`
+-- puro le' o mesmo), `globals(f)` chama `f(globals)`, e cada escrita de numero que satisfaz a comparacao de um registro
+-- dispara o gatilho dele (`GetTriggerEventId()` = `EVENT_GAME_VARIABLE_LIMIT`). NAO MEDIDO em jogo: se o jogo dispara
+-- a cada escrita que satisfaz (o escolhido) ou so' quando a comparacao passa de falsa a verdadeira.
+local function var_compara(op, v, lim)
+  if op == 0 then return v < lim elseif op == 1 then return v <= lim elseif op == 2 then return v == lim
+  elseif op == 3 then return v >= lim elseif op == 4 then return v > lim elseif op == 5 then return v ~= lim end
+  return false
+end
+function __mock_var_escreve(nome, v)
+  _G[nome] = v
+  local lista = M.var_ev and M.var_ev[nome]
+  if lista == nil or type(v) ~= "number" then return end
+  for _, e in ipairs(lista) do
+    if type(e.lim) == "number" and var_compara(e.op, v, e.lim) then
+      local pe = __trigger_event
+      __trigger_event = EVENT_GAME_VARIABLE_LIMIT
+      __mock_fire(e.t)
+      __trigger_event = pe
+    end
+  end
+end
+globals = setmetatable({}, {
+  __index = function(_, k) return _G[k] end,
+  __newindex = function(_, k, v) __mock_var_escreve(k, v) end,
+  __call = function(self, f) return f(self) end })
 function TriggerRegisterDialogEvent(t, d) return reg(t, "dialog", d) end
 function TriggerRegisterDialogButtonEvent(t, b) return reg(t, "button", b) end
 function TriggerRegisterPlayerAllianceChange(t, p, a) return reg(t, "ally", a) end
@@ -1259,6 +1330,7 @@ function IsUnitHidden(u) return false end
 -- habilidade 'Avul' que os filtros do mapa (GS_IsUnitAliveBJ) consultam. Sem isso o mock nao
 -- enxerga duas contabilidades de pausa brigando pelo mesmo bit do motor.
 function IsUnitPaused(u) return u ~= nil and u.pausado == true end
+function BlzIsUnitInvulnerable(u) return u ~= nil and u.invul == true end   -- [18/10/2026] o `DB_morph` le
 function SetUnitInvulnerable(u, b)
   if not u then return end
   u.invul = (b == true)
@@ -1299,29 +1371,68 @@ local function __mock_abil_lista(sid)
   end
   return l
 end
+-- [18/10/2026] o que a troca faz com a unidade, MEDIDO EM JOGO (as sondas de `testes/saidas/chaos_morph/RELATORIO.md`):
+-- tira TODA habilidade que nao e' permanente (`UnitMakeAbilityPermanent`): a propria Chaos, as postas por gatilho e o
+-- invulneravel; poe as do tipo novo; a vida maxima nova = maxima + (base nova - base velha) e a vida anda o mesmo tanto
+-- (o DANO fica: 350/700 -> 430/780). A mana pela mesma regra (NAO medida). Antes o mock punha a vida maxima do tipo novo.
 function __mock_chaos(u, alvo)
   if u == nil or alvo == nil or #alvo ~= 4 then return false end
   local novo = string.unpack(">I4", alvo)
   local velho = string.pack(">I4", (u.typeid or 0) & 0xFFFFFFFF)
   local rec = __slk_raw and __slk_raw.unit and __slk_raw.unit[alvo]
   if rec == nil then return false end
-  for _, a in ipairs(__mock_abil_lista(velho)) do UnitRemoveAbility(u, a) end
+  local rv = __slk_raw.unit[velho]
+  local tira = {}
+  for a in pairs(u.abil) do if not (u.__perm and u.__perm[a]) then tira[#tira + 1] = a end end
+  table.sort(tira)
+  for _, a in ipairs(tira) do UnitRemoveAbility(u, a) end
+  u.invul = false
   u.typeid = novo
   for _, a in ipairs(__mock_abil_lista(alvo)) do UnitAddAbility(u, a) end
-  local hp = tonumber(rec.hp)
-  if hp and hp > 0 then
-    u.maxlife = hp + 0.0
+  local hn, hv = tonumber(rec.hp or ""), tonumber(rv and rv.hp or "")
+  if hn and hv then
+    local m0 = u.maxlife or u.life or 0.0
+    u.maxlife = m0 + (hn - hv)
+    u.life = (u.life or 0.0) + (u.maxlife - m0)
+  elseif hn and hn > 0 then
+    u.maxlife = hn + 0.0
     if (u.life or 0) > u.maxlife then u.life = u.maxlife end
   end
-  local mn = tonumber(rec.manan)
-  if mn and mn > 0 then
-    u.maxmana = mn + 0.0
+  local mnn, mnv = tonumber(rec.manan or ""), tonumber(rv and rv.manan or "")
+  if mnn and mnv then
+    local m0 = u.maxmana or 0.0
+    u.maxmana = m0 + (mnn - mnv)
+    u.mana = (u.mana or 0.0) + (u.maxmana - m0)
+  elseif mnn and mnn > 0 then
+    u.maxmana = mnn + 0.0
     if (u.mana or 0) > u.maxmana then u.mana = u.maxmana end
   end
   u.cool = tonumber(rec.cool1) or u.cool
   local d = tonumber(rec.def or "")
   if d then u.armor = d + 0.0 end
   return true
+end
+-- [18/10/2026] a troca PENDENTE: a Chaos posta por `UnitAddAbility` troca o tipo no tique SEGUINTE do motor (depois dos
+-- relogios de 0 s criados no tique da chamada), nao dentro dela; `UnitRemoveAbility` antes cancela; o `PauseUnit` segura
+-- (o `BlzPauseUnitEx` nao); unidade sem vida nao troca. Em ordem de pedido (deterministico). Uma cena que troca o
+-- `__mock_chaos` por nada (o "motor recusa") continua valendo: a pendencia sai e o tipo fica.
+__mock_chaos_fila = {}
+function __mock_chaos_tick()
+  if #__mock_chaos_fila == 0 then return end
+  local fica = {}
+  local fila = __mock_chaos_fila
+  __mock_chaos_fila = fica
+  for _, u in ipairs(fila) do
+    local c = u.__chaos
+    if c == nil or (u.typeid or 0) == 0 then
+      -- cancelada (a habilidade saiu) ou a unidade saiu do jogo
+    elseif c.passo >= (M.passo or 0) or u.pausado or (u.life or 0.0) <= 0.405 then
+      fica[#fica + 1] = u
+    else
+      u.__chaos = nil
+      __mock_chaos(u, c.alvo)
+    end
+  end
 end
 -- [R1F2:morpheus2] fim
 function UnitAddAbility(u, id)
@@ -1335,12 +1446,17 @@ function UnitAddAbility(u, id)
   end
   u.abil[id] = 1
   u.aspd_own_tick = nil   -- [R1F2:aspd2] o bonus do motor tem de ser refeito ainda neste tique
-  -- [R1F2:morpheus2] Chaos: a unidade vira o tipo do campo UnitID1 no instante em que ganha a skill
-  if rec and rec.code == "Acha" and rec.unitid1 then __mock_chaos(u, rec.unitid1) end
+  -- [R1F2:morpheus2] Chaos: a unidade vira o tipo do campo UnitID1. [18/10/2026] NO TIQUE SEGUINTE (medido em jogo; ate'
+  -- aqui era no instante em que ganhava a skill, e por isso as provas passavam e o jogo nao): `__mock_chaos_tick`
+  if rec and rec.code == "Acha" and rec.unitid1 then
+    if u.__chaos == nil then __mock_chaos_fila[#__mock_chaos_fila + 1] = u end
+    u.__chaos = { id = id, alvo = rec.unitid1, passo = M.passo or 0 }
+  end
   return true
 end
 function UnitRemoveAbility(u, id)
   if not u or not u.abil[id] then return false end
+  if u.__chaos and u.__chaos.id == id then u.__chaos = nil end   -- [18/10/2026] tirar a Chaos antes cancela a troca
   u.abil[id] = nil
   u.aspd_own_tick = nil   -- [R1F2:aspd2]
   return true
@@ -1537,7 +1653,11 @@ end
 function SetUnitAbilityLevel(u, id, l) if u and u.abil[id] then u.abil[id] = l u.aspd_own_tick = nil end return l end  -- [R1F2:aspd2]
 function IncUnitAbilityLevel(u, id) if u and u.abil[id] then u.abil[id] = u.abil[id] + 1 u.aspd_own_tick = nil return u.abil[id] end return 0 end  -- [R1F2:aspd2]
 function DecUnitAbilityLevel(u, id) if u and u.abil[id] then u.abil[id] = u.abil[id] - 1 u.aspd_own_tick = nil return u.abil[id] end return 0 end  -- [R1F2:aspd2]
-function UnitMakeAbilityPermanent(u, p, id) return true end
+-- [18/10/2026] a permanente sobrevive a troca de tipo da Chaos (medido em jogo; `__mock_chaos`)
+function UnitMakeAbilityPermanent(u, p, id)
+  if u then u.__perm = u.__perm or {} u.__perm[id] = (p == true) or nil end
+  return true
+end
 -- [F5:repick] a disponibilidade e POR JOGADOR e sobrevive ao heroi: e disso que o -repick sofre
 function SetPlayerAbilityAvailable(p, id, a)
   if p == nil or id == nil then return end
@@ -1918,6 +2038,9 @@ function UnitInventorySize(u) return (u and u.invsize) or 6 end
 function __mock_slot_livre(u) if u == nil then return nil end u.inv = u.inv or {} for s = 0, UnitInventorySize(u) - 1 do local it = u.inv[s] if it == nil or it.typeid == 0 or it.dono ~= u then return s + 1 end end return nil end
 -- espaco de inventario e 0..tamanho-1, como no motor (UnitItemInSlotBJ passa indice-1)
 function UnitItemInSlot(u, s) if u == nil or u.inv == nil then return nil end local it = u.inv[s] if it and it.typeid ~= 0 and it.dono == u then return it end return nil end
+-- [19/10/2026, o painel F2 do Pride] o item esta' no inventario da unidade (era o stub do common.j: sempre false; a troca
+-- de encanto do autor, RepoPort___ApplyChoice, recusava toda troca no simulador)
+function UnitHasItem(u, i) if u == nil or i == nil or u.inv == nil then return false end for s = 0, UnitInventorySize(u) - 1 do if u.inv[s] == i and i.dono == u and i.typeid ~= 0 then return true end end return false end
 -- [F5:craft] o motor recusa o item em mais casos que o inventario cheio (item que a unidade nao pode
 -- carregar, por exemplo). __mock_falha_additem(n) faz as proximas n chamadas devolverem false, para
 -- testar o caminho de "a entrega falhou" sem depender de encher inventario.
@@ -2149,6 +2272,23 @@ function CreateDestructable(id, x, y, f, s, v) return newh("destructable", { typ
 function CreateDestructableZ(id, x, y, z, f, s, v) return newh("destructable", { typeid = id }) end
 function CreateDeadDestructable(id, x, y, f, s, v) return newh("destructable", { typeid = id }) end
 function CreateDeadDestructableZ(id, x, y, z, f, s, v) return newh("destructable", { typeid = id }) end
+-- [18/10/2026] as nativas "WithSkin" do 1.32+: o World Editor cria com elas as unidades e os destrutiveis
+-- pre-colocados (o Monster Defense: 482 unidades). Eram o stub do `gen_stubs` (um handle sem tipo: `GetUnitTypeId` 0 e
+-- nenhuma unidade no motor). Criam pelo criador simples e guardam a skin; a chamada interna vai pela referencia de
+-- AGORA (no jogo a nativa nao passa pelo `CreateUnit` do Lua: quem embrulha o `_G`, como o livro-caixa do anti-cheat,
+-- ve so' a nativa chamada). O `BlzCreateItemWithSkin` ja' existia (o [R1F2:save2], acima) e fica como esta'.
+do
+  local cria = { u = CreateUnit, d = CreateDestructable, dz = CreateDestructableZ,
+                 m = CreateDeadDestructable, mz = CreateDeadDestructableZ }
+  local function pele(h, skin) if type(h) == "table" then h.skin = skin end return h end
+  function BlzCreateUnitWithSkin(p, id, x, y, face, skin) return pele(cria.u(p, id, x, y, face), skin) end
+  function BlzCreateDestructableWithSkin(id, x, y, f, s, v, skin) return pele(cria.d(id, x, y, f, s, v), skin) end
+  function BlzCreateDestructableZWithSkin(id, x, y, z, f, s, v, skin) return pele(cria.dz(id, x, y, z, f, s, v), skin) end
+  function BlzCreateDeadDestructableWithSkin(id, x, y, f, s, v, skin) return pele(cria.m(id, x, y, f, s, v), skin) end
+  function BlzCreateDeadDestructableZWithSkin(id, x, y, z, f, s, v, skin)
+    return pele(cria.mz(id, x, y, z, f, s, v), skin)
+  end
+end
 function CreateFogModifierRect(p, s, r, a, b) return newh("fogmodifier") end
 function CreateFogModifierRadius(p, s, x, y, r, a, b) return newh("fogmodifier") end
 function CreateFogModifierRadiusLoc(p, s, l, r, a, b) return newh("fogmodifier") end
