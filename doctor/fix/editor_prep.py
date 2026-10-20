@@ -886,6 +886,12 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
         if _bd and _game:
             _valid = _game | doodads.map_ids(a) | set(extra_ids)
             if _valid:
+                _bd, _renamed = doodads.rename_ids(_bd, _valid)
+                if _renamed:
+                    replacements['war3map.doo'] = _bd
+                    details['renamed_doodads'] = [
+                        {'from_': v.decode('latin-1'), 'new_value': n.decode('latin-1'), 'n': k} for v, n, k in _renamed
+                    ]
                 _new_doo, _bad = doodads.without_invalid_ids(_bd, _valid)
                 if _bad:
                     replacements['war3map.doo'] = _new_doo
