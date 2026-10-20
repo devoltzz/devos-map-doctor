@@ -26,6 +26,32 @@ def literals(line, _matches=_RX_LITERAL.finditer):
     return out
 
 
+def enclosing_calls(segment):
+    max_depth = virgulas = 0
+    i = len(segment) - 1
+    while i >= 0:
+        c = segment[i]
+        if c == ')':
+            max_depth += 1
+        elif c == '(':
+            if max_depth == 0:
+                j = i - 1
+                while j >= 0 and (segment[j].isalnum() or segment[j] in '_$'):
+                    j -= 1
+                fname = segment[j + 1:i]
+                if fname:
+                    yield fname, virgulas
+                    virgulas = 0
+            else:
+                max_depth -= 1
+        elif c == ',' and max_depth == 0:
+            virgulas += 1
+        i -= 1
+
+
+KEY_CALLS = ('StringHash', 'SubString', 'StringLength')
+
+
 def classify(line, pos, lit):
     before = line[max(0, pos - 40):pos]
     after = line[pos + len(lit) + 2:pos + len(lit) + 12]
@@ -33,7 +59,9 @@ def classify(line, pos, lit):
         return 'comparison'
     if re.search(r'TriggerRegisterPlayerChatEvent\s*\([^()"]*(?:\([^()"]*\)[^()"]*)*$', line[:pos]):
         return 'chat'
-    if 'StringHash(' in before or 'SubString(' in before or 'StringLength(' in before:
+    window = line[max(0, pos - 400):pos]
+    if ('StringHash(' in window or 'SubString(' in window or 'StringLength(' in window) and any(
+            fname in KEY_CALLS for fname, _i in enclosing_calls(window)):
         return 'hash/substring'
     if 'GetLocalizedString' in before:
         return 'localizada'
