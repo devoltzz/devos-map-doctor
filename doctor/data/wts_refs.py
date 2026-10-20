@@ -16,11 +16,24 @@ def arg(fname, default_value=None):
     return default_value
 
 
+def _object_names():
+    try:
+        from doctor.data import object_names
+        return object_names
+    except ImportError:
+        pass
+    before = list(sys.path)
+    try:
+        from doctor.data import object_names
+    finally:
+        sys.path[:] = before
+    return object_names
+
+
 def read_wts(p, rx=None):
     t = open(p, 'rb').read().decode('utf-8', 'surrogateescape')
     if rx is None:
-        from doctor.data import object_names
-        return [(int(m.group(1)), m.group(2)) for m in object_names.wts_entries(t)]
+        return [(int(m.group(1)), m.group(2)) for m in _object_names().wts_entries(t)]
     return [(int(m.group(1)), m.group(2)) for m in rx.finditer(t)]
 
 
