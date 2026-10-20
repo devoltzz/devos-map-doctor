@@ -3,6 +3,66 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 1.8.3 (2026-10-20)
+
+### New
+
+- **Translation: the texts of Lua code.** The export now takes the screen texts of Lua scripts too, with the rule it
+  uses for JASS, one decision per copy of a text: a text goes out only when no copy of it is compared, used as a table
+  index or key, cut or matched by position, passed to `require`, or passed where a function of the map does one of
+  those with it. It reads the `war3map.lua` of a Lua map, the Lua modules a KK map of the YDWE Lua engine ships (all of
+  them, also the ones the name list misses), and the modules a map ported by the Lua route keeps in its `war3map.lua`.
+  The import writes each translation back into every copy, with the quotes each one had, and reads the script back
+  token by token. On "尘封古域ORPG" the item tables, the exchange panels and the reward lists of its Lua modules come to
+  4,132 texts.
+
+### Fixed
+
+- **Translation: the texts a script keeps in a table** (issue 37). A text the script saves under keys made by
+  `StringHash` (`SaveStr(table, StringHash("52" + I2S(4)), StringHash("Name"), "Weekly Quest 4")`) was taken for a
+  hash key and left out of the export, because a `StringHash(` came shortly before it on the line. Only a text inside
+  `StringHash(...)` is a key now. The quest lists, bestiaries and item panels a map builds this way are in the file:
+  on "尘封古域ORPG" the script texts go from 608 to 2,198.
+- **Translation: file paths with a space in their name** were exported as texts (`war3mapImported\Earth Kill 1.mp3`,
+  `...\01 Angel of Justice Wing.tga`), and a translated one broke the sound or the icon. They stay out now: up to 474
+  of them on one test map.
+- **Translation: a map ported by the Lua route** (issue 37). The texts of its converted script are not exported, and
+  the Translation tab didn't say so: a KK map ported first and translated after kept its quests, dialogs and menus in
+  Chinese. The tab says it now, with what to do: translate the original map (export, then Fix map with the translated
+  file) and port the translated map, which keeps the translation. The QoL edits go the same way, on the original map.
+- **Open in World Editor: the Archway doodad.** Patch 3.0.1.24371 renamed the game's Archway doodad from `NSra` to
+  `NSr0`. A map that placed it had a doodad with no object for the game and for today's World Editor, which crashes
+  on it, and "Open in World Editor" removed it. It gets the new ID now and stays on the map.
+- **Port to Reforged: units that change type through a Chaos ability.** The port's layer checked the change right
+  away and took the Chaos off, but the game changes the type on its next tick, so no unit changed (a guardian's
+  Rooting, a Morpheus). The Chaos stays until the type changes now, and what the change wipes and the map had added
+  (abilities, invulnerability, the life and mana of the old type) comes back. Measured in game.
+- **Port to Reforged, M16/JN maps:** `JNR2I` took any value under 0.001 for zero (the game compares reals with that
+  tolerance). It tests the exact zero now.
+- **Open in World Editor, maps in SLK mode:** in the object files made from the SLK tables, the second part of a
+  `Buttonpos` read the first one cut off, so every command button came out at row 0.
+- **Cheat packs: the FSCP and haxorico packs.** Their locals went after the first statement of `main`, which the game
+  refuses, and the check let it through as a warning. The locals go first now, a script with a byte order mark in the
+  middle reads right, and any complaint about the map's script fails the check.
+- **Make it single player: a lock kept in a file.** Some maps (the RPG Creator pattern) run a file of the map through
+  `Preloader("<file>")`, and that file renames the players and ends the game in single player. The option finds that
+  file now and makes it harmless; the script is not touched for it.
+- **Runs on Reforged?: models.** A texture animation entry of 4 bytes is valid (it was reported as a texture animation
+  that does not exist). A model with geosets and no node at all, and a texture whose mip chain has a dead tail, are
+  listed as information.
+
+### Changed
+
+- **The game reference is Reforged 3.0.1.24371.** The checks of the port and "Runs on Reforged?" know its 4 new
+  natives (`BlzUnitIsAlive`, `BlzSetHUDScale`, `BlzLockHUDScale`, `BlzUnlockHUDScale`), its 110 new ability fields and
+  the 2 new `blizzard.j` functions, `UnitIsDeadBJ` and `UnitIsAliveBJ`: a map script that defines a function with one
+  of those names no longer compiles in the game, and "Runs on Reforged?" says so. The site reads the game data of this
+  version.
+- **The name list:** the names of files of other games are out, and a community list came in: 5,251,623 names
+  (`names.npz` 131.9 MB). The auto-update offers it to anyone with the old one.
+- **Shrink** compresses on several threads in the program for Windows and Linux (it used one there; the source
+  version already used several processes).
+
 ## 1.8.2 (2026-10-17)
 
 ### Fixed
