@@ -139,10 +139,26 @@ def _div(a, b):
     return float(a) / float(b)
 
 
+def _null_as(a, b):
+    if a is None and isinstance(b, (int, float)):
+        return type(b)(0), b
+    if b is None and isinstance(a, (int, float)):
+        return a, type(a)(0)
+    return a, b
+
+
+def _real_pair(a, b):
+    return (isinstance(a, float) or isinstance(b, float)) and not isinstance(a, bool) and not isinstance(b, bool) \
+        and isinstance(a, (int, float)) and isinstance(b, (int, float))
+
+
 def _cmp(op):
     def f(a, b):
         if a is UNSET or b is UNSET:
             raise Crash('read of an uninitialized variable')
+        a, b = _null_as(a, b)
+        if op == '==' and _real_pair(a, b):
+            return abs(float(a) - float(b)) < 0.001
         if op == '==':
             return a == b if not (isinstance(a, Handle) or isinstance(b, Handle)) else a is b
         if op == '!=':
@@ -158,6 +174,8 @@ for _op in ('==', '!=', '<', '<=', '>', '>='):
 
 
 def _coerce(type_, v):
+    if v is None and type_ in ('integer', 'real', 'boolean'):
+        return DEFAULTS[type_]
     if type_ == 'real' and isinstance(v, int) and not isinstance(v, bool):
         return float(v)
     return v
@@ -213,7 +231,12 @@ def thread_limits(script, libraries=(), seconds=20.0, early=5.0, budget=40000000
 
 
 class Interpreter(object):
-    def __init__(self, script, libraries=(), budget=3000000, seconds=30.0, seed=0):
+    def __init__(self, script, libraries=(), budget=3000000, seconds=30.0, seed=0, natives=None):
+        self.overrides = dict(natives or {})
+        self.chat_registrations = []
+        self.chat_string = None
+        self.chat_matched = None
+        self.recorded = {}
         self.budget = budget
         self.deadline = None
         self.seconds = seconds
@@ -357,10 +380,45 @@ class Interpreter(object):
                 elif _trigger_evaluate(self, x):
                     _trigger_execute(self, x)
 
+    def chat(self, player_id, message):
+        self.overrides.setdefault('GetEventPlayerChatString', lambda it: it.chat_string)
+        self.overrides.setdefault('GetEventPlayerChatStringMatched', lambda it: it.chat_matched)
+        msg = message.encode('utf-8', 'surrogateescape').decode('latin-1')
+        p = self.player(player_id)
+        ran = 0
+        for t, who, text, exact in list(self.chat_registrations):
+            text = _s(text)
+            if who is not p or t is None or not (msg == text if exact else text in msg):
+                continue
+            saved = self.player_trigger, self.chat_string, self.chat_matched
+            self.player_trigger, self.chat_string, self.chat_matched = p, msg, text
+            try:
+                if _trigger_evaluate(self, t):
+                    _trigger_execute(self, t)
+                    ran += 1
+            finally:
+                self.player_trigger, self.chat_string, self.chat_matched = saved
+        return ran
+
+    def record(self, name):
+        f = self.functions.get(name)
+        if f is None or f.is_native:
+            raise JassError('no function %s in the script' % name)
+        inner = self._function(f)
+        calls = self.recorded.setdefault(name, [])
+
+        def run(args):
+            calls.append(list(args))
+            return inner(args)
+        self._compiled[name] = run
+        return calls
+
     def call(self, name, args):
         f = self.functions.get(name)
         if f is None:
-            impl = NATIVES.get(name)
+            impl = self.overrides.get(name) if self.overrides else None
+            if impl is None:
+                impl = NATIVES.get(name)
             if impl is not None:
                 return impl(self, *args)
             if name in self.native_types:
@@ -783,6 +841,7 @@ def _execute_func(it, name):
 
 def _chat_event(it, t, p, s, exact):
     it.chat_events.append((p.data if p is not None else None, _bytes_text(s), bool(exact)))
+    it.chat_registrations.append((t, p, s, bool(exact)))
     return Handle('event')
 
 
@@ -916,10 +975,10 @@ def libraries():
         return []
 
 
-def run(script, budget=3000000, seconds=30.0, libs=None, entries=('config', 'main')):
+def run(script, budget=3000000, seconds=30.0, libs=None, entries=('config', 'main'), natives=None):
     if sys.getrecursionlimit() < 20000:
         sys.setrecursionlimit(20000)
-    it = Interpreter(script, libraries() if libs is None else libs, budget, seconds)
+    it = Interpreter(script, libraries() if libs is None else libs, budget, seconds, natives=natives)
     _handle_natives(it.native_types)
     it.stopped = None
     try:
