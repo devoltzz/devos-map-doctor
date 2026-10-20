@@ -2319,11 +2319,14 @@ function translationGroupsBox() {
   const g = state.trGroups;
   if (!g) return el('p', { class: 'faint', text: 'Listing the texts of the map...' });
   if (g.state === 'failed') return el('div', { class: 'report' }, el('div', { class: 'l bad', text: g.error }));
-  if (!(g.groups || []).length) return el('p', { class: 'muted', text: 'The map has no text to export.' });
+  const note = g.script_note ? el('div', { class: 'report', style: 'margin:4px 0 8px' },
+    el('div', { class: 'l warn', text: g.script_note })) : null;
+  if (!(g.groups || []).length) return el('div', {}, note,
+    el('p', { class: 'muted', text: 'The map has no text to export.' }));
   const all = g.groups.every(x => !state.trSkip.has(x.key));
   const set = on => { state.trSkip = on ? new Set() : new Set(g.groups.map(x => x.key)); renderTranslation(); };
   const total = g.groups.filter(x => !state.trSkip.has(x.key)).reduce((n, x) => n + x.count, 0);
-  return el('div', {},
+  return el('div', {}, note,
     el('div', { class: 'row', style: 'margin:4px 0 6px' }, el('h3', { class: 'grow', style: 'margin:0',
       text: 'What to export' }), el('span', { class: 'faint', text: total + ' texts' }),
     el('button', { class: 'btn small ghost', text: all ? 'None' : 'All', onclick: () => set(!all) })),
