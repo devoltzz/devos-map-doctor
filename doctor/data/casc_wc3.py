@@ -3,6 +3,7 @@ import fnmatch
 import hashlib
 import os
 import struct
+import sys
 import zlib
 
 
@@ -159,6 +160,22 @@ def read_config(game, hash_key):
 _TREES = {}
 
 
+def _memo():
+    try:
+        from doctor.data import memo
+        return memo
+    except ImportError:
+        mod = sys.modules.get('_casc_memo')
+        if mod is None:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(
+                '_casc_memo', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'memo.py'))
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            sys.modules['_casc_memo'] = mod
+        return mod
+
+
 PACK_MANIFEST = 'doctor_game_data.json'
 PACK_LIST = 'paths.txt'
 def pack_file_path(game, file_path):
@@ -186,7 +203,7 @@ class CascWC3(object):
         hash_key = self._tree_key()
         stored = _TREES.get(hash_key)
         if stored is None:
-            from doctor.data import memo
+            memo = _memo()
             stored = memo.load('casc', hash_key)
             if not (isinstance(stored, tuple) and len(stored) == 2 and stored[0] and stored[1]):
                 stored = None
@@ -199,7 +216,7 @@ class CascWC3(object):
         if load_tvfs:
             self._load_tvfs()
             _TREES[hash_key] = (self.index_, self.file_set)
-            from doctor.data import memo
+            memo = _memo()
             memo.save('casc', hash_key, _TREES[hash_key])
 
     def _open_pack(self):
@@ -219,7 +236,7 @@ class CascWC3(object):
                             % (PACK_LIST, len(self.file_set), m['total']))
 
     def _tree_key(self):
-        from doctor.data import memo
+        memo = _memo()
         idx = tuple(sorted((n, os.path.getsize(os.path.join(self.data_bytes, n))) for n in os.listdir(self.data_bytes)
                            if n.lower().endswith('.idx')))
         return memo.key(self.game.lower(), self.build_key, self.config.get('vfs-root', ''), idx)
