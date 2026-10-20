@@ -1993,6 +1993,25 @@ _BAD = (
     ('semicolon 200 levels deep', 'do ' * 199 + ';' + ' end' * 199),
     ('bad label after a label', 'goto c local x = 1 ::c:: ::\nend'),
 )
+def _shape(e):
+    t = type(e)
+    if t is Name:
+        return e.name
+    if t is Literal:
+        return e.text
+    if t is Binary:
+        return '(%s %s %s)' % (_shape(e.left), e.op, _shape(e.right))
+    if t is Unary:
+        return '(%s %s)' % (e.op, _shape(e.operand))
+    if t is Paren:
+        return '[%s]' % _shape(e.inner)
+    if t is Call:
+        return '%s%s(%s)' % (_shape(e.func), ':' + e.method if e.method else '', ', '.join(map(_shape, e.args)))
+    if t is Index:
+        return '%s.%s' % (_shape(e.base), e.key.value) if e.dot else '%s[%s]' % (_shape(e.base), _shape(e.key))
+    return t.__name__
+
+
 def _read(path):
     with open(path, 'rb') as f:
         return f.read().decode('utf-8', 'surrogateescape')
