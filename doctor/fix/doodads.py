@@ -202,6 +202,34 @@ def invalid_ids(b, valid_ids, d=None):
                   key=lambda kv: -kv[1])
 
 
+RENAMED_IDS = {b'NSra': b'NSr0'}
+
+
+def rename_ids(b, valid_ids, d=None):
+    swap = dict((v, n) for v, n in RENAMED_IDS.items() if v not in valid_ids and n in valid_ids)
+    if not swap:
+        return b, []
+    d = d or read_data(b)
+    if not d.get('on_close'):
+        return b, []
+    counted = [r['begin'] for r in d['regs']]
+    if d['tail']:
+        base = len(b) - len(d['tail'])
+        counted += [base + 8 + 16 * i for i in range(struct.unpack_from('<i', d['tail'], 4)[0])]
+    skins = [r['id_positions'][1] for r in d['regs'] if d['skin'] and len(r['id_positions']) > 1]
+    out, done = bytearray(b), {}
+    for p in counted:
+        old = bytes(b[p:p + 4])
+        if old in swap:
+            out[p:p + 4] = swap[old]
+            done[old] = done.get(old, 0) + 1
+    for p in skins:
+        old = bytes(b[p:p + 4])
+        if old in swap:
+            out[p:p + 4] = swap[old]
+    return bytes(out), sorted(((k, swap[k], v) for k, v in done.items()), key=lambda x: -x[2])
+
+
 def without_invalid_ids(b, valid_ids, d=None):
     d = d or read_data(b)
     if not d.get('on_close'):
