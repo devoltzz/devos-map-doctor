@@ -3193,14 +3193,252 @@ function DB_morph_repausa takes unit u,boolean pausada returns nothing
     endif
 endfunction
 
+hashtable DB_morph_ht=null
+constant integer DB_MORPH_MAX=32
+constant integer DB_MP_ALVO=1
+constant integer DB_MP_VELHO=2
+constant integer DB_MP_CHAOS=3
+constant integer DB_MP_TIQ=4
+constant integer DB_MP_TOTAL=5
+constant integer DB_MP_PAUSOU=6
+constant integer DB_MP_VIDA=7
+constant integer DB_MP_MANA=8
+constant integer DB_MP_INV=9
+constant integer DB_MP_T0=10
+constant integer DB_MP_NREP=11
+constant integer DB_MP_REP=100
+unit array DB_morph_pu
+integer DB_morph_pn=0
+timer DB_morph_tmr=null
+timer DB_morph_t0=null
+trigger DB_morph_pegou_trg=null
+unit DB_morph_pegou_u=null
+
+function DB_morph_pendente takes unit u returns boolean
+    if u==null or DB_morph_pn==0 then
+        return false
+    endif
+    return HaveSavedInteger(DB_morph_ht,GetHandleId(u),DB_MP_ALVO)
+endfunction
+
+function DB_morph_observa takes unit u,integer h returns nothing
+    call SaveReal(DB_morph_ht,h,DB_MP_VIDA,GetUnitState(u,UNIT_STATE_LIFE))
+    call SaveReal(DB_morph_ht,h,DB_MP_MANA,GetUnitState(u,UNIT_STATE_MANA))
+    call SaveBoolean(DB_morph_ht,h,DB_MP_INV,BlzIsUnitInvulnerable(u))
+endfunction
+
+function DB_morph_habs takes unit u,integer h,boolean marca returns nothing
+    local integer i=0
+    local integer n=0
+    local integer id
+    local integer chaos=LoadInteger(DB_morph_ht,h,DB_MP_CHAOS)
+    local ability a
+    loop
+        set a=BlzGetUnitAbilityByIndex(u,i)
+        exitwhen a==null or i>=200
+        set id=BlzGetAbilityId(a)
+        if marca then
+            call SaveBoolean(DB_morph_ht,h,id,true)
+        elseif id!=chaos and id!=0 and n<50 then
+            if not LoadBoolean(DB_morph_ht,h,id) then
+                call SaveInteger(DB_morph_ht,h,DB_MP_REP+2*n,id)
+                call SaveInteger(DB_morph_ht,h,DB_MP_REP+2*n+1,GetUnitAbilityLevel(u,id))
+                set n=n+1
+            endif
+        endif
+        set i=i+1
+    endloop
+    if not marca then
+        call SaveInteger(DB_morph_ht,h,DB_MP_NREP,n)
+    endif
+    set a=null
+endfunction
+
+function DB_morph_tira takes integer i returns nothing
+    set DB_morph_pn=DB_morph_pn-1
+    set DB_morph_pu[i]=DB_morph_pu[DB_morph_pn]
+    set DB_morph_pu[DB_morph_pn]=null
+    if DB_morph_pn==0 then
+        call PauseTimer(DB_morph_tmr)
+    endif
+endfunction
+
+function DB_morph_indice takes unit u returns integer
+    local integer i=DB_morph_pn-1
+    loop
+        exitwhen i<0
+        if DB_morph_pu[i]==u then
+            return i
+        endif
+        set i=i-1
+    endloop
+    return -1
+endfunction
+
+function DB_morph_pega takes unit u,integer h returns nothing
+    local integer velho=LoadInteger(DB_morph_ht,h,DB_MP_VELHO)
+    local integer alvo=LoadInteger(DB_morph_ht,h,DB_MP_ALVO)
+    local integer chaos=LoadInteger(DB_morph_ht,h,DB_MP_CHAOS)
+    local real vida=LoadReal(DB_morph_ht,h,DB_MP_VIDA)
+    local real mana=LoadReal(DB_morph_ht,h,DB_MP_MANA)
+    local integer n=LoadInteger(DB_morph_ht,h,DB_MP_NREP)
+    local integer k=0
+    local integer id
+    local integer lv
+    local real m
+    if GetUnitAbilityLevel(u,chaos)>0 then
+        call UnitRemoveAbility(u,chaos)
+        if GetUnitTypeId(u)!=alvo then
+            call UnitAddAbility(u,chaos)
+        endif
+    endif
+    if DB_pausa_ht!=null then
+        if HaveSavedInteger(DB_pausa_ht,h,0) and LoadInteger(DB_pausa_ht,h,0)==velho then
+            call SaveInteger(DB_pausa_ht,h,0,alvo)
+        endif
+    endif
+    //{{KK_SE:KK_MORFO_ESTADO}}
+    call DB_morfo_confere(u)
+    //{{KK_FIMSE:KK_MORFO_ESTADO}}
+    call DB_est_diario_repete(u)
+    loop
+        exitwhen k>=n
+        set id=LoadInteger(DB_morph_ht,h,DB_MP_REP+2*k)
+        set lv=LoadInteger(DB_morph_ht,h,DB_MP_REP+2*k+1)
+        if GetUnitAbilityLevel(u,id)==0 then
+            if UnitAddAbility(u,id) and lv>1 then
+                call SetUnitAbilityLevel(u,id,lv)
+            endif
+        endif
+        set k=k+1
+    endloop
+    if LoadBoolean(DB_morph_ht,h,DB_MP_INV) and not BlzIsUnitInvulnerable(u) then
+        call SetUnitInvulnerable(u,true)
+    endif
+    set m=GetUnitState(u,UNIT_STATE_MAX_LIFE)
+    if vida>0.405 then
+        if vida<m then
+            call SetUnitState(u,UNIT_STATE_LIFE,vida)
+        else
+            call SetUnitState(u,UNIT_STATE_LIFE,m)
+        endif
+    endif
+    set m=GetUnitState(u,UNIT_STATE_MAX_MANA)
+    if mana>0.0 then
+        if mana<m then
+            call SetUnitState(u,UNIT_STATE_MANA,mana)
+        else
+            call SetUnitState(u,UNIT_STATE_MANA,m)
+        endif
+    endif
+    if LoadBoolean(DB_morph_ht,h,DB_MP_PAUSOU) then
+        call PauseUnit(u,true)
+    endif
+    call FlushChildHashtable(DB_morph_ht,h)
+    if DB_morph_pegou_trg!=null then
+        set DB_morph_pegou_u=u
+        call TriggerEvaluate(DB_morph_pegou_trg)
+        set DB_morph_pegou_u=null
+    endif
+endfunction
+
+function DB_morph_larga takes unit u,integer h returns nothing
+    local integer chaos=LoadInteger(DB_morph_ht,h,DB_MP_CHAOS)
+    if GetUnitAbilityLevel(u,chaos)>0 then
+        call UnitRemoveAbility(u,chaos)
+    endif
+    if LoadBoolean(DB_morph_ht,h,DB_MP_PAUSOU) then
+        call PauseUnit(u,true)
+    endif
+    call DB_est_diario_desliga(u)
+    call FlushChildHashtable(DB_morph_ht,h)
+endfunction
+
+function DB_morph_retrato takes nothing returns nothing
+    local integer i=DB_morph_pn-1
+    local unit u
+    local integer h
+    loop
+        exitwhen i<0
+        set u=DB_morph_pu[i]
+        set h=GetHandleId(u)
+        if HaveSavedInteger(DB_morph_ht,h,DB_MP_ALVO) and not LoadBoolean(DB_morph_ht,h,DB_MP_T0) then
+            if GetUnitTypeId(u)==LoadInteger(DB_morph_ht,h,DB_MP_VELHO) then
+                call SaveBoolean(DB_morph_ht,h,DB_MP_T0,true)
+                call DB_morph_habs(u,h,false)
+                call DB_morph_observa(u,h)
+            endif
+        endif
+        set i=i-1
+    endloop
+    set u=null
+endfunction
+
+function DB_morph_tique takes nothing returns nothing
+    local integer i=DB_morph_pn-1
+    local unit u
+    local integer h
+    local integer t
+    local integer alvo
+    loop
+        exitwhen i<0
+        set u=DB_morph_pu[i]
+        set h=GetHandleId(u)
+        set t=GetUnitTypeId(u)
+        if t==0 or not HaveSavedInteger(DB_morph_ht,h,DB_MP_ALVO) then
+            call DB_est_diario_desliga(u)
+            call FlushChildHashtable(DB_morph_ht,h)
+            call DB_morph_tira(i)
+        else
+            set alvo=LoadInteger(DB_morph_ht,h,DB_MP_ALVO)
+            if t==alvo then
+                call DB_morph_pega(u,h)
+                call DB_morph_tira(i)
+            elseif t!=LoadInteger(DB_morph_ht,h,DB_MP_VELHO) then
+                call DB_morph_larga(u,h)
+                call DB_morph_tira(i)
+            elseif LoadInteger(DB_morph_ht,h,DB_MP_TIQ)<=0 or LoadInteger(DB_morph_ht,h,DB_MP_TOTAL)<=0 then
+                call DB_morph_larga(u,h)
+                call DB_morph_tira(i)
+                call DB_morph_skin(u,alvo)
+            else
+                call DB_morph_observa(u,h)
+                if not IsUnitPaused(u) then
+                    call SaveInteger(DB_morph_ht,h,DB_MP_TIQ,LoadInteger(DB_morph_ht,h,DB_MP_TIQ)-1)
+                endif
+                call SaveInteger(DB_morph_ht,h,DB_MP_TOTAL,LoadInteger(DB_morph_ht,h,DB_MP_TOTAL)-1)
+            endif
+        endif
+        set i=i-1
+    endloop
+    set u=null
+endfunction
+
 function DB_morph takes unit u,integer alvo returns nothing
     local integer chaos
     local real vida
     local real mana
     local real m
     local boolean pausada
+    local boolean pausou
+    local integer h
+    local integer i
     if u==null or alvo==0 then
         return
+    endif
+    set h=GetHandleId(u)
+    if DB_morph_pendente(u) then
+        set i=DB_morph_indice(u)
+        if GetUnitTypeId(u)==LoadInteger(DB_morph_ht,h,DB_MP_ALVO) then
+            call DB_morph_pega(u,h)
+        elseif alvo==LoadInteger(DB_morph_ht,h,DB_MP_ALVO) then
+            return
+        else
+            call DB_morph_larga(u,h)
+        endif
+        if i>=0 then
+            call DB_morph_tira(i)
+        endif
     endif
     if GetUnitTypeId(u)==alvo then
         if BlzGetUnitSkin(u)!=alvo then
@@ -3209,6 +3447,9 @@ function DB_morph takes unit u,integer alvo returns nothing
         return
     endif
     set chaos=DB_morph_chaos(alvo)
+    if chaos!=0 and DB_morph_pn>=DB_MORPH_MAX then
+        set chaos=0
+    endif
     if chaos!=0 then
         set vida=GetUnitState(u,UNIT_STATE_LIFE)
         set mana=GetUnitState(u,UNIT_STATE_MANA)
@@ -3217,9 +3458,24 @@ function DB_morph takes unit u,integer alvo returns nothing
             call DB_morfo_anuncia(u)
         endif
         //{{KK_FIMSE:KK_MORFO_ESTADO}}
+        if DB_morph_ht==null then
+            set DB_morph_ht=InitHashtable()
+        endif
+        call FlushChildHashtable(DB_morph_ht,h)
+        call SaveInteger(DB_morph_ht,h,DB_MP_CHAOS,chaos)
+        call DB_morph_habs(u,h,true)
         set pausada=DB_morph_solta(u)
+        set pausou=false
+        if IsUnitPaused(u) then
+            call PauseUnit(u,false)
+            set pausou=not IsUnitPaused(u)
+        endif
         call UnitAddAbility(u,chaos)
         if GetUnitTypeId(u)==alvo then
+            call FlushChildHashtable(DB_morph_ht,h)
+            if pausou then
+                call PauseUnit(u,true)
+            endif
             call UnitRemoveAbility(u,chaos)
             if GetUnitTypeId(u)!=alvo then
                 call UnitAddAbility(u,chaos)
@@ -3246,8 +3502,25 @@ function DB_morph takes unit u,integer alvo returns nothing
             endif
             return
         endif
-        call UnitRemoveAbility(u,chaos)
         call DB_morph_repausa(u, pausada)
+        call SaveInteger(DB_morph_ht,h,DB_MP_ALVO,alvo)
+        call SaveInteger(DB_morph_ht,h,DB_MP_VELHO,GetUnitTypeId(u))
+        call SaveInteger(DB_morph_ht,h,DB_MP_TIQ,200)
+        call SaveInteger(DB_morph_ht,h,DB_MP_TOTAL,3000)
+        call SaveBoolean(DB_morph_ht,h,DB_MP_PAUSOU,pausou)
+        call DB_morph_observa(u,h)
+        call DB_est_diario_liga(u)
+        set DB_morph_pu[DB_morph_pn]=u
+        set DB_morph_pn=DB_morph_pn+1
+        if DB_morph_tmr==null then
+            set DB_morph_tmr=CreateTimer()
+            set DB_morph_t0=CreateTimer()
+        endif
+        if DB_morph_pn==1 then
+            call TimerStart(DB_morph_tmr,0.01,true,function DB_morph_tique)
+        endif
+        call TimerStart(DB_morph_t0,0.0,false,function DB_morph_retrato)
+        return
     endif
     call DB_morph_skin(u,alvo)
 endfunction
