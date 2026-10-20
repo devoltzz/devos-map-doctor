@@ -110,25 +110,8 @@ def _find(lookup, lit):
 
 
 def call_envolvente(before):
-    max_depth = virgulas = 0
-    i = len(before) - 1
-    while i >= 0:
-        c = before[i]
-        if c == ')':
-            max_depth += 1
-        elif c == '(':
-            if max_depth == 0:
-                j = i - 1
-                while j >= 0 and (before[j].isalnum() or before[j] in '_$'):
-                    j -= 1
-                fname = before[j + 1:i]
-                if fname:
-                    return fname, virgulas
-            else:
-                max_depth -= 1
-        elif c == ',' and max_depth == 0:
-            virgulas += 1
-        i -= 1
+    for pair in ki.enclosing_calls(before):
+        return pair
     return None, None
 
 
