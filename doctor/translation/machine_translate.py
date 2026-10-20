@@ -777,7 +777,7 @@ def translate_map(path, out_file, progress=None, only=None, quality='best', lang
         rep['entries'] = len(mt.entries)
     result, info = translate_entries(mt.entries, lang, engine, p)
     rep.update(info)
-    order = {'w3i': 0, 'wts': 1, 'object': 2, 'profile': 3, 'fdf': 4, 'script': 5, 'image': 6}
+    order = {'w3i': 0, 'wts': 1, 'object': 2, 'profile': 3, 'fdf': 4, 'script': 5, 'lua': 6, 'image': 7}
     entries = []
     for e in sorted(mt.entries, key=lambda e: order[e['source']]):
         x = translation_io.public(e)
