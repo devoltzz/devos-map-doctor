@@ -3268,7 +3268,7 @@ function JNR2I takes real r returns integer
     local integer e=127
     local integer m
     local real a=r
-    if r==0.0 then
+    if not (r!=0.0) then
         return 0
     endif
     if r<0.0 then
