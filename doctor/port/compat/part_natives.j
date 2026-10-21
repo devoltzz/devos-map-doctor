@@ -2177,7 +2177,7 @@ endfunction
 function DzTriggerRegisterKeyEventByCode takes trigger trig,integer key,integer status,boolean sync,code funcHandle returns nothing
     local integer i=0
     local oskeytype k=ConvertOsKeyType(key)
-    if trig==null then
+    if trig==null or funcHandle!=null then
         set trig=CreateTrigger()
     endif
     loop
@@ -2211,7 +2211,7 @@ endfunction
 function DzTriggerRegisterMouseEventByCode takes trigger trig,integer btn,integer status,boolean sync,code funcHandle returns nothing
     local playerevent ev=EVENT_PLAYER_MOUSE_UP
     local integer i=0
-    if trig==null then
+    if trig==null or funcHandle!=null then
         set trig=CreateTrigger()
     endif
     call DB_ui_ht_ok()
@@ -2237,7 +2237,7 @@ function DzTriggerRegisterMouseEvent takes trigger trig,integer btn,integer stat
 endfunction
 
 function DzTriggerRegisterMouseMoveEventByCode takes trigger trig,boolean sync,code funcHandle returns nothing
-    if trig==null then
+    if trig==null or funcHandle!=null then
         set trig=CreateTrigger()
     endif
     if funcHandle!=null then
