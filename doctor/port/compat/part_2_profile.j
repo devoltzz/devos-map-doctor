@@ -712,6 +712,11 @@ function RequestExtraIntegerData takes integer dataType,player whichPlayer,strin
     elseif dataType==82 then
         return 999999
     endif
+    //{{KK_SE:KK_SRV_RANK}}
+    if dataType==18 then
+        return 1
+    endif
+    //{{KK_FIMSE:KK_SRV_RANK}}
     //{{KK_SE:KK_SRV_BACKEND}}
     if (dataType==85 or dataType==87) and whichPlayer!=null and param1!=null and param1!="" then
         call DB_perfil_garante()
