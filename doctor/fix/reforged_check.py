@@ -368,6 +368,28 @@ def check_items(path):
                            'doodads or destructables that may never be placed.' % (len(bad), soft), 'none',
                            paths=[dict((k, x.get(k)) for k in ('source', 'id', 'field', 'path', 'suggestion'))
                                   for x in (bad or m['missing'])[:10]]))
+    from doctor.fix import item_pick
+    ip = safe(item_pick.scan)
+    if ip and ip.get('items'):
+        names = ', '.join('%s %s' % (x['id'], x['name']) if x['name'] else x['id'] for x in ip['items'][:5])
+        n_units = sum(1 for x in ip['items'] if x['kind'] == 'unit')
+        items.append(
+            _item(
+                'item_pick_hd',
+                'warning',
+                '%d item types and %d unit types use as their model an effect or a '
+                'doodad of the game whose Reforged graphics file has nothing a click can hit (no collision '
+                'shape, no geoset box): in Reforged graphics they can only be selected with a drag box, while '
+                'in Classic graphics the click works (%s). The Doctor\'s port points them at a copy of the '
+                'classic file. Models: %s.'
+                % (len(ip['items']) - n_units, n_units, names, ', '.join(sorted(ip['models'])[:4])),
+                'none',
+                count=len(ip['items']),
+                units=n_units,
+                models=sorted(ip['models']),
+                items=[dict((k, x[k]) for k in ('kind', 'id', 'name', 'path', 'source')) for x in ip['items'][:10]],
+            )
+        )
     from doctor.fix import map_rules
     mr = safe(map_rules.scan)
     for f in (mr or {}).get('findings') or []:
