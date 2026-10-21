@@ -12,6 +12,7 @@ NEUTRAL = {'integer': '0', 'real': '0.0', 'boolean': 'false', 'string': 'null'}
 TABLE_NAME = 'KK_mh_ht'
 H2I = 'KKMH_h2i'
 I2H = 'KKMH_i2h_'
+DOWNGRADE = 'KKMH_rebaixa_'
 
 
 RX_MASK = re.compile(r'"(?:[^"\\]|\\.)*"?|\'[^\']*\'?|//.*')
@@ -725,8 +726,65 @@ def agents(pg, casts, info):
     return bool(replacements)
 
 
+def agent_vars(pg, info):
+    ref = pg.ref
+    cands = {}
+    for i, (begin, end_pos, _r, fname, ps, ret) in enumerate(pg.fs):
+        if not ref.handle(ret) or ret in ('handle', 'agent') or not ref.fits(ret, 'agent'):
+            continue
+        for k in range(begin + 1, end_pos):
+            mm = re.match(r'^[ \t]*return[ \t]+\(*[ \t]*([A-Za-z_]\w*)[ \t]*\)*[ \t]*$', pg.masks[k])
+            if not mm or pg.var_type(mm.group(1), i) != 'handle':
+                continue
+            v = mm.group(1)
+            if v in pg.local_vars[fname]:
+                cands.setdefault(('line', v, i), _Slot('line', v, 'handle', i))
+            elif v in pg.map_globals and not any(n == v for _t, n in ps):
+                cands.setdefault(('g', v, None), _Slot('g', v, 'handle'))
+    replacements = []
+    for sl in cands.values():
+        functions = None if sl.kind == 'g' else [sl.function]
+        invalid = None
+        for k, s, e in _var_occurrences(pg, sl.fname, functions):
+            f = pg.owner[k]
+            if sl.kind == 'g' and f is not None and (sl.fname in pg.local_vars[pg.fs[f][3]] or
+                                                     any(n == sl.fname for _t, n in pg.fs[f][4])):
+                continue
+            m = pg.masks[k]
+            before = m[:s]
+            if not (RX_SET.match(before) or RX_LOCAL_DECL.match(before)):
+                continue
+            mm = re.match(r'^[ \t]*=', m[e:])
+            if not mm:
+                continue
+            t = pg.kind(k, e + mm.end(), len(m.rstrip()))
+            if not (t == 'null' or (t and ref.handle(t) and ref.fits(t, 'agent'))):
+                invalid = 'line %d: %s' % (k + 1, t)
+                break
+        if invalid is None and sl.kind == 'g':
+            a, b = pg.block_entry if pg.block_entry else (0, -1)
+            for k in range(a, b + 1):
+                mm = re.match(r'^[ \t]*handle[ \t]+%s[ \t]*=[ \t]*(.*?)[ \t]*$' % re.escape(sl.fname), pg.masks[k])
+                if mm and mm.group(1) != 'null':
+                    invalid = 'line %d' % (k + 1)
+        if invalid:
+            info['agent_vars_not'].append((sl.fname, invalid))
+            continue
+        replacements.extend(_declaration(pg, sl, 'agent'))
+        info['agent_vars'].append(sl.fname if sl.kind == 'g' else
+                                                   '%s.%s' % (pg.fs[sl.function][3], sl.fname))
+    _apply_swaps(pg, replacements)
+    return bool(replacements)
+
+
 def expressions(pg, casts, info, neutralize, savers):
     ref = pg.ref
+    downgraded = {}
+    for v in info.get('agent_vars', ()):
+        f, _p, n = v.rpartition('.')
+        for _i, _f, _r, fname, _ps, _ret in pg.fs:
+            if not f or fname == f:
+                downgraded.setdefault(fname, set()).add(n)
     for i, (begin, end_pos, _r, fname, ps, ret) in enumerate(pg.fs):
         if ret == 'nothing' or fname in casts:
             continue
@@ -754,6 +812,10 @@ def expressions(pg, casts, info, neutralize, savers):
                     info['helpers'].add(H2I)
                 else:
                     new = 'GetHandleId(%s)' % expr
+            elif ref.handle(t) and ref.handle(ret) and ref.fits(ret, t) and ref.fits(t, 'agent') and \
+                    ref.load_data.get(ret) and expr.strip() in downgraded.get(fname, ()):
+                new = '%s%s(%s)' % (DOWNGRADE, ret, expr)
+                info['helpers'].add(DOWNGRADE + ret)
             elif ref.handle(t) and ref.handle(ret) and ref.fits(ret, t) and ref.fits(t, 'agent') and \
                     ref.load_data.get(ret):
                 new = '%s%s(%s(%s))' % (I2H, ret, H2I, expr)
@@ -805,6 +867,17 @@ def helpers(ref, chosen):
     if 'KKMH_b2i' in chosen:
         out += ['function KKMH_b2i takes boolean b returns integer', '    if b then', '        return 1', '    endif',
                 '    return 0', 'endfunction']
+    for q in sorted(q for q in chosen if q.startswith(DOWNGRADE)):
+        t = q[len(DOWNGRADE):]
+        out += (
+            ['function %s takes agent h returns %s' % (q, t)]
+            + lazy_init
+            + [
+                '    call SaveAgentHandle(%s, 2, 0, h)' % TABLE_NAME,
+                '    return %s(%s, 2, 0)' % (ref.load_data[t], TABLE_NAME),
+                'endfunction',
+            ]
+        )
     for t in sorted(q for q in chosen if not q.startswith('KKMH_')):
         out += ['function %s%s takes integer i returns %s' % (I2H, t, t)] + lazy_init + [
             '    return %s(%s, 0, i)' % (ref.load_data[t], TABLE_NAME), 'endfunction']
@@ -812,8 +885,8 @@ def helpers(ref, chosen):
 
 
 def new_info():
-    return {'retyped_vars': [], 'kept_neutral': [], 'agents': [], 'non_agents': [], 'expressions': [],
-            'neutral_expr': [], 'helpers': set(), 'casts': {}}
+    return {'retyped_vars': [], 'kept_neutral': [], 'agents': [], 'non_agents': [], 'agent_vars': [],
+            'agent_vars_not': [], 'expressions': [], 'neutral_expr': [], 'helpers': set(), 'casts': {}}
 
 
 def applies(line_list, ref, ref_text, neutralize=False):
@@ -830,6 +903,8 @@ def applies(line_list, ref, ref_text, neutralize=False):
     goes_back = any(P == 'integer' and ref.handle(R) for P, R in casts.values()) or any(
         t == 'integer' and ref.handle(r) for _f, _fo, t, r, _l in program_census(pg))
     if goes_back and agents(pg, casts, info):
+        pg = Program(line_list, ref, ref_text)
+    if agent_vars(pg, info):
         pg = Program(line_list, ref, ref_text)
     expressions(pg, casts, info, neutralize, savers=goes_back)
     return info
