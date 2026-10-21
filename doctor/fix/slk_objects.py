@@ -20,6 +20,9 @@ def _objetos():
     return objects
 
 
+INTERNAL_NAME = {('unit', 'units\\unitui.slk'): ('name',)}
+
+
 def map_tables(read, names, species):
     ob = _objetos()
     cfg = ob.OBJ_KINDS[species]
@@ -29,10 +32,11 @@ def map_tables(read, names, species):
         if not data:
             continue
         _h, rows = ob.slk.parse_slk_bytes(data)
+        fora = INTERNAL_NAME.get((species, rel), ())
         for rid, row in rows.items():
             dst = tab.setdefault(rid, {})
             for k, v in row.items():
-                if v != '' and v is not None:
+                if v != '' and v is not None and k.lower() not in fora:
                     dst[k.lower()] = v
     ids = set(tab)
     cru = {}
