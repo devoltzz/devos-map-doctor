@@ -405,6 +405,9 @@ function KKP_taxa_txt takes integer tipo,integer taxa,integer pid returns string
     if m<=0.0 then
         set m=1.0
     endif
+    if I2R(taxa)*m>=1000.0 then
+        return "|cff00ff00always|r"
+    endif
     return "|cff00ff00"+KKP_pct(I2R(taxa)*m/10.0)+"|r"
 endfunction
 
