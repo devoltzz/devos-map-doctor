@@ -886,12 +886,24 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
         if _bd and _game:
             _valid = _game | doodads.map_ids(a) | set(extra_ids)
             if _valid:
+                _valid = doodads.drop_legacy(_valid, _game | doodads.defined_ids(a) | set(extra_ids))
+                _placed = set(doodads.ids(_bd))
                 _bd, _renamed = doodads.rename_ids(_bd, _valid)
                 if _renamed:
                     replacements['war3map.doo'] = _bd
                     details['renamed_doodads'] = [
                         {'from_': v.decode('latin-1'), 'new_value': n.decode('latin-1'), 'n': k} for v, n, k in _renamed
                     ]
+                _object_files, _parents, _stayed = doodads.rename_parents(
+                    dict((n, a.read(n)) for n in doodads.DOODAD_OBJECT_FILES if a.find(n)), _valid, _placed)
+                replacements.update(_object_files)
+                if _parents:
+                    details['doodad_parents_renamed'] = [
+                        {'file_name': n, 'table': t, 'from_': v, 'new_value': p, 'object_data': o}
+                        for n, t, v, p, o in _parents
+                    ]
+                if _stayed:
+                    details['doodad_parents_kept'] = [{'file_name': n, 'from_': v, 'reason': m} for n, v, m in _stayed]
                 _new_doo, _bad = doodads.without_invalid_ids(_bd, _valid)
                 if _bad:
                     replacements['war3map.doo'] = _new_doo
