@@ -3,6 +3,45 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 1.8.4 (2026-10-21)
+
+### New
+
+- **Port to Reforged: items and units you could not click in Reforged graphics.** Some maps use an effect or a doodad
+  of the game as the model of an item or a unit. In Classic graphics the click hits it; the Reforged graphics file of
+  many of those models has nothing a click can hit (no collision shape, no geoset box), so the item or the unit could
+  only be selected with a drag box. The port now points them at a copy of the classic model, which the click hits in
+  both graphics, and "Runs on Reforged?" lists them.
+
+### Fixed
+
+- **Port to Reforged: what a KK map reads in its first seconds** (issue 39). On "尘封古域ORPG" a trigger at 0.01 s
+  reads the save and puts the players in a group; another at 0.2 s goes through that group and reads the shop, the
+  archives and the daily quotas. In a ported map the saves arrive over the network a moment after the start, so the
+  first one waited for them and the second one ran on time with the group still empty: every archive slot was locked,
+  the dungeons said "Not activated yet!!!" and the Tower of Babel had no runs left. Now every timed trigger of the
+  start, from the first one that reads the save on, waits for the saves and then runs in the map's order, with the same
+  gaps between them.
+- **Port to Reforged: a shop item asked only to catch cheat clients** (issue 39). The same map asks the platform for a
+  shop item nobody can buy, and whoever "has" it is marked as a cheater and never gets the archives activated. The port
+  answers "owned" for every shop item, so it marked every player. It now also recognizes a question whose answer
+  writes the same mark the map's cheater block writes, and a question with a nested player argument; for those it
+  answers "not owned". The other shop items stay unlocked.
+- **Port to Reforged: the map level ranking.** The port answers first place, so a map's archive or reward for the top
+  of the ranking unlocks (a player has one place: the rewards for the other places stay locked, as on the platform).
+- **Port to Reforged: maps of patch 1.23 and older** (issue 40, "DotA Outland 4.6a").
+  - A script that starts with a byte order mark stopped the port at the injection step ("injeta.main returned 1"). The
+    mark is removed now.
+  - A map that hands back a group or an event through a `handle` variable (`set iK = g`, `set g = null`, `return iK`,
+    the way maps of that time returned a handle without a leak) had those functions return nothing after the port:
+    every "units in range" or "units in area" of the map came back empty. The variable is an `agent` now and the value
+    comes back through the handle table.
+- **Port to Reforged: a key or mouse event registered with a function** gets its own trigger. When the map passed a
+  trigger of its own too, the key also ran that trigger's actions (on "Pride RPG" the TAB key ran the login sync out
+  of turn, and the game closed or the save broke).
+- **Port to Reforged, multiplayer: two players reading the save at the start.** A trigger that waits for the saves
+  took the same slot of local variables for both players and read only the last one.
+
 ## 1.8.3 (2026-10-20)
 
 ### New
