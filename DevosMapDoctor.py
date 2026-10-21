@@ -5,7 +5,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 from doctor.fix import unprotect as D
 
-VERSION = '1.8.4'
+VERSION = '1.8.5'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -844,7 +844,7 @@ def editor_text(r):
         out.append(
             (
                 'info',
-                '  - Gave %s the ID the game renamed it to in patch 3.0.1.24371 (%s).'
+                '  - Gave %s the ID the game renamed it to (%s).'
                 % (
                     pluralize(sum(x['n'] for x in details['renamed_doodads']), 'doodad', 'doodads'),
                     ', '.join(
@@ -853,6 +853,11 @@ def editor_text(r):
                 ),
             )
         )
+    if details.get('doodad_parents_renamed'):
+        out.append(('info', '  - Based %s on the ID the game renamed its parent to (%s).'
+                    % (pluralize(len(details['doodad_parents_renamed']), 'object', 'objects'),
+                       ', '.join('%s: %s -> %s' % (x['object_data'], x['from_'], x['new_value'])
+                                 for x in details['doodad_parents_renamed'][:4]))))
     if details.get('doodads_outside'):
         out.append(('info', '  - Removed %s whose object ID does not exist (%s).'
                     % (pluralize(details['doodads_outside'], 'doodad', 'doodads'),
