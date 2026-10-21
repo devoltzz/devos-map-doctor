@@ -3147,5 +3147,10 @@
  "lua: {0} does not read as Lua": "lua：{0} 無法按 Lua 解析",
  "lua:{0}:{1}": "lua:{0}:{1}",
  "{0} line {1}: {2}": "{0} 第 {1} 行：{2}",
- "Gave {0} the ID the game renamed it to in patch 3.0.1.24371 ({1}).": "已為 {0} 指派遊戲在 3.0.1.24371 版更新中改用的新 ID（{1}）。"
+ "Gave {0} the ID the game renamed it to in patch 3.0.1.24371 ({1}).": "已為 {0} 指派遊戲在 3.0.1.24371 版更新中改用的新 ID（{1}）。",
+ "Items and units in Reforged graphics": "Reforged 畫面下的物品與單位",
+ "the items and units whose model has nothing to click in Reforged graphics could not be fixed: {0}": "模型在 Reforged 畫面下沒有可點擊部分的物品與單位無法修復：{0}",
+ "the items and units whose model has nothing to click in Reforged graphics were not fixed: {0}": "模型在 Reforged 畫面下沒有可點擊部分的物品與單位未被修復：{0}",
+ "{0} item type(s) and {1} unit type(s) used as their model an effect or a doodad of the game whose Reforged graphics file has nothing a click can hit (no collision shape, no geoset box: only a drag box selected them there). Their model is now a copy of the classic file, which the click hits in both graphics:": "{0} 種物品類型與 {1} 種單位類型使用遊戲的某個特效或 doodad 作為其模型，而其 Reforged 畫面檔案沒有任何可供點擊命中的部分（沒有碰撞形狀、沒有 geoset 框：在該畫面下只能用拖曳框選取）。它們的模型現在是經典版檔案的副本，在兩種畫面下都能點擊命中：",
+ "{0} item types and {1} unit types use as their model an effect or a doodad of the game whose Reforged graphics file has nothing a click can hit (no collision shape, no geoset box): in Reforged graphics they can only be selected with a drag box, while in Classic graphics the click works ({2}). The Doctor's port points them at a copy of the classic file. Models: {3}.": "{0} 種物品類型與 {1} 種單位類型使用遊戲的某個特效或 doodad 作為其模型，而其 Reforged 畫面檔案沒有任何可供點擊命中的部分（沒有碰撞形狀、沒有 geoset 框）：在 Reforged 畫面下，它們只能用拖曳框選取，而在經典畫面下點擊有效（{2}）。Doctor 的移植會將它們指向經典版檔案的副本。模型：{3}。"
 }
