@@ -3147,5 +3147,10 @@
  "lua: {0} does not read as Lua": "lua: {0} không đọc được như Lua",
  "lua:{0}:{1}": "lua:{0}:{1}",
  "{0} line {1}: {2}": "{0} dòng {1}: {2}",
- "Gave {0} the ID the game renamed it to in patch 3.0.1.24371 ({1}).": "Đã gán cho {0} id mà trò chơi đã đổi tên thành trong bản vá 3.0.1.24371 ({1})."
+ "Gave {0} the ID the game renamed it to in patch 3.0.1.24371 ({1}).": "Đã gán cho {0} id mà trò chơi đã đổi tên thành trong bản vá 3.0.1.24371 ({1}).",
+ "Items and units in Reforged graphics": "Vật phẩm và đơn vị trong đồ họa Reforged",
+ "the items and units whose model has nothing to click in Reforged graphics could not be fixed: {0}": "không thể sửa các vật phẩm và đơn vị có mô hình không có gì để nhấp trong đồ họa Reforged: {0}",
+ "the items and units whose model has nothing to click in Reforged graphics were not fixed: {0}": "các vật phẩm và đơn vị có mô hình không có gì để nhấp trong đồ họa Reforged đã không được sửa: {0}",
+ "{0} item type(s) and {1} unit type(s) used as their model an effect or a doodad of the game whose Reforged graphics file has nothing a click can hit (no collision shape, no geoset box: only a drag box selected them there). Their model is now a copy of the classic file, which the click hits in both graphics:": "{0} loại vật phẩm và {1} loại đơn vị dùng làm mô hình một hiệu ứng hoặc một doodad của game mà tệp đồ họa Reforged không có gì để nhấp trúng (không có hình va chạm, không có hộp geoset: ở đó chỉ có thể chọn chúng bằng khung kéo). Mô hình của chúng giờ là bản sao của tệp classic, thứ mà cú nhấp trúng được ở cả hai chế độ đồ họa:",
+ "{0} item types and {1} unit types use as their model an effect or a doodad of the game whose Reforged graphics file has nothing a click can hit (no collision shape, no geoset box): in Reforged graphics they can only be selected with a drag box, while in Classic graphics the click works ({2}). The Doctor's port points them at a copy of the classic file. Models: {3}.": "{0} loại vật phẩm và {1} loại đơn vị dùng làm mô hình một hiệu ứng hoặc một doodad của game mà tệp đồ họa Reforged không có gì để nhấp trúng (không có hình va chạm, không có hộp geoset): trong đồ họa Reforged chúng chỉ có thể được chọn bằng khung kéo, còn trong đồ họa Classic thì nhấp chuột vẫn hoạt động ({2}). Bản chuyển đổi (port) của Doctor trỏ chúng tới một bản sao của tệp classic. Mô hình: {3}."
 }
