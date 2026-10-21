@@ -2512,9 +2512,18 @@ function Preloader(path)
   local corpo = {}       -- funcoes declaradas no arquivo: nome -> linhas
   local atual = nil
   for _, s in ipairs(lines) do
+    -- [20/10/2026, o Pride RPG] o id da habilidade tambem como NUMERO (`BlzSetAbilityTooltip(1097690227,"...",0)`: o
+    -- FileIO da versao abandonada do Pride; o jogo executa o arquivo como JASS e aceita as duas formas)
+    local achados = {}
     for fn, id, val in s:gmatch("call (BlzSetAbility%a*Tooltip)%('(....)',\"(.-)\",0%)") do
+      achados[#achados + 1] = { fn, string.unpack(">I4", id), val }
+    end
+    for fn, id, val in s:gmatch("call (BlzSetAbility%a*Tooltip)%((%-?%d+),\"(.-)\",0%)") do
+      achados[#achados + 1] = { fn, math.tointeger(tonumber(id)), val }
+    end
+    for _, a in ipairs(achados) do
+      local fn, code, val = a[1], a[2], a[3]
       val = val:gsub("\\(.)", "%1")
-      local code = string.unpack(">I4", id)
       -- [reorganizacao 4b, 26/09/2026] as SEIS dicas (a rota M16, `kk_jn.j`, usa as seis; o save do KK, so' as duas
       -- primeiras): cada linha vai para a nativa do nome dela. Antes, tudo que nao era a Tooltip caia na Extended
       local set = _G[fn]
