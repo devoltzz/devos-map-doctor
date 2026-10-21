@@ -163,6 +163,11 @@ def loose_control_bytes(body_text):
     return new, n[0]
 
 
+def strip_bom(body_text):
+    n = len(re.findall(r'(?m)^\xef\xbb\xbf', body_text))
+    return (re.sub(r'(?m)^(?:\xef\xbb\xbf)+', '', body_text), n) if n else (body_text, 0)
+
+
 def assemble(r, argv=None):
     argv = sys.argv[1:] if argv is None else argv
     t0 = time.time()
@@ -189,6 +194,9 @@ def assemble(r, argv=None):
     if loose_ones:
         raw_data = re.sub(r'\r(?!\n)', '\n', raw_data)
         print('0a: %d lone CR line ending(s) became LF' % loose_ones)
+    raw_data, boms = strip_bom(raw_data)
+    if boms:
+        print('0a: %d byte order mark(s) (BOM) at the start of a line removed' % boms)
     t = raw_data
 
     job_progress.step_size('0b', 'Building the script: object data')
