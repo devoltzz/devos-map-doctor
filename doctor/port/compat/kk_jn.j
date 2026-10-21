@@ -983,6 +983,104 @@ function KKJN_IndexAdd takes string user,string name returns nothing
     call KKJN_SaveIndex(user)
 endfunction
 
+function KKJN_CopiaPersonagem takes string UserId,string de,string para returns boolean
+    local string u
+    local integer ik
+    local integer i=0
+    local boolean ok
+    if not KKJN_pronto or UserId==null or UserId=="" or de==null or de=="" or para==null or para=="" or de==para then
+        return false
+    endif
+    set u=KKJN_UKey(UserId)
+    set ik=KKJN_IKey(u)
+    call KKJN_LoadIndex(u)
+    loop
+        exitwhen i>=LoadInteger(KKJN_dbf, ik, -1)
+        if LoadStr(KKJN_dbf, ik, i)==para then
+            return false
+        endif
+        set i=i+1
+    endloop
+    set ok=KKJN_LoadObjRaw(KKJN_ObjChar(u, para), KKJN_BaseChar(u, de))
+    call KKJN_SlotRestore()
+    if not ok then
+        call KKJN_ClearObj(KKJN_ObjChar(u, para))
+        return false
+    endif
+    call KKJN_SaveObj(KKJN_ObjChar(u, para), KKJN_BaseChar(u, para))
+    call KKJN_IndexAdd(u, para)
+    return true
+endfunction
+
+function KKJN_TrocaPersonagens takes string UserId,integer a,integer b returns boolean
+    local string u
+    local integer ik
+    local integer n
+    local integer i
+    local string s
+    if not KKJN_pronto or UserId==null or UserId=="" then
+        return false
+    endif
+    set u=KKJN_UKey(UserId)
+    set ik=KKJN_IKey(u)
+    call KKJN_LoadIndex(u)
+    set n=LoadInteger(KKJN_dbf, ik, -1)
+    if a<0 or a>=n or b<0 or a==b then
+        return false
+    endif
+    set s=LoadStr(KKJN_dbf, ik, a)
+    if b>=n then
+        set i=a
+        loop
+            exitwhen i>=n-1
+            call SaveStr(KKJN_dbf, ik, i, LoadStr(KKJN_dbf, ik, i+1))
+            set i=i+1
+        endloop
+        call SaveStr(KKJN_dbf, ik, n-1, s)
+    else
+        call SaveStr(KKJN_dbf, ik, a, LoadStr(KKJN_dbf, ik, b))
+        call SaveStr(KKJN_dbf, ik, b, s)
+    endif
+    call KKJN_SaveIndex(u)
+    return true
+endfunction
+
+function KKJN_CriaPersonagem takes string UserId,string nome returns string
+    local string u
+    local integer ik
+    local integer i=0
+    local string o
+    if not KKJN_pronto or UserId==null or UserId=="" or nome==null or nome=="" then
+        return ""
+    endif
+    set u=KKJN_UKey(UserId)
+    set ik=KKJN_IKey(u)
+    call KKJN_LoadIndex(u)
+    loop
+        exitwhen i>=LoadInteger(KKJN_dbf, ik, -1)
+        if LoadStr(KKJN_dbf, ik, i)==nome then
+            return ""
+        endif
+        set i=i+1
+    endloop
+    set o=KKJN_ObjChar(u, nome)
+    call KKJN_ClearObj(o)
+    call SaveBoolean(KKJN_dbf, StringHash(o), -2, true)
+    call SaveBoolean(KKJN_dbf, StringHash(o), -3, true)
+    return o
+endfunction
+
+function KKJN_SalvaPersonagem takes string UserId,string nome returns boolean
+    local string u
+    if not KKJN_pronto or UserId==null or UserId=="" or nome==null or nome=="" then
+        return false
+    endif
+    set u=KKJN_UKey(UserId)
+    call KKJN_SaveObj(KKJN_ObjChar(u, nome), KKJN_BaseChar(u, nome))
+    call KKJN_IndexAdd(u, nome)
+    return true
+endfunction
+
 function KKJN_CurChar takes string user returns string
     local string c
     if not HaveSavedString(KKJN_dbf, KKJN_AKey(user), 0) then
