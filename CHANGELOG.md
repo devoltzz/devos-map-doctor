@@ -3,6 +3,26 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 1.8.5 (2026-10-21)
+
+### Fixed
+
+- **Open in World Editor: doodads and destructables whose ID a patch renamed.** Reforged renamed a few objects of the
+  old game data and kept the same model and settings under a new ID: the "Ruined Blocks" doodad `ASbl` is `ASHB` now,
+  the vertical Force Bridge `DTsb` is `DTs0` (the "Archway" `NSra` was already handled since 1.8.3). The game draws
+  nothing for the old IDs and the editor of today crashes on them.
+  - Before, the Ruined Blocks were taken out of the map. Now they get the new ID and stay where the map put them.
+  - A map that also changes the properties of the old object kept the old ID as if it were valid, and the editor still
+    crashed ("DotA Outland 4.6a" changes the Ruined Blocks and places 30 of them). Now those are renamed too, together
+    with the map's changes.
+  - A custom doodad or destructable based on one of the old IDs had no parent in Reforged ("Cyber RPG 7.804" has six
+    based on the Ruined Blocks). It is based on the new ID now, with the same changes.
+- **Open in World Editor, maps optimized to SLK: unit names.** When the map's own profile files did not set the name
+  of a unit, the unit came back with its internal name (`footman`, `workshop`, `keep`) as its name. It keeps the
+  game's name now.
+
+Found while comparing the Doctor with a set of SLK fixes a friend made on top of W3x2lni Reforged.
+
 ## 1.8.4 (2026-10-21)
 
 ### New
