@@ -455,8 +455,69 @@ def diagnostico(body_text, extract):
     }
 
 
-RX_SHOP_QUERY = re.compile(r'''HasMallItem\s*\(\s*[^,()]+(?:\([^()]*\))?\s*,\s*["']([^"'\\\r\n]{1,40})["']\s*\)''')
+RX_SHOP_QUERY = re.compile(r'HasMallItem\s*\(')
+RX_SHOP_KEY = re.compile(r'''\s*["']([^"'\\\r\n]{1,40})["']\s*\)''')
 RX_PUNISHMENT = re.compile(r'set_cheater|\bEndGame\s*\(|CustomDefeat|RemovePlayer\s*\(|作弊|外挂|[Cc]heat')
+
+
+def _close_paren(s, j):
+    max_depth, quote_char = 1, None
+    while j < len(s):
+        c = s[j]
+        if quote_char:
+            if c == '\\':
+                j += 1
+            elif c == quote_char:
+                quote_char = None
+        elif c in '"\'':
+            quote_char = c
+        elif c == '(':
+            max_depth += 1
+        elif c == ')':
+            max_depth -= 1
+            if not max_depth:
+                return j + 1
+        j += 1
+    return len(s)
+
+
+def shop_questions(ln):
+    for m in RX_SHOP_QUERY.finditer(ln):
+        j = m.end()
+        while j < len(ln):
+            c = ln[j]
+            if c in '"\'),':
+                break
+            j = _close_paren(ln, j + 1) if c == '(' else j + 1
+        if j < len(ln) and ln[j] == ',':
+            k = RX_SHOP_KEY.match(ln, j + 1)
+            if k:
+                yield k.group(1), m.start(), k.end()
+
+
+RX_SHOP_NEGATED = re.compile(r'^\s*\)*\s*(?:!=\s*true|==\s*false|~=\s*true)\b')
+RX_SHOP_NOT = re.compile(r'\bnot\s*\(*\s*[\w.:]*$')
+RX_MARK = re.compile(r'^\s*(?:call\s+(?:Save\w+|DzAPI_Map_Store\w+|DzAPI_Map_SaveServerValue)\s*\(|set\s+\w+)')
+RX_MARK_OUT = re.compile(r'\bYDLOC\b|\bydl_\w+|\bydul_\w+|\bbj_\w+')
+_PLAYER_EXPR = ('GetHandleId', 'LoadPlayerHandle', 'ConvertedPlayer', 'Player', 'GetOwningPlayer')
+
+
+def _shape(ln):
+    s = ln.strip()
+    for fname in _PLAYER_EXPR:
+        i = 0
+        while True:
+            m = re.compile(r'\b%s\s*\(' % fname).search(s, i)
+            if not m:
+                break
+            s = s[:m.start()] + fname + '(*)' + s[_close_paren(s, m.end()):]
+            i = m.start() + len(fname) + 3
+    s = re.sub(r'\b(?:GetEnumPlayer|GetTriggerPlayer|GetLocalPlayer)\s*\(\s*\)', 'P', s)
+    return re.sub(r'\s*([(),=*+\-\[\]<>!~/])\s*', r'\1', re.sub(r'\s+', ' ', s))
+
+
+def _indent_of(ln):
+    return len(ln.expandtabs(4)) - len(ln.expandtabs(4).lstrip())
 
 
 def shop_baits(texts, line_list=4):
@@ -465,11 +526,55 @@ def shop_baits(texts, line_list=4):
         if not t or 'HasMallItem' not in t:
             continue
         ls = t.split('\n')
+        marks = None
         for i, line in enumerate(ls):
-            for m in RX_SHOP_QUERY.finditer(line):
-                if RX_PUNISHMENT.search('\n'.join(ls[i:i + 1 + line_list])):
-                    out.add(m.group(1))
+            for hash_key, a, b in shop_questions(line):
+                if RX_SHOP_NEGATED.match(line[b:]) or RX_SHOP_NOT.search(line[:a]):
+                    continue
+                d = _indent_of(line)
+                window = ls[i + 1:i + 1 + line_list]
+                if window and window[0].strip() and _indent_of(window[0]) > d:
+                    branch = []
+                    for x in window:
+                        if x.strip() and _indent_of(x) <= d:
+                            break
+                        branch.append(x)
+                    window = branch
+                if RX_PUNISHMENT.search('\n'.join([line] + window)):
+                    out.add(hash_key)
+                    continue
+                if marks is None:
+                    marks = _punishment_marks(ls)
+                if not marks:
+                    continue
+                for x in ls[i + 1:i + 13]:
+                    if x.strip() and _indent_of(x) <= d:
+                        break
+                    if RX_MARK.match(x) and _shape(x) in marks:
+                        out.add(hash_key)
+                        break
     return sorted(out)
+
+
+def _punishment_marks(ls, acquire_range=6):
+    out = set()
+    for j, line in enumerate(ls):
+        s = line.strip()
+        if not s or s.startswith(('//', '--')) or not RX_PUNISHMENT.search(line):
+            continue
+        d = _indent_of(line)
+        for step_size in (-1, 1):
+            k = j + step_size
+            while 0 <= k < len(ls) and abs(k - j) <= acquire_range:
+                x = ls[k]
+                if x.strip() and _indent_of(x) != d:
+                    break
+                if RX_MARK.match(x) and not RX_PUNISHMENT.search(x):
+                    f = _shape(x)
+                    if not RX_MARK_OUT.search(f):
+                        out.add(f)
+                k += step_size
+    return out
 
 
 def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, memory_hacks=None, lua_modules=None):
@@ -562,6 +667,7 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
     if decoys:
         pair['KK_LOJA_ISCAS_LISTA'] = ('|' + '|'.join(decoys) + '|')[:1000]
         log('4. the shop keys the map asks only to catch a cheat client (answered "not owned"): %s' % ', '.join(decoys))
+    pair['KK_RELOGIO'] = 'true'
     pair['KK_UI_SISTEMA'] = 'true'
     pair['KK_UI_CICLO'] = 'true'
     pair['KK_UI_MOUSE_POS'] = new.ui_mouse_pos(body_text)
@@ -575,6 +681,7 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
     pair['KK_EST_VIDA_GRANDE'] = new.big_life(extract)
     pair['KK_DZ_REAL'] = 'true'
     pair['KK_SRV_BACKEND'] = 'true'
+    pair['KK_SRV_RANK'] = 'true'
     pair.update(new.hero_xp(extract, body_text))
     key_codes = new.queried_keys(body_text)
     pair['KK_TECLAS'] = 'true' if key_codes else 'false'
@@ -1211,6 +1318,20 @@ def report_text(details):
     elif sd and sd.get('status') == 'nothing':
         L += ['', 'Classic look of the game effects', '-' * 32,
               '- no model of the game the map cites has a different HD variant: nothing to copy']
+    ip = details.get('item_pick')
+    if ip and ip.get('state') == 'done':
+        types = set((k, i) for k, _s, i, _p in ip['items'])
+        n_units = sum(1 for k, _i in types if k == 'unit')
+        L += [
+            '',
+            'Items and units in Reforged graphics',
+            '-' * 36,
+            '- %d item type(s) and %d unit type(s) used as their model an effect or a doodad of the game whose Reforged '
+            'graphics file has nothing a click can hit (no collision shape, no geoset box: only a drag box selected '
+            'them there). Their model is now a copy of the classic file, which the click hits in both graphics:'
+            % (len(types) - n_units, n_units),
+        ]
+        L += ['  %s -> %s' % (p, n) for p, n in sorted(ip['paths'].items())]
     tm = details.get('dead_type')
     if tm and tm.get('types'):
         L += ['', 'Removed (dead platform code)', '-' * 28,
@@ -1326,7 +1447,7 @@ def memory_warnings(info):
     if not info:
         return
     bridge = info.get('bridge') or {}
-    if bridge.get('retyped_vars') or bridge.get('agents') or bridge.get('expressions'):
+    if bridge.get('retyped_vars') or bridge.get('agents') or bridge.get('agent_vars') or bridge.get('expressions'):
         pieces = []
         if bridge.get('retyped_vars'):
             pieces.append('%d variable(s), parameter(s) or return(s) that carried a handle disguised as another type '
@@ -1336,6 +1457,9 @@ def memory_warnings(info):
             pieces.append('%d handle parameter(s) became agent so the handle table keeps the real handle for the '
                           'integer-to-handle casts (%s)' % (len(bridge['agents']), ', '.join(
                               '%s.%s' % x for x in bridge['agents'][:6])))
+        if bridge.get('agent_vars'):
+            pieces.append('%d handle variable(s) that hand back a narrower handle became agent (%s)' % (
+                len(bridge['agent_vars']), ', '.join(bridge['agent_vars'][:6])))
         if bridge.get('expressions'):
             pieces.append('%d return(s) of another type go through the handle table (%s)' % (
                 len(bridge['expressions']), ', '.join(sorted(set(n for n, _d, _p in bridge['expressions']))[:8])))
@@ -1422,6 +1546,40 @@ too big to carry them: the game opens maps up to 512 MiB).
 
 Every player of the map needs the same files.
 '''
+
+
+def clickable_items(r, extract, original, casc=None):
+    from doctor.port import int32_balance
+    from doctor.fix import item_pick
+    folders = (r.DATA, os.path.join(r.ROOT, 'port', 'out', 'extract_en'), extract)
+    arte = os.path.join(r.OUT, 'arte')
+    read_count = {}
+
+    def read_data(fname):
+        for folder in folders:
+            p = int32_balance._find_ci(folder, fname.split('\\')) if folder and os.path.isdir(folder) else None
+            if p:
+                read_count[fname] = p
+                with open(p, 'rb') as f:
+                    return f.read()
+        return None
+    a = mpqread.Archive(original)
+
+    def present(file_path):
+        pieces = file_path.replace('/', '\\').lstrip('\\').split('\\')
+        return a.find(file_path) is not None or any(int32_balance._find_ci(x, pieces) for x in (arte, r.DATA)
+                                                    if os.path.isdir(x))
+    details = item_pick.fix(read_data, present, casc)
+    inside = os.path.normcase(os.path.abspath(r.DATA)) + os.sep
+    for fname, data_bytes in details['files'].items():
+        p = read_count.get(fname)
+        _writes(
+            p if p and os.path.normcase(os.path.abspath(p)).startswith(inside) else _destination(r.DATA, fname),
+            data_bytes,
+        )
+    for fname, data_bytes in details['models'].items():
+        _writes(_destination(arte, fname), data_bytes)
+    return details
 
 
 def write_local_art(folder, output, log=print):
@@ -1676,6 +1834,24 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
                 elif sd['status'] == 'done':
                     log('6. %d game effect model(s) kept in the classic look (%.1f MB), %d reference(s) rewritten'
                         % (len(sd['models']), sd['bytes'] / 1e6, sum(sd['references'].values())))
+        try:
+            ic, _s = _muted(clickable_items, r, extract, original)
+        except Exception as e:
+            ic = e
+        if not isinstance(ic, dict):
+            WARNINGS.append('the items and units whose model has nothing to click in Reforged graphics could not be '
+                            'fixed: %s' % (ic,))
+        else:
+            details['item_pick'] = dict((k, ic[k]) for k in ('state', 'reason', 'paths', 'items'))
+            if ic['state'] == 'skipped':
+                WARNINGS.append('the items and units whose model has nothing to click in Reforged graphics were not '
+                                'fixed: %s' % ic['reason'])
+            elif ic['state'] == 'done':
+                log(
+                    '6. %d item and unit type(s) whose model has nothing to click in Reforged graphics: the classic file '
+                    'of %d model(s) copied under war3mapImported\\PickSD and their model fields pointed at it'
+                    % (len(set((k, i) for k, _s, i, _p in ic['items'])), len(ic['paths']))
+                )
         to_remove = ['kkmap.jc'] if forma == 'kkwe' else (['war3map.bin'] if forma == 'j2b' else [])
         scripts_folder = scripts_folder_files(original, name_list)
         if scripts_folder:
