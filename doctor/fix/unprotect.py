@@ -637,6 +637,7 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
         _game = doodads.game_ids() if _bd else set()
         if _bd and _game:
             _valid = _game | doodads.map_ids(a) | set(extra_ids)
+            _valid = doodads.drop_legacy(_valid, _game | doodads.defined_ids(a) | set(extra_ids))
             if _valid:
                 _bad = doodads.invalid_ids(_bd, _valid)
                 if _bad:
