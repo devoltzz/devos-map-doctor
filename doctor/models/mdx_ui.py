@@ -221,3 +221,4 @@ def is_world_model(data, limit=2.0):
                 return True
             q += sz
     return False
+
