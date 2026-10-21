@@ -3148,5 +3148,10 @@
  "lua: {0} does not read as Lua": "lua: {0} se nečte jako Lua",
  "lua:{0}:{1}": "lua:{0}:{1}",
  "{0} line {1}: {2}": "{0} řádek {1}: {2}",
- "Gave {0} the ID the game renamed it to in patch 3.0.1.24371 ({1}).": "Přiděleno {0} id, na které je hra přejmenovala v patchi 3.0.1.24371 ({1})."
+ "Gave {0} the ID the game renamed it to in patch 3.0.1.24371 ({1}).": "Přiděleno {0} id, na které je hra přejmenovala v patchi 3.0.1.24371 ({1}).",
+ "Items and units in Reforged graphics": "Předměty a jednotky v grafice Reforged",
+ "the items and units whose model has nothing to click in Reforged graphics could not be fixed: {0}": "předměty a jednotky, jejichž model nemá v grafice Reforged nic, na co by šlo kliknout, nebylo možné opravit: {0}",
+ "the items and units whose model has nothing to click in Reforged graphics were not fixed: {0}": "předměty a jednotky, jejichž model nemá v grafice Reforged nic, na co by šlo kliknout, nebyly opraveny: {0}",
+ "{0} item type(s) and {1} unit type(s) used as their model an effect or a doodad of the game whose Reforged graphics file has nothing a click can hit (no collision shape, no geoset box: only a drag box selected them there). Their model is now a copy of the classic file, which the click hits in both graphics:": "Typy předmětů: {0} a typy jednotek: {1} používaly jako svůj model efekt nebo doodad hry, jehož soubor pro grafiku Reforged nemá nic, co by klik mohl zasáhnout (žádný kolizní tvar, žádný box geosetu: vybrat je tam šlo jen výběrovým obdélníkem). Jejich model je nyní kopií klasického souboru, který klik zasáhne v obou grafikách:",
+ "{0} item types and {1} unit types use as their model an effect or a doodad of the game whose Reforged graphics file has nothing a click can hit (no collision shape, no geoset box): in Reforged graphics they can only be selected with a drag box, while in Classic graphics the click works ({2}). The Doctor's port points them at a copy of the classic file. Models: {3}.": "Typy předmětů: {0} a typy jednotek: {1} používají jako svůj model efekt nebo doodad hry, jehož soubor pro grafiku Reforged nemá nic, co by klik mohl zasáhnout (žádný kolizní tvar, žádný box geosetu): v grafice Reforged je lze vybrat jen výběrovým obdélníkem, zatímco v klasické grafice klik funguje ({2}). Port v Doctoru je přesměruje na kopii klasického souboru. Modely: {3}."
 }
