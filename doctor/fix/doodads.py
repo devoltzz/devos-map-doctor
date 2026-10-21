@@ -202,7 +202,7 @@ def invalid_ids(b, valid_ids, d=None):
                   key=lambda kv: -kv[1])
 
 
-RENAMED_IDS = {b'NSra': b'NSr0'}
+RENAMED_IDS = {b'NSra': b'NSr0', b'ASbl': b'ASHB', b'DTsb': b'DTs0'}
 
 
 def rename_ids(b, valid_ids, d=None):
@@ -228,6 +228,84 @@ def rename_ids(b, valid_ids, d=None):
         if old in swap:
             out[p:p + 4] = swap[old]
     return bytes(out), sorted(((k, swap[k], v) for k, v in done.items()), key=lambda x: -x[2])
+
+
+DOODAD_OBJECT_FILES = ('war3map.w3d', 'war3map.w3b', 'war3mapSkin.w3d', 'war3mapSkin.w3b')
+
+
+def _objects():
+    try:
+        from doctor.data import objects
+    except ImportError:
+        from doctor.data import objects
+    return objects
+
+
+def defined_ids(a, name_list=('war3map.w3d', 'war3map.w3b'), slk=SLK_TABLES):
+    objects = _objects()
+    out = set()
+    for fname in name_list:
+        try:
+            b = a.read(fname)
+        except Exception:
+            b = None
+        if not b:
+            continue
+        try:
+            _v, objs, _p = objects.read_objects_bytes(b, objects.uses_levels(fname), fname=fname)
+        except objects.ObjectError:
+            out.update(m.group(0) for m in re.finditer(rb'[A-Za-z][A-Za-z0-9_]{3}', b))
+            continue
+        out.update(n.encode('latin-1') for t, _o, n, _m in objs if t == 1)
+    for fname in slk:
+        try:
+            b = a.read(fname)
+        except Exception:
+            b = None
+        for rx in RX_ID_SLK if b else ():
+            out.update(m.group(1) for m in rx.finditer(b))
+    return out
+
+
+def drop_legacy(valid_ids, defined):
+    return set(v for v in valid_ids if v not in RENAMED_IDS or v in defined)
+
+
+def rename_parents(file_set, valid_ids, placed=()):
+    swap = dict((v.decode('latin-1'), n.decode('latin-1')) for v, n in RENAMED_IDS.items()
+                if v not in valid_ids and n in valid_ids)
+    if not swap:
+        return {}, [], []
+    objects = _objects()
+    placed_files = set(x.decode('latin-1') if isinstance(x, bytes) else x for x in placed)
+    new_ones, done, stayed = {}, [], []
+    for fname in DOODAD_OBJECT_FILES:
+        d = file_set.get(fname)
+        if not d:
+            continue
+        level = objects.uses_levels(fname)
+        try:
+            ver, objs, _p = objects.read_objects_bytes(d, level, fname=fname, with_end=True)
+        except objects.ObjectError:
+            stayed.append((fname, '*', 'the object file does not read'))
+            continue
+        modified_ids = set(o for t, o, _n, _m in objs if t == 0)
+        output, changed = [], False
+        for t, o, n, m in objs:
+            if o in swap:
+                if t == 0 and o not in placed_files:
+                    pass
+                elif t == 0 and swap[o] in modified_ids:
+                    stayed.append((fname, o, 'the file also modifies %s' % swap[o]))
+                elif t == 0 and swap[o] in placed_files:
+                    stayed.append((fname, o, 'the map places %s' % swap[o]))
+                else:
+                    done.append((fname, t, o, swap[o], n.strip('\0') or o))
+                    o, changed = swap[o], True
+            output.append((t, o, n, m))
+        if changed:
+            new_ones[fname] = objects.write_objects_bytes(ver, output, level)
+    return new_ones, done, stayed
 
 
 def without_invalid_ids(b, valid_ids, d=None):
