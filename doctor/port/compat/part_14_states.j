@@ -548,18 +548,20 @@ endfunction
 //{{KK_FIMSE:KK_MORFO_ESTADO}}
 
 //{{KK_SE:KK_EST_14}}
+constant real DB_EST_PRIM={{KK_EST_14_PRIM}}
+
 function DB_est_primario takes unit u returns real
     local integer a
-    if not IsUnitType(u,UNIT_TYPE_HERO) then
+    if DB_EST_PRIM==0.0 or not IsUnitType(u,UNIT_TYPE_HERO) then
         return 0.0
     endif
     set a=BlzGetUnitIntegerField(u,UNIT_IF_PRIMARY_ATTRIBUTE)
     if a==1 then
-        return I2R(GetHeroStr(u,true))
+        return I2R(GetHeroStr(u,true))*DB_EST_PRIM
     elseif a==2 then
-        return I2R(GetHeroInt(u,true))
+        return I2R(GetHeroInt(u,true))*DB_EST_PRIM
     elseif a==3 then
-        return I2R(GetHeroAgi(u,true))
+        return I2R(GetHeroAgi(u,true))*DB_EST_PRIM
     endif
     return 0.0
 endfunction
