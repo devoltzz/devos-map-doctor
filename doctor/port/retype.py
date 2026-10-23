@@ -717,11 +717,101 @@ def agents(pg, casts, info):
     for n, i in tgt:
         if (n, i) not in good:
             info['non_agents'].append(n)
+            info.setdefault('_failed_agents', []).append((n, i))
     replacements = []
     for f, idx in sorted(good):
         sl = _Slot('p', pg.by_name[f][4][idx][1], 'handle', pg.fs.index(pg.by_name[f]), idx)
         replacements.extend(_declaration(pg, sl, 'agent'))
         info['agents'].append((f, sl.fname))
+    _apply_swaps(pg, replacements)
+    return bool(replacements)
+
+
+def keep_at_calls(pg, info):
+    ref = pg.ref
+    replacements, done = [], []
+    for tgt in info.get('_failed_agents', ()):
+        work_queue, seen, leaves, invalid = [tgt], set(), [], None
+        while work_queue and not invalid:
+            f, idx = work_queue.pop()
+            if (f, idx) in seen:
+                continue
+            seen.add((f, idx))
+            if f not in pg.by_name:
+                invalid = f
+                break
+            for k, _n, p, j in pg.calls(f):
+                m = pg.masks[k]
+                args = arguments(m, p, j)
+                if idx >= len(args):
+                    invalid = 'line %d' % (k + 1)
+                    break
+                a, b = without_parens(m, *args[idx])
+                t = pg.kind(k, a, b)
+                if t == 'null':
+                    continue
+                if t and ref.handle(t) and ref.fits(t, 'agent'):
+                    leaves.append((k, a, b, 'KKMH_guarda'))
+                    continue
+                if t and t != 'handle' and ref.handle(t) and ref.load_data.get(t) and \
+                        'Save%sHandle' % ref.load_data[t][4:-6] in pg.sig:
+                    leaves.append((k, a, b, 'KKMH_guarda_' + t))
+                    continue
+                g = pg.owner[k]
+                if t == 'handle' and g is not None and RX_ID.fullmatch(m[a:b]):
+                    gfn = pg.fs[g]
+                    ii = next((i for i, (tt, nn) in enumerate(gfn[4]) if nn == m[a:b] and tt == 'handle'), None)
+                    if ii is not None and m[a:b] not in pg.local_vars[gfn[3]] and not any(
+                            re.match(r'^[ \t]*set[ \t]+%s\b' % re.escape(m[a:b]), pg.masks[q])
+                            for q in range(gfn[0] + 1, gfn[1])):
+                        work_queue.append((gfn[3], ii))
+                        continue
+                invalid = 'line %d: %s' % (k + 1, t)
+                break
+        if invalid or not leaves:
+            info['kept_calls_not'].append((tgt[0], invalid or 'no caller'))
+            continue
+        for k, a, b, fn in leaves:
+            replacements.append((k, a, b, '%s(%s)' % (fn, pg.line_list[k][a:b])))
+            info['helpers'].add(fn)
+        done.append(tgt[0])
+        info['kept_calls'].append((tgt[0], len(leaves)))
+    _apply_swaps(pg, replacements)
+    return bool(replacements)
+
+
+def i2h_returns(pg, casts, info):
+    ref = pg.ref
+    replacements = []
+    for i, (begin, end_pos, _r, fname, _ps, ret) in enumerate(pg.fs):
+        if ret != 'handle' or fname in casts:
+            continue
+        types = []
+        for k in range(begin + 1, end_pos):
+            m = pg.masks[k]
+            mm = RX_RETURN.match(m)
+            if mm and 'return' in m:
+                types.append(pg.kind(k, mm.end(1), mm.end(2)))
+        if 'integer' not in types or any(t not in ('integer', 'null') for t in types):
+            continue
+        sl = _Slot('r', fname, 'handle', i)
+        for k, n0, p, j in pg.calls(fname):
+            m = pg.masks[k]
+            if re.match(r'^[ \t]*call[ \t]+$', m[:n0]) and not m[j + 1:].strip():
+                continue
+            _value_use(pg, sl, k, n0, j + 1, casts, pg.fs[pg.owner[k]][5] if pg.owner[k] is not None else None)
+            if sl.invalid:
+                break
+        if not sl.invalid and re.search(r'\bfunction[ \t]+%s\b(?![ \t]+takes\b)' % re.escape(fname), pg.words()):
+            sl.invalid = 'function %s' % fname
+        new = next(iter(sl.evidence)) if len(sl.evidence) == 1 else None
+        if sl.invalid or new is None or not ref.fits(new, 'agent') or not ref.load_data.get(new) or \
+                not all(ref.fits(new, x) for x in sl.requires):
+            info['i2h_returns_not'].append((fname, sl.invalid or ', '.join(sorted(sl.evidence)) or 'no use'))
+            continue
+        replacements.extend(sl.replacements)
+        replacements.extend(_declaration(pg, sl, new))
+        info['i2h_returns'].append((fname, new))
     _apply_swaps(pg, replacements)
     return bool(replacements)
 
@@ -867,6 +957,14 @@ def helpers(ref, chosen):
     if 'KKMH_b2i' in chosen:
         out += ['function KKMH_b2i takes boolean b returns integer', '    if b then', '        return 1', '    endif',
                 '    return 0', 'endfunction']
+    if 'KKMH_guarda' in chosen:
+        out += ['function KKMH_guarda takes agent h returns agent'] + lazy_init + [
+            '    call SaveAgentHandle(%s, 0, GetHandleId(h), h)' % TABLE_NAME, '    return h', 'endfunction']
+    for q in sorted(q for q in chosen if q.startswith('KKMH_guarda_')):
+        t = q[len('KKMH_guarda_'):]
+        out += ['function %s takes %s h returns %s' % (q, t, t)] + lazy_init + [
+            '    call Save%sHandle(%s, 0, GetHandleId(h), h)' % (ref.load_data[t][4:-6], TABLE_NAME), '    return h',
+            'endfunction']
     for q in sorted(q for q in chosen if q.startswith(DOWNGRADE)):
         t = q[len(DOWNGRADE):]
         out += (
@@ -885,8 +983,9 @@ def helpers(ref, chosen):
 
 
 def new_info():
-    return {'retyped_vars': [], 'kept_neutral': [], 'agents': [], 'non_agents': [], 'agent_vars': [],
-            'agent_vars_not': [], 'expressions': [], 'neutral_expr': [], 'helpers': set(), 'casts': {}}
+    return {'retyped_vars': [], 'kept_neutral': [], 'i2h_returns': [], 'i2h_returns_not': [], 'agents': [],
+            'non_agents': [], 'kept_calls': [], 'kept_calls_not': [], 'agent_vars': [], 'agent_vars_not': [],
+            'expressions': [], 'neutral_expr': [], 'helpers': set(), 'casts': {}}
 
 
 def applies(line_list, ref, ref_text, neutralize=False):
@@ -900,10 +999,15 @@ def applies(line_list, ref, ref_text, neutralize=False):
         return info
     if casts and retype_carriers(pg, casts, info):
         pg = Program(line_list, ref, ref_text)
+    if i2h_returns(pg, casts, info):
+        pg = Program(line_list, ref, ref_text)
     goes_back = any(P == 'integer' and ref.handle(R) for P, R in casts.values()) or any(
         t == 'integer' and ref.handle(r) for _f, _fo, t, r, _l in program_census(pg))
     if goes_back and agents(pg, casts, info):
         pg = Program(line_list, ref, ref_text)
+    if goes_back and keep_at_calls(pg, info):
+        pg = Program(line_list, ref, ref_text)
+    info.pop('_failed_agents', None)
     if agent_vars(pg, info):
         pg = Program(line_list, ref, ref_text)
     expressions(pg, casts, info, neutralize, savers=goes_back)
