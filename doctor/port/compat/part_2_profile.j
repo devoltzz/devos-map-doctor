@@ -246,6 +246,37 @@ endfunction
 
 string array DB_nome_cru
 
+function DB_eh_battletag takes string s returns boolean
+    local integer n
+    local integer i
+    local integer h=-1
+    if s==null then
+        return false
+    endif
+    set n=StringLength(s)
+    set i=n-1
+    loop
+        exitwhen i<0
+        if SubString(s, i, i+1)=="#" then
+            set h=i
+            exitwhen true
+        endif
+        set i=i-1
+    endloop
+    if h<1 or h>=n-1 then
+        return false
+    endif
+    set i=h+1
+    loop
+        exitwhen i>=n
+        if DB_pos("0123456789", SubString(s, i, i+1), 0)<0 then
+            return false
+        endif
+        set i=i+1
+    endloop
+    return true
+endfunction
+
 function DB_nomes_crus takes nothing returns nothing
     local integer k=0
     loop
@@ -260,7 +291,7 @@ endfunction
 function DB_nome_conta takes player p returns string
     local integer i=GetPlayerId(p)
     local string n=GetPlayerName(p)
-    if DB_pos(n, "|", 0)<0 then
+    if DB_pos(n, "|", 0)<0 and (DB_nome_cru[i]==null or DB_nome_cru[i]=="" or DB_eh_battletag(n)) then
         set DB_nome_cru[i]=n
         return n
     endif
@@ -274,7 +305,15 @@ function DB_conta takes nothing returns string
     return DB_safe_name(DB_nome_conta(GetLocalPlayer()))
 endfunction
 
+//{{KK_SE:KK_PERFIL_PASTA_CORTE5}}
+string DB_pasta_lida=""
+//{{KK_FIMSE:KK_PERFIL_PASTA_CORTE5}}
 function DB_dir takes nothing returns string
+    //{{KK_SE:KK_PERFIL_PASTA_CORTE5}}
+    if DB_pasta_lida!="" then
+        return DB_RAIZ+DB_pasta_lida+"\\"
+    endif
+    //{{KK_FIMSE:KK_PERFIL_PASTA_CORTE5}}
     return DB_RAIZ+DB_conta()+"\\"
 endfunction
 
@@ -1563,8 +1602,51 @@ function DB_perfil_garante takes nothing returns nothing
         call DB_decode(GetLocalPlayer(), DB_sv_env)
     endif
     call DB_perfil_resgate(pasta)
+    //{{KK_SE:KK_PERFIL_PASTA_CORTE5}}
+    call DB_perfil_pasta_antiga()
+    //{{KK_FIMSE:KK_PERFIL_PASTA_CORTE5}}
     //{{KK_INCLUI:perfil_depois}}
 endfunction
+
+//{{KK_SE:KK_PERFIL_PASTA_CORTE5}}
+function DB_pasta_corte5 takes nothing returns string
+    local string n=DB_nome_conta(GetLocalPlayer())
+    local integer t=StringLength(n)
+    if t<7 or not DB_eh_battletag(n) then
+        return ""
+    endif
+    if SubString(n, t-6, t-5)!="#" then
+        return ""
+    endif
+    return DB_safe_name(SubString(n, 0, t-5))
+endfunction
+
+function DB_perfil_pasta_antiga takes nothing returns nothing
+    local string alt=DB_pasta_corte5()
+    local boolean tem=alt!=""
+    local integer n_atual=DB_s2_n_lida
+    local integer gen_atual=DB_s2_gen_lida
+    local integer r
+    if not tem then
+        set alt="kk_sem_pasta_antiga"
+    endif
+    set DB_pasta_lida=alt
+    set r=DB_sv_le("", alt)
+    set DB_pasta_lida=""
+    if tem and r==2 and DB_s2_n_lida>n_atual then
+        call FlushChildHashtable(DB_perfil_ht(), GetHandleId(GetLocalPlayer()))
+        call DB_sv_aplica()
+        if DB_s2_n_lida>DB_s2_cont then
+            set DB_s2_cont=DB_s2_n_lida
+        endif
+        set DB_s2_gen_lida=DB_C2_GEN
+        call DB_perfil_diag("PASTA_ANTIGA "+I2S(GetPlayerId(GetLocalPlayer()))+" "+alt+" n="+I2S(DB_s2_n_lida)+" (conta n="+I2S(n_atual)+")")
+        return
+    endif
+    set DB_s2_n_lida=n_atual
+    set DB_s2_gen_lida=gen_atual
+endfunction
+//{{KK_FIMSE:KK_PERFIL_PASTA_CORTE5}}
 
 function DB_perfil_aplica takes string blob,string pasta,boolean principal returns nothing
     local string claro
