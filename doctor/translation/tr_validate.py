@@ -37,6 +37,39 @@ def codes(s):
     return re.findall(r'\|c[0-9A-Fa-f]{8}|\|r|\|n', s, re.I)
 
 
+RX_PAIR = re.compile(r'^([A-Za-z][\w.&]*):(.*)$', re.S)
+
+
+def kv_record(body_text):
+    pieces = body_text.split(',')
+    if len(pieces) < 2:
+        return None
+    pairs = []
+    for p in pieces:
+        m = RX_PAIR.match(p)
+        if not m:
+            return None
+        pairs.append((m.group(1), m.group(2)))
+    return pairs
+
+
+def record_error(ko, en):
+    pk = kv_record(ko)
+    if pk is None:
+        return None
+    pe = kv_record(en)
+    if pe is None or [k for k, _v in pk] != [k for k, _v in pe]:
+        return 'broken key:value record (keys %s; never a `,` or a `:` inside a value)' % ','.join(
+            k for k, _v in pk)[:80]
+    if en.count(':') != ko.count(':'):
+        return 'key:value record with %d `:`, expected %d (a `:` inside a value cuts it)' % (en.count(':'),
+                                                                                              ko.count(':'))
+    for (k, vk), (_k, ve) in zip(pk, pe):
+        if not CJK.search(vk) and vk != ve:
+            return 'key:value record: the value of `%s` (no text) changed (%r -> %r)' % (k, vk[:30], ve[:30])
+    return None
+
+
 def check(entry, en):
     ko = entry['text']
     errs = []
@@ -70,6 +103,9 @@ def check(entry, en):
             errs.append('unescaped quotes in a JASS literal')
         if chr(92) in re.sub(r'\\[\\"nrt]', '', en):
             errs.append('barra invertida solta')
+        e_rec = record_error(ko, en)
+        if e_rec:
+            errs.append(e_rec)
     if entry['kind'] == 'command':
         if not re.match(r'^-[a-z0-9_-]+ ?$', en):
             errs.append('the command is not in lowercase ASCII (%r)' % en)
