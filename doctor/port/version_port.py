@@ -104,16 +104,16 @@ def _reason(detail, floor_v, plat, lua, byte_size, tgt, no_script=False):
     if wc3_versions._key(tgt) < wc3_versions._key(floor_v):
         return 'the map needs %s or later (porting to an older game comes later)' % floor_v
     lim = wc3_versions.limits(tgt) or {}
-    if byte_size and lim.get('map_bytes') and byte_size > lim['map_bytes']:
-        return 'the map is %.1f MB and %s lists maps up to %d MB' % (
-            byte_size / 1048576.0,
-            tgt,
-            lim['map_bytes'] // 1048576,
-        )
     n_players = detail.get('players')
     if n_players and lim.get('players') and n_players > lim['players']:
         return 'the map has %d player slots and %s has %d' % (n_players, tgt, lim['players'])
     return None
+
+
+def size_warning(byte_size, tgt):
+    from doctor.data import map_size
+    lim = wc3_versions.limits(tgt) or {}
+    return map_size.version_warning(byte_size, tgt, lim.get('map_bytes'))
 
 
 def memhack_outside(body_text, tgt):
@@ -227,6 +227,9 @@ def map_port(map_path, tgt, output, stats=None, log=print):
         )
         if reason:
             raise Refusal(reason)
+        warning = size_warning(os.path.getsize(map_path), target_v)
+        if warning:
+            details.setdefault('warnings', []).append(warning)
         import shutil
         if os.path.abspath(output) == os.path.abspath(map_path):
             raise Refusal('the output is the map itself')
