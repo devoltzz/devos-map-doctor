@@ -420,6 +420,9 @@ function DzSetEffectPos takes effect whichEffect,real x,real y,real z returns no
 endfunction
 
 function DzSetEffectModel takes effect whichEffect,string model returns nothing
+    if DB_ef_ht!=null and whichEffect!=null then
+        call SaveStr(DB_ef_ht, GetHandleId(whichEffect), 2, model)
+    endif
 endfunction
 
 function DB_seq_chave takes string m returns integer
