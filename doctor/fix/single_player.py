@@ -28,8 +28,17 @@ ENDS = {'EndGame': 'ends the game', 'EndGameBJ': 'ends the game', 'CustomVictory
 CRASH, FREEZE = 'crashes the game', 'freezes the game'
 NO_SAVE, SAVE_FLAG = 'disables saving', 'breaks the save code'
 SP_MESSAGE = 'shows a single player message'
-PUNISH = frozenset(ENDS.values()) | frozenset((CRASH, FREEZE, NO_SAVE, SAVE_FLAG))
+CHEAT_GUARD = 'turns on a cheat detection that defeats the players'
+PUNISH = frozenset(ENDS.values()) | frozenset((CRASH, FREEZE, NO_SAVE, SAVE_FLAG, CHEAT_GUARD))
 TRIGGER_OFF = frozenset(('DisableTrigger', 'DestroyTrigger'))
+TRIGGER_ON = 'EnableTrigger'
+RX_CHEAT_CODE = re.compile(r'whosyourdaddy|greedisgood|keysersoze|leafittome|thereisnospoon|iseedeadpeople|pointbreak'
+                           r'|warpten|iocainepowder|strengthandhonor|thedudeabides|synergy|sharpandshiny'
+                           r'|allyourbasearebelongtous|somebodysetupusthebomb|itvexesme|motherland|riseandshine'
+                           r'|lightsout|daylightsavings|tenthleveltaurenchieftain|whoisjohngalt|\bcheat'
+                           r'|作弊|치트', re.I)
+FORCE_ADD = {'ForceAddPlayer': 0}
+FORCE_ENUM = {'ForceEnumPlayers': 1, 'ForceEnumPlayersCounted': 1, 'ForceEnumAllies': 2, 'ForceEnumEnemies': 2}
 RX_SAVE_NAME = re.compile(r'sav(?:e|ing)|(?<!un)load', re.I)
 RX_SAVE_TEXT = re.compile(r'\bsav(?:e|ing)\b|\bload\b|存档|儲存|세이브|저장', re.I)
 D_RELOAD, D_FLAG = 'ReloadGameCachesFromDisk()', 'bj_isSinglePlayer'
@@ -397,7 +406,7 @@ def _exits(body):
 
 
 LABEL_ORDER = ('ends the game', 'restarts the game', CRASH, FREEZE, 'defeats the players', 'removes the players',
-               NO_SAVE, SAVE_FLAG, 'renames the players', SP_MESSAGE)
+               CHEAT_GUARD, NO_SAVE, SAVE_FLAG, 'renames the players', SP_MESSAGE)
 
 
 class _Analysis(object):
@@ -442,13 +451,63 @@ class _Analysis(object):
         return False
 
     def _count_call(self, e, f):
-        return e.op == 'call' and e.name in COUNT_FORCE and len(e.kids) == 1 and self._playing(e.kids[0], f)
+        if e.op != 'call' or e.name not in COUNT_FORCE or len(e.kids) != 1:
+            return False
+        a = e.kids[0]
+        if a.op == 'name' and a.name in self.player_forces and (f is None or a.name not in f.locals):
+            return True
+        return self._playing(a, f)
+
+    def _player_forces(self):
+        adders = dict(FORCE_ADD)
+        for _round in range(6):
+            n = len(adders)
+            for g in self.funcs.values():
+                if g.name in adders:
+                    continue
+                for s in self._deep_of(g):
+                    for x in _flat(s):
+                        i = adders.get(x.name) if x.op == 'call' else None
+                        if i is not None and i < len(x.kids) and x.kids[i].op == 'name' and x.kids[i].name in g.params:
+                            adders[g.name] = g.params.index(x.kids[i].name)
+            if len(adders) == n:
+                break
+        ok, bad = set(), set()
+
+        def global_name(e, f):
+            return e.name if e.op == 'name' and e.name not in f.locals else None
+
+        def walk(f, body, conds):
+            for s in body:
+                if s.op == 'if':
+                    for c, b in s.branches:
+                        walk(f, b, conds + ([c] if c is not None else []))
+                    continue
+                if s.op == 'loop':
+                    walk(f, s.body, conds)
+                    continue
+                for x in _flat(s):
+                    if x.op == 'func' and self.inline:
+                        walk(f, x.body, [])
+                    if x.op != 'call' or x.name in f.locals:
+                        continue
+                    i = adders.get(x.name)
+                    if i is not None and i < len(x.kids) and global_name(x.kids[i], f):
+                        (ok if any(self._playing(c, f) for c in conds) else bad).add(x.kids[i].name)
+                    j = FORCE_ENUM.get(x.name)
+                    if j is not None and len(x.kids) > j and global_name(x.kids[0], f):
+                        (ok if self._playing(x.kids[j], f) else bad).add(x.kids[0].name)
+
+        for f in self.units:
+            walk(f, f.body, [])
+        return ok - bad
 
     def _counts(self):
         self.slot_funcs = set()
         for f in self.funcs.values():
             if any(x.op == 'name' and x.name == PLAYING for s in _deep(f.body) for x in _flat(s)):
                 self.slot_funcs.add(f.name)
+        self.player_forces = self._player_forces()
         kinds = {}
 
         def walk(f, body, conds):
@@ -517,7 +576,7 @@ class _Analysis(object):
             v = self.alias_vars.get(key)
             if v is not None:
                 return 'var', v
-        elif e.op in CMP_OPS and self.count_vars | self.slot_funcs:
+        elif e.op in CMP_OPS and (self.count_vars or self.slot_funcs or self.player_forces):
             v = self._count_term(e, f)
             if v is not None:
                 return 'count', v
@@ -761,7 +820,7 @@ class _Analysis(object):
         labels = self._locks(regions, f)
         what = ', '.join(lb for lb in LABEL_ORDER if lb in labels)
         lock = bool(labels & PUNISH) or (self._only_message(regions, f) and self._lock_message)
-        if lock and found == [D_COUNT] and not labels & set((SP_MESSAGE, CRASH, FREEZE)):
+        if lock and found == [D_COUNT] and not labels & set((SP_MESSAGE, CRASH, FREEZE, CHEAT_GUARD)):
             lock = False
         if lock:
             use.update({'what': what, '_stmt': s, '_terms': terms})
@@ -778,11 +837,11 @@ class _Analysis(object):
         m = RX_TRIGSTR.match(e.value)
         return self.strings.get(int(m.group(1)), '') if m else e.value
 
-    def _locks(self, regions, f):
+    def _locks(self, regions, f, texts=None, arm=True):
         labels = set()
         self._lock_message = False
         seen = set()
-        off, save_text = [], []
+        off, on, save_text = [], [], []
 
         def follow(name, depth):
             if depth < FOLLOW_DEPTH and name in self.funcs and name not in seen:
@@ -797,12 +856,16 @@ class _Analysis(object):
                     labels.add(FREEZE)
                 for x in _flat(st):
                     if x.op == 'call':
+                        if texts is not None:
+                            texts.extend(t for t in map(self._text, x.kids) if t)
                         if x.name in ENDS:
                             labels.add(ENDS[x.name])
                         elif x.name == 'Player' and len(x.kids) == 1 and (_int(x.kids[0]) or 0) < 0:
                             labels.add(CRASH)
                         elif x.name in TRIGGER_OFF and len(x.kids) == 1 and x.kids[0].op == 'name':
                             off.append(x.kids[0].name)
+                        elif x.name == TRIGGER_ON and arm and len(x.kids) == 1 and x.kids[0].op == 'name':
+                            on.append(x.kids[0].name)
                         elif x.name == RENAME:
                             labels.add('renames the players')
                         elif x.name in MESSAGES:
@@ -836,7 +899,23 @@ class _Analysis(object):
             actions = [a for a in self.triggers.get(name, ()) if isinstance(a, str)]
             if save_text or RX_SAVE_NAME.search(name) or any(RX_SAVE_NAME.search(a) for a in actions):
                 labels.add(NO_SAVE)
+        if on and self._cheat_guard(on):
+            labels.add(CHEAT_GUARD)
         return labels
+
+    def _cheat_guard(self, names):
+        keep = self._lock_message
+        try:
+            for name in dict.fromkeys(names):
+                for a in self.triggers.get(name, ()):
+                    fn = self.funcs[a] if isinstance(a, str) else F('', [], [], a.body, False, 0)
+                    texts = []
+                    labels = self._locks([fn.body], fn, texts=texts, arm=False)
+                    if labels & frozenset(ENDS.values()) and any(RX_CHEAT_CODE.search(t) for t in texts):
+                        return True
+        finally:
+            self._lock_message = keep
+        return False
 
     def _only_message(self, regions, f):
         for b in regions:
