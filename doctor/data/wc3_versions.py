@@ -41,9 +41,8 @@ PACK_MANIFEST = 'doctor_game_data.json'
 PACK_LIST = 'paths.txt'
 OBJECTS = 'objects'
 
-MIB = 1024 * 1024
-LIMITS = {'1.24a': {'map_bytes': 4 * MIB}, '1.29': {'map_bytes': 128 * MIB, 'players': 24}}
-LIMIT_DEFAULT = {'map_bytes': 8 * MIB, 'players': 12, 'lua': False, 'w3i': 25, 'objects': 2}
+LIMITS = {'1.29': {'players': 24}}
+LIMIT_DEFAULT = {'players': 12, 'lua': False, 'w3i': 25, 'objects': 2}
 
 
 class VersionError(Exception):
@@ -95,7 +94,8 @@ def limits(version):
     v = normalize(version)
     if v in (None, REFORGED):
         return None
-    out = dict(LIMIT_DEFAULT)
+    from doctor.data import map_size
+    out = dict(LIMIT_DEFAULT, map_bytes=map_size.for_key(_key(v)))
     out.update(LIMITS.get(range_of(v), {}))
     out.update(LIMITS.get(v, {}))
     return out
@@ -923,10 +923,15 @@ def detect_parts(w3i_bytes=None, script=None, language=None, objects=None, wtg=N
             break
     if wtg and len(wtg) >= 8 and wtg[:4] == b'WTG!' and struct.unpack_from('<I', wtg, 4)[0] & 0x80000000:
         _bump(st, '1.30+', 'the triggers (war3map.wtg) are in the format of 1.31 and later')
-    if size and size > LIMIT_DEFAULT['map_bytes']:
-        st['reasons'].append('the map is %.1f MB, above the 8 MB of 1.24 to 1.28: %s' % (
+    from doctor.data import map_size
+    if size and size > map_size.NEW:
+        st['reasons'].append('the map is %.1f MB, above the 128 MB the classic game sends to other players: %s' % (
             size / 1048576.0, 'the platform client lifts that limit' if platform else
-            'made for 1.29 or later, or for a client or loader that lifts the limit'))
+            'made for single player, or for a client or loader that lifts the limit'))
+    elif size and size > map_size.OLD:
+        st['reasons'].append('the map is %.1f MB, above the 8 MB that 1.24 to 1.27a send to other players: %s' % (
+            size / 1048576.0, 'the platform client lifts that limit' if platform else
+            'made for 1.27b or later, for single player, or for a client or loader that lifts the limit'))
     if not st['reasons']:
         st['reasons'].append('nothing newer than the 1.24 to 1.28 game was found')
     st['version'] = dict(RANGES).get(st['range'])
