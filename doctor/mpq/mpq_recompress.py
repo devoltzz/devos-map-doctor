@@ -18,6 +18,7 @@ except ImportError:
     _libdeflate = None
 
 SECTOR_NEW = 512
+TETO = 512 * 1024 * 1024
 SLICE = 128
 CODIFICADORES = ('auto', 'zopfli', 'libdeflate', 'zlib9', 'zlib6')
 
