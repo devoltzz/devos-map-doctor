@@ -184,6 +184,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+## Tinker
+
+Tinker, by DooMWhite, reimplements the Warcraft Feature Extender for Warcraft III 1.26 and 1.28. The map size limits
+of the classic game in `doctor/data/map_size.py` (where Game.dll checks the size of a map, and that the check only
+applies to a game with other players) come from DooMWhite's reverse engineering in Tinker, used with permission.
+
 ## The local machine translation: CTranslate2, SentencePiece and OPUS-MT
 
 https://github.com/OpenNMT/CTranslate2 (MIT), https://github.com/google/sentencepiece (Apache-2.0),
