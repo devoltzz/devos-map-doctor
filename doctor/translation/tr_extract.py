@@ -88,11 +88,15 @@ def line_break(body_text, jass=False, multiline=None):
 _CONFIG = {}
 
 
-def literal_multilinha(tr_dir=None):
+def config(tr_dir=None):
     p = os.path.join(tr_dir or TR, 'config.json')
     if p not in _CONFIG:
         _CONFIG[p] = json.load(open(p, encoding='utf-8')) if os.path.isfile(p) else {}
-    return bool(_CONFIG[p].get('literal_multilinha'))
+    return _CONFIG[p]
+
+
+def literal_multilinha(tr_dir=None):
+    return bool(config(tr_dir).get('literal_multilinha'))
 
 
 _SEP_MODE = {'mista': r'\r\n|\r|\n', 'crlf': r'\r\n', 'lf': r'\n'}
@@ -204,9 +208,11 @@ from doctor.data import object_names
 wts_entries = object_names.wts_entries
 
 
-def extract_wts_text(t, entries, stats, tem_text=None):
+def extract_wts_text(t, entries, stats, tem_text=None, outside=None):
     present = tem_text or CJK.search
     for mo in wts_entries(t):
+        if outside and outside(mo.group(1)):
+            continue
         if present(mo.group(2)):
             entries.append(
                 OrderedDict(
