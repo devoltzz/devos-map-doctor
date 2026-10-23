@@ -1129,7 +1129,7 @@ class Api:
     def pick_file(self, kind):
         import webview
         types = {'translation': ('Translation files (*.json;*.html;*.htm)', 'All files (*.*)'),
-                 'package': ('Art packages (*.mix;*.asi;*.dll;*.mpq;*.w3mod)', 'All files (*.*)'),
+                 'package': ('Art packages (*.mix;*.asi;*.dll;*.mpq;*.w3mod;*.zip)', 'All files (*.*)'),
                  'image': ('Images (*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.blp)', 'All files (*.*)'),
                  'log': ('Diagnostic logs (*.pld)', 'All files (*.*)'),
                  'crash': ('Crash reports and game logs (*.txt)', 'All files (*.*)'),
