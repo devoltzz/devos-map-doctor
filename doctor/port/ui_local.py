@@ -21,6 +21,53 @@ RX_MAIN = re.compile(r'(?m)^function main takes nothing returns nothing[ \t]*(?:
 RX_CODE = re.compile(r'^\s*\(*\s*function\s+(\w+)\s*\)*\s*$')
 RX_DEF = re.compile(r'(?m)^[ \t]*function[ \t]+(\w+)[ \t]+takes[ \t]+([^\r\n]*?)[ \t]+returns[ \t]+\w+[ \t]*\r?$')
 RX_END = re.compile(r'(?m)^[ \t]*endfunction\b')
+RX_GLOBALS = re.compile(r'(?ms)^[ \t]*globals[ \t]*\r?$(.*?)^[ \t]*endglobals\b')
+RX_CODE_GLOBAL = re.compile(r'(?m)^[ \t]*code[ \t]+(\w+)[ \t]*(?:=[ \t]*null[ \t]*)?\r?$')
+
+
+def global_codes(body_text, record_count, internal_ones=()):
+    decl = set()
+    for g in RX_GLOBALS.finditer(body_text):
+        decl.update(RX_CODE_GLOBAL.findall(g.group(1)))
+    if not decl:
+        return {}
+    rx = re.compile(r'\b(%s)\s*\(' % '|'.join(map(re.escape, record_count)))
+    uses, bad_ones = {}, set()
+    for m in rx.finditer(body_text):
+        start_line = body_text.rfind('\n', 0, m.start()) + 1
+        ln = body_text[start_line:m.start()]
+        if re.match(r'\s*(native|function)\b', ln) or '//' in ln or m.start() in internal_ones:
+            continue
+        end_pos = on_close(body_text, m.end() - 1)
+        if end_pos < 0:
+            continue
+        core_part = body_text[m.end():end_pos]
+        args = arguments(core_part)
+        i_sync, i_code = record_count[m.group(1)]
+        if len(args) <= _highest_index(i_sync, i_code):
+            continue
+        a = core_part[args[i_code][0]:args[i_code][1]].strip()
+        if a not in decl:
+            continue
+        sync = i_sync if isinstance(i_sync, str) else literal_bool(core_part[args[i_sync][0]:args[i_sync][1]])
+        if sync == 'false':
+            uses[a] = uses.get(a, 0) + 1
+        else:
+            bad_ones.add(a)
+    res = {}
+    for g in sorted(set(uses) - bad_ones):
+        assigned = list(
+            re.finditer(r'(?m)^[ \t]*set[ \t]+%s[ \t]*=[ \t]*(function[ \t]+(\w+))[ \t]*\r?$' % re.escape(g), body_text)
+        )
+        fs = set(a.group(2) for a in assigned)
+        if len(fs) != 1 or len(re.findall(r'\b%s\b' % re.escape(g), body_text)) != 1 + len(assigned) + uses[g]:
+            continue
+        f = fs.pop()
+        d = re.search(r'(?m)^[ \t]*function[ \t]+%s[ \t]+takes[ \t]+nothing[ \t]+returns' % re.escape(f), body_text)
+        f_end = RX_END.search(body_text, d.end()) if d else None
+        if f_end and all(a.start() > f_end.end() for a in assigned):
+            res[g] = (f, assigned)
+    return res
 
 
 def apply_replacements(body_text, replacements):
@@ -188,8 +235,11 @@ def applies(
     record_count = dict(REGISTROS, **regs)
     rx_call = re.compile(r'\b(%s)\s*\(' % '|'.join(map(re.escape, record_count)))
     info['forwarders'] = sorted(regs)
+    cglob = global_codes(body_text, record_count, internal_ones)
+    info['code_globals'] = sorted('%s=%s' % (g, f) for g, (f, _a) in cglob.items())
     replacements = []
     name_list = []
+    done_g = set()
     for m in rx_call.finditer(body_text):
         start_line = body_text.rfind('\n', 0, m.start()) + 1
         ln = body_text[start_line:m.start()]
@@ -210,6 +260,16 @@ def applies(
             a0, a1 = args[i_code]
             code = RX_CODE.match(core_part[a0:a1])
             if code is None and core_part[a0:a1].strip() == 'null':
+                continue
+            g = core_part[a0:a1].strip()
+            if code is None and sync == 'false' and g in cglob:
+                f, assigned = cglob[g]
+                if g not in done_g:
+                    done_g.add(g)
+                    replacements.extend((a.start(1), a.end(1), 'function %s%s' % (PREFIX, f)) for a in assigned)
+                if f not in name_list:
+                    name_list.append(f)
+                info['local_vars'] += 1
                 continue
             if (sync is None or code is None) and tolerant_mode:
                 info['outside'].append('%s(%s)' % (m.group(1), core_part[:100]))
@@ -323,6 +383,8 @@ def applies(
         if len(args) > _highest_index(i_sync, i_code) and sync == 'false':
             code = RX_CODE.match(core_part[args[i_code][0]:args[i_code][1]])
             if not code and (tolerant_mode or core_part[args[i_code][0]:args[i_code][1]].strip() == 'null'):
+                continue
+            if not code and core_part[args[i_code][0]:args[i_code][1]].strip() in cglob:
                 continue
             if not code or not code.group(1).startswith(PREFIX):
                 failures.append('local registration WITHOUT wrapper: %s' % core_part[:120])
