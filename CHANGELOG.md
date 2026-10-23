@@ -3,6 +3,33 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 1.8.6 (2026-10-22)
+
+### New
+
+- **Port to Reforged: a `.zip` of the map's art as an art package.** Some authors ship the models of a map in a zip for
+  the player to drop into the game folder ("Touhou Def of Omagun" has its heroes in `DefOmagan.zip`). Reforged does not
+  load them from there, so the hero select showed white boxes you could not click. "Add an art package..." now takes the
+  `.zip` too: it is read as data, nothing is extracted, and the files the map asks for go into the ported map.
+
+### Fixed
+
+- **Port to Reforged: the "Local Handle Vars" of patch 1.23 and older** (issue 41, "Enmity Campaign Beta 79b").
+  - The function that reads a stored handle back is declared as returning a generic handle, and its caller hands that
+    on as a unit. The Reforged compiler refuses that ("Cannot convert returned value from handle to unit") and the port
+    stopped. The function now returns the type its callers use.
+  - The port keeps the real handle in a table so a number can turn back into it. That only worked when every call
+    stored a unit, a timer or another "agent", and one of the map's 123 calls stores a lightning effect: nothing was
+    kept, and every handle the map read back came back empty. Each value is kept where the map stores it now.
+- **Port to Reforged: the map's own Blizzard.j returning `0` from a function that returns a real** ("Touhou Def of
+  Omagun"). The compiler gates stopped on it ("Cannot convert returned value from integer to real"). The fix that
+  already ran on the map's script runs on its Blizzard.j too.
+- **Fix map, "Let it run in single player": an anti-cheat armed only in single player** (issue 45, "FFERPG 0.9.7.5c").
+  Maps from the LAN days count the players at the start and, with only one, turn on triggers that defeat everyone when
+  they see a cheat code; in a LAN game you could play alone with that off. Reforged has no LAN, so playing alone is
+  always single player. The option now finds that check (here the players are counted in a force the map fills itself)
+  and makes the map take its multiplayer path, one line of the script.
+
 ## 1.8.5 (2026-10-21)
 
 ### Fixed
