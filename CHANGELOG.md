@@ -3,6 +3,32 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 1.8.7 (2026-10-23)
+
+### New
+
+- **Port between versions and "Runs on 1.2x?": the real map size limit of each classic game.** I measured it in the
+  Game.dll of every version from 1.24a to 1.28.5: 1.24a to 1.27a take maps up to 8 MB, and 1.27b and later up to
+  128 MB. The Doctor had 4 MB for 1.24a and 8 MB up to 1.28, which was the World Editor's limit, not the game's. The
+  limit also only applies to a game with other players (the host sending the map, a player looking for it on disk);
+  played alone, or against computers only, a bigger map opens. So a big map is no longer refused by the port between
+  versions, and "Runs on 1.2x?" shows it as a warning that says exactly that. The places where the game checks the size
+  come from the reverse engineering DooMWhite did in Tinker, used with permission (credited in the third-party
+  notices).
+
+### Fixed
+
+- **Port to Reforged, M16/JN maps: saves bigger than 8 KB.** The game cuts every string at 8192 bytes, and the port
+  built the whole save in one string before splitting it: a big save came out cut, and the next load failed with "A data
+  communication error occurred". The save is written in parts now (a part that did not change is not written again),
+  and the load reads it back over several game ticks. A save of up to 8 KB is written byte for byte as before.
+- **Port to Reforged, KK and M16 maps: hotkey buttons declared in the map's FDF files** (a `ControlShortcutKey` on a
+  button with nothing to draw, the "hotkey board" of some Korean maps). Reforged does not press them; the port layer
+  does now.
+- **Port to Reforged: a frame callback the map keeps in a global variable** (the compiled vJass hotkey board). Like the
+  callbacks the map registers directly, it now runs only for the player who acted, so it cannot desync the game.
+- **Translation tab, images: small text stays sharp**, and the translated image is saved in the format of the original.
+
 ## 1.8.6 (2026-10-22)
 
 ### New
