@@ -638,6 +638,8 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
         'KK_UI_ALFA': new.ui_alpha(body_text),
         'KK_SYNC_VAZIO': new.empty_sync(body_text),
     }
+    if pair['KK_EST_14'] == 'true':
+        pair['KK_EST_14_PRIM'] = new.primary_bonus(extract)
     from doctor.port import model_carriers
     units_folder = next((os.path.join(extract, d) for d in os.listdir(extract) if d.lower() == 'units'
                          and os.path.isdir(os.path.join(extract, d))), None)
@@ -693,6 +695,10 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
     pair['KK_UI_BOTOES'] = 'true' if buttons else 'false'
     if buttons:
         pair.update(new.buttons_in_chunks(buttons))
+    hotkeys = new.fdf_hotkeys(extract, body_text)
+    pair['KK_UI_ATALHOS'] = 'true' if hotkeys else 'false'
+    if hotkeys:
+        pair['KK_UI_ATALHOS_LISTA'] = hotkeys
     if diag['jn']:
         found_key = channel_table.jn_ability(extract)
         if not found_key:
@@ -705,6 +711,7 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
             'KK_JN_HABILIDADE': "'%s'" % ability_id,
             'KK_JN_SALVO': saved if saved is not None else '|cff00ff00Save OK|r',
             'KK_JN_DIARIO': diario if diario is not None else 'Checked',
+            'KK_JN_DIARIO_LIVRE': new.free_daily(body_text, diario),
             'KK_JN_USE': new.jnuse_gate(body_text), 'KK_JN_CONEXAO': "'BNET'", 'KK_JN_HOST': 'false',
             'KK_JN_INIT_ZERO': new.jninit_gate(body_text),
             'KK_JN_PLUGIN': 'true' if new.jnplugin_gate(body_text) is not None else 'false',
