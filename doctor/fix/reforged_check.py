@@ -674,15 +674,14 @@ def _made_for_archive(src, size, script):
 
 
 def limit_items(version, size, detected):
+    from doctor.data import map_size
     from doctor.data import wc3_versions
     lim = wc3_versions.limits(version)
     label = _label(version)
     items = []
-    if size and size > lim['map_bytes']:
-        items.append(_item('map_too_large', 'blocker', 'The map is %s; %s does not list maps above %d MB (a client '
-                           'or loader that lifts the limit is needed).' % (_mb(size), label,
-                                                                          lim['map_bytes'] // 1048576), 'none',
-                           size=size))
+    size_warning = map_size.version_warning(size, version, lim['map_bytes'])
+    if size_warning:
+        items.append(_item('map_too_large', 'warning', size_warning, 'none', size=size))
     d = detected or {}
     info = d.get('w3i') or {}
     if info.get('format') is not None and info['format'] > lim['w3i']:
