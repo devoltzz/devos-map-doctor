@@ -119,7 +119,31 @@ class Folder:
             return f.read()
 
 
+class Zip:
+    TETO = 256 << 20
+
+    def __init__(self, file_path):
+        import zipfile
+        self.z = zipfile.ZipFile(file_path)
+        self.idx = {}
+        fname = os.path.splitext(os.path.basename(file_path))[0]
+        members = [i for i in self.z.infolist() if not i.is_dir() and not i.flag_bits & 1 and i.file_size <= self.TETO]
+        for variante in (lambda r: r, lambda r: fname + B + r, lambda r: r.split(B, 1)[1] if B in r else None):
+            for i in members:
+                c = variante(Folder.hash_key(i.filename))
+                if c:
+                    self.idx.setdefault(c.lower(), i)
+
+    def find(self, p):
+        return Folder.hash_key(p) in self.idx
+
+    def read(self, p):
+        i = self.idx.get(Folder.hash_key(p))
+        return None if i is None else self.z.read(i)
+
+
 def open_packs(paths, log=print):
+    import zipfile
     out = []
     for c in paths:
         if os.path.isdir(c):
@@ -129,10 +153,23 @@ def open_packs(paths, log=print):
                 continue
             out.append((os.path.basename(os.path.normpath(c)) + os.sep, p))
             continue
-        try:
-            a = mpqread.Archive(c)
-        except BaseException as e:
-            log('package %s: no MPQ inside (%s)' % (os.path.basename(c), e))
+        a = err = None
+        if not c.lower().endswith('.zip'):
+            try:
+                a = mpqread.Archive(c)
+            except BaseException as e:
+                err = e
+        if a is None and os.path.isfile(c) and zipfile.is_zipfile(c):
+            try:
+                a = Zip(c)
+            except Exception as e:
+                err = e
+            else:
+                if not a.idx:
+                    log('package %s: an empty zip' % os.path.basename(c))
+                    continue
+        if a is None:
+            log('package %s: no MPQ inside (%s)' % (os.path.basename(c), err))
             continue
         out.append((os.path.basename(c), a))
     return out
