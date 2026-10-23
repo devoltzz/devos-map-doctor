@@ -137,6 +137,30 @@ def _close_parens(t, i):
     return -1
 
 
+def free_daily(body_text, literal):
+    if not literal:
+        return 'false'
+    line_list = body_text.replace('\r\n', '\n').split('\n')
+    rx_if = re.compile(r'^\s*(?:if|elseif)\b.*==\s*"%s"\s*then\s*$' % re.escape(literal))
+    for i, line in enumerate(line_list):
+        if not rx_if.match(line):
+            continue
+        max_depth = 0
+        for l2 in line_list[i + 1:i + 400]:
+            s = l2.strip()
+            if re.match(r'^if\b', s):
+                max_depth += 1
+            elif s.startswith('endif'):
+                if max_depth == 0:
+                    break
+                max_depth -= 1
+            elif re.match(r'^else(?:if)?\b', s) and max_depth == 0:
+                break
+            if 'JNDailySave' in s:
+                return 'true'
+    return 'false'
+
+
 def return_literal(body_text, natives):
     t = body_text.replace('\r\n', '\n').replace('\r', '\n')
     for nat in natives:
@@ -321,6 +345,46 @@ def buttons_in_chunks(listing, chunks=8, byte_size=1000):
     for k in range(1, chunks + 1):
         out.setdefault('KK_UI_BOTOES_%d' % k, '')
     return out
+
+
+RX_FDF_BUTTON_OPEN = re.compile(r'(?<![\w"])Frame\s+"(?:BUTTON|GLUEBUTTON|GLUETEXTBUTTON)"\s+"([^"|\\=]+)"\s*'
+                                r'(?:INHERITS\s+(?:WITHCHILDREN\s+)?"[^"]*"\s*)?\{', re.I)
+RX_FDF_HOTKEY = re.compile(r'\bControlShortcutKey\s+"([A-Za-z0-9])"')
+HOTKEY_BUTTON_FIELDS = {'controlshortcutkey', 'width', 'height', 'setpoint', 'setallpoints', 'tabfocusdefault',
+                        'tabfocusnext', 'useactivecontext', 'layerstyle'}
+
+
+def fdf_hotkeys(extract, body_text, byte_size=1000):
+    if not extract or not os.path.isdir(extract):
+        return None
+    pairs = {}
+    for d, _ds, fs in os.walk(extract):
+        for f in sorted(fs):
+            if not f.lower().endswith('.fdf'):
+                continue
+            t = open(os.path.join(d, f), 'rb').read().decode('latin-1')
+            t = re.sub(r'//[^\n]*', '', t)
+            for m in RX_FDF_BUTTON_OPEN.finditer(t):
+                max_depth, i = 1, m.end()
+                while i < len(t) and max_depth:
+                    max_depth += {'{': 1, '}': -1}.get(t[i], 0)
+                    i += 1
+                body = t[m.end():i - 1]
+                if '{' in body:
+                    continue
+                fields = {c.lower() for c in re.findall(r'(?m)^\s*([A-Za-z]\w*)', body)}
+                key_char = RX_FDF_HOTKEY.search(body)
+                if key_char and fields <= HOTKEY_BUTTON_FIELDS and '"%s"' % m.group(1) in body_text:
+                    pairs[m.group(1)] = ord(key_char.group(1).upper())
+    if not pairs:
+        return None
+    listing = '|'
+    for fname in sorted(pairs):
+        item = '%s=%d|' % (fname, pairs[fname])
+        if len(listing) + len(item) > byte_size:
+            break
+        listing += item
+    return listing
 
 
 def empty_sync(body_text):
@@ -519,6 +583,25 @@ def hero_xp(extract, body_text):
     table = ','.join(str(int(float(v))) for v in re.findall(r'-?\d+(?:\.\d+)?', vals['NeedHeroXP'])) or '200'
     return {'KK_XP': 'true', 'KK_XP_TABELA': table, 'KK_XP_A': real(vals['NeedHeroXPFormulaA'], '1.0'),
             'KK_XP_B': real(vals['NeedHeroXPFormulaB'], '100.0'), 'KK_XP_C': real(vals['NeedHeroXPFormulaC'], '0.0')}
+
+
+def primary_bonus(extract):
+    p = None
+    for d in os.listdir(extract) if extract and os.path.isdir(extract) else []:
+        if d.lower() == 'war3mapmisc.txt':
+            p = os.path.join(extract, d)
+    sec = None
+    for ln in (open(p, 'rb').read().decode('utf-8', 'replace').splitlines() if p else []):
+        s = ln.strip()
+        m = re.match(r'^\[(.+)\]$', s)
+        if m:
+            sec = m.group(1).strip().lower()
+        elif sec == 'misc' and s.split('=', 1)[0].strip() == 'StrAttackBonus' and '=' in s:
+            try:
+                return repr(float(s.split('=', 1)[1].strip()))
+            except ValueError:
+                break
+    return '1.0'
 
 
 def reads_state_14(body_text):
