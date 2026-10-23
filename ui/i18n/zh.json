@@ -3158,5 +3158,19 @@
  "the items and units whose model has nothing to click in Reforged graphics could not be fixed: {0}": "模型在 Reforged 画质下没有可点击部分的物品和单位无法修复：{0}",
  "the items and units whose model has nothing to click in Reforged graphics were not fixed: {0}": "模型在 Reforged 画质下没有可点击部分的物品和单位未被修复：{0}",
  "{0} item type(s) and {1} unit type(s) used as their model an effect or a doodad of the game whose Reforged graphics file has nothing a click can hit (no collision shape, no geoset box: only a drag box selected them there). Their model is now a copy of the classic file, which the click hits in both graphics:": "{0} 个物品类型和 {1} 个单位类型使用游戏自带的特效或 doodad 作为其模型，而该模型的 Reforged 画质文件没有任何可供点击命中的部分（没有碰撞形状，没有 geoset 框：在那里只能用拖拽框选中它们）。它们的模型现在是经典文件的副本，在两种画质下点击都能命中：",
- "{0} item types and {1} unit types use as their model an effect or a doodad of the game whose Reforged graphics file has nothing a click can hit (no collision shape, no geoset box): in Reforged graphics they can only be selected with a drag box, while in Classic graphics the click works ({2}). The Doctor's port points them at a copy of the classic file. Models: {3}.": "{0} 个物品类型和 {1} 个单位类型使用游戏自带的特效或 doodad 作为其模型，而该模型的 Reforged 画质文件没有任何可供点击命中的部分（没有碰撞形状，没有 geoset 框）：在 Reforged 画质下它们只能用拖拽框选中，而在经典画质下点击有效（{2}）。Doctor 的移植会让它们指向经典文件的副本。模型：{3}。"
+ "{0} item types and {1} unit types use as their model an effect or a doodad of the game whose Reforged graphics file has nothing a click can hit (no collision shape, no geoset box): in Reforged graphics they can only be selected with a drag box, while in Classic graphics the click works ({2}). The Doctor's port points them at a copy of the classic file. Models: {3}.": "{0} 个物品类型和 {1} 个单位类型使用游戏自带的特效或 doodad 作为其模型，而该模型的 Reforged 画质文件没有任何可供点击命中的部分（没有碰撞形状，没有 geoset 框）：在 Reforged 画质下它们只能用拖拽框选中，而在经典画质下点击有效（{2}）。Doctor 的移植会让它们指向经典文件的副本。模型：{3}。",
+ "made for 1.27b or later, for single player, or for a client or loader that lifts the limit": "适用于 1.27b 或更高版本、单人模式，或解除该限制的客户端或加载器",
+ "made for single player, or for a client or loader that lifts the limit": "适用于单人模式，或解除该限制的客户端或加载器",
+ "turns on a cheat detection that defeats the players": "启用会让玩家失败的作弊检测",
+ "The map is {0} MB: Warcraft III 1.24 to 1.27a sends and accepts maps up to 8 MB in a game with other players (1.27b and later, up to 128 MB). It still plays in single player and in a game with only computers.": "地图大小为 {0} MB：Warcraft III 1.24 至 1.27a 在与其他玩家的游戏中只能发送和接收不超过 8 MB 的地图（1.27b 及更高版本最多 128 MB）。它仍可在单人模式以及仅有电脑的游戏中运行。",
+ "The map is {0} MB: Warcraft III {1} sends and accepts maps up to {2} MB in a game with other players. It still plays in single player and in a game with only computers.": "地图大小为 {0} MB：Warcraft III {1} 在与其他玩家的游戏中只能发送和接收不超过 {2} MB 的地图。它仍可在单人模式以及仅有电脑的游戏中运行。",
+ "The map is {0} MB: the classic game sends and accepts maps up to 128 MB in a game with other players (8 MB on 1.24 to 1.27a). It still plays in single player and in a game with only computers.": "地图大小为 {0} MB：经典版游戏在与其他玩家的游戏中只能发送和接收不超过 128 MB 的地图（1.24 至 1.27a 为 8 MB）。它仍可在单人模式以及仅有电脑的游戏中运行。",
+ "The original map is {0} MB.": "原地图大小为 {0} MB。",
+ "the map is {0} MB, above the 128 MB the classic game sends to other players: {1}": "地图大小为 {0} MB，超过经典版游戏向其他玩家发送的 128 MB 上限：{1}",
+ "the map is {0} MB, above the 8 MB that 1.24 to 1.27a send to other players: {1}": "地图大小为 {0} MB，超过 1.24 至 1.27a 向其他玩家发送的 8 MB 上限：{1}",
+ "{0} function(s) that returned a stored integer as a handle now return the type their callers use ({1})": "{0} 个原本将存储的整数作为 handle 返回的函数，现在返回其调用方使用的类型（{1}）",
+ "{0} handle value(s) passed to integer casts are kept in the handle table where they are given ({1})": "{0} 个传给整数强制转换的 handle 值，被保留在其被给出处的 handle 表中（{1}）",
+ "{0}: the palettized BLP was not written": "{0}：未写入调色板化的 BLP",
+ "{0}: {1} call(s)": "{0}：{1} 次调用",
+ "{0}: {1}, the original is {2}": "{0}：{1}，原图为 {2}"
 }
