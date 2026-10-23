@@ -826,6 +826,18 @@ function DzFrameGetItemBarButton takes integer buttonId returns integer
     return DB_origin(ORIGIN_FRAME_ITEM_BUTTON, buttonId)
 endfunction
 
+constant integer DB_UI_TEX=492
+constant integer DB_UI_TEX_FLAG=493
+constant integer DB_UI_TXT_SOMA=494
+constant integer DB_UI_NOSSO=495
+
+function DB_ui_nosso takes integer nid returns integer
+    if DB_ui_ht!=null and nid!=0 then
+        call SaveBoolean(DB_ui_ht, nid, DB_UI_NOSSO, true)
+    endif
+    return nid
+endfunction
+
 function DzFrameShow takes integer frame,boolean enable returns nothing
     local framehandle f=DB_fh(frame)
     if f!=null then
@@ -838,6 +850,9 @@ function DzFrameShow takes integer frame,boolean enable returns nothing
             call DB_pai_mostra(frame)
         endif
         //{{KK_FIMSE:KK_UI_PAI}}
+        if enable and BlzFrameIsVisible(f) then
+            return
+        endif
         call BlzFrameSetVisible(f, enable)
     endif
 endfunction
@@ -882,14 +897,18 @@ endfunction
 function DzFrameSetText takes integer frame,string text returns nothing
     local framehandle f=DB_fh(frame)
     local integer pai
+    local string s
     if f!=null then
         //{{KK_SE:KK_UI_ALFA}}
         set text=DB_ui_alfa(text)
         //{{KK_FIMSE:KK_UI_ALFA}}
         if text==null then
-            call BlzFrameSetText(f, "")
+            set s=""
         else
-            call BlzFrameSetText(f, text)
+            set s=text
+        endif
+        if BlzFrameGetText(f)!=s or (DB_ui_ht!=null and LoadBoolean(DB_ui_ht, frame, DB_UI_TXT_SOMA)) then
+            call BlzFrameSetText(f, s)
         endif
         if DB_ui_ht!=null then
             set pai=LoadInteger(DB_ui_ht, frame, DB_MUNDO_PAI)
@@ -903,6 +922,9 @@ endfunction
 function DzFrameAddText takes integer frame,string text returns nothing
     local framehandle f=DB_fh(frame)
     if f!=null then
+        if DB_ui_ht!=null then
+            call SaveBoolean(DB_ui_ht, frame, DB_UI_TXT_SOMA, true)
+        endif
         if text==null then
             call BlzFrameAddText(f, "")
         else
@@ -911,6 +933,168 @@ function DzFrameAddText takes integer frame,string text returns nothing
     endif
 endfunction
 
+//{{KK_SE:KK_UI_LARGA}}
+boolean DB_larga_ok=false
+real DB_larga_sx=1.0
+real DB_larga_dx=0.0
+leaderboard DB_larga_placar=null
+framehandle DB_larga_raiz=null
+boolean DB_larga_no_placar=false
+integer DB_larga_tentativas=0
+
+function DB_larga_placar_quadro takes nothing returns framehandle
+    local framehandle f=BlzGetFrameByName("Leaderboard", 0)
+    if f==null or GetHandleId(f)==0 then
+        return null
+    endif
+    call BlzFrameSetSize(f, 0.0, 0.0)
+    call BlzFrameSetVisible(BlzGetFrameByName("LeaderboardBackdrop", 0), false)
+    call BlzFrameSetVisible(BlzGetFrameByName("LeaderboardTitle", 0), false)
+    return f
+endfunction
+
+function DB_larga_poe takes nothing returns nothing
+    local framehandle f
+    set DB_larga_tentativas=DB_larga_tentativas+1
+    call LeaderboardDisplay(DB_larga_placar, true)
+    set f=DB_larga_placar_quadro()
+    if f!=null and not DB_larga_no_placar then
+        call BlzFrameSetParent(DB_larga_raiz, f)
+        set DB_larga_no_placar=true
+    endif
+    if DB_larga_tentativas>=40 then
+        call DestroyTimer(GetExpiredTimer())
+    endif
+    set f=null
+endfunction
+
+function DB_larga_boot takes nothing returns nothing
+    local integer i=0
+    local framehandle f
+    set DB_larga_placar=CreateLeaderboard()
+    call LeaderboardSetLabel(DB_larga_placar, "")
+    loop
+        exitwhen i>=bj_MAX_PLAYER_SLOTS
+        call PlayerSetLeaderboard(Player(i), DB_larga_placar)
+        set i=i+1
+    endloop
+    call LeaderboardDisplay(DB_larga_placar, true)
+    set f=DB_larga_placar_quadro()
+    if f!=null then
+        set DB_larga_no_placar=true
+    else
+        set f=BlzGetFrameByName("ConsoleUIBackdrop", 0)
+    endif
+    set DB_larga_raiz=BlzCreateFrameByType("FRAME", "DB_larga_raiz", f, "", 0)
+    call TimerStart(CreateTimer(), 0.5, true, function DB_larga_poe)
+    set f=null
+endfunction
+
+function DB_larga_mede takes nothing returns nothing
+    local integer w
+    local integer h
+    local real prop
+    if DB_larga_ok then
+        return
+    endif
+    set w=BlzGetLocalClientWidth()
+    set h=BlzGetLocalClientHeight()
+    if w<=0 or h<=0 then
+        return
+    endif
+    set DB_larga_ok=true
+    set prop=I2R(w)/I2R(h)
+    if prop>2.4 then
+        set prop=2.4
+    endif
+    if prop>4.0/3.0 then
+        set DB_larga_sx=prop*0.6/0.8
+        set DB_larga_dx=(prop*0.6-0.8)/2.0
+    endif
+endfunction
+
+function DB_lx takes real x returns real
+    call DB_larga_mede()
+    return x*DB_larga_sx-DB_larga_dx
+endfunction
+
+function DB_larga_k takes nothing returns real
+    call DB_larga_mede()
+    return DB_larga_sx
+endfunction
+
+boolean DB_larga_estreito=false
+constant integer DB_LARGA_ESTREITO=490
+
+function KK_larga_estreito takes boolean b returns nothing
+    set DB_larga_estreito=b
+endfunction
+
+function DB_larga_4x3 takes integer frame returns boolean
+    if frame==0 then
+        return DB_larga_estreito
+    endif
+    if DB_larga_estreito then
+        call SaveBoolean(DB_ui_ht, frame, DB_LARGA_ESTREITO, true)
+        return true
+    endif
+    return LoadBoolean(DB_ui_ht, frame, DB_LARGA_ESTREITO)
+endfunction
+
+real DB_larga_fator=1.0
+constant integer DB_LARGA_FATOR=491
+
+function KK_larga_fator takes real f returns nothing
+    set DB_larga_fator=f
+endfunction
+
+function DB_larga_f takes integer frame returns real
+    if frame==0 then
+        return 1.0
+    endif
+    if DB_larga_fator!=1.0 then
+        call SaveReal(DB_ui_ht, frame, DB_LARGA_FATOR, DB_larga_fator)
+        return DB_larga_fator
+    endif
+    if HaveSavedReal(DB_ui_ht, frame, DB_LARGA_FATOR) then
+        return LoadReal(DB_ui_ht, frame, DB_LARGA_FATOR)
+    endif
+    return 1.0
+endfunction
+
+function DB_larga_f_ref takes integer frame returns real
+    if frame!=0 and HaveSavedReal(DB_ui_ht, frame, DB_LARGA_FATOR) then
+        return LoadReal(DB_ui_ht, frame, DB_LARGA_FATOR)
+    endif
+    return 1.0
+endfunction
+
+function DB_larga_herda takes integer nid,integer parent returns nothing
+    if nid==0 then
+        return
+    endif
+    if DB_larga_fator!=1.0 then
+        call SaveReal(DB_ui_ht, nid, DB_LARGA_FATOR, DB_larga_fator)
+    elseif parent!=0 and HaveSavedReal(DB_ui_ht, parent, DB_LARGA_FATOR) then
+        call SaveReal(DB_ui_ht, nid, DB_LARGA_FATOR, LoadReal(DB_ui_ht, parent, DB_LARGA_FATOR))
+    endif
+endfunction
+
+function DB_larga_pai takes integer parent,framehandle p returns framehandle
+    if parent!=0 and parent==DzGetGameUI() then
+        if DB_larga_raiz!=null then
+            return DB_larga_raiz
+        endif
+        if DB_fundo_tela==null then
+            set DB_fundo_tela=BlzGetFrameByName("ConsoleUIBackdrop", 0)
+        endif
+        if DB_fundo_tela!=null then
+            return DB_fundo_tela
+        endif
+    endif
+    return p
+endfunction
+//{{KK_FIMSE:KK_UI_LARGA}}
 function DzFrameSetSize takes integer frame,real w,real h returns nothing
     local framehandle f=DB_fh(frame)
     //{{KK_SE:KK_UI_MSG}}
@@ -919,6 +1103,12 @@ function DzFrameSetSize takes integer frame,real w,real h returns nothing
     endif
     //{{KK_FIMSE:KK_UI_MSG}}
     if f!=null then
+        //{{KK_SE:KK_UI_LARGA}}
+        if not DB_larga_4x3(frame) then
+            set w=w*DB_larga_k()
+        endif
+        set w=w*DB_larga_f(frame)
+        //{{KK_FIMSE:KK_UI_LARGA}}
         call BlzFrameSetSize(f, w, h)
     endif
 endfunction
@@ -935,10 +1125,16 @@ function DzFrameSetTexture takes integer frame,string texture,integer flag retur
     local framehandle f=DB_fh(frame)
     if f!=null then
         if texture==null then
-            call BlzFrameSetTexture(f, "", flag, true)
-        else
-            call BlzFrameSetTexture(f, texture, flag, true)
+            set texture=""
         endif
+        if DB_ui_ht!=null and LoadBoolean(DB_ui_ht, frame, DB_UI_NOSSO) then
+            if LoadInteger(DB_ui_ht, frame, DB_UI_TEX_FLAG)==flag and HaveSavedString(DB_ui_ht, frame, DB_UI_TEX) and LoadStr(DB_ui_ht, frame, DB_UI_TEX)==texture then
+                return
+            endif
+            call SaveStr(DB_ui_ht, frame, DB_UI_TEX, texture)
+            call SaveInteger(DB_ui_ht, frame, DB_UI_TEX_FLAG, flag)
+        endif
+        call BlzFrameSetTexture(f, texture, flag, true)
     endif
 endfunction
 
@@ -1072,6 +1268,7 @@ function DB_anc_grava takes integer f,integer p,integer r,integer rp,real x,real
     endif
     call SaveBoolean(DB_anc_ht, f, 340+p, true)
     if r!=0 then
+        call SaveBoolean(DB_anc_ht, r, 398, true)
         set n=LoadInteger(DB_anc_ht, f, 397)
         loop
             exitwhen k>=n or LoadInteger(DB_anc_ht, f, 380+k)==p
@@ -1165,6 +1362,9 @@ endfunction
 
 function DB_anc_pode takes integer frame,integer relativeFrame returns boolean
     if relativeFrame==0 or DB_anc_ht==null then
+        return true
+    endif
+    if relativeFrame!=frame and not LoadBoolean(DB_anc_ht, frame, 398) then
         return true
     endif
     set DB_anc_marca=DB_anc_marca+1
@@ -1286,6 +1486,24 @@ function DzFrameSetPoint takes integer frame,integer point,integer relativeFrame
         return
     endif
     //{{KK_FIMSE:KK_UI_ANCORA}}
+    //{{KK_SE:KK_UI_LARGA}}
+    if relativeFrame!=0 and relativeFrame==DzGetGameUI() then
+        if DB_larga_4x3(frame) then
+            set x=I2R(ModuloInteger(relativePoint, 3))*0.4+x
+        else
+            set x=DB_lx(I2R(ModuloInteger(relativePoint, 3))*0.4+x)
+        endif
+        set y=0.6-I2R(relativePoint/3)*0.3+y
+        set relativeFrame=0
+        set r=null
+    else
+        if not DB_larga_4x3(frame) then
+            set x=x*DB_larga_k()
+        endif
+        set x=x*DB_larga_f_ref(relativeFrame)
+    endif
+    call DB_larga_f(frame)
+    //{{KK_FIMSE:KK_UI_LARGA}}
     if (relativePoint==2 or relativePoint==5 or relativePoint==8) and relativeFrame!=0 and relativeFrame==DzGetGameUI() then
         set pad=DB_borda_direita()
         if pad>0.0 and DB_fundo_tela!=null and not LoadBoolean(DB_ui_ht, frame, 3) then
@@ -1330,6 +1548,11 @@ function DzFrameSetAbsolutePoint takes integer frame,integer point,real x,real y
         //{{KK_SE:KK_UI_PAINEL}}
         call DB_painel_volta(frame, f)
         //{{KK_FIMSE:KK_UI_PAINEL}}
+        //{{KK_SE:KK_UI_LARGA}}
+        if not DB_larga_4x3(frame) then
+            set x=DB_lx(x)
+        endif
+        //{{KK_FIMSE:KK_UI_LARGA}}
         //{{KK_SE:KK_UI_CICLO}}
         call DB_anc_grava(frame, point, 0, point, x, y)
         //{{KK_FIMSE:KK_UI_CICLO}}
@@ -1384,6 +1607,19 @@ function DzFrameSetAllPoints takes integer frame,integer relativeFrame returns b
     //{{KK_SE:KK_UI_PAINEL}}
     call DB_painel_volta(frame, f)
     //{{KK_FIMSE:KK_UI_PAINEL}}
+    //{{KK_SE:KK_UI_LARGA}}
+    if relativeFrame==DzGetGameUI() then
+        call BlzFrameClearAllPoints(f)
+        if DB_larga_4x3(frame) then
+            call BlzFrameSetAbsPoint(f, FRAMEPOINT_TOPLEFT, 0.0, 0.6)
+            call BlzFrameSetAbsPoint(f, FRAMEPOINT_BOTTOMRIGHT, 0.8, 0.0)
+        else
+            call BlzFrameSetAbsPoint(f, FRAMEPOINT_TOPLEFT, DB_lx(0.0), 0.6)
+            call BlzFrameSetAbsPoint(f, FRAMEPOINT_BOTTOMRIGHT, DB_lx(0.8), 0.0)
+        endif
+        return true
+    endif
+    //{{KK_FIMSE:KK_UI_LARGA}}
     //{{KK_SE:KK_UI_CICLO}}
     if not DB_anc_pode(frame, relativeFrame) then
         return false
@@ -1436,6 +1672,9 @@ function DzCreateFrameByTagName takes string frameType,string name,integer paren
     if p==null then
         return 0
     endif
+    //{{KK_SE:KK_UI_LARGA}}
+    set p=DB_larga_pai(parent, p)
+    //{{KK_FIMSE:KK_UI_LARGA}}
     if name==null then
         set name=""
     endif
@@ -1455,7 +1694,7 @@ function DzCreateFrameByTagName takes string frameType,string name,integer paren
         if f==null then
             return 0
         endif
-        set nid=DB_fid(f)
+        set nid=DB_ui_nosso(DB_fid(f))
         call DB_ui_ht_ok()
         call SaveInteger(DB_ui_ht, nid, DB_MUNDO_PAI, parent)
         call SaveInteger(DB_ui_ht, parent, DB_MUNDO_FILHO, nid)
@@ -1467,7 +1706,7 @@ function DzCreateFrameByTagName takes string frameType,string name,integer paren
     if f==null then
         return 0
     endif
-    set nid=DB_fid(f)
+    set nid=DB_ui_nosso(DB_fid(f))
     if frameType=="TEXT" then
         call DB_ui_ht_ok()
         call SaveInteger(DB_ui_ht, nid, DB_MUNDO_PAI, parent)
@@ -1483,6 +1722,9 @@ function DzCreateFrameByTagName takes string frameType,string name,integer paren
     elseif frameType=="BACKDROP" then
         call DB_ui_foco(f, nid)
     endif
+    //{{KK_SE:KK_UI_LARGA}}
+    call DB_larga_herda(nid, parent)
+    //{{KK_FIMSE:KK_UI_LARGA}}
     return nid
 endfunction
 
@@ -1786,6 +2028,125 @@ function DB_ui_eco takes nothing returns boolean
     return true
 endfunction
 
+//{{KK_SE:KK_UI_ATALHOS}}
+//@GLOBALS
+hashtable DB_atalho_ht=InitHashtable()
+boolean DB_atalho_lido=false
+//@ENDGLOBALS
+constant integer DB_ATALHO=460
+constant real DB_ATALHO_JANELA=0.30
+
+function DB_atalho_tecla_de takes string nome returns integer
+    local string lista="{{KK_UI_ATALHOS_LISTA}}"
+    local integer n=StringLength(lista)
+    local integer i=0
+    local integer ini=0
+    local integer igual
+    local string par
+    if not DB_atalho_lido then
+        set DB_atalho_lido=true
+        loop
+            exitwhen i>n
+            if i==n or SubString(lista, i, i+1)=="|" then
+                if i>ini then
+                    set par=SubString(lista, ini, i)
+                    set igual=0
+                    loop
+                        exitwhen igual>=StringLength(par) or SubString(par, igual, igual+1)=="="
+                        set igual=igual+1
+                    endloop
+                    if igual<StringLength(par) then
+                        call SaveInteger(DB_atalho_ht, 0, StringHash(SubString(par, 0, igual)), S2I(SubString(par, igual+1, StringLength(par))))
+                    endif
+                endif
+                set ini=i+1
+            endif
+            set i=i+1
+        endloop
+    endif
+    if nome==null or nome=="" then
+        return 0
+    endif
+    return LoadInteger(DB_atalho_ht, 0, StringHash(nome))
+endfunction
+
+function DB_atalho_janela takes integer q,integer p returns boolean
+    local real agora
+    call DB_ui_relogio_ok()
+    set agora=TimerGetElapsed(DB_ui_relogio)
+    if HaveSavedReal(DB_ui_ht, q, DB_ATALHO+p) and agora-LoadReal(DB_ui_ht, q, DB_ATALHO+p)<DB_ATALHO_JANELA then
+        return false
+    endif
+    call SaveReal(DB_ui_ht, q, DB_ATALHO+p, agora)
+    return true
+endfunction
+
+function DB_atalho_cond takes nothing returns boolean
+    return DB_atalho_janela(LoadInteger(DB_ui_ht, GetHandleId(GetTriggeringTrigger()), 0), GetPlayerId(GetTriggerPlayer()))
+endfunction
+
+function DB_atalho_tecla takes nothing returns nothing
+    local integer k=LoadInteger(DB_atalho_ht, GetHandleId(GetTriggeringTrigger()), 0)
+    local integer p=GetPlayerId(GetTriggerPlayer())
+    local integer n
+    local integer j=1
+    local integer q
+    local trigger t
+    if not BlzGetTriggerPlayerIsKeyDown() then
+        call SaveBoolean(DB_atalho_ht, k, 100+p, false)
+        return
+    endif
+    if LoadBoolean(DB_atalho_ht, k, 100+p) then
+        return
+    endif
+    call SaveBoolean(DB_atalho_ht, k, 100+p, true)
+    set n=LoadInteger(DB_atalho_ht, k, 0)
+    loop
+        exitwhen j>n
+        set q=LoadInteger(DB_atalho_ht, k, j)
+        set t=LoadTriggerHandle(DB_ui_ht, q, 101)
+        if t==null then
+            set t=LoadTriggerHandle(DB_ui_ht, q, 104)
+        endif
+        if t!=null and DB_atalho_janela(q, p) then
+            call TriggerExecute(t)
+        endif
+        set j=j+1
+    endloop
+    set t=null
+endfunction
+
+function DB_atalho_liga takes framehandle f,integer frame,trigger t returns nothing
+    local integer k=DB_atalho_tecla_de(BlzFrameGetName(f))
+    local trigger tk
+    local integer n
+    local integer i=0
+    if k<=0 then
+        return
+    endif
+    call TriggerAddCondition(t, Condition(function DB_atalho_cond))
+    if LoadBoolean(DB_atalho_ht, frame, k) then
+        return
+    endif
+    call SaveBoolean(DB_atalho_ht, frame, k, true)
+    set n=LoadInteger(DB_atalho_ht, k, 0)+1
+    call SaveInteger(DB_atalho_ht, k, 0, n)
+    call SaveInteger(DB_atalho_ht, k, n, frame)
+    if n==1 then
+        set tk=CreateTrigger()
+        loop
+            exitwhen i>=bj_MAX_PLAYERS
+            call BlzTriggerRegisterPlayerKeyEvent(tk, Player(i), ConvertOsKeyType(k), 0, true)
+            call BlzTriggerRegisterPlayerKeyEvent(tk, Player(i), ConvertOsKeyType(k), 0, false)
+            set i=i+1
+        endloop
+        call SaveInteger(DB_atalho_ht, GetHandleId(tk), 0, k)
+        call TriggerAddAction(tk, function DB_atalho_tecla)
+        set tk=null
+    endif
+endfunction
+
+//{{KK_FIMSE:KK_UI_ATALHOS}}
 function DzFrameSetScriptByCode takes integer frame,integer eventId,code funcHandle,boolean sync returns nothing
     local framehandle f=DB_fh(frame)
     local frameeventtype ev=DB_ev(eventId)
@@ -1826,6 +2187,11 @@ function DzFrameSetScriptByCode takes integer frame,integer eventId,code funcHan
         endif
         call TriggerAddAction(t, funcHandle)
         call SaveTriggerHandle(DB_ui_ht, frame, 100+eventId, t)
+        //{{KK_SE:KK_UI_ATALHOS}}
+        if eventId==4 then
+            call DB_atalho_liga(f, frame, t)
+        endif
+        //{{KK_FIMSE:KK_UI_ATALHOS}}
         set t=null
         return
     endif
@@ -1840,6 +2206,11 @@ function DzFrameSetScriptByCode takes integer frame,integer eventId,code funcHan
     endif
     call TriggerAddAction(t, funcHandle)
     call SaveTriggerHandle(DB_ui_ht, frame, 100+eventId, t)
+    //{{KK_SE:KK_UI_ATALHOS}}
+    if eventId==1 or eventId==4 then
+        call DB_atalho_liga(f, frame, t)
+    endif
+    //{{KK_FIMSE:KK_UI_ATALHOS}}
     set t=null
 endfunction
 
@@ -1948,6 +2319,9 @@ function DB_ui_boot takes nothing returns nothing
     call TimerStart(CreateTimer(), 0.00, false, function DB_ui_pos_init)
     set DB_cova_relogio=CreateTimer()
     call TimerStart(DB_cova_relogio, 0.25, true, function DB_cova_passa)
+    //{{KK_SE:KK_UI_LARGA}}
+    call DB_larga_boot()
+    //{{KK_FIMSE:KK_UI_LARGA}}
     //{{KK_SE:KK_CMD_ATAQUE}}
     call DB_cmd_atk_boot()
     //{{KK_FIMSE:KK_CMD_ATAQUE}}
@@ -2097,6 +2471,10 @@ function DzGetMouseXRelative takes nothing returns integer
     if w<=0 then
         return 0
     endif
+    //{{KK_SE:KK_UI_LARGA}}
+    call DB_larga_mede()
+    set fx=(fx+DB_larga_dx)/DB_larga_sx
+    //{{KK_FIMSE:KK_UI_LARGA}}
     return R2I(fx/0.8*w+0.5)
 endfunction
 
@@ -2169,6 +2547,12 @@ function DzSetMousePos takes integer x,integer y returns nothing
         set DB_mouse_vy=y
     endif
     //{{KK_FIMSE:KK_UI_MOUSE_POS}}
+    //{{KK_SE:KK_UI_LARGA}}
+    call DB_larga_mede()
+    if BlzGetLocalClientWidth()>0 and x==R2I((BlzPixelToFrameX(BlzGetMouseScreenPosX())+DB_larga_dx)/DB_larga_sx/0.8*BlzGetLocalClientWidth()+0.5) and y==DB_mouse_ry() then
+        set DB_mouse_virt=false
+    endif
+    //{{KK_FIMSE:KK_UI_LARGA}}
 endfunction
 
 function DzEnableWideScreen takes boolean enable returns nothing
@@ -2927,6 +3311,40 @@ function DB_ex_dado_bonus takes ability abil,integer lv,integer data_type,intege
     return false
 endfunction
 
+//{{KK_SE:KK_VERDE}}
+function KK_atributos_verdes takes unit u,integer s,integer a,integer i returns nothing
+    local integer id={{KK_VERDE_HAB}}
+    local ability h
+    if u==null then
+        return
+    endif
+    if GetUnitAbilityLevel(u,id)==0 then
+        if s==0 and a==0 and i==0 then
+            return
+        endif
+        call UnitAddAbility(u,id)
+        call UnitMakeAbilityPermanent(u,true,id)
+    endif
+    set h=BlzGetUnitAbility(u,id)
+    if h==null then
+        return
+    endif
+    if BlzGetAbilityIntegerLevelField(h,ABILITY_ILF_STRENGTH_BONUS_ISTR,0)==s and BlzGetAbilityIntegerLevelField(h,ABILITY_ILF_AGILITY_BONUS,0)==a and BlzGetAbilityIntegerLevelField(h,ABILITY_ILF_INTELLIGENCE_BONUS,0)==i then
+        set h=null
+        return
+    endif
+    call BlzSetAbilityIntegerLevelField(h,ABILITY_ILF_STRENGTH_BONUS_ISTR,1,s)
+    call BlzSetAbilityIntegerLevelField(h,ABILITY_ILF_AGILITY_BONUS,1,a)
+    call BlzSetAbilityIntegerLevelField(h,ABILITY_ILF_INTELLIGENCE_BONUS,1,i)
+    call IncUnitAbilityLevel(u,id)
+    call BlzSetAbilityIntegerLevelField(h,ABILITY_ILF_STRENGTH_BONUS_ISTR,0,s)
+    call BlzSetAbilityIntegerLevelField(h,ABILITY_ILF_AGILITY_BONUS,0,a)
+    call BlzSetAbilityIntegerLevelField(h,ABILITY_ILF_INTELLIGENCE_BONUS,0,i)
+    call DecUnitAbilityLevel(u,id)
+    set h=null
+endfunction
+
+//{{KK_FIMSE:KK_VERDE}}
 function EXGetAbilityDataReal takes ability abil,integer level,integer data_type returns real
     local integer lv=level-1
     if abil==null then
