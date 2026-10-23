@@ -108,6 +108,10 @@ function DzFrameSetAlpha takes integer frame,integer alpha returns nothing
     elseif alpha>255 then
         set alpha=255
     endif
+    if BlzFrameGetAlpha(f)==alpha then
+        set f=null
+        return
+    endif
     call BlzFrameSetAlpha(f,alpha)
     set f=null
 endfunction
