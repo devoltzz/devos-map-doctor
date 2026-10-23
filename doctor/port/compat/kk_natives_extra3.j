@@ -39,13 +39,19 @@ function DzCreateFrame takes string frame,integer parent,integer id returns inte
     if frame==null or p==null then
         return 0
     endif
+    //{{KK_SE:KK_UI_LARGA}}
+    if DB_fh(parent)==null then
+        set parent=DzGetGameUI()
+    endif
+    set p=DB_larga_pai(parent, p)
+    //{{KK_FIMSE:KK_UI_LARGA}}
     set f=BlzCreateFrame(frame, p, 0, id)
     if f==null then
         return 0
     endif
     //{{KK_SE:KK_UI_BOTOES}}
     if DB_ui_e_botao(frame) then
-        set nid=DB_fid(f)
+        set nid=DB_ui_nosso(DB_fid(f))
         call DB_ui_ht_ok()
         call SaveBoolean(DB_ui_ht, nid, 2, true)
         call DB_ui_foco(f, nid)
@@ -53,7 +59,7 @@ function DzCreateFrame takes string frame,integer parent,integer id returns inte
         return nid
     endif
     //{{KK_FIMSE:KK_UI_BOTOES}}
-    return DB_fid(f)
+    return DB_ui_nosso(DB_fid(f))
 endfunction
 
 function DzCreateSimpleFrame takes string frame,integer parent,integer id returns integer
@@ -72,7 +78,7 @@ function DzCreateSimpleFrame takes string frame,integer parent,integer id return
     if f==null then
         return 0
     endif
-    return DB_fid(f)
+    return DB_ui_nosso(DB_fid(f))
 endfunction
 
 function DzFrameFindByName takes string name,integer id returns integer
