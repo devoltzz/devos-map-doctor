@@ -7,7 +7,7 @@ import sys
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-KK_COMPAT = os.path.join(HERE, 'compat')
+KK_COMPAT = os.environ.get('KK_COMPAT_DIR') or os.path.join(HERE, 'compat')
 PJASS_PY = os.path.join(HERE, 'pjass.py')
 REF_30 = os.path.normpath(os.path.join(HERE, '..', 'ref', '3.0'))
 RX_PARAM = re.compile(r'\{\{(KK_[A-Z0-9_]+)\}\}')
