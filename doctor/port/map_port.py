@@ -607,6 +607,8 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
                                                    neutralize=(memory_hacks == 'neutralize'), suffix='_b')
             memory_warnings(info_mem)
         if blz_part:
+            from doctor.fix import editor_prep
+            blz_part, _n = editor_prep.real_literal_return(blz_part)
             new.save(os.path.join(compat, 'out_blizzard_mapa.j'), blz_part)
             blz = True
     engine_lines = [
@@ -1447,16 +1449,25 @@ def memory_warnings(info):
     if not info:
         return
     bridge = info.get('bridge') or {}
-    if bridge.get('retyped_vars') or bridge.get('agents') or bridge.get('agent_vars') or bridge.get('expressions'):
+    if bridge.get('retyped_vars') or bridge.get('i2h_returns') or bridge.get('agents') or bridge.get('kept_calls') or \
+            bridge.get('agent_vars') or bridge.get('expressions'):
         pieces = []
         if bridge.get('retyped_vars'):
             pieces.append('%d variable(s), parameter(s) or return(s) that carried a handle disguised as another type '
                           'now have the real type (%s)' % (len(bridge['retyped_vars']), ', '.join(
                               '%s %s: %s -> %s' % x for x in bridge['retyped_vars'][:6])))
+        if bridge.get('i2h_returns'):
+            pieces.append('%d function(s) that returned a stored integer as a handle now return the type their callers '
+                          'use (%s)' % (len(bridge['i2h_returns']), ', '.join('%s: %s' % x for x in
+                                                                              bridge['i2h_returns'][:6])))
         if bridge.get('agents'):
             pieces.append('%d handle parameter(s) became agent so the handle table keeps the real handle for the '
                           'integer-to-handle casts (%s)' % (len(bridge['agents']), ', '.join(
                               '%s.%s' % x for x in bridge['agents'][:6])))
+        if bridge.get('kept_calls'):
+            pieces.append('%d handle value(s) passed to integer casts are kept in the handle table where they are '
+                          'given (%s)' % (sum(n for _f, n in bridge['kept_calls']), ', '.join(
+                              '%s: %d call(s)' % x for x in bridge['kept_calls'][:6])))
         if bridge.get('agent_vars'):
             pieces.append('%d handle variable(s) that hand back a narrower handle became agent (%s)' % (
                 len(bridge['agent_vars']), ', '.join(bridge['agent_vars'][:6])))
