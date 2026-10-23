@@ -26,8 +26,8 @@ a .w3mod): a package is read as data, never run; diag, files and extract work on
                                   --to=<version>: to a NEWER game of the classic game instead (1.24a to 1.29.2;
                                   a map of an older game, no platform): saves <map>_<version>.w3x;
                                   --package: the art packages the map needs, comma separated, the first wins (a
-                                  .mix, .asi, .dll or .mpq, or a folder of loose files the map read from the game
-                                  folder with "Allow Local Files");
+                                  .mix, .asi, .dll or .mpq, a .zip of the map's art, or a folder of loose files the
+                                  map read from the game folder with "Allow Local Files");
                                   --remove-game-files: the map's images and models with the path of a game file
                                   (they replace the game's own; counted in the report either way) come out;
                                   --lossy: a map still above 512 MiB after the lossless shrink gets its biggest
