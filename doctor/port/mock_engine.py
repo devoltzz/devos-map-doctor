@@ -744,6 +744,11 @@ function GetTriggerUnit() return __trigger_unit end
 __killing_unit = nil
 function GetKillingUnit() return __killing_unit end
 function GetDyingUnit() return __trigger_unit end
+-- [21/10/2026, o IS9] a unidade do evento de REGIAO (o `__mock_fire` do CreateUnit poe a que entrou em __trigger_unit):
+-- sem estas o stub devolvia um handle `unit` novo, sem `abil`, e o `GetUnitAbilityLevel(GetEnteringUnit(), ...)` do
+-- gatilho de entrada no mapa inteiro morria no simulador (o jogo devolve a unidade)
+function GetEnteringUnit() return __trigger_unit end
+function GetLeavingUnit() return __trigger_unit end
 function IsSuspendedXP(u) return u and u.suspended or false end
 function SuspendHeroXP(u, f) if u then u.suspended = f end end
 function GetHeroXP(u) return u and u.xp or 0 end
@@ -834,12 +839,15 @@ function ReviveHeroLoc(u, l, eyecandy)
 end
 -- [R1F2:astrologer2] fim
 function GetTriggerPlayer() return __trigger_player or Player(0) end
+-- [22/10/2026, o IS9] TODAS as condicoes rodam e o resultado e' o "e" delas (o jassdoc: "All return-values from all
+-- added condition-functions are and-ed"): o mapa que empilha varias condicoes num gatilho so' (as 3 da morte do
+-- IS9) contava com isso, e o mock parava na 1.a falsa (nenhuma morte de chefe fazia nada na simulacao)
 function TriggerEvaluate(t)
   if not t or not t.enabled then return false end
   local prev = __trigger __trigger = t
   local r = true
   for _, c in ipairs(t.conds) do
-    if c.fn then M.nasc = M.nasc + 1 local ok, v = pcall(c.fn) if not ok then __logerr("cond: " .. tostring(v)) v = false end if not v then r = false break end end
+    if c.fn then M.nasc = M.nasc + 1 local ok, v = pcall(c.fn) if not ok then __logerr("cond: " .. tostring(v)) v = false end if not v then r = false end end
   end
   __trigger = prev
   return r
@@ -1161,6 +1169,10 @@ function RemoveUnit(u) if u and u.typeid ~= 0 then M.units[u] = nil u.typeid = 0
 function KillUnit(u) if u then u.life = 0 __mock_decay_add(u) end end
 function ShowUnit(u, f) end
 function GetUnitTypeId(u) return u and u.typeid or 0 end
+-- [21/10/2026, o IS9] o valor do usuario da unidade (o indice de unidade dos mapas: sem ele o IS9 nao grava nenhum
+-- dado de unidade, e o auto-stub devolvia 0)
+function SetUnitUserData(u, v) if u then u.userdata = v end end
+function GetUnitUserData(u) return u and u.userdata or 0 end
 function GetOwningPlayer(u) return u and u.owner or nil end
 function GetUnitX(u) return u and u.x or 0.0 end
 function GetUnitY(u) return u and u.y or 0.0 end
