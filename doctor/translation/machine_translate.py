@@ -264,6 +264,7 @@ PUNCT = {'\u3002': '.', '\uff01': '!', '\uff1f': '?', '\uff1b': ';', '\u2026': '
          '\u300f': "'", '\u201c': "'", '\u201d': "'", '\u3008': '<', '\u3009': '>', '\uff0c': ',', '\u3001': ',',
          '\uff1a': ':', '\uff5e': '~', '\u3000': ' ', '\u00b7': '\u00b7'}
 LONG = {'zh': 24, 'existing': 30, 'ko': 40}
+RX_LEVEL_END = re.compile(r'^(.*?\S)(\s*(?:Lv|LV|lv)\.?\s*\d+)$', re.S)
 CLAUSE = re.compile(r'(\s*[，,、：:]\s*)')
 OPENING = '([<'
 CLOSING = ')]>.,!?;:'
@@ -303,9 +304,20 @@ class Plan(object):
         if m.group(1):
             self.parts.append(('lit', _ascii_punct(m.group(1))))
         if m.group(2):
-            self.parts.append(('mt', m.group(2)) if self.needs(m.group(2)) else ('lit', _ascii_punct(m.group(2))))
+            if self.needs(m.group(2)):
+                self.add_mt(m.group(2))
+            else:
+                self.parts.append(('lit', _ascii_punct(m.group(2))))
         if m.group(3):
             self.parts.append(('lit', _ascii_punct(m.group(3))))
+
+    def add_mt(self, s):
+        m = RX_LEVEL_END.match(s)
+        if m and self.needs(m.group(1)):
+            self.parts.append(('mt', m.group(1)))
+            self.parts.append(('lit', m.group(2)))
+        else:
+            self.parts.append(('mt', s))
 
     def add_text(self, s):
         for i, chunk in enumerate(SPLIT.split(s)):
@@ -331,7 +343,7 @@ class Plan(object):
                         elif cl.strip():
                             self.add_core(cl)
                 else:
-                    self.parts.append(('mt', mid))
+                    self.add_mt(mid)
             elif mid:
                 self.parts.append(('lit', _ascii_punct(mid)))
             if post:
@@ -377,18 +389,29 @@ def segments_of(pl):
 
 
 def model_input(s, lang):
+    return inject(expand_numbers(s, lang), lang)
+
+
+def expand_numbers(s, lang):
     s = unicodedata.normalize('NFKC', s)
     if lang in ('zh', 'existing'):
         s = RX_MULT_ZH.sub(_expand_mult, s)
     if lang == 'ko':
         s = RX_ENHANCE_KO.sub(r'+\1', s)
+        s = RX_EOK_MAN_KO.sub(lambda m: '%d' % (int(m.group(1)) * 10 ** 8 + int(m.group(2)) * MULT_KO[m.group(3)]), s)
+        s = RX_MAN_CHEON_KO.sub(lambda m: '%d' % (int(m.group(1)) * 10 ** 4 + int(m.group(2)) * 1000), s)
+        s = RX_MAN_REST_KO.sub(lambda m: '%d' % (int(m.group(1)) * 10 ** 4 + int(m.group(2))), s)
         s = RX_MULT_KO.sub(_expand_mult_ko, s)
-    return inject(s, lang)
+    return s
 
 
 RX_MULT_KO = re.compile(r'(\d+(?:\.\d+)?)\s*(\ucc9c\ub9cc|\ubc31\ub9cc|\uc2ed\ub9cc|\ub9cc|\uc5b5)(?!\ud07c)')
 MULT_KO = {'\ucc9c\ub9cc': 10 ** 7, '\ubc31\ub9cc': 10 ** 6, '\uc2ed\ub9cc': 10 ** 5, '\ub9cc': 10 ** 4,
            '\uc5b5': 10 ** 8}
+RX_EOK_MAN_KO = re.compile(r'(?<![\d.])(\d+)\s*\uc5b5\s*(\d+)\s*(\ucc9c\ub9cc|\ubc31\ub9cc|\uc2ed\ub9cc|\ub9cc)'
+                           r'(?!\ud07c)')
+RX_MAN_CHEON_KO = re.compile(r'(?<![\d.])(\d+)\ub9cc\s*(\d)\ucc9c(?![\d.\ub9cc])')
+RX_MAN_REST_KO = re.compile(r'(?<![\d.])(\d+)\ub9cc(\d{1,4})(?![\d.\ub9cc\ucc9c\ubc31\uc5b5])')
 
 
 def _expand_mult_ko(m):
@@ -463,10 +486,17 @@ def translate_sources(sources, lang, engine, progress=None):
         if progress:
             progress(len(inputs), len(inputs))
         alts = engine.translate([inputs[k] for k in bad], None, beam=8, n=8)
+        lost = []
         for k, hyps in zip(bad, alts):
             ok = [h for h in hyps if good_output(inputs[k], h)]
             if ok:
                 outs[k] = ok[0]
+            else:
+                lost.append(k)
+        cut = cut_translations([inputs[k] for k in lost], lang, engine)
+        for k in lost:
+            if cut.get(inputs[k]) and good_output(inputs[k], cut[inputs[k]]):
+                outs[k] = cut[inputs[k]]
             elif '\u2047' in outs[k] or outs[k].strip().rstrip('.').lower() in JUNK:
                 outs[k] = ''
     by_src = {}
@@ -485,6 +515,34 @@ def translate_sources(sources, lang, engine, progress=None):
             continue
         out[s] = by_src.get(s)
     return out, len(inputs)
+
+
+RX_NUMBER_TOKEN = re.compile(r'((?:[A-Za-z]+[.-]?\s*)?[-+]?\d+(?:\.\d+)?%?)')
+
+
+def cut_translations(inputs, lang, engine):
+    cuts = {s: RX_NUMBER_TOKEN.split(s) for s in inputs}
+    words = list(collections.OrderedDict.fromkeys(
+        p.strip() for parts in cuts.values() for p in parts[0::2] if SCRIPT_OF[lang].search(p)))
+    if not words:
+        return {}
+    tw = {w: clean_output(w, o) for w, o in zip(words, engine.translate(words, None))}
+    out = {}
+    for s, parts in cuts.items():
+        en = []
+        for i, p in enumerate(parts):
+            p = p.strip()
+            if i % 2 == 0 and SCRIPT_OF[lang].search(p):
+                t = tw.get(p)
+                if not t or '\u2047' in t or SCRIPT_OF[lang].search(t):
+                    en = None
+                    break
+                en.append(t)
+            elif p:
+                en.append(p)
+        if en:
+            out[s] = ' '.join(en)
+    return out
 
 
 RX_END = re.compile(r'[.!?\u3002\uff01\uff1f]$')
@@ -515,7 +573,10 @@ def clean_output(src, out):
         out = re.sub(r'\s*\([^()]*\)', '', out).strip() or out
     if out.endswith('.') and not out.endswith('...') and not RX_END.search(src.strip()):
         out = out[:-1]
-    return out
+    return RX_HO_KO.sub(r'No. \1', out)
+
+
+RX_HO_KO = re.compile(r'(\d+)\s*\ud638(?![\uac00-\ud7a3])')
 
 
 def _spread(words, codes):
@@ -644,6 +705,10 @@ NUMBER_WORDS = {
 }
 RX_NUMBER_WORD = re.compile(r'\b(?:(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)-(one|two|three|four|'
                             r'five|six|seven|eight|nine)|(' + '|'.join(NUMBER_WORDS) + r'))\b', re.I)
+RX_ORDINAL_SRC = re.compile(r'(\d+)\s*(?:\ucc28|\ubc88\uc9f8|\u756a\u76ee)|\u7b2c\s*(\d+)')
+ORDINAL_WORDS = {'first': 1, 'second': 2, 'third': 3, 'fourth': 4, 'fifth': 5, 'sixth': 6, 'seventh': 7, 'eighth': 8,
+                 'ninth': 9, 'tenth': 10}
+RX_ORDINAL_WORD = re.compile(r'\b(?:' + '|'.join(ORDINAL_WORDS) + r')\b', re.I)
 RX_BIG_NUMBER = re.compile(r'(\d+(?:\.\d+)?)\s*(thousand|million|billion)\b', re.I)
 BIG = {'thousand': 10 ** 3, 'million': 10 ** 6, 'billion': 10 ** 9}
 
@@ -674,7 +739,23 @@ def fix_numbers(src, out):
             missing[v] -= 1
             return v + word
         return m.group(0)
-    return RX_NUMBER_WORD.sub(put, RX_BIG_NUMBER.sub(big, out))
+    ordinals = set(a or b for a, b in RX_ORDINAL_SRC.findall(src))
+
+    def nth(m):
+        v = str(ORDINAL_WORDS[m.group(0).lower()])
+        if v in ordinals and missing.get(v):
+            missing[v] -= 1
+            return v + ({'1': 'st', '2': 'nd', '3': 'rd'}.get(v, 'th'))
+        return m.group(0)
+    pieces = PROTECT.split(out)
+    for k in range(0, len(pieces), 2):
+        pieces[k] = RX_ORDINAL_WORD.sub(nth, RX_NUMBER_WORD.sub(put, RX_BIG_NUMBER.sub(big, pieces[k])))
+    return ''.join(pieces)
+
+
+def numbers_source(pl):
+    return ' '.join(expand_numbers(p[1], pl.lang) if p[0] in ('mt', 'run') else p[1]
+                    for p in pl.parts if p[0] != 'code')
 
 
 RX_THOUSANDS = re.compile(r'(?<![\d.,])\d{1,3}(?:,\d{3})+(?![\d,]|\.\d)')
@@ -687,7 +768,7 @@ def entry_translation(e, lang, tr):
         s = assemble(pl, tr)
         if s is None:
             return None
-        s = fix_numbers(pl.text, s)
+        s = fix_numbers(numbers_source(pl), s)
         if '++' in s and '++' not in pl.text:
             s = s.replace('++', '+')
         if join == 'comma':
