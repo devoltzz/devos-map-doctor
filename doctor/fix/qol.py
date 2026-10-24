@@ -2298,7 +2298,8 @@ def fix(path_in, path_out, options=None, progress=None):
         w = map_rewrite.write(path_in, path_out, files, p)
     except Exception as e:
         return stop('failed', 'The map could not be written (%s).' % unprotect._error(e))
-    rep.update(state='done', file=path_out, same_files=w['same_files'], script=sc['file'])
+    rep.update(state='done', file=path_out, same_files=w['same_files'], script=sc['file'],
+               header_fixed=bool(w.get('header_fixed')))
     rep['lines'] = report(o, done, rep, text)
     return rep
 
@@ -2306,6 +2307,9 @@ def fix(path_in, path_out, options=None, progress=None):
 def report(o, done, rep, text):
     out = [('title', 'QoL edits written'),
            ('good', 'The script went back into the map; every other file is the same (%d).' % rep['same_files'])]
+    if rep.get('header_fixed'):
+        out.append(('info', 'The map\'s MPQ header was not the standard one (a protector or another tool changed '
+                            'it): the copy got the same header fix as Fix map, and every file reads back the same.'))
     pj = rep.get('pjass') or {}
     if pj.get('state') == 'passed':
         out.append(('good', 'pjass accepts the edited script.'))
