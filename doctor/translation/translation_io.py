@@ -63,7 +63,7 @@ NOT_TEXT_CALLS = ('SetUnitAnimation', 'QueueUnitAnimation', 'AddUnitAnimationPro
                   'DzFrameSetModel', 'BlzFrameSetFont', 'DzFrameSetFont', 'SetSkyModel', 'SetCineFilterTexture',
                   'AddLightning', 'DzSetUnitModel', 'DzSetUnitTexture', 'DzSync', 'BlzSendSyncData',
                   'BlzTriggerRegisterPlayerSyncEvent', 'BlzSetAbilityIcon', 'BlzSetItemIconPath')
-CJK_LANGUAGES = ('zh', 'existing', 'ko', 'cn', 'jp', 'kr', 'chinese', 'japanese', 'korean')
+CJK_LANGUAGES = ('zh', 'ja', 'ko', 'cn', 'jp', 'kr', 'chinese', 'japanese', 'korean')
 RX_COLOR = object_names.RX_COLOR
 RX_TRIGSTR = re.compile(r'\s*TRIGSTR_(\d+)\s*$')
 RX_WESTRING = re.compile(r'\s*WESTRING_\w+\s*$')
@@ -1688,5 +1688,108 @@ def import_(path_in, translation_file, path_out, progress=None):
         rep.update(state='failed', error=error)
         return rep
     rep.update(state='done', output=path_out, applied=len(wanted), files_changed=sorted(changed),
+               applied_by_source=dict(collections.Counter(e['source'] for e, _t in wanted)))
+    return rep
+
+
+CHECKSUM_FILES = ('war3map.j', 'scripts\\war3map.j', 'war3map.w3e', 'war3map.wpm', 'war3map.doo', 'war3map.w3u',
+                  'war3map.w3b', 'war3map.w3d', 'war3map.w3a', 'war3map.w3q')
+
+
+def held_reason(e):
+    if e['source'] in ('script', 'lua'):
+        return 'script'
+    if e['file'].lower().replace('/', '\\') in CHECKSUM_FILES:
+        return 'checksum'
+    if e.get('_group'):
+        return 'compared'
+    return None
+
+
+def override(path_in, translation_file, path_out, progress=None):
+    p = progress or _nothing
+    rep = {'state': None, 'error': None, 'output': None, 'applied': 0, 'applied_by_source': {}, 'files': [],
+           'held': {}, 'empty': 0, 'rejected': [], 'rejected_by_reason': {}, 'unknown': [], 'map_texts': None,
+           'verified': None}
+    if os.path.normcase(os.path.abspath(path_in)) == os.path.normcase(os.path.abspath(path_out)):
+        rep.update(state='failed', error='the output is the input map itself: write a copy')
+        return rep
+    try:
+        doc = _load(translation_file)
+    except Exception as e:
+        rep.update(state='failed', error='cannot read the translation file (%s)' % _error(e))
+        return rep
+    try:
+        p('reading map')
+        mt = collect(_open(path_in), p)
+    except (Exception, SystemExit) as e:
+        rep.update(state='failed', error='cannot read the map (%s)' % _error(e))
+        return rep
+    held, keep = {}, []
+    for e in mt.entries:
+        why = held_reason(e)
+        if why:
+            held[_id_without_case(e['id'])] = why
+        else:
+            keep.append(e)
+    rep['map_texts'] = {'total': len(mt.entries), 'reachable': len(keep),
+                        'held': dict(collections.Counter(held.values()))}
+    mt.entries = keep
+    mt.script_file = None
+    p('checking translations')
+    wanted, _linked, rejected, empty, unknown = _plan(mt, doc)
+    left, rest = collections.Counter(), []
+    for ident in unknown:
+        why = held.get(_id_without_case(ident)) if isinstance(ident, str) else None
+        if why:
+            left[why] += 1
+        else:
+            rest.append(ident)
+    rep.update(held=dict(left), empty=empty, rejected=rejected, unknown=rest,
+               rejected_by_reason=dict(collections.Counter(r['reason'] for r in rejected)))
+    if not wanted:
+        rep['state'] = 'nothing_to_apply'
+        return rep
+    p('building files')
+    try:
+        changed, _script = _build(mt, wanted, {})
+    except Exception as e:
+        rep.update(state='failed', error='cannot rewrite the files (%s)' % _error(e))
+        return rep
+    inside = [n for n in changed if n.lower().replace('/', '\\') in CHECKSUM_FILES]
+    if inside:
+        rep.update(state='failed', error='a file of the map checksum would go in: %s' % ', '.join(sorted(inside)))
+        return rep
+    if not changed:
+        rep['state'] = 'nothing_to_apply'
+        return rep
+    from doctor.mpq import mpq_rebuild
+    p('writing')
+    part = unprotect._part(path_out)
+    error = None
+    try:
+        w = mpq_rebuild.write_mpq(part, changed)
+        if w['error_list']:
+            raise RuntimeError('%s not read back as written' % ', '.join(sorted(w['error_list'])[:5]))
+        p('checking')
+        b = _open(part)
+        bad = [n for n, d in changed.items() if _read(b, n) != d]
+        if bad:
+            raise RuntimeError('%s not read back as written' % ', '.join(sorted(bad)[:5]))
+        found = [(e, t) for e, t in wanted if e['source'] == 'image' or e['file'] in changed]
+        missing = _readback(b, mt, found, {}, {'per_literal': {}, 'lua': {}})
+        del b
+        rep['verified'] = {'files': len(changed), 'translations_found': len(found) - len(missing)}
+        if missing:
+            raise RuntimeError('%d translation(s) not found in the archive, first: %s (%s)'
+                               % (len(missing), missing[0][0], missing[0][1]))
+        os.replace(part, path_out)
+    except (Exception, SystemExit) as e:
+        error = _error(e)
+    if error:
+        _remove(part)
+        rep.update(state='failed', error=error)
+        return rep
+    rep.update(state='done', output=path_out, applied=len(wanted), files=sorted(changed),
                applied_by_source=dict(collections.Counter(e['source'] for e, _t in wanted)))
     return rep
