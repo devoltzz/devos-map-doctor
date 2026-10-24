@@ -17,7 +17,9 @@ a .w3mod): a package is read as data, never run; diag, files and extract work on
   editor <map> [steps] [extras] [--editor-version=<v>]
                                   Open in World Editor: saves <map>_editor.w3x; --editor-version: the World
                                   Editor to open it in, reforged (the default), 1.24 to 1.29 (keeps the map's
-                                  version), or auto (the version the map was saved for)
+                                  version), jn (the JassNative Editor: keeps the 1.27 version, with that editor's
+                                  own trigger functions and variable types), or auto (the version the map was
+                                  saved for)
   port <map> [--to=<version>] [--package=<name>] [--icons] [--textures] [--keep-memory] [--balance-numbers]
        [--strip-indent]
        (every extra of fix and port is off unless given: the window turns the usual ones on by itself)
@@ -51,6 +53,11 @@ a .w3mod): a package is read as data, never run; diag, files and extract work on
   translation groups <map>        the files the texts come from
   translation export <map> <file.json|file.html> [--only=<group>,...] [--images]
   translation check <map> <file>  checks a translated file against the map (apply it: fix --translation=<file>)
+  translation override <map> <file>
+                                  for a map that must stay the original (M16 rooms): the translation in an archive
+                                  of its own, saves <map>_translation.mpq with only the files outside the map
+                                  checksum (the script's texts stay); a .mix loader the Doctor does not make must
+                                  open it above the map (priority 17 or more), and only while that map is played
   translation machine <map> <file.json> [--quality=best|fast] [--only=<group>,...] [--images]
                                   translates the texts into English on this computer (an open translation model,
                                   downloaded the first time) and checks the file against the map
@@ -412,6 +419,33 @@ def show(command, r):
         for x in (r.get('rejected') or [])[:20]:
             print('  rejected: %s' % (x if isinstance(x, str) else json.dumps(x, ensure_ascii=False)[:200]))
         return
+    if command == 'translation override':
+        if r.get('state') == 'failed':
+            print(r.get('error'))
+            return
+        if r.get('state') == 'done':
+            print('Saved %d texts in %d files as: %s' % (r.get('applied') or 0, len(r.get('files') or []),
+                                                          r.get('output')))
+            for name in r.get('files') or []:
+                print('  %s' % name)
+        else:
+            print('No translation can go in the archive.')
+        held = {'script': 'in the script, which the map checksum covers',
+                'checksum': 'in object data the map checksum covers', 'compared': 'compared by the script'}
+        for why, n in sorted((r.get('held') or {}).items()):
+            print('%d translated texts stay in the original: %s' % (n, held.get(why, why)))
+        if r.get('rejected'):
+            print('%d rejected (translation check lists them)' % len(r['rejected']))
+        m = r.get('map_texts') or {}
+        if m:
+            print(
+                'An archive can carry %d of the %d texts of this map.' % (m.get('reachable') or 0, m.get('total') or 0)
+            )
+        if r.get('state') == 'done':
+            print('The map is not touched. A .mix loader (not made by the Doctor) must open the archive above the map '
+                  '(priority 17 or more; the game opens the map at 16); while it is loaded it replaces the same files '
+                  'of every map.')
+        return
     if command == 'compare':
         if r.get('error'):
             print(r['error'])
@@ -485,7 +519,7 @@ def editor_version_flag(command, opts):
     if command != 'editor':
         raise UsageError('--editor-version is an option of editor')
     if value is True:
-        raise UsageError('--editor-version needs a value: reforged, auto or 1.24 to 1.29')
+        raise UsageError('--editor-version needs a value: reforged, auto, jn or 1.24 to 1.29')
     from doctor.fix import editor_version
     try:
         v = editor_version.normalize(value)
@@ -587,6 +621,10 @@ def build_job(command, pos, opts, run):
         if sub == 'check':
             need(rest, 3, '<map> <file>')
             return 'translation check', {'task': 'translation_check', 'map': rest[1], 'file': os.path.abspath(rest[2])}
+        if sub == 'override':
+            need(rest, 3, '<map> <file>')
+            return 'translation override', {'task': 'translation_override', 'map': rest[1],
+                                            'file': os.path.abspath(rest[2])}
         if sub == 'machine':
             need(rest, 3, '<map> <file.json>')
             if opts.get('only') is True:
@@ -598,7 +636,7 @@ def build_job(command, pos, opts, run):
             return 'translation machine', {'task': 'translation_machine', 'map': rest[1],
                                            'file': os.path.abspath(rest[2]), 'only': only, 'quality': quality,
                                            'images': opts.get('images') is True}
-        raise UsageError('translation groups | export | check | machine')
+        raise UsageError('translation groups | export | check | override | machine')
     if command == 'files':
         need(pos, 2, '<map>')
         return 'files', {'task': 'files', 'map': pos[1]}
