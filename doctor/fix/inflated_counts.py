@@ -1676,7 +1676,7 @@ RX_DROP_ITEM = re.compile(r'RandomDistAddItem\(\s*((?:ChooseRandomItemEx|FourCC)
                           r'\s*(-?\d+)\s*\)')
 RX_ITEM_CLASS = re.compile(r'ChooseRandomItemEx\(\s*(ITEM_TYPE_\w+)\s*,\s*(-?\d+)\s*\)$')
 ITEM_CLASS_LETTER = {'ITEM_TYPE_PERMANENT': 'i', 'ITEM_TYPE_CHARGED': 'j', 'ITEM_TYPE_POWERUP': 'k',
-                     'ITEM_TYPE_ARTIFACT': 'line', 'ITEM_TYPE_PURCHASABLE': 'm', 'ITEM_TYPE_CAMPAIGN': 'n',
+                     'ITEM_TYPE_ARTIFACT': 'l', 'ITEM_TYPE_PURCHASABLE': 'm', 'ITEM_TYPE_CAMPAIGN': 'n',
                      'ITEM_TYPE_MISCELLANEOUS': 'o', 'ITEM_TYPE_ANY': 'Y'}
 RANDOM_BUILDING_ID = b'bDNR'
 
