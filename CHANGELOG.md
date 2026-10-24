@@ -3,6 +3,74 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 1.8.8 (2026-10-24)
+
+### New
+
+- **Maps marked as not allowed to edit.** A map can now carry a mark that says its author does not allow edits,
+  and the Doctor respects it. On a marked map it still says what protects the map, shows its card
+  (read only) and checks whether it runs, but it does not unprotect, fix, port, translate or extract it: the window
+  shows "Not allowed to edit", every other tab says why it is empty, and the command line answers with the same
+  message and exit code 1. The three independent marks are a small file inside the map, a script comment and an MPQ
+  header signature; any one of them is enough, even in a protected map with no file list.
+
+- **Port to an older game.** The Port tab now also takes a map back to an older version: a Reforged map (or a map of
+  a newer classic game) to 1.29.2 and down to 1.24a. What the older game does not have is written into the map's own
+  script. Functions of the newer blizzard.j are copied in. Natives with an equivalent in the older game get it: the
+  units, items and destructables created with a skin, the player count functions, the maximum life and mana, the group
+  size, the bitwise functions, and the any-unit damage event of 1.31, done the classic way (every unit on the map gets
+  the unit damage event). The rest become neutral: they compile and do nothing, and the report lists each one. The map
+  info, the object data (with the skin files merged back in), the terrain and the doodads are written in the older
+  formats; the triggers and the files only the World Editor reads are written the way the older editor reads them (a
+  GUI trigger that uses a function the older editor does not know becomes custom text). Models of version 900 and later
+  are written as version 800 (they keep only their diffuse texture), DDS textures become BLP, and FLAC and OGG sounds
+  become MP3 when ffmpeg is installed. The script is checked with the game scripts of the target version before
+  anything is saved. A Lua map, a map of a platform client (KK, M16) and a map with more players than the target has
+  are refused. I could not test this in the game itself: what I checked is that the script compiles for the target,
+  that every file reads back in the older format, and that "Runs on <version>?" and the older editor's checks pass.
+
+### Fixed
+
+- **Port to Reforged: a local variable declared twice in the same function** (issue 46, Age of Myths 3.7F). The old
+  compiler accepted it, and from the second declaration on the name meant the new variable; the Reforged script
+  checker stopped the port with "already defined". The second declaration and the lines after it now get their own
+  name.
+- **Map detection: scripts with old Mac line endings** (a carriage return only). A map made for 1.23 was read as one
+  for 1.24 to 1.28, without the return bug; the natives such a script declares were also missed by the port's platform
+  check.
+- **Open in World Editor: custom skills shown as "Unknown"** (issue 32, FOC). A map that keeps its abilities in the
+  AbilityData.slk table can also carry a small war3map.w3a with a few of them, and "Open in World Editor" only made the
+  object files a map lacked, so the editor showed every ability missing from that file as "Unknown". The abilities only
+  the table holds are now added to the map's own w3a, and what it had stays as it was: FOCS3 Another 9.7 C03 gets 877
+  (445 different skills were "Unknown"), FOC Another 10.0 A06 1,041 (586 were). The step now also runs on a map that
+  has its unit and item files and only the ability table.
+- **QoL edits: "The map could not be written (MPQ v1 only)".** A map whose archive header a protector or another tool
+  had changed could not take the edits: the Doctor only writes the standard MPQ header. The copy now gets the same
+  header fix as Fix map first, every other file is checked to read back the same, and the report says so. The other
+  steps that write into a map the same way (the editor object files from SLK tables, the lobby image, the object data
+  as SLK tables, the port to an older game) get it too.
+- **Local machine translation: Korean texts left untranslated** (reported on Discord with DragonBall RPG v21.08).
+  A text whose translation fails the number check stays in the original, and several of my own steps made correct
+  translations fail it: a compound number (`1억 4000만`) went to the model as two numbers and came back glued; a number
+  the model wrote as a word right after a color code (`|rFive`), as "300 million" or as an ordinal ("second" for
+  `2차`) was not put back in digits; and the check read a multiplier inside a color code with the code's own digits.
+  The model also dropped the level at the end of a name (`Lv2`), which now stays out of it, and read the stat
+  abbreviations `이속`/`공속`/`모능` as numbers ("2 speed"). A piece that still loses a number is now cut at its
+  numbers, and only the words between them go to the model. On that map 18,981 of the 19,020 Korean texts are translated
+  (18,488 before).
+- **Port to Reforged, KK maps: a unit changed with `DzSetUnitID` lost its abilities.** That native only changes the
+  unit's type and keeps its abilities, but the port made the change with a Chaos morph, which swaps the whole ability
+  list for the new type's (in one map, changing a backpack's skin took every ability off it). The change now keeps the
+  abilities the unit had.
+- **Translation: a circled number before a Chinese multiplier** (`③千里眼`, the item 3 of a list) was read as 3000, so a
+  correct translation was refused by the number check. A circled number is now read as the list number it is.
+- **Command line: "not used" for step flags that were used** (issue 32). `doctor editor <map> --editor-files
+  --gui-triggers --script-objects` printed that those flags were not used, while the job did use them.
+- **Shrink: BLP textures with gaps between their mipmaps.** The lossless rewrite of BLP textures skipped a texture
+  whose mipmaps had unused bytes between them or after the last one, a layout some exporters write. Those are now
+  rewritten too, with the mipmaps back to back: the same pixels, checked one by one, and a smaller file (141 more
+  textures on 12 test maps).
+
 ## 1.8.7 (2026-10-23)
 
 ### New
