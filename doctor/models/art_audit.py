@@ -83,6 +83,37 @@ def emitters(d):
     return out
 
 
+def converte(d, new_value):
+    import io
+    import shutil
+    import tempfile
+    if new_value not in ('.blp', '.tga'):
+        return d
+    from PIL import Image
+    from doctor.models import blpwrite
+    from doctor.models import blpread
+    tmp = tempfile.mkdtemp(prefix='arte_audita_')
+    try:
+        if d[:4] in (b'BLP1', b'BLP2'):
+            if new_value == '.blp':
+                return d
+            ent = os.path.join(tmp, 'x.blp')
+            open(ent, 'wb').write(d)
+            im, _info = blpread.read_data(ent)
+        else:
+            im = Image.open(io.BytesIO(d))
+            im.load()
+        if new_value == '.blp':
+            output = os.path.join(tmp, 'x.blp')
+            blpwrite.save_blp(im.convert('RGBA'), output)
+            return open(output, 'rb').read()
+        buf = io.BytesIO()
+        im.convert('RGBA').save(buf, format='TGA')
+        return buf.getvalue()
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def requested_ones(map_path, script, folders, rx):
     ped = collections.defaultdict(set)
 
