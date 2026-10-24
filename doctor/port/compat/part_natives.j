@@ -3627,13 +3627,16 @@ constant integer DB_MP_MANA=8
 constant integer DB_MP_INV=9
 constant integer DB_MP_T0=10
 constant integer DB_MP_NREP=11
+constant integer DB_MP_MANTEM=12
 constant integer DB_MP_REP=100
+constant integer DB_MORPH_HABS=120
 unit array DB_morph_pu
 integer DB_morph_pn=0
 timer DB_morph_tmr=null
 timer DB_morph_t0=null
 trigger DB_morph_pegou_trg=null
 unit DB_morph_pegou_u=null
+boolean DB_morph_mantem=false
 
 function DB_morph_pendente takes unit u returns boolean
     if u==null or DB_morph_pn==0 then
@@ -3653,6 +3656,7 @@ function DB_morph_habs takes unit u,integer h,boolean marca returns nothing
     local integer n=0
     local integer id
     local integer chaos=LoadInteger(DB_morph_ht,h,DB_MP_CHAOS)
+    local boolean todas=LoadBoolean(DB_morph_ht,h,DB_MP_MANTEM)
     local ability a
     loop
         set a=BlzGetUnitAbilityByIndex(u,i)
@@ -3660,8 +3664,8 @@ function DB_morph_habs takes unit u,integer h,boolean marca returns nothing
         set id=BlzGetAbilityId(a)
         if marca then
             call SaveBoolean(DB_morph_ht,h,id,true)
-        elseif id!=chaos and id!=0 and n<50 then
-            if not LoadBoolean(DB_morph_ht,h,id) then
+        elseif id!=chaos and id!=0 and n<DB_MORPH_HABS then
+            if (todas and id!='Amov' and id!='Aatk' and id!='AHer' and id!='ARal') or not LoadBoolean(DB_morph_ht,h,id) then
                 call SaveInteger(DB_morph_ht,h,DB_MP_REP+2*n,id)
                 call SaveInteger(DB_morph_ht,h,DB_MP_REP+2*n+1,GetUnitAbilityLevel(u,id))
                 set n=n+1
@@ -3884,6 +3888,7 @@ function DB_morph takes unit u,integer alvo returns nothing
         endif
         call FlushChildHashtable(DB_morph_ht,h)
         call SaveInteger(DB_morph_ht,h,DB_MP_CHAOS,chaos)
+        call SaveBoolean(DB_morph_ht,h,DB_MP_MANTEM,DB_morph_mantem)
         call DB_morph_habs(u,h,true)
         set pausada=DB_morph_solta(u)
         set pausou=false
