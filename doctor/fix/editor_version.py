@@ -8,6 +8,13 @@ import struct
 HERE = os.path.dirname(os.path.abspath(__file__))
 VERSIONS = ('1.24', '1.25', '1.26', '1.27', '1.28', '1.29')
 REFORGED = 'reforged'
+JN = 'jn'
+JN_NAMES = ('jn', 'jassnative', 'jassnative editor', 'jassnative-editor')
+JN_BASE = '1.27b'
+JN_DIR = 'jn'
+JN_TRIGGER_DATA = 'TriggerData.txt'
+JN_TRIGGER_DATA_SHA256 = '132c106d7781a4e863acf0567b9cd1cd2264ab553fe3c6fc930b8b8933b1bf2c'
+JN_SAVE_PREFIX = 'globals\nconstant boolean REFORGED_MODE = false\nendglobals\n'
 
 ARCHIVES = ('War3Patch.mpq', 'War3xLocal.mpq', 'War3x.mpq', 'War3Local.mpq', 'War3.mpq', 'Deprecated.mpq')
 PATCH_ARCHIVE = 'Patch_War3x.mpq'
@@ -19,7 +26,7 @@ COMMON_J = 'Scripts\\common.j'
 BLIZZARD_J = 'Scripts\\Blizzard.j'
 
 _BASE = {'w3i': 25, 'wtg': 7, 'wct': 1, 'objects': 2, 'w3s': 1, 'w3r': 5, 'w3c': 0, 'w3e': 11, 'imp': 1,
-         'jasshelper': False, 'lua': False}
+         'jasshelper': False, 'lua': False, 'save_prefix': None}
 PROFILES = {
     '1.24': dict(_BASE, editor=6052, players=12, label='World Editor 1.24'),
     '1.25': dict(_BASE, editor=6052, players=12, label='World Editor 1.25'),
@@ -27,6 +34,7 @@ PROFILES = {
     '1.27': dict(_BASE, editor=6052, players=12, label='World Editor 1.27'),
     '1.28': dict(_BASE, editor=6059, players=12, label='World Editor 1.28'),
     '1.29': dict(_BASE, editor=6060, players=24, label='World Editor 1.29'),
+    JN: dict(_BASE, editor=6052, players=12, label='JassNative Editor', jasshelper=True, save_prefix=JN_SAVE_PREFIX),
 }
 GUESS = ((6052, '1.27'), (6059, '1.28'), (6060, '1.29'))
 OBJECT_FILES = ('war3map.w3u', 'war3map.w3t', 'war3map.w3a', 'war3map.w3b', 'war3map.w3d', 'war3map.w3q',
@@ -42,24 +50,33 @@ def normalize(version):
         return None
     if v == 'auto':
         return 'auto'
+    if v in JN_NAMES:
+        return JN
     from doctor.data import wc3_versions
     exact = wc3_versions.normalize(v)
     if exact == wc3_versions.REFORGED:
         return None
     if exact not in wc3_versions.CLASSIC:
-        raise ValueError('no World Editor version %r here: %s (or reforged)' % (version, ', '.join(VERSIONS)))
+        raise ValueError('no World Editor version %r here: %s, jn (the JassNative Editor) or reforged'
+                         % (version, ', '.join(VERSIONS)))
     return exact
 
 
 def family(version):
-    return normalize(version)[:4]
+    v = normalize(version)
+    return v if v == JN else v[:4]
+
+
+def base_version(version):
+    v = normalize(version)
+    return JN_BASE if v == JN else v
 
 
 def profile(version):
     v = normalize(version)
     if not v or v == 'auto' or family(v) not in PROFILES:
         raise ValueError('no profile for %r' % (version,))
-    return dict(PROFILES[family(v)], version=v, family=family(v), files_at=where(v))
+    return dict(PROFILES[family(v)], version=v, family=family(v), base=base_version(v), files_at=where(v))
 
 
 def versions_root():
@@ -129,8 +146,38 @@ def _from_installers(version, name):
 READERS = [_from_packs, _from_installers]
 
 
+def jn_trigger_data_path():
+    from doctor.data import wc3_versions
+    for root in wc3_versions._ref_roots():
+        p = os.path.join(root, JN_DIR, JN_TRIGGER_DATA)
+        if os.path.isfile(p):
+            return p
+    return None
+
+
+_JN_TD = {}
+
+
+def jn_trigger_data_bytes():
+    if 'b' not in _JN_TD:
+        import hashlib
+        p = jn_trigger_data_path()
+        data = None
+        if p:
+            with open(p, 'rb') as f:
+                data = f.read()
+            if hashlib.sha256(data).hexdigest() != JN_TRIGGER_DATA_SHA256:
+                data = None
+        _JN_TD['b'] = data
+    return _JN_TD['b']
+
+
 def game_file(version, name):
     v = normalize(version)
+    if v == JN:
+        if name.replace('/', '\\').lower() == TRIGGER_DATA.lower():
+            return jn_trigger_data_bytes()
+        v = JN_BASE
     for reader in READERS:
         data = reader(v, name)
         if data is not None:
@@ -141,6 +188,9 @@ def game_file(version, name):
 def where(version):
     from doctor.data import wc3_versions
     v = normalize(version)
+    if v == JN:
+        return '%s; %s' % (jn_trigger_data_path() or os.path.join('common', 'ref', JN_DIR, JN_TRIGGER_DATA),
+                           where(JN_BASE))
     try:
         d = wc3_versions.pack_dir(v)
     except Exception:
@@ -160,15 +210,16 @@ def trigger_data(version):
     td = _TD.get(v)
     if td is None:
         data = game_file(v, TRIGGER_DATA)
+        name = 'the JassNative Editor' if v == JN else 'Warcraft III %s' % v
         if not data:
-            raise FileNotFoundError('UI\\TriggerData.txt of Warcraft III %s: not found (%s)' % (v, where(v)))
-        td = _TD[v] = triggerdata._from_bytes(data, 'Warcraft III %s' % v, triggerdata.CACHE_DIR)
+            raise FileNotFoundError('UI\\TriggerData.txt of %s: not found (%s)' % (name, where(v)))
+        td = _TD[v] = triggerdata._from_bytes(data, name, triggerdata.CACHE_DIR)
     return td
 
 
 def trigger_data_text(version):
     data = game_file(version, TRIGGER_DATA)
-    return data.decode('utf-8', 'replace') if data else None
+    return data.decode('utf-8-sig', 'replace') if data else None
 
 
 SOUND_TABLES = ('AbilitySounds.slk', 'AmbienceSounds.slk', 'AnimSounds.slk', 'DialogSounds.slk', 'UISounds.slk',
@@ -208,7 +259,7 @@ def cache_root():
 
 def scripts_dir(version):
     from doctor.data import wc3_versions
-    v = normalize(version)
+    v = base_version(version)
     try:
         folder = wc3_versions.scripts_dir(v)
     except Exception:
@@ -366,3 +417,56 @@ def missing_natives(version, script):
     mine = game_names(normalize(version))
     newer = game_names(None)
     return sorted(n for n in called if n in newer and n not in mine)
+
+
+RX_JN_MARK = re.compile(r'(?m)^[ \t]*constant[ \t]+boolean[ \t]+REFORGED_MODE[ \t]*=[ \t]*(true|false)[ \t]*'
+                        r'(?://[^\n]*)?$\n?')
+RX_JN_NAME = re.compile(r'\bREFORGED_MODE\b')
+RX_FIRST_FUNCTION = re.compile(r'(?m)^[ \t]*(?:constant[ \t]+)?(?:function|native)[ \t]')
+
+
+def _lines(text):
+    return (text or '').replace('\r\n', '\n').replace('\r', '\n')
+
+
+def jassnative_mark(script):
+    if isinstance(script, bytes):
+        script = script.decode('latin-1')
+    text = _lines(script)
+    first = RX_FIRST_FUNCTION.search(text)
+    end = first.start() if first else len(text)
+    m = RX_JN_MARK.search(text, 0, end)
+    if not m:
+        return None
+    rest = text[:m.start()] + text[m.end():]
+    used = bool(RX_JN_NAME.search(rest)) and bool(RX_JN_NAME.search(RX_NOISE.sub(' ', rest)))
+    return {'reforged_mode': m.group(1) == 'true', 'line': text.count('\n', 0, m.start()) + 1, 'used': used}
+
+
+def without_jassnative_mark(text):
+    mark = jassnative_mark(text)
+    if mark is None:
+        return text, None
+    if mark['used']:
+        return text, dict(mark, removed=False, reason='the script reads REFORGED_MODE outside its declaration')
+    first = RX_FIRST_FUNCTION.search(text)
+    m = RX_JN_MARK.search(text, 0, first.start() if first else len(text))
+    return text[:m.start()] + text[m.end():], dict(mark, removed=True, reason=None)
+
+
+RX_JN_MARK_RAW = re.compile(
+    r'(?:^|(?<=[\r\n]))[ \t]*constant[ \t]+boolean[ \t]+REFORGED_MODE[ \t]*=[ \t]*(?:true|false)'
+    r'[ \t]*(?://[^\r\n]*)?(?:\r\n|\r|\n)?'
+)
+RX_FIRST_FUNCTION_RAW = re.compile(r'(?:^|(?<=[\r\n]))[ \t]*(?:constant[ \t]+)?(?:function|native)[ \t]')
+
+
+def without_jassnative_mark_bytes(data):
+    text = data.decode('latin-1')
+    first = RX_FIRST_FUNCTION_RAW.search(text)
+    end = first.start() if first else len(text)
+    found = [m for m in RX_JN_MARK_RAW.finditer(text, 0, end)]
+    if len(found) != 1:
+        return None
+    m = found[0]
+    return (text[:m.start()] + text[m.end():]).encode('latin-1')
