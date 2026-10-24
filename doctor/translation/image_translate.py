@@ -16,7 +16,7 @@ IMAGE_EXT = ('.blp', '.tga', '.png', '.jpg', '.jpeg')
 MIN_SIDE = 64
 MIN_CHARS, MIN_CONF = 2, 0.8
 OCR_DET = 'ocr-det-ppocrv6-small'
-OCR_REC = {'zh': 'ocr-rec-ppocrv6-small', 'existing': 'ocr-rec-ppocrv6-small', 'vi': 'ocr-rec-ppocrv6-small',
+OCR_REC = {'zh': 'ocr-rec-ppocrv6-small', 'ja': 'ocr-rec-ppocrv6-small', 'vi': 'ocr-rec-ppocrv6-small',
            'ko': 'ocr-rec-korean-ppocrv5', 'ru': 'ocr-rec-eslav-ppocrv5', 'th': 'ocr-rec-th-ppocrv5'}
 OCR_ZIPS = {
     'ocr-det-ppocrv6-small': {'size': 8031280,
