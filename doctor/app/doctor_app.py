@@ -206,7 +206,8 @@ def page_summary(D, d):
             'editor_ready': (d.get('editor') or {}).get('status') == 'ready', 'script': d.get('script'),
             'script_label': SCRIPT_LABEL.get(d.get('script')) or (d.get('script') and 'unknown'),
             'can_fix': d.get('fixable') == 'yes', 'campaign': bool(d.get('campaign_info')),
-            'package': d.get('kind') == 'is_pack', 'package_info': page_package(d.get('is_pack'))}
+            'package': d.get('kind') == 'is_pack', 'package_info': page_package(d.get('is_pack')),
+            'no_edit': bool(d.get('no_edit'))}
 
 
 def page_package(pk):
@@ -223,6 +224,32 @@ MAP_ONLY = ('port', 'reforged', 'card', 'card_image', 'gradient', 'script', 'scr
             'cheatpack_inject', 'qol', 'qol_apply', 'translation_export', 'translation_groups', 'translation_check',
             'translation_machine', 'translation_images', 'translation_image_preview', 'translation_update',
             'rawcodes', 'recipes', 'diag_make', 'downgrade_w3i', 'port_targets')
+NO_EDIT_TASKS = ('open', 'card', 'card_image', 'gradient', 'reforged', 'diag_logs', 'diag_read', 'crash_list',
+                 'crash_read', 'replay_list', 'replay_read', 'replay_compare', 'desync_compare')
+NO_EDIT_REFUSED = 'Not allowed to edit'
+
+
+def no_edit_of(path):
+    try:
+        with open(_cache_file(path), 'rb') as f:
+            d = pickle.load(f)
+        if isinstance(d, dict) and 'no_edit' in d:
+            return d['no_edit']
+    except Exception:
+        pass
+    from doctor.fix import no_edit
+    return no_edit.read(path)
+
+
+def no_edit_refusal(job):
+    if job.get('task') in NO_EDIT_TASKS:
+        return None
+    for key in ('map', 'other'):
+        path = job.get(key)
+        if path and os.path.isfile(path) and no_edit_of(path):
+            return {'no_edit': True, 'error': NO_EDIT_REFUSED, 'outcome': 'failed',
+                    'lines': page_lines([('heading', os.path.basename(path)), ('invalid', NO_EDIT_REFUSED)])}
+    return None
 
 
 def is_package(D, path):
@@ -590,6 +617,9 @@ def _run_job(job, emit, G, D, task, path, progress):
         return {'map': os.path.abspath(path), 'name': os.path.basename(path), 'size': os.path.getsize(path),
                 'lines': page_lines(G.diagnosis_text(d)), 'steps': page_steps(D, d),
                 'summary': page_summary(D, d), 'editor_version': editor_version_guess(path)}
+    refused = no_edit_refusal(job)
+    if refused:
+        return refused
     if task == 'new_names':
         from doctor.mpq import new_names
         return new_names.new_to_list(path)
