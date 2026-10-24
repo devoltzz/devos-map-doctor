@@ -27,7 +27,11 @@ RX_EACH1_ZH = re.compile(r'每\s*1(?![\d.])')
 RX_EACH1_EN = re.compile(r'\b(every|each|per)\s+1(?![\d.])', re.I)
 
 
+RX_CIRCLED = re.compile('[①-⓿❶-➓]')
+
+
 def numbers(t, origin=True):
+    t = RX_CIRCLED.sub(lambda m: m.group(0) + '·', t)
     t = unicodedata.normalize('NFKC', t)
     t = RX_COLOR.sub(' ', RX_EACH1_EN.sub(r'\1', RX_EACH1_ZH.sub('每', t)))
     if origin:
@@ -45,8 +49,14 @@ def _value_ko(m):
 def readings_ko(t, out_limit=8):
     ms = list(RX_MULT_KO.finditer(t))
     clusters = sorted(set(m.group(0) for m in ms))
-    if not ms or len(clusters) > out_limit:
+    if not ms:
         return []
+    if len(clusters) > out_limit:
+        pieces, end_pos = [], 0
+        for m in ms:
+            pieces += [t[end_pos:m.start()], _value_ko(m)]
+            end_pos = m.end()
+        return [numbers(''.join(pieces + [t[end_pos:]]))]
     out = []
     for bitmask in range(1, 2 ** len(clusters)):
         step_on = set(g for i, g in enumerate(clusters) if bitmask >> i & 1)
@@ -91,7 +101,7 @@ def compound_readings_ko(t, out_limit=4):
 RX_RANGE_MULT_KO = re.compile(r'(\d+(?:\.\d+)?)(\s*~\s*)(\d+(?:\.\d+)?)([천백]?[만억]|[천백])')
 
 
-RX_MAN_REST_KO = re.compile(r'(\d+)만\s*(\d{1,4})(?![\d.만천백억])')
+RX_MAN_REST_KO = re.compile(r'(\d+)만\s*(\d{1,4})(?![\d.천백억])(?!만(?!큼))')
 RX_MAN_CHEON_KO = re.compile(r'(\d+)만\s*(\d)천(?![\d.만])')
 
 
@@ -256,9 +266,14 @@ def fixable(item, entry, en):
     done = []
     if not isinstance(en, str):
         return en, done
-    if any(e.startswith('color codes') for e in tv.check(entry, en)) and tg.e_gradient(item['t']):
-        en = tg.recolore(item['t'], en)
-        done.append('gradient')
+    if any(e.startswith('color codes') for e in tv.check(entry, en)):
+        cc = tg.copy_codes(item['t'], en)
+        if cc is not None and not any(e.startswith('color codes') for e in tv.check(entry, cc)):
+            en = cc
+            done.append('codes')
+        elif tg.e_gradient(item['t']):
+            en = tg.recolore(item['t'], en)
+            done.append('gradient')
     if '"' not in entry['text'] and RX_LOOSE_QUOTE.search(en):
         en = RX_LOOSE_QUOTE.sub("'", en)
         done.append('quoted')
@@ -309,7 +324,8 @@ def errors_of(item, entry, en):
         if set((a - b) + (b - a)) <= {'1'}:
             zh_n = en_n
         elif RX_MULT_KO.search(item['t']) or RX_DECIMAL_VIRGULA.search(item['t']):
-            text_ko = RX_COLOR.sub('', item['t']) if tg.e_gradient(item['t']) else item['t']
+            text_ko = RX_COLOR.sub('', item['t']) if tg.e_gradient(item['t']) else \
+                RX_COLOR.sub(' ', item['t'] if item.get('level_list') else without_thousands(item['t']))
             for tk in texts_ko(text_ko):
                 achou = False
                 for listing in [numbers(tk)] + readings_ko(tk) + compound_readings_ko(tk):
