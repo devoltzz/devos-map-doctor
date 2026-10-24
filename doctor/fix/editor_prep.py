@@ -66,6 +66,7 @@ def target_editor(version_num):
     tgt['ref'] = editor_version.scripts_dir(v)
     tgt['arities'] = wtg_triggers.arities(editor_version.trigger_data_text(v))
     tgt['sound_label_map'] = editor_version.sound_labels(v)
+    tgt['jasshelper_writing'] = False
     return tgt
 
 
@@ -83,7 +84,8 @@ def check_version(a, tgt):
     j = read_data('war3map.j') or read_data('scripts\\war3map.j') or b''
     return {'version_num': tgt['version'], 'label': tgt['label'], 'files_at': tgt['files_at'],
             'warnings': [t for _c, t in c['warnings']], 'regenerate': c['regenerate_triggers'],
-            'missing_functions': editor_version.missing_natives(tgt['version'], j.decode('latin-1'))}
+            'missing_functions': editor_version.missing_natives(tgt['version'], j.decode('latin-1')),
+            'editor_profile': tgt['family'], 'jasshelper': tgt['jasshelper']}
 
 
 def needs_jasshelper(trigger_list, restored, restoration, details):
@@ -522,7 +524,7 @@ def restore_triggers(
                 object_names=name_list,
                 ref_dir=tgt['ref'],
                 editor=tgt['editor'],
-                jasshelper=tgt['jasshelper'],
+                jasshelper=tgt['jasshelper_writing'],
                 sound_labels=tgt['sound_label_map'],
             )
     except Exception as e:
@@ -769,7 +771,7 @@ def fit_to_editor(header_text, file_set, original, log=print, tgt=None):
             td = tgt['td']
             return editor_render.outcome(editor_render.fit(header_text, file_set, td, original=original, log=log,
                                                            editor=tgt['editor'], ref_dir=tgt['ref'],
-                                                           jasshelper=tgt['jasshelper'],
+                                                           jasshelper=tgt['jasshelper_writing'],
                                                            sound_labels=tgt['sound_label_map']), td)
         td = triggerdata.load()
         return editor_render.outcome(editor_render.fit(header_text, file_set, td, original=original, log=log), td)
@@ -817,6 +819,8 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
         if tgt is not None:
             details['kept_locals'] = []
             body_text, details['renamed_locals'] = locals_without_clash(body_text, log, kept=details['kept_locals'])
+            from doctor.fix import editor_version
+            body_text, details['jassnative'] = editor_version.without_jassnative_mark(body_text)
     expected_len = body_text
     counts = inflated_counts.analyze_map(a)
     broken = dict((x['file_name'], x) for x in counts)
@@ -882,7 +886,8 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
         context['w3s_version'] = tgt['w3s']
     try:
         _bd = a.read('war3map.doo')
-        _game = (doodads.game_ids(version_num=version_num) if version_num else doodads.game_ids()) if _bd else set()
+        _game = (doodads.game_ids(version_num=tgt['base']) if tgt is not None else doodads.game_ids()) \
+            if _bd else set()
         if _bd and _game:
             _valid = _game | doodads.map_ids(a) | set(extra_ids)
             if _valid:
@@ -1126,19 +1131,37 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
                 new_ones['war3mapExtra.txt'] = extra
                 missing_items.append('war3mapExtra.txt')
             details['jasshelper'] = 'enabled in war3mapExtra.txt'
+    removed = []
+    output_script, final_script = j_source, raw_bytes
+    if not is_lua and j_source != 'war3map.j':
+        output_script = 'war3map.j'
+        removed.append(j_source)
+        details['script_at_root'] = j_source
+    if (details.get('jassnative') or {}).get('removed'):
+        from doctor.fix import editor_version
+        without_mark = editor_version.without_jassnative_mark_bytes(raw_bytes)
+        details['jassnative']['removed_from_script'] = without_mark is not None
+        if without_mark is not None:
+            final_script = without_mark
+    if output_script != j_source or final_script != raw_bytes:
+        (replacements if a.find(output_script) else new_ones)[output_script] = final_script
     details['new_ones'] = missing_items
     details['imported'] = len(imported)
-    all_items = sorted(name_list | set(new_ones) | set(replacements), key=lambda n: (n.lower(), n))
+    left_out = set(n.lower() for n in removed)
+    all_items = sorted(
+        (n for n in name_list | set(new_ones) | set(replacements) if n.lower() not in left_out),
+        key=lambda n: (n.lower(), n),
+    )
     if method == 'rebuild':
         r = mpq_rebuild.rebuild(entry, output, all_items, replacements=replacements, new_ones=new_ones,
-                                to_remove=['(attributes)'] + engine, sector_shift=3, level=6, log=log)
+                                to_remove=['(attributes)'] + engine + removed, sector_shift=3, level=6, log=log)
     else:
         listfile = (CRLF.join(n for n in all_items if n not in ('(listfile)', '(attributes)')) + CRLF).encode(
             'utf-8', 'surrogateescape')
         replacements['(listfile)'] = listfile
         shutil.copyfile(entry, output)
-        order = ('war3map.wtg', 'war3map.wct', 'war3map.imp', 'war3mapExtra.txt', '(listfile)', 'war3map.w3r',
-                 'war3map.w3c', 'war3mapUnits.doo')
+        order = ('war3map.j', 'war3map.wtg', 'war3map.wct', 'war3map.imp', 'war3mapExtra.txt', '(listfile)',
+                 'war3map.w3r', 'war3map.w3c', 'war3mapUnits.doo')
         combined = dict(replacements)
         combined.update(new_ones)
         free_slots = mpqdoctor.analyze_tables(a)['free_slots']
@@ -1152,17 +1175,19 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
         sz = mpqadd.add_files(
             output,
             work_queue,
-            to_delete=(['(attributes)'] if a.find('(attributes)') else []) + engine,
+            to_delete=(['(attributes)'] if a.find('(attributes)') else []) + engine + removed,
             fake_count=tight,
             no_slot=no_slot,
             log=log,
-            grow=sorted(name_list, key=lambda n: (n.lower(), n)) if tight else None,
+            grow=sorted((n for n in name_list if n.lower() not in left_out), key=lambda n: (n.lower(), n))
+            if tight
+            else None,
         )
         r = {'method': 'attach', 'byte_size': sz, 'attached': len(work_queue) - len(no_slot), 'error_list': [],
              'no_slot': no_slot, 'free_slots': free_slots}
         if no_slot:
             details['no_slot'] = no_slot
-            essential = [n for n in no_slot if n in EDITOR_ESSENTIALS]
+            essential = [n for n in no_slot if n in EDITOR_ESSENTIALS or (removed and n == output_script)]
             if essential:
                 r['error_list'].append(
                     'the hash table of the map is full (%d entries, %d free) and there is no slot '
@@ -1177,9 +1202,9 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
             continue
         if s.read(n) != d:
             failures.append('%s: differs when read back' % n)
-    if s.read(j_source) != raw_bytes:
-        failures.append('%s: the game script changed' % j_source)
-    failures.extend('%s: still in the map' % n for n in engine if s.find(n))
+    if s.read(output_script) != final_script:
+        failures.append('%s: the game script changed' % output_script)
+    failures.extend('%s: still in the map' % n for n in engine + removed if s.find(n))
     try:
         w3i.parse(s.read('war3map.w3i'))
     except Exception as e:
