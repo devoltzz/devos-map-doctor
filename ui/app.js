@@ -507,6 +507,7 @@ async function openMap(path) {
     renderActions();
     status('Ready.');
     if (r.summary.package) { openPackage(gen); return; }
+    if (r.summary.no_edit) { openNoEdit(gen); return; }
     renderTranslation();
     renderCompare();
     renderPort();
@@ -539,6 +540,18 @@ function openPackage(gen) {
 }
 const PACKAGE_NOTE = 'This is an art package, not a map: only its files can be seen and extracted (Inspect, Files).';
 
+function openNoEdit(gen) {
+  for (const n of TABS) {
+    if (n === 'card' || n === 'reforged') continue;
+    tabBody(n, el('div', { class: 'card muted', text: NO_EDIT_NOTE }));
+    setTabState(n, 'ready');
+  }
+  loadThumb(gen);
+  checkReforgedQuietly(gen);
+  loadCard(gen);
+}
+const NO_EDIT_NOTE = 'Not allowed to edit';
+
 function renderHeader() {
   const o = state.open, s = o.summary;
   $('#mapTitle').textContent = o.name;
@@ -553,6 +566,7 @@ function renderHeader() {
     $('#diagLines').replaceChildren(linesView(o.lines));
     return;
   }
+  if (s.no_edit) b.push(el('span', { class: 'badge bad', text: 'Not allowed to edit' }));
   b.push(s.protected ? el('span', { class: 'badge warn', text: 'Protected' }) :
     el('span', { class: 'badge good', text: 'No MPQ protection' }));
   b.push(s.editor_ready ? el('span', { class: 'badge good', text: 'Opens in the World Editor' }) :
@@ -910,6 +924,10 @@ function renderAction(action) {
       el('h2', { text: a.title })), el('p', { class: 'muted', text: 'Nothing to do: this is an art package, not a map.' }),
     el('div', { class: 'foot' }, el('button', { class: 'btn primary', text: 'Show its files',
       onclick: () => selectTab('files') })));
+  }
+  if (state.open.summary.no_edit) {
+    return el('div', { class: 'card action', 'data-action': action }, el('div', { class: 'head' },
+      el('h2', { text: a.title })), el('p', { class: 'muted', text: NO_EDIT_NOTE }));
   }
   const picked = choices(action);
   const steps = state.open.steps.filter(x => x.action === action);
@@ -1332,13 +1350,15 @@ function renderCard() {
       el('label', { text: 'Language' }), el('div', { style: 'padding-top:7px', text: describeLanguage(info.language) }),
       el('label', { text: 'Save' }), el('div', { style: 'padding-top:7px', text: describeSave(info.save) })),
     chatCommandsBox(info, chatCommandText));
+  const noEdit = !!(state.open && state.open.summary.no_edit);
   tabBody('card',
     el('div', { class: 'card' }, el('h2', { text: 'Map card' }),
-      el('p', { class: 'lead', text: 'Changes go into the next copy ("Apply the map card changes" in ' +
-        'Fix or Editor).' }),
+      el('p', { class: 'lead', text: noEdit ? 'Shown as it is: the author of this map does not allow edits.' :
+        'Changes go into the next copy ("Apply the map card changes" in Fix or Editor).' }),
       form, players, forces,
       el('h3', { text: 'Images' }), images),
     infoCard);
+  if (noEdit) $$('input, textarea, button', $('#tab-card')).forEach(x => { x.disabled = true; });
 }
 
 function setListName(list, item, input) {
@@ -1495,6 +1515,7 @@ function downgradeCard(version) {
     el('h2', { text: 'Take the map info to this version' }),
     el('p', { class: 'muted', text: 'Writes war3map.w3i in the format this game reads (flags it does not know cleared). ' +
       'Only the map info: the object data, the triggers and the terrain stay as they are, and the report lists them.' }),
+    el('p', { class: 'muted', text: 'To take the whole map to this version, use the Port tab.' }),
     el('div', { class: 'foot' }, el('button', { class: 'btn needs-idle', text: 'Write the older map info',
       disabled: !!state.running, onclick: async () => {
         try {
@@ -2619,10 +2640,18 @@ function renderPort() {
   }
   const target = state.portTarget || '';
   if (target) {
+    const vals = (state.portTargets.targets || []).map(x => x.value);
+    const floor = state.portTargets.floor;
+    const older = floor === '3.0' || (vals.indexOf(floor) > 0 && vals.indexOf(target) > vals.indexOf(floor));
     tabBody('port',
       el('div', { class: 'card' },
         el('h2', { text: 'Port' }),
         portTargetPicker(),
+        older ? el('p', { class: 'lead', text: 'Takes the map back to ' + target + ': what this older game does not ' +
+          'have (natives, types, constants and functions of the newer game) is written into the script, with its ' +
+          'equivalent where there is one and neutral where there is not; the map info, the object data, the terrain ' +
+          'and the doodads are written in its formats, and the script is checked with the scripts of ' + target +
+          '. The report lists everything made neutral. Saves the map and a report next to it.' }) :
         el('p', { class: 'lead', text: 'Takes the map to ' + target + ': the return bug gets its equivalent, the ' +
           'names the newer game also has are renamed and the script is checked with the scripts of ' + target +
           '. The rest of the map stays. Saves the map and a report next to it.' }),
