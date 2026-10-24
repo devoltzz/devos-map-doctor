@@ -1,5 +1,7 @@
 function DzSetUnitID takes unit whichUnit,integer id returns nothing
+    set DB_morph_mantem=true
     call DB_morph(whichUnit, id)
+    set DB_morph_mantem=false
 endfunction
 
 function DzSetUnitPosition takes unit whichUnit,real x,real y returns nothing
