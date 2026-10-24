@@ -23,8 +23,9 @@ a .w3mod): a package is read as data, never run; diag, files and extract work on
        (every extra of fix and port is off unless given: the window turns the usual ones on by itself)
        [--remove-game-files] [--lossy] [--classic-effects]
                                   Port to Reforged (KK and M16 maps): saves <map>_reforged.w3x and the report;
-                                  --to=<version>: to a NEWER game of the classic game instead (1.24a to 1.29.2;
-                                  a map of an older game, no platform): saves <map>_<version>.w3x;
+                                  --to=<version>: to another version of the classic game instead (1.24a to
+                                  1.29.2; newer or older than the map, a Reforged map included; no platform, no
+                                  Lua): saves <map>_<version>.w3x;
                                   --package: the art packages the map needs, comma separated, the first wins (a
                                   .mix, .asi, .dll or .mpq, a .zip of the map's art, or a folder of loose files the
                                   map read from the game folder with "Allow Local Files");
@@ -198,7 +199,7 @@ def step_flag(key):
 def pick_steps(steps, action, opts):
     mine = [s for s in steps if s['action'] == action]
     known = set(step_flag(s['key']) for s in mine)
-    named = [f for f, v in opts.items() if v is True and f in known]
+    named = [f for f in sorted(known) if opts.get(f) is True]
     out = {}
     for s in mine:
         flag = step_flag(s['key'])
@@ -721,7 +722,7 @@ def main(argv, window, version=''):
         return 1
     if opts.get('json'):
         print(json.dumps(doctor_app._jsonable(r), ensure_ascii=False, indent=1))
-    elif (r or {}).get('package'):
+    elif (r or {}).get('package') or (r or {}).get('no_edit'):
         print(r.get('error'))
     elif command == 'recipes' and isinstance(opts.get('out'), str):
         out_file = opts['out']
