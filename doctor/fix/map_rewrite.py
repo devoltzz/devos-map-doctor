@@ -54,6 +54,17 @@ def write(path_in, path_out, files, progress=None, check=None, grow=None):
     try:
         p('Writing the map')
         shutil.copyfile(path_in, part)
+        header_fixed = mpqadd.format(part) not in (0, None)
+        if header_fixed:
+            from doctor.mpq import mpqdoctor
+            p('Fixing the MPQ header')
+            normal = part + '.v1'
+            with unprotect.quiet():
+                done = mpqdoctor.fix(part, normal)
+            if done is None or not os.path.isfile(normal) or mpqadd.format(normal) != 0:
+                raise RuntimeError('the MPQ header is not the standard one and the header fix did not work: '
+                                   'run Fix map first')
+            os.replace(normal, part)
         no_room = []
         with unprotect.quiet():
             mpqadd.add_files(part, list(files), all_entries=True, log=_nothing, no_slot=no_room, grow=grow)
@@ -73,9 +84,10 @@ def write(path_in, path_out, files, progress=None, check=None, grow=None):
             check(part)
         os.replace(part, path_out)
     except BaseException:
-        try:
-            os.remove(part)
-        except OSError:
-            pass
+        for left in (part, part + '.v1'):
+            try:
+                os.remove(left)
+            except OSError:
+                pass
         raise
-    return {'same_files': same['identical']}
+    return {'same_files': same['identical'], 'header_fixed': header_fixed}
