@@ -5,7 +5,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 from doctor.fix import unprotect as D
 
-VERSION = '1.8.8'
+VERSION = '1.8.9'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -323,6 +323,8 @@ def diagnosis_text(d):
             out.append(('ok', 'Can be fixed: click "Fix map".'))
     if d.get('slk'):
         out.append(('info', 'SLK mode: %s data table files.' % num(len(d['slk']))))
+    if d.get('jassnative'):
+        out.append(('info', 'Compiled in the JassNative Editor.'))
     if data_bytes:
         out.append(('', ''))
         out.append(('heading2', 'Needs fixing for Reforged 3.0:'))
@@ -406,8 +408,11 @@ def version_lines(r):
     ev = (r.get('editor') or {}).get('editor_target') or {}
     if not ev:
         return []
+    if ev.get('editor_profile') == 'jn':
+        return jassnative_lines(r, ev)
     out = [('info', 'Made for World Editor %s: the map keeps its version (war3map.w3i, triggers and object data in the '
                     'formats that editor reads).' % ev.get('version_num'))]
+    out.extend(mark_lines(r))
     if ev.get('needs_jasshelper'):
         out.append(('warning', 'World Editor %s has no JassHelper: the custom script uses //! inject or globals of its '
                                'own, so save the map with Jass NewGen Pack or WEX.' % ev.get('version_num')))
@@ -425,6 +430,41 @@ def version_lines(r):
                 % (
                     pluralize(len(missing_items), 'function', 'functions'),
                     ev.get('version_num'),
+                    ', '.join(missing_items[:3]),
+                    '...' if len(missing_items) > 3 else '',
+                ),
+            )
+        )
+    return out
+
+
+def mark_lines(r):
+    jn = (r.get('editor') or {}).get('jassnative') or {}
+    if jn.get('removed'):
+        return [('info', 'The REFORGED_MODE line left the map script and the custom script: the JassNative Editor '
+                         'writes it again on every save.')]
+    if jn:
+        return [('warning', 'The script keeps its REFORGED_MODE line (%s): the JassNative Editor writes another one on '
+                            'save, so the map does not save there as it is.' % jn.get('reason'))]
+    return []
+
+
+def jassnative_lines(r, ev):
+    out = [('info', 'Made for the JassNative Editor: the map keeps its version (1.27), and the triggers use that '
+                    "editor's own functions and variable types.")]
+    out.extend(mark_lines(r))
+    for warning in ev.get('warnings') or []:
+        out.append(('warning', 'Check in the JassNative Editor: %s.' % warning))
+    missing_items = ev.get('missing_functions') or []
+    if missing_items:
+        out.append(
+            (
+                'warning',
+                'The script calls %s that Warcraft III %s does not have (%s%s): the editor will not save '
+                'it as it is.'
+                % (
+                    pluralize(len(missing_items), 'function', 'functions'),
+                    '1.27',
                     ', '.join(missing_items[:3]),
                     '...' if len(missing_items) > 3 else '',
                 ),
@@ -782,6 +822,9 @@ def editor_text(r):
               if n not in ('war3map.wtg', 'war3map.wct', 'war3map.imp') and n not in mentioned]
     if others:
         out.append(('info', '  - Editor-only files: %s.' % ', '.join(others)))
+    if details.get('script_at_root'):
+        out.append(('info', '  - The map script moved from the scripts folder to war3map.j, the only place the World '
+                            'Editor reads it.'))
     if details.get('no_slot'):
         outside = list(details['no_slot'])
         essential = [n for n in outside if n in ('war3map.wtg', 'war3map.wct', 'war3map.imp')]
@@ -838,6 +881,14 @@ def editor_text(r):
     ev = details.get('editor_target') or {}
     if lua:
         out.append(('info', '  - Test the map after saving it from the editor.'))
+    elif ev.get('editor_profile') == 'jn':
+        out.append(
+            (
+                'info',
+                '  - Save it with JassHelper on and the Reforged mode off (the defaults); if the map will go '
+                'to Reforged later, turn off "StringHash 미리 계산" (StringHash precalculation) first.',
+            )
+        )
     elif ev and not ev.get('needs_jasshelper'):
         out.append(('info', '  - World Editor %s saves it as it is: no JassHelper needed.' % ev.get('version_num')))
     elif ev:
