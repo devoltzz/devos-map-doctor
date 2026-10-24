@@ -493,7 +493,7 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
     p = progress or _nothing
     r = {'file_name': os.path.abspath(file_path), 'byte_size': os.path.getsize(file_path), 'mpq': None, 'fname': None,
          'protections': [], 'warnings': [], 'script': None, 'listfile': None, 'editor': {}, 'err': None,
-         'fixable': None}
+         'fixable': None, 'no_edit': None}
 
     def prot(code, **info):
         info['code'] = code
@@ -524,6 +524,8 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
     if d[:4] != b'HM3W' and not _is_campaign(file_path):
         prot('missing_hm3w', first_pos='mpq_at_zero' if hdr == 0 else ('user_data' if d[:4] == b'MPQ\x1b' else 'other'))
     h = M._v1_fields(M.Header(), d, hdr, len(d))
+    from doctor.fix import no_edit
+    r['no_edit'] = no_edit.of_header(h)
     reasons = []
     if h.version != 0:
         reasons.append(('version_num', h.version))
@@ -556,6 +558,7 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
     if format:
         del a
         return _diagnose_package(r, file_path, format, p)
+    r['no_edit'] = no_edit.of_archive(a) or r['no_edit']
     virtual = mpqdoctor.virtual_tables(a)
     if virtual:
         prot('virtual_tables', hash_entries=a.h.hash_n)
@@ -1504,8 +1507,8 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
             name_list = map_names(_open(src))
         if step_on(options, 'slk_objects'):
             _b = _open(src)
-            _slk = bool(_b.find('Units\\UnitData.slk') or _b.find('Units\\ItemData.slk')) and \
-                not (_b.find('war3map.w3u') or _b.find('war3map.w3t'))
+            _slk = any(_b.find(_t) for _t in ('Units\\UnitData.slk', 'Units\\ItemData.slk',
+                                              'Units\\AbilityData.slk'))
             del _b
             if _slk:
                 p('slk_objects')
