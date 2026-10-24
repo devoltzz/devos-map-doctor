@@ -17,19 +17,12 @@ from doctor.translation import translation_io
 MODELS = {
     'zh': {'fast': 'opus-mt-zh-en', 'best': 'opus-mt-tc-bible-big-zhx-en'},
     'ko': {'fast': 'opus-mt-ko-en', 'best': 'opus-mt-tc-big-ko-en'},
-    'existing': {'fast': 'opus-mt-ja-en'},
+    'ja': {'fast': 'opus-mt-ja-en'},
     'ru': {'fast': 'opus-mt-ru-en', 'best': 'opus-mt-tc-big-zle-en'},
     'vi': {'fast': 'opus-mt-vi-en'},
     'th': {'fast': 'opus-mt-th-en'},
 }
-LANGUAGE_NAMES = {
-    'zh': 'Chinese',
-    'ko': 'Korean',
-    'existing': 'Japanese',
-    'ru': 'Russian',
-    'vi': 'Vietnamese',
-    'th': 'Thai',
-}
+LANGUAGE_NAMES = {'zh': 'Chinese', 'ko': 'Korean', 'ja': 'Japanese', 'ru': 'Russian', 'vi': 'Vietnamese', 'th': 'Thai'}
 MODELS_REPOSITORY = 'devoltzz/devos-map-doctor'
 MODELS_TAG = 'translation-models'
 MODEL_ZIPS = {
@@ -60,13 +53,13 @@ KANA = '\u3040-\u30ff\u31f0-\u31ff'
 HANGUL = '\uac00-\ud7a3\u1100-\u11ff\u3130-\u318f'
 SCRIPT_OF = {
     'zh': re.compile('[' + HAN + ']'),
-    'existing': re.compile('[' + HAN + KANA + ']'),
+    'ja': re.compile('[' + HAN + KANA + ']'),
     'ko': re.compile('[' + HANGUL + HAN + ']'),
     'ru': re.compile('[\u0400-\u04ff]'),
     'th': re.compile('[\u0e00-\u0e7f]'),
     'vi': re.compile('[\u0102\u0103\u0110\u0111\u01a0\u01a1\u01af\u01b0\u1ea0-\u1ef9]'),
 }
-SPACELESS = ('zh', 'existing', 'th')
+SPACELESS = ('zh', 'ja', 'th')
 
 
 def _nothing(*_a, **_k):
@@ -77,7 +70,7 @@ def detect_language(texts):
     count = collections.Counter()
     for t in texts:
         if re.search('[' + KANA + ']', t):
-            count['existing'] += 1
+            count['ja'] += 1
         elif re.search('[' + HANGUL + ']', t):
             count['ko'] += 1
         elif re.search('[' + HAN + ']', t):
@@ -91,8 +84,8 @@ def detect_language(texts):
     if not count:
         return ''
     lang, n = count.most_common(1)[0]
-    if lang == 'zh' and count['existing'] * 4 >= n:
-        lang = 'existing'
+    if lang == 'zh' and count['ja'] * 4 >= n:
+        lang = 'ja'
     return lang
 
 
@@ -263,7 +256,7 @@ PUNCT = {'\u3002': '.', '\uff01': '!', '\uff1f': '?', '\uff1b': ';', '\u2026': '
          '\uff08': '(', '\uff09': ')', '\u300a': '<', '\u300b': '>', '\u300c': "'", '\u300d': "'", '\u300e': "'",
          '\u300f': "'", '\u201c': "'", '\u201d': "'", '\u3008': '<', '\u3009': '>', '\uff0c': ',', '\u3001': ',',
          '\uff1a': ':', '\uff5e': '~', '\u3000': ' ', '\u00b7': '\u00b7'}
-LONG = {'zh': 24, 'existing': 30, 'ko': 40}
+LONG = {'zh': 24, 'ja': 30, 'ko': 40}
 RX_LEVEL_END = re.compile(r'^(.*?\S)(\s*(?:Lv|LV|lv)\.?\s*\d+)$', re.S)
 CLAUSE = re.compile(r'(\s*[，,、：:]\s*)')
 OPENING = '([<'
@@ -394,7 +387,7 @@ def model_input(s, lang):
 
 def expand_numbers(s, lang):
     s = unicodedata.normalize('NFKC', s)
-    if lang in ('zh', 'existing'):
+    if lang in ('zh', 'ja'):
         s = RX_MULT_ZH.sub(_expand_mult, s)
     if lang == 'ko':
         s = RX_ENHANCE_KO.sub(r'+\1', s)
