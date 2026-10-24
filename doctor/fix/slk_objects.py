@@ -300,6 +300,18 @@ def convert(read, names, species, base, w3i=None, progress=None):
     return out
 
 
+def merge_new(data, name, objects):
+    ob = _objetos()
+    levels = ob.uses_levels(name)
+    ver, had, _n = ob.read_objects_bytes(data, levels, name, True)
+    seen = set((o[2] if o[0] == 1 else o[1]).lower() for o in had)
+    added = [o for o in objects if o[0] == 1 and o[2].lower() not in seen]
+    out = {'bytes': None, 'added': [o[2] for o in added], 'kept': len(had), 'version': ver}
+    if added and ver <= 2:
+        out['bytes'] = ob.write_objects_bytes(ver, list(had) + added, levels)
+    return out
+
+
 def _id_ok(s):
     return isinstance(s, str) and len(s) == 4 and all(0x20 <= ord(c) < 0x100 for c in s)
 
@@ -368,8 +380,10 @@ def fix(path_in, path_out, progress=None, base=None, species=SPECIES):
     todo = [
         s for s in species if not read(ob.OBJ_KINDS[s]['map_path']) and any(read(r) for r in ob.OBJ_KINDS[s]['slk'])
     ]
+    partial = [s for s in species if s not in todo and read(ob.OBJ_KINDS[s]['map_path']) and
+               any(read(r) for r in ob.OBJ_KINDS[s]['slk'])]
     outras = [(k, t) for k, t, f in OTHER_TABLES if read(t) and not read(f)]
-    if not todo:
+    if not todo and not partial:
         if outras:
             return stop(
                 'nothing_to_do',
@@ -420,6 +434,42 @@ def fix(path_in, path_out, progress=None, base=None, species=SPECIES):
         if unm:
             rep['lines'].append(('info', '%s: %d columns have no field code in the game\'s metadata, skipped (%s).' % (
                 s, len(unm), ', '.join(c for c, _n in unm[:5]))))
+    for s in partial:
+        fname = ob.OBJ_KINDS[s]['map_path']
+        try:
+            r = convert(read, names, s, base, progress=p)
+            m = merge_new(read(fname), fname, r['objects'])
+        except Exception as e:
+            rep['lines'].append(('bad', '%s: the new objects only the SLK tables hold were not added to %s (%s).' % (
+                s, fname, str(e)[:100])))
+            continue
+        if not m['added']:
+            continue
+        rep['species'][s] = dict(r['report'], kept=m['kept'], added=len(m['added']))
+        if m['bytes'] is None:
+            rep['lines'].append(
+                (
+                    'warn',
+                    '%s: %s is in the Reforged format (version %d) and lacks %d new objects of the '
+                    'SLK tables, which were not added.' % (s, fname, m['version'], len(m['added'])),
+                )
+            )
+            continue
+        files.append((fname, m['bytes']))
+        rep['lines'].append(
+            (
+                'good',
+                '%s: %s kept as the map has it (%d objects), plus %d new objects only the SLK '
+                'tables held (%s).'
+                % (
+                    s,
+                    fname,
+                    m['kept'],
+                    len(m['added']),
+                    ', '.join(m['added'][:6]) + ('...' if len(m['added']) > 6 else ''),
+                ),
+            )
+        )
     if outras:
         rep['lines'].append(
             (
