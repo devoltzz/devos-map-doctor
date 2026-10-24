@@ -423,7 +423,7 @@ def _with_hash_entry(a, name_list):
     return [n for n, x, y in zip(name_list, h1, h2) if (int(x), int(y)) in pairs]
 
 
-def referenced_closure(a, seeds=None, log=None):
+def referenced_closure(a, seeds=None, log=None, mines=None):
     if seeds is None:
         seeds = list(BASE_NAMES) + ['scripts\\war3map.j', 'war3map.imp', 'war3mapSkin.txt', 'war3mapMisc.txt',
                                     'war3mapPath.tga', 'war3map.w3s', 'war3mapUnits.doo']
@@ -465,6 +465,8 @@ def referenced_closure(a, seeds=None, log=None):
         current, work_queue[:] = list(work_queue), []
         candidates = set()
         for n in current:
+            if mines is not None and not mines(n):
+                continue
             try:
                 d = a.read(n, bi=seen[n])
             except Exception:
