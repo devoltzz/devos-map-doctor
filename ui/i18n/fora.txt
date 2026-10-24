@@ -182,3 +182,4 @@ already runs
 war3map.{0}
 war3mapskin.{0}
 input, textarea, button
+JassNative Editor
