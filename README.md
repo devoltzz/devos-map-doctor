@@ -84,6 +84,10 @@ once, when you choose one.
 **The game closes on my map.** Use Diagnose: make a diagnostic copy, play it until the problem happens, then read its
 log. It says what the map started and never finished. The game's own crash report and the replay are read there too.
 
+**The Doctor says "Not allowed to edit".** The author of that map marked it as not allowed to edit, and the Doctor
+respects that: it shows what the map is, its card and whether it runs, but it does not unprotect, fix, port, translate
+or extract it. Ask the author for the map you need.
+
 **Is my map sent anywhere?** No. Everything runs on your computer (or inside the page, on the site). The program only
 asks GitHub whether a new version is out, and downloads what you accept (the translation models, the old editors).
 
