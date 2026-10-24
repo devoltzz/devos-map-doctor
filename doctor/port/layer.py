@@ -140,6 +140,15 @@ def read_parameters(latin1=True):
     if not os.path.isfile(PARAMETROS):
         return {}
     raw_bytes = json.load(open(PARAMETROS, encoding='utf-8'))
+    overlap_count = os.environ.get('KK_PARAMETERS_OVER')
+    if overlap_count:
+        if not os.path.isfile(overlap_count):
+            raise SystemExit('ABORT: KK_PARAMETERS_OVER=%s does not exist' % overlap_count)
+        for k, v in json.load(open(overlap_count, encoding='utf-8')).items():
+            if v is None:
+                raw_bytes.pop(k, None)
+            else:
+                raw_bytes[k] = v
     params = {}
     for k, v in raw_bytes.items():
         if k.startswith('_'):
