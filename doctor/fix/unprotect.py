@@ -493,7 +493,7 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
     p = progress or _nothing
     r = {'file_name': os.path.abspath(file_path), 'byte_size': os.path.getsize(file_path), 'mpq': None, 'fname': None,
          'protections': [], 'warnings': [], 'script': None, 'listfile': None, 'editor': {}, 'err': None,
-         'fixable': None, 'no_edit': None}
+         'fixable': None, 'no_edit': None, 'jassnative': None}
 
     def prot(code, **info):
         info['code'] = code
@@ -595,6 +595,8 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
             prot('script_kkwe', byte_size=a.blocks[a.find('kkmap.jc')[1]][2])
     elif j:
         r['script'] = 'jass'
+        from doctor.fix import editor_version
+        r['jassnative'] = editor_version.jassnative_mark(j)
     if not virtual and r['script'] != 'kk_encrypted':
         x = mpqdoctor.analyze_tables(a)
         if x['free_slots'] == 0 and x['deleted'] == 0 and a.hash_n_read:
@@ -1402,7 +1404,21 @@ def target_version(file_path, version_num):
 
 def opens_in_editor(d, version_num=None):
     ed = d.get('editor') or {}
-    return ed.get('status') == 'ready'
+    if ed.get('status') == 'ready':
+        return True
+    if version_num is None or ed.get('status') != 'needs_work' or not ed.get('trigger_list'):
+        return False
+    codes = set(x['code'] for x in d.get('protections') or [])
+    if ed.get('w3i') not in ('ok', 'new') or ed.get('missing_items') or codes & set(EDITOR_BLOCKERS) or \
+            d.get('script') not in EDITOR_SCRIPTS or d.get('kind') == 'campaign_info':
+        return False
+    try:
+        from doctor.fix import editor_version
+        a = _open(d['file_name'])
+        return not wtg_triggers.needs_regeneration(_read(a, 'war3map.wtg'), wtg_triggers.arities(
+            editor_version.trigger_data_text(version_num)))
+    except Exception:
+        return False
 
 
 def version_block(file_path, version_num):
@@ -1443,6 +1459,11 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
                 res['err'] = (
                     'the data pack of that version is not here (WC3_VERSOES_DADOS, or common/cache/wc3_versoes '
                     'built by wc3_versoes.py); choose the Reforged World Editor'
+                )
+            if version_num == editor_version.JN and not editor_version.jn_trigger_data_bytes():
+                res['err'] = (
+                    'the TriggerData of the JassNative Editor is missing or changed (ref/jn/TriggerData.txt); '
+                    'choose another World Editor'
                 )
             return res
         options = dict(options or {}, **dict(('dados:' + x, False) for x in slk_patch.PROBLEMS))
@@ -1624,9 +1645,10 @@ def _prepare_campaign_for_editor(file_path, output, p, diag, res, safe_units, un
     return res
 
 
-def free_output(file_path, suffix):
-    base, ext = os.path.splitext(file_path)
-    ext = ext if ext.lower() in ('.w3x', '.w3m', '.w3n') else '.w3x'
+def free_output(file_path, suffix, ext=None):
+    base, ext0 = os.path.splitext(file_path)
+    if ext is None:
+        ext = ext0 if ext0.lower() in ('.w3x', '.w3m', '.w3n') else '.w3x'
     cand = base + suffix + ext
     k = 2
     while os.path.exists(cand):
