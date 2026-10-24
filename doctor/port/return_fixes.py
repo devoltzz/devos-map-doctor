@@ -151,6 +151,47 @@ def local_param_clash(body_text):
     return ('\n'.join(line_list), n) if n else (body_text, 0)
 
 
+RX_LOCAL_NAME = re.compile(r'^[ \t]*local[ \t]+\w+[ \t]+(?:array[ \t]+)?(\w+)')
+
+
+def repeated_local(body_text):
+    line_list = body_text.split('\n')
+    n = 0
+    i = 0
+    while i < len(line_list):
+        if not RX_FUNC_PARAMS.match(line_list[i]):
+            i += 1
+            continue
+        j = i + 1
+        while j < len(line_list) and not line_list[j].strip().startswith('endfunction'):
+            j += 1
+        seen = {}
+        for k in range(i + 1, j):
+            mm = RX_LOCAL_NAME.match(line_list[k])
+            if mm:
+                seen[mm.group(1)] = seen.get(mm.group(1), 0) + 1
+        repeated = set(fname for fname, q in seen.items() if q > 1)
+        if repeated:
+            rx = re.compile(r'\b(%s)\b' % '|'.join(map(re.escape, sorted(repeated))))
+            current = {}
+            count = {}
+            for k in range(i + 1, j):
+                line = line_list[k]
+                mm = RX_LOCAL_NAME.match(line)
+                if mm and mm.group(1) in repeated:
+                    fname = mm.group(1)
+                    count[fname] = count.get(fname, 0) + 1
+                    rest = _code_only(rx, line[mm.end(1):], lambda m: m.group(1) + current.get(m.group(1), ''))
+                    if count[fname] > 1:
+                        current[fname] = '_kkl%d' % count[fname]
+                        n += 1
+                    line_list[k] = line[:mm.start(1)] + fname + current.get(fname, '') + rest
+                elif current:
+                    line_list[k] = _code_only(rx, line, lambda m: m.group(1) + current.get(m.group(1), ''))
+        i = j + 1
+    return ('\n'.join(line_list), n) if n else (body_text, 0)
+
+
 RX_RETURN_EXPR = re.compile(r'^(\s*return\s+)(\S.*?)(\s*)$')
 RX_PJASS_INT_REAL = re.compile(r'^.*?:(\d+):\s*Cannot convert returned value from integer to real')
 
@@ -217,12 +258,14 @@ def applies(body_text):
     body_text, codes = null_code(body_text)
     body_text, shadows = shadow_local(body_text)
     body_text, param = local_param_clash(body_text)
+    body_text, repeated = repeated_local(body_text)
     body_text, i2r = integer_in_real(body_text)
     return body_text, {
         'real_blocks': real_blocks + i2r,
         'codes': codes,
-        'shadows': shadows + param,
+        'shadows': shadows + param + repeated,
         'empty_files': empty_files,
+        'repeated': repeated,
     }
 
 
@@ -230,6 +273,14 @@ def report_data(info):
     if info['real_blocks'] or info['codes'] or info.get('shadows') or info.get('empty_files'):
         print(
             '0g returns: %d `return <integer>` in real function -> real; %d `return` without value -> the neutral of the type; '
-            '%d `return null` in code function -> %s; %d local(s) with the name of a global array -> <name>_kkl'
-            % (info['real_blocks'], info.get('empty_files', 0), info['codes'], VAZIA, info.get('shadows', 0))
+            '%d `return null` in code function -> %s; %d local(s) with the name of a global array, of a parameter or '
+            'declared again -> <name>_kkl (%d repeated)'
+            % (
+                info['real_blocks'],
+                info.get('empty_files', 0),
+                info['codes'],
+                VAZIA,
+                info.get('shadows', 0),
+                info.get('repeated', 0),
+            )
         )
