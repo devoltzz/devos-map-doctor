@@ -117,25 +117,8 @@ def scan(map_path, progress=None, casc=None):
 
 
 def _imp_without(data_bytes, name_list):
-    import struct
-    wanted = set(n.replace('/', '\\').upper() for n in name_list)
-    try:
-        version_num, n = struct.unpack_from('<ii', data_bytes, 0)
-        p, mantidas, removed_count = 8, [], 0
-        for _ in range(n):
-            f = data_bytes.index(b'\0', p + 1)
-            brute = data_bytes[p:f + 1]
-            fname = data_bytes[p + 1:f].decode('utf-8', 'surrogateescape').replace('/', '\\').upper()
-            if fname in wanted or 'WAR3MAPIMPORTED\\' + fname in wanted:
-                removed_count += 1
-            else:
-                mantidas.append(brute)
-            p = f + 1
-    except (struct.error, ValueError):
-        return data_bytes, 0
-    if not removed_count:
-        return data_bytes, 0
-    return struct.pack('<ii', version_num, len(mantidas)) + b''.join(mantidas) + data_bytes[p:], removed_count
+    from doctor.fix import no_use
+    return no_use.imp_without(data_bytes, name_list)
 
 
 def fix(entry, output, progress=None, casc=None, scope='all'):
