@@ -121,10 +121,13 @@ class Generator(object):
 
 
 class ShortGenerator(Generator):
+    ALPHABET = 'Il1'
+    FIRST_GLOBAL, FIRST_LOCAL = ALPHABET[0], ALPHABET[1]
+
     def _all_names(self, first, n, avoid):
         out, tail = [], 0
         while len(out) < n:
-            cluster = [first + ''.join(t) for t in itertools.product('Il1', repeat=tail)]
+            cluster = [first + ''.join(t) for t in itertools.product(self.ALPHABET, repeat=tail)]
             cluster = [x for x in cluster if x not in avoid]
             self.rng.shuffle(cluster)
             out.extend(cluster[:n - len(out)])
@@ -133,20 +136,20 @@ class ShortGenerator(Generator):
 
     def ranking(self, count):
         order = sorted(count, key=lambda k: (-count[k], k))
-        new_ones = self._all_names('I', len(order), self.in_use)
+        new_ones = self._all_names(self.FIRST_GLOBAL, len(order), self.in_use)
         self.in_use.update(new_ones)
         return dict(zip(order, new_ones))
 
     def local_vars(self, count):
         order = sorted(count, key=lambda k: (-count[k], k))
-        return dict(zip(order, self._all_names('line', len(order), self.in_use)))
+        return dict(zip(order, self._all_names(self.FIRST_LOCAL, len(order), self.in_use)))
 
     def new(self, lmin, lmax, local_vars=None):
         if local_vars is not None:
-            x = self._all_names('line', 1, self.in_use | local_vars)[0]
+            x = self._all_names(self.FIRST_LOCAL, 1, self.in_use | local_vars)[0]
             local_vars.add(x)
             return x
-        x = self._all_names('I', 1, self.in_use)[0]
+        x = self._all_names(self.FIRST_GLOBAL, 1, self.in_use)[0]
         self.in_use.add(x)
         return x
 
