@@ -226,6 +226,8 @@ def data_dir():
 
 def _ref_roots():
     roots = [REF_ROOT]
+    if os.path.join(HERE, 'ref') != REF_ROOT:
+        roots.append(os.path.join(HERE, 'ref'))
     if getattr(sys, 'frozen', False):
         roots.append(os.path.join(os.path.dirname(os.path.abspath(sys.executable)), 'ref'))
     roots.append(os.path.join(data_dir(), 'ref'))
@@ -882,6 +884,7 @@ def detect_parts(w3i_bytes=None, script=None, language=None, objects=None, wtg=N
     if language == 'lua':
         _bump(st, '1.30+', 'the script is Lua, which came with 1.31')
     elif script:
+        script = script.replace('\r\n', '\n').replace('\r', '\n')
         used, defined, declared = script_names(script)
         table = natives_patches()
         newest, newest_name = None, None
