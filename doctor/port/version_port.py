@@ -1,4 +1,4 @@
-# Ports a map of an older classic game (1.2x) to a newer one (1.24a to 1.29.2): the return bug by its equivalent, the names the newer game also declares renamed, the script checked with its scripts.
+# Ports a map between versions of the classic game (1.24a to 1.29.2), up or down: the return bug by its equivalent, the names the newer game also declares renamed, the script checked with its scripts.
 import os
 import re
 import time
@@ -96,18 +96,18 @@ def _reason(detail, floor_v, plat, lua, byte_size, tgt, no_script=False):
         return 'the script cannot be read by its name (a protected map): unprotect it first with Fix map, then port'
     if lua:
         return 'the script is Lua, which only 1.31 and later run: Reforged only'
-    if plat:
+    if plat and not (detail.get('range') == '1.30+' and is_downport(floor_v, tgt)):
         return 'the map uses %d native(s) of a platform client (%s): Reforged only' % (
             len(plat), ', '.join(plat[:4]) + (', ...' if len(plat) > 4 else ''))
-    if floor_v == REFORGED:
-        return 'the map uses what only 1.30 and later have: Reforged only'
-    if wc3_versions._key(tgt) < wc3_versions._key(floor_v):
-        return 'the map needs %s or later (porting to an older game comes later)' % floor_v
     lim = wc3_versions.limits(tgt) or {}
     n_players = detail.get('players')
     if n_players and lim.get('players') and n_players > lim['players']:
         return 'the map has %d player slots and %s has %d' % (n_players, tgt, lim['players'])
     return None
+
+
+def is_downport(floor_v, tgt):
+    return floor_v == REFORGED or wc3_versions._key(tgt) < wc3_versions._key(floor_v)
 
 
 def size_warning(byte_size, tgt):
@@ -139,7 +139,7 @@ def analyze(map_path):
     a = _open(map_path)
     _n, lua = _read(a, ('war3map.lua',))
     _n, j = _read(a, SCRIPT_NAMES)
-    body_text = j.decode('latin-1') if j is not None else ''
+    body_text = j.decode('latin-1').replace('\r\n', '\n').replace('\r', '\n') if j is not None else ''
     lang, src = ('lua', lua.decode('utf-8', 'surrogateescape')) if lua is not None else \
         ('jass', j.decode('utf-8', 'surrogateescape')) if j is not None else (None, None)
     obj = dict((n, _read(a, (n,))[1]) for n in wc3_versions.OBJECT_FILES)
@@ -233,6 +233,22 @@ def map_port(map_path, tgt, output, stats=None, log=print):
         import shutil
         if os.path.abspath(output) == os.path.abspath(map_path):
             raise Refusal('the output is the map itself')
+        if is_downport(an['floor_version'], target_v):
+            from doctor.port import version_downport
+            log('port to %s (older than the map): %s (made for %s)' % (target_v, os.path.basename(map_path),
+                                                                      an['origin'].get('label')))
+            try:
+                d = version_downport.port_down(map_path, target_v, output, an, log=log)
+            except version_downport.Refusal as e:
+                raise Refusal(str(e))
+            details['downport'] = d
+            details['pjass'] = d['pjass']
+            details['changes'].update(d['changes'])
+            if d['warnings']:
+                details.setdefault('warnings', []).extend(d['warnings'])
+            details['resultado'] = 'ported'
+            details['bytes'] = os.path.getsize(output)
+            raise _Done()
         if within_range(an['origin'], target_v):
             shutil.copyfile(map_path, output)
             details['resultado'] = 'already runs'
@@ -283,6 +299,98 @@ def map_port(map_path, tgt, output, stats=None, log=print):
     return details
 
 
+def _short_list(name_list, n=8):
+    name_list = list(name_list)
+    return ', '.join(name_list[:n]) + (', ... (%d in all)' % len(name_list) if len(name_list) > n else '')
+
+
+def downport_lines(d, tgt):
+    L = []
+    m = d.get('changes') or {}
+    w = m.get('w3i') or {}
+    if w and w.get('from_') != w.get('new_value'):
+        L.append(
+            '- map info: format %s -> %s%s'
+            % (w['from_'], w['new_value'], ('; flags cleared: %s' % ', '.join(w['flags'])) if w.get('flags') else '')
+        )
+    s = m.get('script') or {}
+    if s.get('emulated'):
+        L.append('- %d native(s) of the newer game given their %s equivalent: %s' % (len(s['emulated']), tgt,
+                                                                                    _short_list(s['emulated'])))
+    if s.get('neutrals'):
+        L.append('- %d native(s) of the newer game that %s does not have were made NEUTRAL (they compile and do '
+                 'nothing, so what they did is lost): %s' % (len(s['neutrals']), tgt, _short_list(s['neutrals'])))
+    if s.get('declaradas'):
+        L.append(
+            '- %d native(s) the map declares that %s does not have (natives of the newer game outside its common.j) '
+            'taken out of the script%s: %s'
+            % (
+                len(s['declaradas']),
+                tgt,
+                (' (%d called, given the equivalent or made neutral above)' % len(s['declared_used']))
+                if s.get('declared_used')
+                else ' (never called)',
+                _short_list(s['declaradas']),
+            )
+        )
+    if s.get('copied'):
+        L.append('- %d function(s) of the newer blizzard.j copied into the script: %s' % (len(s['copied']),
+                                                                                         _short_list(s['copied'])))
+    if s.get('types'):
+        L.append('- %d type(s) of the newer game written as the one %s has: %s' % (
+            len(s['types']), tgt, _short_list('%s -> %s' % kv for kv in sorted(s['types'].items()))))
+    if s.get('w3p_constants') or s.get('neutral_constants'):
+        L.append(
+            '- %d constant(s) of the newer game copied (a number the older engine does not know: the event or '
+            'option does nothing there)%s'
+            % (
+                len(s.get('w3p_constants') or []),
+                (
+                    '; %d made neutral (null or 0): %s'
+                    % (len(s['neutral_constants']), _short_list(s['neutral_constants']))
+                )
+                if s.get('neutral_constants')
+                else '',
+            )
+        )
+    if s.get('damage'):
+        L.append('- %d registration(s) of the any-unit damage event of 1.31 given the classic damage detection (each '
+                 'unit on the map gets the unit damage event; the damaging event fires after the damage)' % s['damage'])
+    if s.get('n_players'):
+        L.append('- %d neutral player number(s) of the 24 player game (24 to 27) written as the 12 player ones (12 to '
+                 '15)' % s['n_players'])
+    for kind, info in sorted((m.get('objects') or {}).items()):
+        L.append('- war3map.%s: version 2 (%d object(s)%s)' % (kind, info['objects'], ('; %d merged and %d added from '
+                 'war3mapSkin.%s' % (info['merged'], info['added'], kind)) if info['merged'] or info['added'] else ''))
+    if m.get('w3e'):
+        L.append('- war3map.w3e: the terrain in version 11 (%d points, from version %d)' % (m['w3e']['points'],
+                                                                                        m['w3e']['from']))
+    doo = m.get('doo')
+    if doo:
+        v, sub, skin = doo['from']
+        L.append('- war3map.doo: %d doodad(s) in the classic layout (from version %d.%d%s)' % (
+            doo['records'], v, sub, ' with the skin field' if skin else ''))
+    g = m.get('trigger_list')
+    if g:
+        L.append('- the triggers in the classic format the World Editor of %s reads%s%s' % (
+            tgt, ('; %d GUI trigger(s) with functions it does not know written as custom text: %s'
+                  % (len(g['to_text']), _short_list(g['to_text']))) if g.get('to_text') else '',
+            ('; %d variable(s) of a type it does not have written as handle: %s'
+             % (len(g['var_types']), _short_list(sorted(g['var_types'])))) if g.get('var_types') else ''))
+    for fname, o in sorted((m.get('editor') or {}).items()):
+        L.append('- %s: %s' % (fname, o))
+    if m.get('models'):
+        L.append('- %d model(s) of version 900 or later written as version 800 (an HD material keeps only its diffuse '
+                 'map)' % m['models'])
+    if m.get('dds'):
+        L.append('- %d DDS texture(s) written as BLP, the references moved to the new names' % m['dds'])
+    if m.get('sounds'):
+        L.append('- %d FLAC/OGG sound(s) written as MP3, the references moved to the new names' % m['sounds'])
+    for e in d.get('editor') or []:
+        L.append('Note: the %s World Editor: %s' % (tgt, e))
+    return L
+
+
 def report_text(details):
     o = details.get('origin') or {}
     L = [
@@ -317,6 +425,8 @@ def report_text(details):
             )
         else:
             L.append('Ported: %s' % details.get('output'))
+        if details.get('downport'):
+            L += downport_lines(details['downport'], details['tgt'])
         nm = m.get('name_list') or {}
         if nm.get('renamed_list') or nm.get('removed_ones'):
             L.append(
