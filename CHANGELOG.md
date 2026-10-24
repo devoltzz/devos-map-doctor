@@ -3,6 +3,40 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 1.8.9 (2026-10-24)
+
+### New
+
+- **Open in World Editor: JassNative Editor.** A new editor in the list (`--editor-version=jn` on the command line),
+  for the Korean editor many classic maps were made with (World Editor 1.21b with Grimoire, JassHelper and UMSWE). It
+  writes the map like the 1.27 target but reads that editor's own trigger data, which knows 246 more functions and
+  types, so more triggers stay GUI: on FOCS3 9.7 C03, 1,042 GUI triggers and 5 custom text ones (1,016 and 31 with the
+  1.27 target), and GUI variables of types like `boolexpr` stay GUI variables. The editor's trigger data comes with
+  the Doctor, credited in the third-party notices. The diagnosis also says when a map was compiled in that editor.
+- **Translation archive for M16** (`translation override <map> <file>`, and a new card in the Translation tab). For a
+  map that has to stay the original, as in M16 rooms: the translation goes into `<map>_translation.mpq` and the map is
+  not touched. Only files outside the map checksum go in, so the texts of the script and of the checksummed object
+  files stay as they are, and the result says how many of your texts made it. On DragonBall RPG v21.08 the archive
+  holds 14,913 of the 19,020 Korean texts; the 4,088 of the script stay in Korean. The Doctor does not make the loader
+  that puts the archive over the map (the community "mix" files do that, and only the ones that open it above the map
+  work). I have not tested it in the game.
+
+### Fixed
+
+- **Open in World Editor: saving in JassNative Editor failed** (issue 32). Two things in the map stopped the save,
+  and I tested both fixes together in that editor: with a map made this way, Save and Save As both work.
+  - A map that keeps its script only in `scripts\war3map.j` (FOC does) kept it there, and the editor looks for
+    `war3map.j` when it saves ("could not access the file"). The script now goes to `war3map.j`, with the same bytes,
+    for every editor target.
+  - The line `constant boolean REFORGED_MODE = false` that JassNative Editor writes at every save was already in the
+    map, in the custom script and in the old script, so the next save had it twice and the compile stopped. For the
+    classic targets the line now leaves both places when nothing in the map reads it, and the report says so.
+- **Three short values changed by my release build.** The step that turns the code into English also renamed the
+  Japanese language code in the translation modules, the letter of the artifact item class in the random item IDs
+  of the editor files, and a label of the game data layers in a report line. They are back as they should be, and the
+  release build now stops on any short value it would change, and on a call whose argument name it would break (the
+  cause of a 1.8.8 problem I fixed before publishing it).
+
 ## 1.8.8 (2026-10-24)
 
 ### New
