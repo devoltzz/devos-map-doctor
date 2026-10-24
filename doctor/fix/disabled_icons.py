@@ -221,6 +221,33 @@ def make_disabled(data, name=''):
         os.remove(tmp)
 
 
+def _make(missing):
+    repl, failed = [], []
+    for icon, dis, _uses, data in missing:
+        try:
+            repl.append((dis, make_disabled(data, icon)))
+        except Exception as e:
+            failed.append([icon, str(e)[:80] or type(e).__name__])
+    return repl, failed
+
+
+def files(path, progress=None):
+    p = progress or _nothing
+    out = {'files': [], 'failed': [], 'icons': 0, 'present': 0, 'game': 0, 'collisions': [], 'unreadable': [],
+           'error': None}
+    from doctor.models import model_check
+    p('Reading the map')
+    a, err = model_check._open(path)
+    if a is None:
+        out['error'] = err
+        return out
+    missing, counts, out['collisions'], out['unreadable'] = _plan(a, model_check._names(a), game_storage())
+    out.update(counts)
+    p('Making %d disabled icons' % len(missing))
+    out['files'], out['failed'] = _make(missing)
+    return out
+
+
 def fix(path_in, path_out, progress=None):
     p = progress or _nothing
     res = {'state': 'failed', 'written': [], 'failed': [], 'checked': 0, 'collisions': [], 'unreadable': []}
@@ -241,12 +268,7 @@ def fix(path_in, path_out, progress=None):
         res['state'] = 'nothing_to_do'
         return res
     p('Making %d disabled icons' % len(missing))
-    repl = []
-    for icon, dis, _uses, data in missing:
-        try:
-            repl.append((dis, make_disabled(data, icon)))
-        except Exception as e:
-            res['failed'].append([icon, str(e)[:80] or type(e).__name__])
+    repl, res['failed'] = _make(missing)
     if not repl:
         res['state'] = 'nothing_to_do'
         return res
