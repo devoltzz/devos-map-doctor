@@ -107,7 +107,7 @@ STYLE = {'heading': 'title', 'heading2': 'subtitle', 'ok': 'good', 'warning': 'w
 PAGE_STYLES = frozenset(STYLE.values())
 OUTCOME = {'done': 'ok', 'partial': 'partial', 'nothing_to_do': 'nothing', 'nothing_selected': 'nothing',
            'is_pack': 'nothing'}
-EDITOR_VERSIONS = ('1.29', '1.28', '1.27', '1.26', '1.25', '1.24')
+EDITOR_VERSIONS = ('1.29', '1.28', '1.27', '1.26', '1.25', '1.24', 'jn')
 VERDICT = {'yes': 'v-yes', 'probably': 'v-probably', 'no': 'v-no', 'unknown': 'v-unknown'}
 SCRIPT_LABEL = {'jass': 'JASS', 'lua': 'Lua', 'kkwe': 'KK compiled (KKWE)', 'j2b': 'KK compiled and encrypted (j2b)',
                 'kk_encrypted': 'KK encrypted outside the map', 'none': 'none'}
@@ -181,8 +181,8 @@ def page_steps(D, d):
 NOTICE_CODES = ('ntfs_copy',)
 
 
-def editor_version_guess(path):
-    out = {'guess': None, 'why': '', 'available': []}
+def editor_version_guess(path, d=None):
+    out = {'guess': None, 'why': '', 'available': [], 'jassnative': bool((d or {}).get('jassnative'))}
     try:
         from doctor.fix import editor_version
         out['available'] = list(EDITOR_VERSIONS) if getattr(sys, 'frozen', False) else \
@@ -223,7 +223,7 @@ PACKAGE_ONLY = ('This is an art package, not a map: only its files can be seen a
 MAP_ONLY = ('port', 'reforged', 'card', 'card_image', 'gradient', 'script', 'script_checks', 'triggers', 'cheatpacks',
             'cheatpack_inject', 'qol', 'qol_apply', 'translation_export', 'translation_groups', 'translation_check',
             'translation_machine', 'translation_images', 'translation_image_preview', 'translation_update',
-            'rawcodes', 'recipes', 'diag_make', 'downgrade_w3i', 'port_targets')
+            'translation_override', 'rawcodes', 'recipes', 'diag_make', 'downgrade_w3i', 'port_targets')
 NO_EDIT_TASKS = ('open', 'card', 'card_image', 'gradient', 'reforged', 'diag_logs', 'diag_read', 'crash_list',
                  'crash_read', 'replay_list', 'replay_read', 'replay_compare', 'desync_compare')
 NO_EDIT_REFUSED = 'Not allowed to edit'
@@ -616,7 +616,7 @@ def _run_job(job, emit, G, D, task, path, progress):
         d = cached_diagnosis(D, path, progress)
         return {'map': os.path.abspath(path), 'name': os.path.basename(path), 'size': os.path.getsize(path),
                 'lines': page_lines(G.diagnosis_text(d)), 'steps': page_steps(D, d),
-                'summary': page_summary(D, d), 'editor_version': editor_version_guess(path)}
+                'summary': page_summary(D, d), 'editor_version': editor_version_guess(path, d)}
     refused = no_edit_refusal(job)
     if refused:
         return refused
@@ -641,6 +641,8 @@ def _run_job(job, emit, G, D, task, path, progress):
         return _diag_make(job, progress, emit, G)
     if task == 'downgrade_w3i':
         return _downgrade_w3i(job, progress, emit)
+    if task == 'translation_override':
+        return _translation_override(job, progress, emit)
     tool = TOOLS.get(task)
     if tool is None:
         raise ValueError('unknown task %r' % task)
@@ -870,6 +872,16 @@ def _translation_machine(job, progress):
                                         job.get('quality') or 'best', images=bool(job.get('images')))
     if r.get('state') == 'done':
         r['check'] = translation_io.check(job['map'], job['file'], progress)
+    return r
+
+
+def _translation_override(job, progress, emit=lambda event: None):
+    from doctor.fix import unprotect as D
+    from doctor.translation import translation_io
+    out = D.free_output(job['map'], '_translation', '.mpq')
+    emit({'type': 'output', 'path': out})
+    r = translation_io.override(job['map'], job['file'], out, progress)
+    r['rejected'] = r['rejected'][:500]
     return r
 
 
