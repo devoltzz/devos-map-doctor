@@ -123,6 +123,7 @@ const state = {
   mode: null, pane: {},
   trGroups: null, trSkip: new Set(), mtQuality: 'best',
   trImages: false, trReview: null,
+  trOverride: null,
   extras: { card: null, translation: null, models: null, modelNames: null, singlePlayer: null, portraits: null,
     dataPointers: null, kkTextures: null, disabledIcons: null, uabi: null, preload: null, attributes: null, gameOverrides: null, requirements: null, fdf: null, slkObjects: null, lobbyImage: null },
   cheatpacks: null, cheatPack: { id: null, options: {}, result: null },
@@ -478,6 +479,7 @@ async function openMap(path) {
   state.qolResult = null;
   state.trGroups = null;
   state.trSkip = new Set();
+  state.trOverride = null;
   state.rawcodes = null;
   state.recipes = null;
   state.editorVersion = 'reforged';
@@ -551,6 +553,7 @@ function openNoEdit(gen) {
   loadCard(gen);
 }
 const NO_EDIT_NOTE = 'Not allowed to edit';
+const JN_EDITOR = 'JassNative Editor';
 
 function renderHeader() {
   const o = state.open, s = o.summary;
@@ -908,13 +911,14 @@ function editorVersionRow() {
     title: 'The World Editor that will open the map: Reforged, or the one of the map\'s own version, which keeps it.',
     onchange: e => { state.editorVersion = e.target.value; shellLine('editor'); } },
     el('option', { value: 'reforged', text: 'Reforged (3.0)' }),
-    versions.map(v => el('option', { value: v, text: v })));
+    versions.map(v => el('option', v === 'jn' ? { value: v, translate: 'no', text: JN_EDITOR } : { value: v, text: v })));
   sel.value = versions.includes(state.editorVersion) ? state.editorVersion : 'reforged';
   return el('div', { class: 'row', style: 'gap:8px;align-items:center;margin:4px 0 8px' },
     el('span', { text: 'World Editor' }), sel,
     guess ? el('span', { class: 'muted' }, el('span', { text: 'Made for World Editor' }), ' ',
       el('span', { class: 'mono', text: guess })) : null,
-    ev.saved_by ? el('span', { class: 'faint', translate: 'no', text: '(' + ev.saved_by + ')' }) : null);
+    ev.saved_by ? el('span', { class: 'faint', translate: 'no', text: '(' + ev.saved_by + ')' }) : null,
+    ev.jassnative ? el('span', { class: 'muted', text: 'Compiled in the JassNative Editor.' }) : null);
 }
 
 function renderAction(action) {
@@ -2401,7 +2405,58 @@ function renderTranslation() {
           text: x.id || x.text }), el('td', { class: 'muted', text: x.reason || x.why || '' })))))) : null,
     el('button', { class: 'btn small', style: 'margin-top:10px', text: 'Forget this translation', onclick: () => {
       state.extras.translation = null; state.trReview = null; renderTranslation(); renderActions(); } })) : null),
-  reviewCard());
+  reviewCard(),
+  overrideCard());
+}
+
+function overrideCard() {
+  const tr = state.extras.translation;
+  if (!tr || tr.check.error) return null;
+  const o = state.trOverride && state.trOverride.file === tr.file ? state.trOverride.result : null;
+  return el('div', { class: 'card' }, el('h2', { text: 'Translation archive for M16' }),
+    el('p', { class: 'lead', text: 'For a map that must stay the original, as in M16 rooms: the translation goes into ' +
+      'an archive of its own, and the map is not touched.' }),
+    el('p', { class: 'faint', text: 'Only the files outside the map checksum go in: the strings, the item and ability ' +
+      'texts, the map info. The script\'s texts, the object data the checksum covers and the texts the script ' +
+      'compares stay in the original.' }),
+    el('div', { class: 'notice', style: 'margin-top:10px', text: 'The Doctor does not make the loader: the archive ' +
+      'needs a .mix that opens it above the map (priority 17 or more; the game opens the map at 16). While it is ' +
+      'loaded it replaces the same files of every map, so keep it only while you play this one.' }),
+    el('button', { class: 'btn needs-idle', style: 'margin-top:10px', text: 'Make the archive...',
+      disabled: !!state.running || !tr.check.ok, onclick: () => makeOverride() }),
+    o ? overrideResult(o) : null);
+}
+
+async function makeOverride() {
+  const tr = state.extras.translation;
+  if (state.running || !tr) return;
+  try {
+    const r = await run('translation_override', { file: tr.file }, { label: 'Writing the translation archive...' });
+    state.trOverride = { file: tr.file, result: r };
+    renderTranslation();
+    if (r.state === 'done') toast('Wrote ' + base(r.output) + ' with ' + r.applied + ' texts.',
+      { actions: [[showLabel('Show'), () => api().open_folder(r.output)]] });
+    else if (r.state === 'failed') failed({ message: r.error }, 'Writing the translation archive');
+  } catch (e) { failed(e, 'Writing the translation archive'); }
+}
+
+function overrideResult(r) {
+  const lines = [];
+  if (r.state === 'done') lines.push(['good', r.applied + ' texts in ' + base(r.output) + ', ' + r.files.length +
+    ' files.']);
+  else if (r.state === 'nothing_to_apply') lines.push(['warn', 'No translation can go in the archive.']);
+  else lines.push(['bad', r.error || 'The archive was not written.']);
+  const held = r.held || {};
+  if (held.script) lines.push(['warn', held.script + ' translated texts stay in the original: they are in the ' +
+    'script, which the map checksum covers.']);
+  if (held.checksum) lines.push(['warn', held.checksum + ' translated texts stay in the original: they are in ' +
+    'object data the map checksum covers.']);
+  if (held.compared) lines.push(['warn', held.compared + ' translated texts stay in the original: the script ' +
+    'compares them.']);
+  if (r.map_texts) lines.push(['info', 'An archive can carry ' + r.map_texts.reachable + ' of the ' +
+    r.map_texts.total + ' texts of this map.']);
+  return el('div', { style: 'margin-top:12px' }, reportLines(lines),
+    r.state === 'done' ? el('div', { class: 'row', style: 'margin-top:10px' }, folderButton(r.output, 'Show')) : null);
 }
 
 function imagesOption() {
