@@ -11,7 +11,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 B = chr(92)
 NAME = 'item_pick_hd.json'
 SD = 'war3.w3mod:'
-LAYERS = (('hd', 'war3.w3mod:_hd.w3mod:'), ('from_', 'war3.w3mod:_de.w3mod:'))
+LAYERS = (('hd', 'war3.w3mod:_hd.w3mod:'), ('de', 'war3.w3mod:_de.w3mod:'))
 OBJECTS = (('war3map.w3t', 'ifil', 'item'), ('war3mapSkin.w3t', 'ifil', 'item'),
            ('war3map.w3u', 'umdl', 'unit'), ('war3mapSkin.w3u', 'umdl', 'unit'))
 TEXTS = (('Units' + B + 'ItemFunc.txt', 'item'), ('Units' + B + 'ItemSkin.txt', 'item'),
