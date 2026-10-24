@@ -165,3 +165,73 @@ def save_blp(im, path, quality=90, alpha_bits=None, mipmaps=True, extra=None):
         f.write(data_bytes)
     return n, len(data_bytes)
 
+
+def blp_palette_bytes(im, alpha_bits=None, mipmaps=True, extra=5, given_palette=None):
+    import numpy as np
+    im = im.convert('RGBA')
+    w, h = im.size
+    px = np.asarray(im, dtype=np.uint8)
+    if alpha_bits is None:
+        alpha_bits = 8 if int(px[..., 3].min()) < 255 else 0
+    if alpha_bits not in (0, 8):
+        raise ValueError('alpha_bits %r: the paletted writer here writes 0 or 8' % alpha_bits)
+    colors = hash_key = None
+    if given_palette is not None:
+        words = np.frombuffer(given_palette, np.uint8, 1024).reshape(256, 4).copy()
+    else:
+        hash_key = (px[..., 0].astype(np.uint32) << 16) | (px[..., 1].astype(np.uint32) << 8) | px[..., 2]
+        colors = np.unique(hash_key)
+        if len(colors) > 256:
+            return None
+        words = np.zeros((256, 4), np.uint8)
+        words[:len(colors), 0] = colors & 0xFF
+        words[:len(colors), 1] = (colors >> 8) & 0xFF
+        words[:len(colors), 2] = (colors >> 16) & 0xFF
+        words[len(colors):, :3] = words[0, :3]
+        words[:, 3] = 255
+    rgb_pal = np.ascontiguousarray(words[:, [2, 1, 0]])
+    im_pal = Image.new('P', (1, 1))
+    im_pal.putpalette(rgb_pal.reshape(-1).tolist())
+    level_list = []
+    cur = im
+    while True:
+        if not level_list and colors is not None:
+            idx = np.searchsorted(colors, hash_key).astype(np.uint8)
+            alfa = px[..., 3]
+        else:
+            q = cur.convert('RGB').quantize(palette=im_pal, dither=Image.Dither.NONE)
+            idx = np.asarray(q, dtype=np.uint8)
+            alfa = np.asarray(cur.getchannel('A'), dtype=np.uint8)
+        level_list.append(idx.tobytes() + (alfa.tobytes() if alpha_bits == 8 else b''))
+        if not mipmaps or (cur.width == 1 and cur.height == 1) or len(level_list) == 16:
+            break
+        cur = cur.resize((max(1, cur.width // 2), max(1, cur.height // 2)), Image.LANCZOS)
+    pos = 156 + 1024
+    offs, sizes = [], []
+    for lv in level_list:
+        offs.append(pos)
+        sizes.append(len(lv))
+        pos += len(lv)
+    offs += [0] * (16 - len(offs))
+    sizes += [0] * (16 - len(sizes))
+    hdr = b'BLP1' + struct.pack('<IIIIII', 1, alpha_bits, w, h, extra, 1 if mipmaps else 0)
+    hdr += struct.pack('<16I', *offs) + struct.pack('<16I', *sizes)
+    return hdr + words.tobytes() + b''.join(level_list)
+
+
+def save_blp_fit(im, path, max_bytes, alpha_bits=None, mipmaps=True, extra=None, qmin=100, qmax=300):
+    lo, hi = qmin, qmax
+    best = None
+    while lo <= hi:
+        q = (lo + hi) // 2
+        n, size = save_blp(im, path, q, alpha_bits, mipmaps, extra)
+        if size <= max_bytes:
+            best = (q, size)
+            hi = q - 1
+        else:
+            lo = q + 1
+    if best is None:
+        n, size = save_blp(im, path, qmin, alpha_bits, mipmaps, extra)
+        return qmin, size
+    save_blp(im, path, best[0], alpha_bits, mipmaps, extra)
+    return best
