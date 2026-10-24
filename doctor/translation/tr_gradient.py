@@ -12,6 +12,31 @@ def e_gradient(original, minimum=6):
     return len(segs) >= minimum and sum(len(s) for s in segs) <= 2 * len(segs)
 
 
+RX_ORIGINAL_COLOR = re.compile(r'\|[cC][0-9a-fA-F]{8}')
+
+
+def copy_codes(original, translation):
+    right_codes = RX_ORIGINAL_COLOR.findall(original)
+    marks = [m.start() for m in re.finditer(r'\|[cC]', translation)]
+    if not right_codes or len(right_codes) != len(marks):
+        return None
+    out, pos = [], 0
+    for begin, right_code in zip(marks, right_codes):
+        hex_digits = right_code[2:]
+        k = 0
+        while (
+            k < 8 and begin + 2 + k < len(translation) and translation[begin + 2 + k].lower() == hex_digits[k].lower()
+        ):
+            k += 1
+        if k < 6:
+            return None
+        out.append(translation[pos:begin])
+        out.append(right_code)
+        pos = begin + 2 + k
+    out.append(translation[pos:])
+    return ''.join(out)
+
+
 def _tokens(original):
     out, pos = [], 0
     for m in RX_COD.finditer(original):
