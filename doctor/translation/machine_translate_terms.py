@@ -47,6 +47,7 @@ TERMS = {
         ('엑티브', 'Active'), ('액티브', 'Active'), ('패시브', 'Passive'), ('쿨다운', 'Cooldown'), ('이벤트', 'Event'),
         ('희귀', 'Rare'), ('전설', 'Legendary'), ('유물', 'Relic'), ('보조장비', 'Accessory'), ('올스텟', 'All Stats'),
         ('올스탯', 'All Stats'), ('공이속', 'Attack and Movement Speed'), ('생명력', 'HP'), ('마법 저항', 'Magic Resistance'),
+        ('이속', 'Movement Speed'), ('공속', 'Attack Speed'), ('모능', 'All Stats'),
         ('목', 'Neck'), ('귀', 'Ear'), ('검', 'Sword'), ('활', 'Bow'), ('창', 'Spear'),
     ],
 }
