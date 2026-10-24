@@ -30,6 +30,7 @@ of it. The map you opened is never changed.
   5. [Review and correct a translation](#5-review-and-correct-a-translation)
   6. [The text in the images](#6-the-text-in-the-images)
 - [Apply the translation to the map](#apply-the-translation-to-the-map)
+- [A translation archive for M16](#a-translation-archive-for-m16)
 - [The translation file](#the-translation-file)
 - [What the Doctor checks](#what-the-doctor-checks)
 - [What is never translated, and why](#what-is-never-translated-and-why)
@@ -277,6 +278,26 @@ What happens when it writes:
 - A protected map is unprotected by the same action first. Keep "Remove the MPQ protection" ticked in Fix map.
 - A text the script compares goes in together with the script's own copies of it, so the comparison still matches.
 
+## A translation archive for M16
+
+On M16 (and other rooms that check the map) a translated copy is another map: it does not match the host's. For
+those, the Translation tab has the card **"Translation archive for M16"**, shown once a translation is loaded.
+"Make the archive..." writes `<map>_translation.mpq` next to the map and leaves the map as it is.
+
+- Only the files outside the map checksum go in, whole: the trigger strings (`war3map.wts`), the item and ability
+  texts of a map in SLK mode (`Units\*Strings.txt`), the items (`war3map.w3t`), the map info, the frame files.
+- These stay in the original: the texts of the script (`war3map.j` is part of the checksum), the object data of the
+  files the checksum covers (`war3map.w3u`, `w3a`, `w3b`, `w3d`, `w3q`) and every text the script compares, since
+  the script's own copy cannot change. The card counts how many of your translated texts stay, and how many of the
+  map's texts an archive can carry at all. On the Korean DragonBall RPG v21.08 that is about four in five: almost all
+  of its object texts are in `Units\*Strings.txt`, and the chat and quest messages of the script stay in Korean.
+
+The Doctor does not make the loader. The game reads the archive only if a `.mix` (a plugin the classic game loads from
+its folder) opens it with a priority above the map's: 17 or more, since the game opens the map at 16. Some mix files
+of the community use 10, which is below the map: an archive put in one of those is never seen. While the archive is
+loaded it replaces the same files of every map you play, so keep it only while you play the map it was made for. I
+could not test this in the game itself.
+
 ## The translation file
 
 The JSON file the export writes, shortened (the entries come from two real maps, one Korean and one Chinese):
@@ -488,6 +509,7 @@ doctor translation export map.w3x texts.json --only=war3map.wts,war3map.w3t --im
 doctor translation machine map.w3x english.json
 doctor translation machine map.w3x english.json --quality=fast --images
 doctor translation check map.w3x texts.json
+doctor translation override map.w3x texts.json
 doctor fix map.w3x --translation=texts.json
 doctor editor map.w3x --translation=texts.json
 ```
@@ -498,6 +520,7 @@ doctor editor map.w3x --translation=texts.json
 | `translation export` | writes the file to translate: JSON, or the web page for a document translator when the name ends in `.html` |
 | `translation machine` | the local machine translation into English, written and checked |
 | `translation check` | what would apply and what would be left out, writing nothing |
+| `translation override` | writes `<map>_translation.mpq`, the translation archive for M16 (the map is not touched) |
 | `fix` / `editor --translation=` | applies the translation to a copy of the map |
 
 | Option | Meaning |
