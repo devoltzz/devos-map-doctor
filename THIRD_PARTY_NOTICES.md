@@ -190,6 +190,16 @@ Tinker, by DooMWhite, reimplements the Warcraft Feature Extender for Warcraft II
 of the classic game in `doctor/data/map_size.py` (where Game.dll checks the size of a map, and that the check only
 applies to a game with other players) come from DooMWhite's reverse engineering in Tinker, used with permission.
 
+## JassNative Editor and UMSWE
+
+`doctor/ref/jn/TriggerData.txt` is the `UI\TriggerData.txt` of the JassNative Editor 2.2 (JassNative World Editor,
+Copyright (c) BlacklightsC (평타천국) 2020-2021), unchanged: the trigger data of the Warcraft III 1.27 World Editor
+(Blizzard Entertainment) with the additions of UMSWE 5.0 (by PitzerMike, after Scio and Starcraftfreak; Grimoire by
+PipeDream) and of the JassNative Editor. "Open in World Editor" reads it only when the map is written for that editor
+(the "JassNative Editor" choice, `--editor-version=jn`), so the triggers can use the functions and the variable types
+that editor has. Neither editor ships a license for this file; it is included for interoperability, and no program code
+of either editor is part of this program.
+
 ## The local machine translation: CTranslate2, SentencePiece and OPUS-MT
 
 https://github.com/OpenNMT/CTranslate2 (MIT), https://github.com/google/sentencepiece (Apache-2.0),
