@@ -5,7 +5,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 from doctor.fix import unprotect as D
 
-VERSION = '1.8.7'
+VERSION = '1.8.8'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -276,6 +276,9 @@ def package_text(d):
     return out
 
 
+NO_EDIT_TEXT = 'Not allowed to edit'
+
+
 def diagnosis_text(d):
     if d['fixable'] == 'is_pack':
         return [
@@ -291,10 +294,19 @@ def diagnosis_text(d):
         return out + [('invalid', 'Incomplete map file: %s.' % incomplete(d.get('incomplete'))),
                       ('info', 'Get a complete copy of the map.')]
     if d['fixable'] == 'cannot_read':
+        if d.get('no_edit'):
+            return out + [('invalid', NO_EDIT_TEXT)]
         return out + [('invalid', 'The MPQ archive could not be read (%s).' % d.get('err'))]
     out.append(('', ''))
     protections = [p for p in d['protections'] if p['code'] not in D.DATA_ONLY]
     data_bytes = [p for p in d['protections'] if p['code'] in D.DATA_ONLY]
+    if d.get('no_edit'):
+        out.append(('invalid', NO_EDIT_TEXT))
+        if protections:
+            out += [('', ''), ('heading2', 'Protection found:')] + [
+                ('warning', '  - ' + describe(p)) for p in protections
+            ]
+        return out
     if not protections:
         out.append(('ok', 'No MPQ protection found.'))
     else:
@@ -890,6 +902,9 @@ def editor_text(r):
 def execute(action_code, map_path, progress=None, safe_units=True):
     if action_code == 'diag':
         return diagnosis_text(D.diagnose(map_path, progress))
+    from doctor.fix import no_edit
+    if no_edit.read(map_path):
+        return [('heading', os.path.basename(map_path)), ('invalid', NO_EDIT_TEXT)]
     if action_code == 'unprotect':
         return unprotection_text(D.unprotect(map_path, D.free_output(map_path, '_fixed'), progress))
     return editor_text(D.prepare_for_editor(map_path, D.free_output(map_path, '_editor'), progress,
