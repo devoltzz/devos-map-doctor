@@ -11,6 +11,7 @@ DLL_DEFAULT = os.path.join(ROOT, 'terceiros', 'WC3MapDeprotector', 'WC3MapRepack
 MPQ_OPEN_READ_ONLY = 0x00000100
 MPQ_OPEN_NO_LISTFILE = 0x00010000
 MPQ_OPEN_NO_ATTRIBUTES = 0x00020000
+DEFAULT_OPEN_FLAGS = MPQ_OPEN_READ_ONLY | MPQ_OPEN_NO_LISTFILE | MPQ_OPEN_NO_ATTRIBUTES
 MPQ_FLAG_READ_ONLY = 0x00000001
 MPQ_FLAG_MALFORMED = 0x00000004
 SFileMpqHeaderOffset = 5
@@ -69,20 +70,20 @@ def _info(d, h, classe, fmt):
     return struct.unpack(fmt, buf.raw)[0]
 
 
-def _open_handle(d, file_path):
+def _open_handle(d, file_path, flags=None):
     h = ctypes.c_void_p()
     ok = d.SFileOpenArchive(os.path.abspath(file_path), 0,
-                            MPQ_OPEN_READ_ONLY | MPQ_OPEN_NO_LISTFILE | MPQ_OPEN_NO_ATTRIBUTES, ctypes.byref(h))
+                            DEFAULT_OPEN_FLAGS if flags is None else flags, ctypes.byref(h))
     if not ok:
         return None, ctypes.get_last_error()
     return h, 0
 
 
-def opens(file_path, dll_path=None):
+def opens(file_path, dll_path=None, flags=None):
     d = dll(dll_path)
     if d is None:
         return {'opens': None, 'err': _error_dll or 'no_dll'}
-    h, err = _open_handle(d, file_path)
+    h, err = _open_handle(d, file_path, flags)
     if h is None:
         return {'opens': False, 'err': 'SFileOpenArchive: error %d' % err}
     try:
@@ -103,11 +104,11 @@ def opens(file_path, dll_path=None):
         d.SFileCloseArchive(h)
 
 
-def read_data(file_path, name_list, dll_path=None, cap=256 << 20):
+def read_data(file_path, name_list, dll_path=None, cap=256 << 20, flags=None):
     d = dll(dll_path)
     if d is None:
         return dict((n, None) for n in name_list)
-    h, _err = _open_handle(d, file_path)
+    h, _err = _open_handle(d, file_path, flags)
     if h is None:
         return dict((n, None) for n in name_list)
     out = {}
