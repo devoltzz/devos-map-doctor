@@ -36,7 +36,8 @@ def split_comma(arg):
 
 
 def embrulhos(body_text):
-    defs = [(m.start(), m.group(1), [p.strip().split()[-1] for p in m.group(2).split(',')
+    body_text = class1.unwrap_pcall(body_text)
+    defs =[(m.start(), m.group(1), [p.strip().split()[-1] for p in m.group(2).split(',')
                                      if p.strip() and p.strip() != 'nothing'])
             for m in RX_FUNC.finditer(body_text)]
     out = {}
