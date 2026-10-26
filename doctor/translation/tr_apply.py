@@ -799,7 +799,8 @@ def apply_txt(root, entries, tr, stats):
             by_file.setdefault(e['src'], {})[e['line']] = (e, tr[e['id']])
     for details, lines_map in by_file.items():
         src = tx.read_text(os.path.join(root, details))
-        lines, sep = tx.line_break(src)
+        lines, sep = (tx.misc_parts(src) if os.path.basename(details) in ('war3mapMisc.txt', 'war3mapSkin.txt')
+                      else tx.line_break(src))
         n = 0
         for line_no, (e, en) in lines_map.items():
             mk = re.match(r'^([A-Za-z0-9_]+)=(.*)$', lines[line_no])
@@ -817,7 +818,7 @@ def apply_misc(root, entries, tr, stats):
         p = os.path.join(root, fn)
         if not os.path.exists(p):
             continue
-        lines, sep = tx.line_break(tx.read_text(p))
+        lines, sep = tx.misc_parts(tx.read_text(p))
         n = 0
         for e in entries:
             if e['src'] == fn and e['id'] in tr:
