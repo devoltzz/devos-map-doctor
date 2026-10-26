@@ -558,9 +558,11 @@ def _port_targets(job, progress):
         an, why = None, 'the map could not be read for this (%s)' % e
     if an:
         out['made_for'], out['floor'] = an['origin'].get('label'), an['floor_version']
+    from doctor.data import wc3_versions
     for v in (version_port.targets()[1:] if an else []):
         reason = 'a map of the KK platform: Reforged only' if kk else an['targets'].get(v)
-        out['targets'].append({'value': v, 'label': v, 'reason': reason})
+        label = 'Reforged %s' % v if v in wc3_versions.REFORGED_OLD else v
+        out['targets'].append({'value': v, 'label': label, 'reason': reason})
     if not an:
         out['error'] = why
     return out
@@ -869,7 +871,8 @@ def _translation_machine(job, progress):
     from doctor.translation import machine_translate
     from doctor.translation import translation_io
     r = machine_translate.translate_map(job['map'], job['file'], progress, job.get('only'),
-                                        job.get('quality') or 'best', images=bool(job.get('images')))
+                                        job.get('quality') or 'best', images=bool(job.get('images')),
+                                        keep=job.get('keep'))
     if r.get('state') == 'done':
         r['check'] = translation_io.check(job['map'], job['file'], progress)
     return r
