@@ -40,6 +40,9 @@ trigger DB_mundo_trig=null
 group DB_sel_g=null
 unit DB_sel_u=null
 boolean array DB_key_down
+//{{KK_SE:KK_TECLAS_ESC}}
+timer DB_esc_relogio=null
+//{{KK_FIMSE:KK_TECLAS_ESC}}
 trigger DB_roda_trig=null
 trigger DB_quadro_trig=null
 timer DB_quadro_timer=null
