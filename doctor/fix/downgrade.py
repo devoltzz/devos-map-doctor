@@ -20,6 +20,7 @@ REMAINING = ('object data version 3 and the war3mapSkin.* files', 'the script (t
              'functions)', 'the trigger file in the 1.31 format', 'terrain, doodads, units, regions, cameras, sounds')
 MODEL_MAX_OLD = 800
 FIRST_PATCH = {'dds': (1, 32, 0), 'flac': (1, 32, 0), 'model': (1, 32, 0), 'ogg': (1, 30, 0)}
+MODEL_MAX_REFORGED = {'2.0.4': 1200}
 MODEL_EXTS = ('.mdx',)
 
 
@@ -36,14 +37,25 @@ def _target(version):
     from doctor.data import wc3_versions
     v = wc3_versions.normalize(version)
     if v is None or v == wc3_versions.REFORGED:
-        raise ValueError('the target has to be a classic game (1.24 to 1.29): %r' % (version,))
+        raise ValueError('the target has to be an older game (1.24 to 1.29, or Reforged %s): %r'
+                         % (', '.join(wc3_versions.REFORGED_OLD), version))
     return v, wc3_versions.limits(v)
+
+
+def _older_reforged(version):
+    from doctor.data import wc3_versions
+    return wc3_versions.reforged_game(version)
+
+
+REFORGED_OLD_SAVE = {'2.0.4': (6117, [2, 0, 4, 23745])}
 
 
 def editor_number(version):
     from doctor.fix import game_builds
     from doctor.data import wc3_versions
     v = wc3_versions.normalize(version)
+    if v in REFORGED_OLD_SAVE:
+        return REFORGED_OLD_SAVE[v][0]
     for b in game_builds.builds():
         if b['label'] == v and b['editor']:
             return b['editor']
@@ -58,7 +70,7 @@ def plan_w3i(model, version='1.29.2'):
     out = {'target': target, 'from': src, 'refusals': [], 'cleared_flags': [], 'dropped': [], 'warnings': []}
     if src <= target:
         return out
-    if model.get('script_language') == 1:
+    if model.get('script_language') == 1 and not lim.get('lua'):
         out['refusals'].append('the map script is Lua: Warcraft III %s does not run Lua (it starts with 1.31)' % v)
     n = len(model.get('players') or [])
     if n > lim['players']:
@@ -72,13 +84,43 @@ def plan_w3i(model, version='1.29.2'):
     for fmt, names in PLAYER_FIELDS:
         if src >= fmt > target:
             out['dropped'] += ['player.' + k for k in names if any(k in p for p in model.get('players') or [])]
-    if model.get('game_data_version') == 2:
+    if model.get('game_data_version') == 2 and not _older_reforged(v):
         out['warnings'].append(
             'the map uses the Forsaken Kingdom game data (game_data_version 2), which Warcraft III %s does not have' % v
         )
+    game = _older_reforged(v)
+    if game:
+        _plan_w3i_reforged(model, game, out)
     if src >= 31 and any(p.get('enemy_low') or p.get('enemy_high') for p in model.get('players') or []):
         out['warnings'].append('the enemy priorities of the players are dropped (the format has no place for them)')
     return out
+
+
+def _plan_w3i_reforged(model, game, out):
+    out.setdefault('set', {})
+    ts = (model.get('tileset') or b'').decode('latin-1')
+    if ts and ts not in game['tilesets']:
+        out['refusals'].append(
+            'the map uses the tileset %r, which Warcraft III %s does not have' % (ts, game['version'])
+        )
+    modes = model.get('supported_modes')
+    if isinstance(modes, int) and modes & ~3:
+        out['set']['supported_modes'] = (modes & 3) or 3
+    weather = model.get('weather') or b'\0\0\0\0'
+    if weather.strip(b'\0') and weather.decode('latin-1') not in game['weather']:
+        out['set']['weather'] = b'\0\0\0\0'
+        out['warnings'].append('the map weather %s is not in Warcraft III %s: the map has none there'
+                               % (weather.decode('latin-1'), game['version']))
+    light = (model.get('light_env') or b'\0').decode('latin-1')
+    if light.strip('\0') and light not in game['tilesets']:
+        out['set']['light_env'] = b'\0'
+        out['warnings'].append('the map lighting of tileset %r is not in Warcraft III %s: the default one is used'
+                               % (light, game['version']))
+    bg = model.get('loading_bg')
+    if isinstance(bg, int) and bg >= 0 and str(bg) not in game['loading_screens']:
+        out['set']['loading_bg'] = -1
+        out['warnings'].append('the loading screen %d is not in Warcraft III %s: the default one is shown'
+                               % (bg, game['version']))
 
 
 def downgrade_w3i(data, version='1.29.2'):
@@ -95,6 +137,10 @@ def downgrade_w3i(data, version='1.29.2'):
         for b in bits:
             model['flags'] &= ~b
     model['editor_version'] = editor_number(version)
+    v = _target(version)[0]
+    if v in REFORGED_OLD_SAVE:
+        model['game_version'] = list(REFORGED_OLD_SAVE[v][1])
+        model.update(plan.get('set') or {})
     new = w3i.write(model, version=plan['target'])
     back = w3i.parse(new)
     if w3i.write(back) != new or back['version'] != plan['target']:
@@ -278,17 +324,130 @@ def downgrade_objects(files):
     return out, report
 
 
+OBJECT_KIND_OF = {'w3u': 'unit', 'w3t': 'item', 'w3a': 'ability', 'w3h': 'buff', 'w3b': 'destructable',
+                  'w3d': 'doodad', 'w3q': 'upgrade'}
+FIELD_KIND_OF = dict(OBJECT_KIND_OF, w3t='unit')
+
+
+def downgrade_objects_reforged(files, game):
+    from doctor.data import skin_split
+    out, report = {}, {}
+    for name, data in sorted(files.items()):
+        ext = name.lower().rsplit('.', 1)[-1]
+        if not data or ext not in OBJECT_KIND_OF:
+            continue
+        levels = ext in LEVEL_KINDS
+        version, objects, end = skin_split._parse(data, levels)
+        if end != len(data) and data[end:].strip(b'\0'):
+            raise ValueError('%s does not close (%d of %d bytes)' % (name, end, len(data)))
+        newer = game['newer']['fields'].get(FIELD_KIND_OF[ext], frozenset())
+        bases = game['objects'].get(OBJECT_KIND_OF[ext], frozenset())
+        gone = collections.Counter(f for _t, _ids, sets in objects for _fl, mods in sets for f, _s, _e in mods
+                                   if f in newer)
+        unknown = [(ids[4:8].decode('latin-1') if table else '', ids[:4].decode('latin-1'))
+                   for table, ids, _sets in objects if ids[:4].decode('latin-1') not in bases]
+        report[name] = {'fields': dict(gone), 'unknown_bases': unknown, 'objects': len(objects)}
+        if not gone:
+            continue
+        new = skin_split._write(version, objects, data, lambda f: f not in newer)
+        v2, back, end2 = skin_split._parse(new, levels)
+        if end2 != len(new) or v2 != version or len(back) != len(objects) or any(
+                (t, i) != (t2, i2) or len(s) != len(s2) or any(
+                    len(m2) != len([f for f, _a, _b in m if f not in newer]) for (_x, m), (_y, m2) in zip(s, s2))
+                for (t, i, s), (t2, i2, s2) in zip(objects, back)):
+            raise ValueError('%s without the fields of the newer game does not read back' % name)
+        out[name] = new
+    return out, report
+
+
+def reforged_content(read, game, script=None):
+    import re
+    out = {'doodads': [], 'units': [], 'terrain': [], 'files': [], 'weather': []}
+    own = set()
+    for ext in OBJECT_KIND_OF:
+        d = read('war3map.' + ext)
+        if not d:
+            continue
+        try:
+            from doctor.data import skin_split
+            _v, objects, _e = skin_split._parse(d, ext in LEVEL_KINDS)
+            own.update(ids[4:8].decode('latin-1') for table, ids, _s in objects if table)
+        except Exception:
+            pass
+    known = set(game['objects'].get('doodad', ())) | set(game['objects'].get('destructable', ())) | own
+    d = read('war3map.doo')
+    if d:
+        try:
+            from doctor.fix import doodads
+            dd = doodads.read_data(d)
+            if dd['on_close']:
+                out['doodads'] = sorted(set(r['id'].decode('latin-1') for r in dd['regs']) - known)
+        except Exception:
+            pass
+    known = set(game['objects'].get('unit', ())) | set(game['objects'].get('item', ())) | own
+    d = read('war3mapUnits.doo')
+    if d:
+        try:
+            from doctor.fix import inflated_counts
+            uu = inflated_counts.read_units_doo(d)
+            ids = set(r['ident'].decode('latin-1') for r in uu.get('regs') or [])
+            out['units'] = sorted(i for i in ids - known if i != 'sloc' and not i.startswith(('YY', 'iDNR')))
+        except Exception:
+            pass
+    d = read('war3map.w3e')
+    if d and d[:4] == b'W3E!':
+        try:
+            nt = struct.unpack_from('<I', d, 13)[0]
+            tiles = [d[17 + 4 * k:21 + 4 * k].decode('latin-1') for k in range(nt)]
+            q = 17 + 4 * nt
+            nc = struct.unpack_from('<I', d, q)[0]
+            cliffs = [d[q + 4 + 4 * k:q + 8 + 4 * k].decode('latin-1') for k in range(nc)]
+            out['terrain'] = sorted(set(t for t in tiles if t not in game['terrain']) |
+                                    set(c for c in cliffs if c not in game['cliffs']))
+        except (struct.error, UnicodeDecodeError):
+            pass
+    from doctor.data import wc3_versions
+    rx = re.compile(rb'[A-Za-z0-9_ \-\\/.]{3,200}?\.(?:mdx|mdl|blp|dds|tga|png|wav|flac|ogg|mp3)\b', re.I)
+    inside = set()
+    lst = read('(listfile)') or b''
+    for n in re.split(rb'[\r\n]+', lst):
+        k, s = wc3_versions.stem_kind(n.decode('utf-8', 'replace'))
+        if k:
+            inside.add((k, s))
+    cited = set()
+    texts = [script.encode('utf-8', 'surrogateescape') if isinstance(script, str) else (script or b'')]
+    texts += [read(n) or b'' for n in ['war3map.w3i'] + ['war3map.' + e for e in OBJECT_KIND_OF] +
+              ['war3mapSkin.' + e for e in OBJECT_KIND_OF]]
+    for t in texts:
+        for m in rx.finditer(t):
+            p = m.group(0).decode('latin-1').strip().replace('\\\\', '\\')
+            k, s = wc3_versions.stem_kind(p)
+            if k and (k, s) not in inside and s in game['newer']['stems'].get(k, ()):
+                cited.add(p)
+    out['files'] = sorted(cited, key=str.lower)
+    if script:
+        txt = script if isinstance(script, str) else script.decode('latin-1')
+        ids = set(
+            re.findall(
+                r"AddWeatherEffect\s*\([^,()]*(?:\([^()]*\))?[^,()]*,\s*(?:'(\w{4})'|FourCC\(\s*\"(\w{4})\"\s*\))", txt
+            )
+        )
+        out['weather'] = sorted(set(a or b for a, b in ids) - set(game['weather']))
+    return out
+
+
 DOO_CLASSIC = (8, 11)
 
 
-def downgrade_doo(data):
+def downgrade_doo(data, keep_skin=False):
     from doctor.fix import doodads
     d = doodads.read_data(data)
     if not d['on_close']:
         raise ValueError('war3map.doo does not close in any known layout')
     ver, sub, skin = d['version_num'], d['subversion'], d['skin']
     info = {'from': (ver, sub, skin), 'records': len(d['regs'])}
-    if ver <= 8 and not skin:
+    keep = bool(keep_skin and skin)
+    if ver <= 8 and (keep or not skin):
         return data, info
     if ver < 8:
         raise ValueError('war3map.doo version %d with a skin field: not a layout this knows' % ver)
@@ -296,7 +455,7 @@ def downgrade_doo(data):
     for r in d['regs']:
         b = data[r['begin']:r['begin'] + r['sz']]
         p = 36
-        head = b[:36]
+        head = b[:40] if keep else b[:36]
         p += 4 if skin else 0
         p += 4 if ver >= 12 else 0
         flags_life = b[p:p + 2]
@@ -312,7 +471,7 @@ def downgrade_doo(data):
         out.append(head + flags_life + items + editor_id)
     out.append(d['tail'])
     new = b''.join(out)
-    back = doodads.read_data(new, skin=False)
+    back = doodads.read_data(new, skin=keep)
     if not back['on_close'] or len(back['regs']) != len(d['regs']) or \
             [x['id'] for x in back['regs']] != [x['id'] for x in d['regs']] or \
             [x['editor_id'] for x in back['regs']] != [x['editor_id'] for x in d['regs']]:
@@ -366,6 +525,25 @@ def _known_function(td, f):
     return True
 
 
+class KnownTriggers(object):
+    def __init__(self, td, known):
+        self.td, self.known = td, known
+        self.presets = dict((k, v) for k, v in td.presets.items() if k in known['preset'])
+        self.types = dict((k, v) for k, v in td.types.items() if k in known['type'])
+
+    def arity(self, kind, name):
+        from doctor.triggers import triggerdata
+        k = triggerdata._kind_name(kind)
+        if name not in self.known.get(k, ()):
+            raise triggerdata.UnknownFunction(k, name)
+        return self.td.arity(kind, name)
+
+    def __getattr__(self, name):
+        if name in ('td', 'known'):
+            raise AttributeError(name)
+        return getattr(self.td, name)
+
+
 def downgrade_triggers(wtg_data, wct_data, version):
     from doctor.triggers import editor_render
     from doctor.fix import editor_version
@@ -374,12 +552,22 @@ def downgrade_triggers(wtg_data, wct_data, version):
     from doctor.triggers import triggerdata
     td_new, _how = wtg.load_td()
     td_new = triggerdata.ScriptFallback(td_new)
-    td_old = editor_version.trigger_data(version)
+    game = _older_reforged(version)
+    td_old = KnownTriggers(td_new, game['triggers']) if game else editor_version.trigger_data(version)
     try:
         mt = wtg.read_wtg(wtg_data, td_new)
         ct = wtg.read_wct(wct_data) if wct_data else None
     except Exception as e:
         raise ValueError('the triggers do not read (%s)' % str(e)[:120])
+    if (
+        game
+        and all(
+            t.is_text or t.is_comment or all(_known_function(td_old, f) for f in wtg.iter_functions(t.functions))
+            for t in mt.triggers
+        )
+        and all(v.type in td_old.types for v in mt.variables)
+    ):
+        return None
     texts = wtg.trigger_texts(mt, ct) if ct is not None else [None] * len(mt.triggers)
     if mt.sub_version is not None:
         new, texts = editor_render._classico(mt, texts)
@@ -410,10 +598,19 @@ def downgrade_triggers(wtg_data, wct_data, version):
 NEUTRAL_24_TO_12 = {24: 12, 25: 13, 26: 14, 27: 15}
 
 
-def _unit_811(b, d, owners):
+def _unit_811(b, d, owners, keep_skin=False):
     p = d['p']
-    out = [b[p:p + 36], bytes((d['flags'],)), struct.pack('<hi', owners.get(d['owner'], d['owner']), d['uprooted']),
-           struct.pack('<iii', d['hp'], d['mana'], d['itp']), struct.pack('<i', len(d['set_items']))]
+    skin = [d['skin_id']] if keep_skin and d.get('skin_id') else []
+    out = (
+        [b[p : p + 36]]
+        + skin
+        + [
+            bytes((d['flags'],)),
+            struct.pack('<hi', owners.get(d['owner'], d['owner']), d['uprooted']),
+            struct.pack('<iii', d['hp'], d['mana'], d['itp']),
+            struct.pack('<i', len(d['set_items'])),
+        ]
+    )
     for c in d['set_items']:
         out.append(struct.pack('<i', len(c)) + b''.join(iid + struct.pack('<i', ch) for iid, ch in c))
     out.append(struct.pack('<ifi', d['gold'], d['acq'], d['level']))
@@ -436,14 +633,15 @@ def _unit_811(b, d, owners):
     return b''.join(out)
 
 
-def downgrade_units(data, neutral_24_to_12=False):
+def downgrade_units(data, neutral_24_to_12=False, keep_skin=False):
     from doctor.fix import inflated_counts
     d = inflated_counts.read_units_doo(data)
     if not d.get('on_close'):
         raise ValueError('war3mapUnits.doo does not close in a known layout')
     owners = NEUTRAL_24_TO_12 if neutral_24_to_12 else {}
     moved = any(r['owner'] in owners for r in d['regs'])
-    if d['layout'] in ('7/9', '8/11') and not moved:
+    kept = ('7/9', '8/11', '8/11+skin', '8/9+skin') if keep_skin else ('7/9', '8/11')
+    if d['layout'] in kept and not moved:
         return None
     if d['layout'] == '7/9':
         new = bytearray(data)
@@ -452,9 +650,11 @@ def downgrade_units(data, neutral_24_to_12=False):
                 struct.pack_into('<h', new, r['p'] + 37, owners[r['owner']])
         new = bytes(new)
     else:
-        new = data[:4] + struct.pack('<iiI', 8, 11, len(d['regs'])) + b''.join(_unit_811(data, r, owners)
+        new = data[:4] + struct.pack('<iiI', 8, 11, len(d['regs'])) + b''.join(_unit_811(data, r, owners, keep_skin)
                                                                                  for r in d['regs'])
     back = inflated_counts.read_units_doo(new)
+    if keep_skin and d.get('skin') and not back.get('skin'):
+        raise ValueError('the war3mapUnits.doo of %s does not read back with its skin field' % 'the older Reforged')
     if not back.get('on_close') or len(back['regs']) != len(d['regs']) or \
             [r['ident'] for r in back['regs']] != [r['ident'] for r in d['regs']] or \
             [r['xyz'] for r in back['regs']] != [r['xyz'] for r in d['regs']] or \
@@ -463,13 +663,13 @@ def downgrade_units(data, neutral_24_to_12=False):
     return new, {'from': d['layout'], 'records': len(d['regs'])}
 
 
-def downgrade_editor_files(files, neutral_24_to_12=False):
+def downgrade_editor_files(files, neutral_24_to_12=False, reforged=False):
     from doctor.fix import inflated_counts
     from doctor.triggers import editor_render
     out, done, left = {}, {}, {}
     low = dict((n.lower(), n) for n in files)
     n = low.get('war3map.w3s')
-    if n and files[n]:
+    if n and files[n] and not reforged:
         try:
             v, sounds = editor_render.read_w3s(files[n])
             if v > 1:
@@ -483,7 +683,12 @@ def downgrade_editor_files(files, neutral_24_to_12=False):
             d = inflated_counts.read_w3c(files[n])
             if d is None or d['remaining'] != 0 or len(d['regs']) != d['declared']:
                 raise ValueError('war3map.w3c does not close')
-            if d['version_num'] != 0 or (d.get('layout') or (False, False)) != (False, False):
+            novos, dof = d.get('layout') or (False, False)
+            if reforged and (d['version_num'] != 0 or dof):
+                out[n] = inflated_counts.write_w3c(d['regs'], 0, novos, False)
+                done[n] = 'version %d -> 0 (%d cameras; the depth of field and the camera type of 3.0 left out)' % (
+                    d['version_num'], len(d['regs']))
+            elif not reforged and (d['version_num'] != 0 or (novos, dof) != (False, False)):
                 out[n] = inflated_counts.write_w3c(d['regs'], 0, False, False)
                 done[n] = '%s (%d cameras)' % ('version %d -> 0' % d['version_num'] if d['version_num'] else
                                                'without the 1.31 local angles', len(d['regs']))
@@ -503,10 +708,11 @@ def downgrade_editor_files(files, neutral_24_to_12=False):
     n = low.get('war3mapunits.doo')
     if n and files[n]:
         try:
-            r = downgrade_units(files[n], neutral_24_to_12)
+            r = downgrade_units(files[n], neutral_24_to_12, keep_skin=reforged)
             if r:
                 out[n] = r[0]
-                done[n] = 'layout %s -> 8/11 (%d units)' % (r[1]['from'], r[1]['records'])
+                done[n] = 'layout %s -> 8/11%s (%d units)' % (r[1]['from'], ' with the skin field' if reforged else '',
+                                                              r[1]['records'])
         except Exception as e:
             left[n] = str(e)[:100]
     return out, done, left
@@ -527,18 +733,19 @@ def media_scan(path, version, progress=None):
     names = model_check._names(a)
     out['names'] = len(names)
     seen = set()
+    top = MODEL_MAX_REFORGED.get(v)
     for n in names:
         ext = os.path.splitext(n)[1].lower()
         for kind, field in (('.dds', 'dds'), ('.flac', 'flac'), ('.ogg', 'ogg')):
-            if ext == kind and k < FIRST_PATCH[field] and n.upper() not in seen:
+            if ext == kind and (k < FIRST_PATCH[field] or (top and field == 'ogg')) and n.upper() not in seen:
                 seen.add(n.upper())
                 out[field].append(n)
-    if k < FIRST_PATCH['model']:
+    if k < FIRST_PATCH['model'] or top:
         for name, _bi, data in model_check._models(a, names, p):
             if not name.lower().endswith(MODEL_EXTS) or not data:
                 continue
             mv = model_check.model_version(data)
-            if mv is not None and mv > MODEL_MAX_OLD:
+            if mv is not None and mv > (top or MODEL_MAX_OLD):
                 out['models'].append((name, mv))
     return out
 
@@ -555,6 +762,27 @@ def media_items(path, version, progress=None):
     s = media_scan(path, v, progress)
     label = 'Warcraft III %s' % v
     items = []
+    top = MODEL_MAX_REFORGED.get(v)
+    if top:
+        if s['models']:
+            vers = sorted({mv for _n, mv in s['models']})
+            items.append(_item('media_model_version', 'warning',
+                               '%d models are version %s; the models of %s itself are version %d, and that it loads a '
+                               'newer version is not proven.' % (len(s['models']), ', '.join(str(x) for x in vers),
+                                                                 label, top), 'none',
+                               models=[n for n, _v in s['models']][:30], versions=vers))
+        if s['ogg']:
+            items.append(
+                _item(
+                    'media_ogg',
+                    'warning',
+                    '%d OGG sounds: %s has no OGG sound of its own (3.0 brought them), '
+                    'and that it plays them is not proven.' % (len(s['ogg']), label),
+                    'none',
+                    files=s['ogg'][:30],
+                )
+            )
+        return items
     if s['models']:
         vers = sorted({mv for _n, mv in s['models']})
         items.append(
