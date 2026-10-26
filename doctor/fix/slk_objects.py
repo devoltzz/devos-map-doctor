@@ -94,12 +94,18 @@ def _equal(a, b, tipo):
     return _norm(a) == _norm(b)
 
 
+def _codes(text):
+    return frozenset(x.strip() for x in str(text or '').strip('"').split(',') if x.strip())
+
+
 class Columns(object):
     def __init__(self, species, meta):
         ob = _objetos()
         self.species = species
         self.simple = {}
         self.levels = {}
+        self.levels_all = {}
+        self.spec = {}
         self.per_level = set()
         self.multi = ob._multipart(meta)
         use = USE[species]
@@ -115,10 +121,12 @@ class Columns(object):
             data = ob._int(m.get('data'), 0)
             rep = ob._int(m.get('repeat'), 0)
             entry = (code, idx, m.get('type'), data, rep)
+            self.spec[code] = (_codes(m.get('useSpecific')), _codes(m.get('notSpecific')))
             if species == 'ability' and slk_name != 'Profile':
                 col = name + (ob.LETTERS[data - 1].lower() if 0 < data <= len(ob.LETTERS) else '')
                 if rep > 0:
                     self.levels.setdefault(col, entry)
+                    self.levels_all.setdefault(col, []).append(entry)
                 else:
                     self.simple.setdefault(col, []).append(entry)
             elif species == 'ability' and rep > 0:
@@ -128,12 +136,25 @@ class Columns(object):
             else:
                 self.simple.setdefault(name, []).append(entry)
 
-    def resolve(self, col):
+    def applies(self, field, code):
+        use, nao = self.spec.get(field, (frozenset(), frozenset()))
+        return code in use if use else code not in nao
+
+    def resolve(self, col, code=None):
         if col in self.simple:
-            return [(c, i, 0, t, d) for c, i, t, d, _r in self.simple[col]]
+            ents = self.simple[col]
+            if code is not None and self.species == 'ability':
+                ents = [e for e in ents if self.applies(e[0], code)]
+            return [(c, i, 0, t, d) for c, i, t, d, _r in ents]
         m = RX_LEVEL.match(col)
         if m and m.group(1) in self.levels:
-            c, i, t, d, _r = self.levels[m.group(1)]
+            if code is not None and self.species == 'ability':
+                ents = [e for e in self.levels_all[m.group(1)] if self.applies(e[0], code)]
+                if not ents:
+                    return []
+                c, i, t, d, _r = ents[0]
+            else:
+                c, i, t, d, _r = self.levels[m.group(1)]
             return [(c, i, int(m.group(2)), t, d)]
         return []
 
@@ -155,12 +176,12 @@ def balance_of(w3i_bytes):
             pass
 
 
-def _row_fields(cols, row):
+def _row_fields(cols, row, code=None):
     mapped, unmapped = [], []
     for col, text in row.items():
         if col.endswith('_lv'):
             continue
-        r = cols.resolve(col)
+        r = cols.resolve(col, code)
         if r:
             mapped.append((col, text, r))
         else:
@@ -172,10 +193,10 @@ def _parts(text):
     return text.split(',') if text else []
 
 
-def _mods_of(species, cols, meta, row, cru_row, base_row, base_cru, rep):
+def _mods_of(species, cols, meta, row, cru_row, base_row, base_cru, rep, code=None):
     ob = _objetos()
     out = []
-    mapped, unmapped = _row_fields(cols, row)
+    mapped, unmapped = _row_fields(cols, row, code if species == 'ability' else None)
     for col in unmapped:
         rep['unmapped'][col] += 1
     listed = set()
@@ -265,7 +286,7 @@ def convert(read, names, species, base, w3i=None, progress=None):
             p('Converting %s %d/%d' % (species, k, len(tab)))
         row = tab[rid]
         if rid in base_tab:
-            mods = _mods_of(species, cols, meta, row, cru.get(rid), base_tab[rid], base_cru.get(rid), rep)
+            mods = _mods_of(species, cols, meta, row, cru.get(rid), base_tab[rid], base_cru.get(rid), rep, rid)
             if not mods:
                 rep['unchanged'] += 1
                 continue
@@ -283,7 +304,8 @@ def convert(read, names, species, base, w3i=None, progress=None):
                 rep['parent_columns'] += total
                 if parent is None:
                     continue
-            mods = _mods_of(species, cols, meta, row, cru.get(rid), base_tab[parent], base_cru.get(parent), rep)
+            mods = _mods_of(species, cols, meta, row, cru.get(rid), base_tab[parent], base_cru.get(parent), rep,
+                            parent)
             objs.append((1, parent, rid, mods))
             rep['new'] += 1
         rep['mods'] += len(objs[-1][3])
