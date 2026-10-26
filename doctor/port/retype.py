@@ -214,6 +214,19 @@ def _params(ps):
     return [p.split()[-2] for p in ps.split(',') if len(p.split()) >= 2]
 
 
+RX_TAKES = re.compile(r'\btakes[ \t]+(.*?)[ \t]+returns\b')
+NEUTRAL_LITERALS = frozenset(('null', '0', '0.', '0.0', '.0', 'false', '""', 'true'))
+
+
+def _returns_param_or_neutral(instruction, header_text):
+    v = instruction[len('return'):].strip().strip('()').strip()
+    if v in NEUTRAL_LITERALS:
+        return True
+    m = RX_TAKES.search(header_text)
+    name_list = [p.split()[-1] for p in m.group(1).split(',') if len(p.split()) >= 2] if m else []
+    return v in name_list
+
+
 def _body(line_list, begin, end_pos):
     out = []
     for k in range(begin + 1, end_pos):
@@ -878,7 +891,8 @@ def expressions(pg, casts, info, neutralize, savers):
     for i, (begin, end_pos, _r, fname, ps, ret) in enumerate(pg.fs):
         if ret == 'nothing' or fname in casts:
             continue
-        if len(ps) == 1 and all(t.startswith('return') for _k, t in _body(pg.line_list, begin, end_pos)):
+        if len(ps) == 1 and all(t.startswith('return') for _k, t in _body(pg.line_list, begin, end_pos)) and \
+                all(_returns_param_or_neutral(t, pg.line_list[begin]) for _k, t in _body(pg.line_list, begin, end_pos)):
             continue
         for k in range(begin + 1, end_pos):
             m = pg.masks[k]
