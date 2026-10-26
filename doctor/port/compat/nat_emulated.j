@@ -56,8 +56,27 @@ function GetMouseVectorY takes nothing returns real
     return BlzPixelToFrameY(BlzGetMouseScreenPosY())/0.6*768.0
 endfunction
 
+group KKN_gc_tmp=CreateGroup()
+integer KKN_gc_n=0
+
+function KKN_gc_conta takes nothing returns nothing
+    set KKN_gc_n=KKN_gc_n+1
+    call GroupAddUnit(KKN_gc_tmp,GetEnumUnit())
+endfunction
+
 function DzGroupGetCount takes group g returns integer
-    return BlzGroupGetSize(g)
+    local integer n=BlzGroupGetSize(g)
+    if n==0 then
+        return 0
+    endif
+    set KKN_gc_n=0
+    call ForGroup(g,function KKN_gc_conta)
+    if KKN_gc_n<n then
+        call GroupClear(g)
+        call BlzGroupAddGroupFast(KKN_gc_tmp,g)
+    endif
+    call GroupClear(KKN_gc_tmp)
+    return KKN_gc_n
 endfunction
 
 function DzGroupGetUnitAt takes group g,integer index returns unit
