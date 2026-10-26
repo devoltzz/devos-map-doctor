@@ -5,6 +5,8 @@ hashtable KKJN_dbf=null
 hashtable KKJN_cont=null
 boolean KKJN_blob_lit=false
 string array KKJN_rec
+integer array KKJN_reclit
+boolean KKJN_dano_avisado=false
 integer KKJN_nrec=0
 string array KKJN_pbuf
 integer KKJN_wescritas=0
@@ -139,6 +141,9 @@ constant integer KKJN_CB_DADO=2126512128
 timer KKJN_relogio=CreateTimer()
 integer KKJN_relogio_base=0
 //{{KK_FIMSE:KK_JN_RELOGIO}}
+//{{KK_SE:KK_JN_RELOGIO_SALVO}}
+timer KKJN_relogio_grava=CreateTimer()
+//{{KK_FIMSE:KK_JN_RELOGIO_SALVO}}
 //@ENDGLOBALS
 
 function KKJN_Esc takes string s returns string
@@ -252,6 +257,42 @@ function KKJN_EscLit takes string s returns string
         set i=i+1
     endloop
     return r
+endfunction
+
+function KKJN_LenLit takes string s returns integer
+    local integer n=StringLength(s)
+    local integer i=0
+    local integer r=n
+    local string b
+    loop
+        exitwhen i>=n
+        set b=SubString(s, i, i+1)
+        if b=="\\" or b=="\"" then
+            set r=r+1
+        endif
+        set i=i+1
+    endloop
+    return r
+endfunction
+
+function KKJN_CorteLit takes string s,integer lim returns integer
+    local integer n=StringLength(s)
+    local integer i=0
+    local integer usado=0
+    local integer c
+    local string b
+    loop
+        exitwhen i>=n
+        set b=SubString(s, i, i+1)
+        set c=1
+        if b=="\\" or b=="\"" then
+            set c=2
+        endif
+        exitwhen usado+c>lim
+        set usado=usado+c
+        set i=i+1
+    endloop
+    return i
 endfunction
 
 function KKJN_PosB takes string s,string sub,integer start returns integer
@@ -814,6 +855,7 @@ function KKJN_BuildBlob takes string obj returns nothing
     local integer h
     local string fld
     local string r
+    local boolean lit
     set KKJN_nrec=0
     set KKJN_reclen=0
     set KKJN_blob_lit=false
@@ -822,9 +864,11 @@ function KKJN_BuildBlob takes string obj returns nothing
         set fld=LoadStr(KKJN_dbf, fk, i)
         if fld!=null and fld!="" then
             set h=StringHash(fld)
+            set lit=true
             if HaveSavedString(KKJN_dbf, rk, h) then
                 set r=LoadStr(KKJN_dbf, rk, h)
-                if LoadBoolean(KKJN_dbf, rk, h) then
+                set lit=LoadBoolean(KKJN_dbf, rk, h)
+                if lit then
                     set KKJN_blob_lit=true
                 endif
             elseif LoadInteger(KKJN_dbt, vk, h)==1 then
@@ -837,6 +881,11 @@ function KKJN_BuildBlob takes string obj returns nothing
             if r==null then
                 set r=""
             endif
+            if lit then
+                set KKJN_reclit[KKJN_nrec]=KKJN_LenLit(r)
+            else
+                set KKJN_reclit[KKJN_nrec]=StringLength(r)
+            endif
             set KKJN_rec[KKJN_nrec]=r
             set KKJN_nrec=KKJN_nrec+1
             set KKJN_reclen=KKJN_reclen+StringLength(r)
@@ -848,19 +897,22 @@ endfunction
 function KKJN_WritePart takes nothing returns nothing
     local integer s=0
     local string b=KKJN_pbuf[KKJN_wpart]
+    local integer c=KKJN_TRECHO
     call PreloadGenClear()
     call PreloadGenStart()
     loop
         exitwhen s>=KKJN_nslots or b==""
         if KKJN_blob_lit then
-            call KKJN_WriteSlot(s, SubString(b, 0, KKJN_TRECHO))
+            set c=KKJN_CorteLit(b, KKJN_TRECHO)
+            call KKJN_WriteSlot(s, SubString(b, 0, c))
         else
-            call KKJN_WriteSlotCru(s, SubString(b, 0, KKJN_TRECHO))
+            set c=KKJN_TRECHO
+            call KKJN_WriteSlotCru(s, SubString(b, 0, c))
         endif
-        if StringLength(b)<=KKJN_TRECHO then
+        if StringLength(b)<=c then
             set b=""
         else
-            set b=SubString(b, KKJN_TRECHO, StringLength(b))
+            set b=SubString(b, c, StringLength(b))
         endif
         set s=s+1
     endloop
@@ -874,22 +926,39 @@ function KKJN_Reparte takes integer parts returns integer
     local integer p=0
     local integer n
     local string b="#"+I2S(parts)+";"
+    local integer bl=StringLength(b)
     local string r
+    local integer c
+    if KKJN_blob_lit then
+        set por=KKJN_nslots*(KKJN_TRECHO-1)
+    endif
     loop
         exitwhen i>=KKJN_nrec
         set r=KKJN_rec[i]
-        set n=StringLength(r)
-        if b!="" and StringLength(b)+n>por and n<=por then
+        set n=KKJN_reclit[i]
+        if b!="" and bl+n>por and n<=por then
             set KKJN_pbuf[p]=b
             set p=p+1
             set b=""
+            set bl=0
         endif
         set b=b+r
+        set bl=bl+n
         loop
-            exitwhen StringLength(b)<=por
-            set KKJN_pbuf[p]=SubString(b, 0, por)
+            exitwhen bl<=por
+            if KKJN_blob_lit then
+                set c=KKJN_CorteLit(b, por)
+            else
+                set c=por
+            endif
+            set KKJN_pbuf[p]=SubString(b, 0, c)
             set p=p+1
-            set b=SubString(b, por, StringLength(b))
+            set b=SubString(b, c, StringLength(b))
+            if KKJN_blob_lit then
+                set bl=KKJN_LenLit(b)
+            else
+                set bl=StringLength(b)
+            endif
         endloop
         set i=i+1
     endloop
@@ -941,6 +1010,14 @@ function KKJN_LoadPart takes nothing returns nothing
     set KKJN_parte_ok=true
 endfunction
 
+function KKJN_Dano takes string obj returns nothing
+    call SaveBoolean(KKJN_dbf, StringHash(obj), -6, true)
+    if not KKJN_dano_avisado then
+        set KKJN_dano_avisado=true
+        call DisplayTimedTextToPlayer(GetLocalPlayer(), 0, 0, 60, "|cffff4040[Save] Your save file is damaged (an older version of the map cut one of its lines). It was left untouched and NOTHING will be saved this game, so it stays safe. Repair it with the save repair tool (ask on the map's Discord) and load again.|r")
+    endif
+endfunction
+
 function KKJN_LoadObjRaw takes string obj,string base returns boolean
     local integer parts
     local integer p=0
@@ -951,6 +1028,11 @@ function KKJN_LoadObjRaw takes string obj,string base returns boolean
     call KKJN_SlotClear()
     call Preloader(base+"0.pld")
     if KKJN_SlotGet(0)=="" then
+        call KKJN_SlotClear()
+        call Preloader(base+"1.pld")
+        if KKJN_SlotGet(0)!="" then
+            call KKJN_Dano(obj)
+        endif
         return false
     endif
     set parts=S2I(KKJN_SlotHead(KKJN_SlotGet(0)))
@@ -964,6 +1046,9 @@ function KKJN_LoadObjRaw takes string obj,string base returns boolean
         if p>0 then
             call KKJN_SlotClear()
             call Preloader(base+I2S(p)+".pld")
+            if KKJN_SlotGet(0)=="" then
+                call KKJN_Dano(obj)
+            endif
         endif
         call SaveStr(KKJN_dbf, StringHash("W"+base), p, KKJN_SlotTudo())
         call KKJN_LoadPart()
@@ -1121,6 +1206,9 @@ function KKJN_SaveObj takes string obj,string base returns nothing
     if not LoadBoolean(KKJN_dbf, k, -4) and LoadStr(KKJN_dbf, k, -5)==base then
         return
     endif
+    if LoadBoolean(KKJN_dbf, k, -6) then
+        return
+    endif
     call KKJN_BuildBlob(obj)
     call KKJN_WriteParts(base)
     call SaveBoolean(KKJN_dbf, k, -2, true)
@@ -1128,6 +1216,38 @@ function KKJN_SaveObj takes string obj,string base returns nothing
     call SaveBoolean(KKJN_dbf, k, -4, false)
     call SaveStr(KKJN_dbf, k, -5, base)
 endfunction
+
+//{{KK_SE:KK_JN_RELOGIO_SALVO}}
+function KKJN_RelogioAgora takes nothing returns integer
+    return KKJN_relogio_base+R2I(TimerGetElapsed(KKJN_relogio))
+endfunction
+
+function KKJN_RelogioGrava takes nothing returns nothing
+    if KKJN_pronto and KKJN_relogio_base>0 then
+        call KKJN_SetFieldI("KKJN_relogio", "t", KKJN_RelogioAgora())
+        call KKJN_SaveObj("KKJN_relogio", KKJN_PASTA+"relogio_")
+    endif
+endfunction
+
+function KKJN_RelogioMinimo takes integer t returns nothing
+    local integer agora=KKJN_RelogioAgora()
+    if KKJN_relogio_base>0 and t>agora then
+        set KKJN_relogio_base=KKJN_relogio_base+t-agora
+    endif
+endfunction
+
+function KKJN_RelogioLe takes nothing returns nothing
+    local integer t=0
+    if KKJN_LoadOnce("KKJN_relogio", KKJN_PASTA+"relogio_") then
+        set t=KKJN_GetI("KKJN_relogio", "t")
+    endif
+    if t<1767225600 then
+        set t=1767225600
+    endif
+    set KKJN_relogio_base=t-R2I(TimerGetElapsed(KKJN_relogio))
+    call TimerStart(KKJN_relogio_grava, 60.0, true, function KKJN_RelogioGrava)
+endfunction
+//{{KK_FIMSE:KK_JN_RELOGIO_SALVO}}
 
 function KKJN_LoadIndex takes string user returns nothing
     local integer ik=KKJN_IKey(user)
@@ -1599,6 +1719,9 @@ function JNObjectUserInit takes string MapId,string Userid,string SecretKey,stri
     if KKJN_LoadOnce(KKJN_ObjUser(u, ns), KKJN_BaseUser(u, ns)) then
         return 0
     endif
+    if LoadBoolean(KKJN_dbf, StringHash(KKJN_ObjUser(u, ns)), -6) then
+        return 2
+    endif
     //{{KK_SE:KK_JN_INIT_ZERO}}
     return 0
     //{{KK_FIMSE:KK_JN_INIT_ZERO}}
@@ -1623,6 +1746,9 @@ function JNObjectUserSave takes string MapId,string UserId,string SecretKey,stri
     endif
     call SaveStr(KKJN_dbf, KKJN_AKey(u), 2, ns)
     call KKJN_SaveObj(KKJN_ObjUser(u, ns), KKJN_BaseUser(u, ns))
+    //{{KK_SE:KK_JN_RELOGIO_SALVO}}
+    call KKJN_RelogioGrava()
+    //{{KK_FIMSE:KK_JN_RELOGIO_SALVO}}
     return KKJN_SALVO
 endfunction
 
