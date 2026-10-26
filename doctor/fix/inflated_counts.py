@@ -1066,12 +1066,15 @@ def _from_script(fname, script, x, declared=None, context=None):
         if fname == 'war3mapUnits.doo':
             version_num, subversion, skin = units_layout(context.get('current'), context.get('w3i'),
                                                       context.get('game_132'))
-            item_entries = script_units(script, player_count(context.get('w3i')),
+            reforged = context.get('editor_reforged', True)
+            if not reforged and (version_num, subversion) == (7, 9) and (context.get('w3i') or 25) >= 25:
+                version_num, subversion, skin = 8, 11, False
+            item_entries = script_units(script, player_count(context.get('w3i')), reforged=reforged,
                                         regions=_waygate_regions(script, context.get('mpq')))
             if not item_entries:
                 return None
             removed = {}
-            if context.get('mpq') is not None and context.get('safe_units', True):
+            if context.get('mpq') is not None and context.get('safe_units', True) and reforged:
                 item_entries, removed = risky_units(context['mpq'], item_entries, file_set=context.get('file_set'))
             if subversion == 9 and any(
                 u.get('hero_attributes') or u.get('item_table') is not None for u in item_entries
@@ -1211,7 +1214,8 @@ def update_units_doo(b, script, context=None):
     except FormatError:
         return None
     regs = d['regs']
-    objs = script_units(script, player_count(context.get('w3i')),
+    reforged = context.get('editor_reforged', True)
+    objs = script_units(script, player_count(context.get('w3i')), reforged=reforged,
                         regions=_waygate_regions(script, context.get('mpq')))
     if not objs:
         return None
@@ -1252,11 +1256,11 @@ def update_units_doo(b, script, context=None):
     if not any(_id4(o['id']) != b'sloc' for o in new_ones):
         return None
     removed = {}
-    if context.get('mpq') is not None and context.get('safe_units', True):
+    if context.get('mpq') is not None and context.get('safe_units', True) and reforged:
         staying, removed = risky_units(context['mpq'], new_ones, file_set=context.get('file_set'))
         staying = set(id(o) for o in staying)
         pairs = [(o, i) for o, i in pairs if i is not None or id(o) in staying]
-    previous = player_count(context.get('w3i')) == 12 and not any(r['owner'] > 15 for r in regs)
+    previous = reforged and player_count(context.get('w3i')) == 12 and not any(r['owner'] > 15 for r in regs)
     taken = set(o['creation'] for o, _i in pairs if o.get('creation') is not None)
     next_steps = max([0] + [o['creation'] for o, _i in pairs if o.get('creation') is not None] +
                      [regs[i]['creation'] for _o, i in pairs if i is not None]) + 1
