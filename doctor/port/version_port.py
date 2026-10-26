@@ -31,7 +31,7 @@ def within_range(detail, tgt):
 
 
 def targets():
-    return [REFORGED] + list(reversed(wc3_versions.versions()))
+    return [REFORGED] + list(reversed(wc3_versions.REFORGED_OLD)) + list(reversed(wc3_versions.versions()))
 
 
 def floor_version(detail):
@@ -91,6 +91,13 @@ def plataforma(body_text, version_num):
 
 def _reason(detail, floor_v, plat, lua, byte_size, tgt, no_script=False):
     if tgt == REFORGED:
+        return None
+    if tgt in wc3_versions.REFORGED_OLD:
+        if detail.get('range') != '1.30+':
+            return ('a map of the classic game goes to Reforged by the Reforged port (the first target); %s is a '
+                    'target for maps made for a newer Reforged' % tgt)
+        if no_script:
+            return 'the script cannot be read by its name (a protected map): unprotect it first with Fix map, then port'
         return None
     if no_script:
         return 'the script cannot be read by its name (a protected map): unprotect it first with Fix map, then port'
@@ -246,7 +253,8 @@ def map_port(map_path, tgt, output, stats=None, log=print):
             details['changes'].update(d['changes'])
             if d['warnings']:
                 details.setdefault('warnings', []).extend(d['warnings'])
-            details['resultado'] = 'ported'
+            details['resultado'] = 'already runs' if target_v in wc3_versions.REFORGED_OLD and not d['file_set'] and \
+                not d['deleted_slots'] else 'ported'
             details['bytes'] = os.path.getsize(output)
             raise _Done()
         if within_range(an['origin'], target_v):
@@ -353,12 +361,19 @@ def downport_lines(d, tgt):
                 else '',
             )
         )
+    if s.get('cameras'):
+        L.append('- %d camera field line(s) of the newer game (the depth of field, the absolute z) taken out of the '
+                 'cameras the editor creates' % s['cameras'])
     if s.get('damage'):
         L.append('- %d registration(s) of the any-unit damage event of 1.31 given the classic damage detection (each '
                  'unit on the map gets the unit damage event; the damaging event fires after the damage)' % s['damage'])
     if s.get('n_players'):
         L.append('- %d neutral player number(s) of the 24 player game (24 to 27) written as the 12 player ones (12 to '
                  '15)' % s['n_players'])
+    for fname, info in sorted((m.get('reforged_objects') or {}).items()):
+        if info.get('fields'):
+            L.append('- %s: %d modification(s) of field(s) only the newer game has taken out: %s' % (
+                fname, sum(info['fields'].values()), _short_list(sorted(info['fields']))))
     for kind, info in sorted((m.get('objects') or {}).items()):
         L.append('- war3map.%s: version 2 (%d object(s)%s)' % (kind, info['objects'], ('; %d merged and %d added from '
                  'war3mapSkin.%s' % (info['merged'], info['added'], kind)) if info['merged'] or info['added'] else ''))
@@ -368,8 +383,10 @@ def downport_lines(d, tgt):
     doo = m.get('doo')
     if doo:
         v, sub, skin = doo['from']
-        L.append('- war3map.doo: %d doodad(s) in the classic layout (from version %d.%d%s)' % (
-            doo['records'], v, sub, ' with the skin field' if skin else ''))
+        reforged = tgt in wc3_versions.REFORGED_OLD
+        L.append('- war3map.doo: %d doodad(s) in the %s (from version %d.%d%s)' % (
+            doo['records'], 'layout 8/11 that %s reads, with the skin field' % tgt if reforged else 'classic layout',
+            v, sub, ' with the skin field' if skin else ''))
     g = m.get('trigger_list')
     if g:
         L.append('- the triggers in the classic format the World Editor of %s reads%s%s' % (
@@ -457,6 +474,9 @@ def report_text(details):
             pass
         elif pj.get('skipped'):
             L.append('- the script was NOT checked (%s)' % pj['skipped'])
+        elif pj.get('lua'):
+            L.append('- the Lua script reads after the port (the Lua parser: a Lua script is not compiled before the '
+                     'game runs it)')
         else:
             L.append('- the script compiles with the game scripts of %s (pjass)' % details['tgt'])
     for a in details.get('warnings') or []:
