@@ -14,6 +14,25 @@ RX_LITERAL = re.compile(r'^"\(?\s*require\s*\(?\s*(?:\'|\\")jass\.slk(?:\'|\\")\
                         r'([A-Za-z0-9]{4})\.([A-Za-z][A-Za-z0-9]*)\s*"$')
 
 
+PCALL_PRE = "\"(function() local ok, v = pcall(function() return (require'jass.slk')."
+RX_PCALL_SUF_ONLY = re.compile(
+    r"""\s*\+\s*"\s*end\)\s*if ok and v then return tostring\(v\) end return '' end\)\(\)\""""
+)
+RX_PCALL_SUF = re.compile(r"""\s*end\)\s*if ok and v then return tostring\(v\) end return '' end\)\(\)\"""")
+
+
+def unwrap_pcall(body_text):
+    if PCALL_PRE not in body_text:
+        return body_text
+    line_list = body_text.split('\n')
+    for i, line in enumerate(line_list):
+        if PCALL_PRE in line:
+            line = line.replace(PCALL_PRE, "\"(require'jass.slk').")
+            line = RX_PCALL_SUF_ONLY.sub('', line)
+            line_list[i] = RX_PCALL_SUF.sub('"', line)
+    return '\n'.join(line_list)
+
+
 def skip_string(s, i):
     n = len(s)
     k = i + 1
@@ -251,6 +270,7 @@ def rewrite(arg, nested_ones=None):
 def script_pairs(body_text):
     pairs = {}
     failures = []
+    body_text = unwrap_pcall(body_text)
     for i, line in enumerate(masked_lines(body_text)):
         if TARGET not in line:
             continue
@@ -305,6 +325,7 @@ def class_of(arg):
 def applies(body_text, to_report=False, codes=None, expected_count=None, table=None, tolerant_mode=False):
     if codes is None:
         codes = read_codes(table)
+    body_text = unwrap_pcall(body_text)
     line_list = body_text.split('\n')
     failures = []
     plain_name = []
