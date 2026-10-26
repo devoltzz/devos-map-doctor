@@ -27,7 +27,8 @@ a .w3mod): a package is read as data, never run; diag, files and extract work on
                                   Port to Reforged (KK and M16 maps): saves <map>_reforged.w3x and the report;
                                   --to=<version>: to another version of the classic game instead (1.24a to
                                   1.29.2; newer or older than the map, a Reforged map included; no platform, no
-                                  Lua): saves <map>_<version>.w3x;
+                                  Lua), or to Reforged 2.0.4 (--to=2.0.4: a map made for a newer Reforged, Lua
+                                  too): saves <map>_<version>.w3x;
                                   --package: the art packages the map needs, comma separated, the first wins (a
                                   .mix, .asi, .dll or .mpq, a .zip of the map's art, or a folder of loose files the
                                   map read from the game folder with "Allow Local Files");
@@ -58,9 +59,11 @@ a .w3mod): a package is read as data, never run; diag, files and extract work on
                                   of its own, saves <map>_translation.mpq with only the files outside the map
                                   checksum (the script's texts stay); a .mix loader the Doctor does not make must
                                   open it above the map (priority 17 or more), and only while that map is played
-  translation machine <map> <file.json> [--quality=best|fast] [--only=<group>,...] [--images]
+  translation machine <map> <file.json> [--quality=best|fast] [--only=<group>,...] [--images] [--keep=<file>]
                                   translates the texts into English on this computer (an open translation model,
-                                  downloaded the first time) and checks the file against the map
+                                  downloaded the first time) and checks the file against the map; --keep: a
+                                  translation file of the map whose filled texts stay, only its empty ones are
+                                  translated (a translation done in parts)
   --images (export, machine): the text drawn in the map's images too (read by OCR; the import redraws them)
   files <map>                     the files inside the map (an unnamed one as #<block>)
   extract <map> <name>... [--to=<folder>]
@@ -400,6 +403,8 @@ def show(command, r):
         print('Translated %d of %d texts into English (%s, from %s) in %s s: %s' % (
             r.get('translated') or 0, r.get('entries') or 0, r.get('model'), r.get('language'), r.get('seconds'),
             r.get('file')))
+        if r.get('kept'):
+            print('  %d of them kept from the file given with --keep' % r['kept'])
         for why, n in sorted((r.get('rejected') or {}).items()):
             print('  %d left in the original: %s' % (n, why))
         im = r.get('images') or {}
@@ -569,6 +574,9 @@ def build_job(command, pos, opts, run):
             v = wc3_versions.normalize(game)
             if v is None:
                 raise UsageError('unknown game version %r: %s or 3.0' % (game, ', '.join(wc3_versions.versions())))
+            if v in wc3_versions.REFORGED_OLD:
+                raise UsageError('check --game=%s: the check knows 3.0 and the classic games; port the map to %s '
+                                 '(port <map> --to=%s) and read its report' % (game, v, v))
             if v != wc3_versions.REFORGED:
                 job['version'] = v
         return 'check', job
@@ -633,9 +641,15 @@ def build_job(command, pos, opts, run):
             quality = opts.get('quality') if isinstance(opts.get('quality'), str) else 'best'
             if quality not in ('best', 'fast'):
                 raise UsageError('--quality=best or --quality=fast')
+            keep = opts.get('keep')
+            if keep is True:
+                raise UsageError('--keep needs =<translation file>')
+            if isinstance(keep, str) and not os.path.isfile(keep):
+                raise UsageError('no such translation file: %s' % keep)
             return 'translation machine', {'task': 'translation_machine', 'map': rest[1],
                                            'file': os.path.abspath(rest[2]), 'only': only, 'quality': quality,
-                                           'images': opts.get('images') is True}
+                                           'images': opts.get('images') is True,
+                                           'keep': os.path.abspath(keep) if isinstance(keep, str) else None}
         raise UsageError('translation groups | export | check | override | machine')
     if command == 'files':
         need(pos, 2, '<map>')
