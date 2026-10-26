@@ -17,6 +17,9 @@ INDEX_NAME = 'versions.json'
 NATIVES_NAME = 'natives_patch.json'
 SCRIPTS = ('common.j', 'blizzard.j', 'common.ai')
 REFORGED = '3.0'
+REFORGED_OLD = ('2.0.4',)
+REFORGED_OLD_RANGE = '2.0'
+REFORGED_GAME = 'game.json'
 
 SOURCES = (('1.24a', 'patch'), ('1.24b', 'patch'), ('1.24c', 'patch'), ('1.24d', 'patch'), ('1.24e', 'patch'),
            ('1.25b', 'patch'), ('1.26a', 'patch'), ('1.27a', 'patch'), ('1.27b', 'patch'),
@@ -41,7 +44,7 @@ PACK_MANIFEST = 'doctor_game_data.json'
 PACK_LIST = 'paths.txt'
 OBJECTS = 'objects'
 
-LIMITS = {'1.29': {'players': 24}}
+LIMITS = {'1.29': {'players': 24}, REFORGED_OLD_RANGE: {'players': 24, 'lua': True, 'w3i': 33, 'objects': 3}}
 LIMIT_DEFAULT = {'players': 12, 'lua': False, 'w3i': 25, 'objects': 2}
 
 
@@ -57,7 +60,9 @@ def normalize(text):
     t = str(text or '').strip().lower().lstrip('v')
     if t in CLASSIC:
         return t
-    if t in ('reforged', 'r', '3', '3.0', '3.0.0', '3.0.1', '2', '2.0') or t.startswith(('3.', '2.')):
+    if t in ('2', '2.0') or t.startswith('2.'):
+        return REFORGED_OLD[-1]
+    if t in ('reforged', 'r', '3', '3.0', '3.0.0', '3.0.1') or t.startswith('3.'):
         return REFORGED
     m = re.match(r'^1\.?(\d{2})([a-z]?)(?:\.\d+)*$', t)
     if not m:
@@ -87,7 +92,14 @@ def range_of(version):
     v = normalize(version)
     if v is None or v == REFORGED:
         return REFORGED if v else None
+    if v in REFORGED_OLD:
+        return REFORGED_OLD_RANGE
     return '1.29' if _key(v) >= (1, 29, 0) else '1.24-1.28'
+
+
+def is_reforged(version):
+    v = normalize(version)
+    return v == REFORGED or v in REFORGED_OLD
 
 
 def limits(version):
@@ -269,7 +281,7 @@ def scripts_dir(version):
 
 def pack_dir(version):
     v = normalize(version)
-    if v in (None, REFORGED):
+    if v in (None, REFORGED) or v in REFORGED_OLD:
         return None
     d = os.path.join(data_dir(), v)
     return d if os.path.isfile(os.path.join(d, PACK_MANIFEST)) else None
@@ -315,6 +327,45 @@ def read(version, path):
             with open(os.path.join(d, low[8:]), 'rb') as f:
                 return f.read()
     return None
+
+
+_REFORGED_GAMES = {}
+
+
+def reforged_game(version):
+    v = normalize(version)
+    if v not in REFORGED_OLD:
+        return None
+    if v not in _REFORGED_GAMES:
+        _REFORGED_GAMES[v] = None
+        d = scripts_dir(v)
+        p = os.path.join(d, REFORGED_GAME) if d else None
+        if p and os.path.isfile(p):
+            with open(p, encoding='utf-8') as f:
+                g = json.load(f)
+
+            def sets(x):
+                if isinstance(x, list):
+                    return frozenset(x)
+                if isinstance(x, dict):
+                    return dict((k, sets(y)) for k, y in x.items())
+                return x
+            _REFORGED_GAMES[v] = dict((k, sets(x) if k != 'version' else x) for k, x in g.items())
+    return _REFORGED_GAMES[v]
+
+
+STEM_KINDS = {'model': ('.mdx', '.mdl'), 'texture': ('.blp', '.dds', '.tga', '.png'),
+              'sound': ('.wav', '.flac', '.ogg', '.mp3')}
+
+
+def stem_kind(path):
+    p = path.replace('/', '\\').lower()
+    p = p[p.rfind(':') + 1:].lstrip('\\')
+    root, ext = os.path.splitext(p)
+    for kind, exts in STEM_KINDS.items():
+        if ext in exts:
+            return kind, root
+    return None, None
 
 
 def pack_patterns_match(mpq_path):
