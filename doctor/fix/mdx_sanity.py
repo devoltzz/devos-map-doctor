@@ -74,7 +74,7 @@ def _classic(version):
         return False
     from doctor.data import wc3_versions
     v = wc3_versions.normalize(version)
-    return bool(v) and v != wc3_versions.REFORGED
+    return bool(v) and not wc3_versions.is_reforged(v)
 
 
 def _header(m, f, game):
