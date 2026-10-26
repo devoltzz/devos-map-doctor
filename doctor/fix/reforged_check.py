@@ -39,6 +39,9 @@ def _version(version):
     if v is None:
         raise ValueError('unknown game version: %s (the Doctor knows %s and 3.0)' % (
             version, ', '.join(wc3_versions.versions())))
+    if v in wc3_versions.REFORGED_OLD:
+        raise ValueError('the check knows 3.0 and the classic games; for Reforged %s, port the map to it (port '
+                         '--to=%s): its report lists what that game does not have' % (v, v))
     return None if v == wc3_versions.REFORGED else v
 
 
