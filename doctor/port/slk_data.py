@@ -2,6 +2,7 @@
 import contextlib
 import io
 import os
+import re
 import shutil
 import sys
 import traceback
@@ -74,8 +75,37 @@ def swap_no_dot(units, listing):
     return sum(by.values()), by
 
 
+def swap_doodads(extract, data_bytes, listing):
+    p = os.path.join(extract, 'Doodads', 'Doodads.slk')
+    if not os.path.isfile(p):
+        return 0
+    new, tally = name_without_dot.swap(open(p, 'rb').read().decode('utf-8', 'surrogateescape'), listing, sep=chr(92))
+    n = sum(tally.values())
+    if n:
+        os.makedirs(os.path.join(data_bytes, 'Doodads'), exist_ok=True)
+        open(os.path.join(data_bytes, 'Doodads', 'Doodads.slk'), 'wb').write(new.encode('utf-8', 'surrogateescape'))
+    return n
+
+
+RX_EMPTY_ART = re.compile(r'(?im)^[A-Za-z]*art[A-Za-z]*=[ \t]*\.(?:mdl|mdx)[ \t]*\r?\n')
+
+
+def drop_empty_art(units):
+    by = {}
+    for f in sorted(os.listdir(units)):
+        if not f.lower().endswith('.txt'):
+            continue
+        p = os.path.join(units, f)
+        t = open(p, 'rb').read().decode('utf-8', 'surrogateescape')
+        new, n = RX_EMPTY_ART.subn('', t)
+        if n:
+            open(p, 'wb').write(new.encode('utf-8', 'surrogateescape'))
+            by[f] = n
+    return sum(by.values()), by
+
+
 def applies(extract, data_bytes, raw_data, segment, tr_dir=None, expected_count=None, no_dot=None, tolerant_mode=False,
-            added_models=(), carrier=False):
+            added_models=(), carrier=False, doodads=False, empty_art=False):
     exp_len = dict((k, None) for k in KEY_NAMES)
     exp_len.update(expected_count or {})
     failures = []
@@ -196,6 +226,21 @@ def applies(extract, data_bytes, raw_data, segment, tr_dir=None, expected_count=
         if exp_len.get('no_dot') is not None and exp_len['no_dot'] != info['no_dot']:
             failures.append('no_dot: measured %d %s, expected %s' % (info['no_dot'], info['no_dot_by'],
                                                                      exp_len['no_dot']))
+        if doodads:
+            info['doodads_without_dot'] = swap_doodads(extract, data_bytes, no_dot)
+            info['medidas']['doodads_without_dot'] = info['doodads_without_dot']
+            if (
+                exp_len.get('doodads_without_dot') is not None
+                and exp_len['doodads_without_dot'] != info['doodads_without_dot']
+            ):
+                failures.append('doodads_without_dot: measured %d, expected %s' % (info['doodads_without_dot'],
+                                                                                  exp_len['doodads_without_dot']))
+    if empty_art:
+        info['empty_art'], info['empty_art_by'] = drop_empty_art(units)
+        info['medidas']['empty_art'] = info['empty_art']
+        if exp_len.get('empty_art') is not None and exp_len['empty_art'] != info['empty_art']:
+            failures.append('empty_art: measured %d %s, expected %s' % (info['empty_art'], info['empty_art_by'],
+                                                                          exp_len['empty_art']))
     return failures, info
 
 
@@ -215,3 +260,8 @@ def report_data(info):
     if info.get('without_common_point'):
         print('   model names with several dots -> the alias without a dot (port/tools/sem_ponto.py): %d %s'
               % (info['no_dot'], info['no_dot_by']))
+    if 'doodads_without_dot' in info:
+        print('   ... and in the doodads (Doodads\\Doodads.slk): %d' % info['doodads_without_dot'])
+    if 'empty_art' in info:
+        print('   art that is only the extension (Missileart=.mdl...) taken out of the TXT: %d %s'
+              % (info['empty_art'], info['empty_art_by']))
