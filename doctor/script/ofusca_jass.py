@@ -410,6 +410,30 @@ def main():
         break
     if li_first is None:
         li_first = fm.li1
+    init_in = arg('ini-em')
+    if init_in:
+        if init_in not in functions or local_inits:
+            raise SystemExit(
+                'ERROR: --ini-em=%s: the function does not exist or main has a local with an initializer' % init_in
+            )
+        for li in range(fm.li0 + 1, fm.li1):
+            lin = line_list[li]
+            for p, ti in enumerate(lin):
+                if kinds[ti] == 'id' and texts[ti] in functions and p + 1 < len(lin) and texts[lin[p + 1]] == '(' and \
+                        (p == 0 or texts[lin[p - 1]] != 'function'):
+                    raise SystemExit('ERROR: --ini-em: main calls %s before the decoder' % texts[ti])
+        ff = functions[init_in]
+        li_first = None
+        for li in range(ff.li0 + 1, ff.li1):
+            lin = line_list[li]
+            if not lin:
+                continue
+            if texts[lin[0]] == 'local':
+                raise SystemExit('ERROR: --ini-em=%s: the function has a local' % init_in)
+            li_first = li
+            break
+        if li_first is None:
+            li_first = ff.li1
     roots = ['config'] if 'config' in functions else []
     for lin, a in local_inits:
         for p in range(a, len(lin)):
@@ -446,6 +470,21 @@ def main():
             frozen.add(ti)
             if kinds[ti] == 'id':
                 read_early.add(texts[ti])
+    if init_in:
+        for li in range(fm.li0, (fm.li1 or fm.li0) + 1):
+            for ti in line_list[li]:
+                if kinds[ti] in ('str', 'raw'):
+                    frozen.add(ti)
+                elif kinds[ti] == 'id':
+                    read_early.add(texts[ti])
+    in_clear = tuple(x for x in (arg('in_clear', '') or '').split(',') if x)
+    if in_clear:
+        for f in functions.values():
+            if f.fname.startswith(in_clear):
+                for li in range(f.li0, (f.li1 or f.li0) + 1):
+                    for ti in line_list[li]:
+                        if kinds[ti] in ('str', 'raw'):
+                            frozen.add(ti)
 
     converted = {}
     for g in globals_block:
