@@ -242,6 +242,15 @@ def jnuse_gate(body_text):
         return 'false'
     name_list = set(m.group(1) for m in re.finditer(r'\bset[ \t]+(\w+)[ \t]*=[ \t]*JNUse[ \t]*\([ \t]*\)', t))
     rx = re.compile(r'\bJNUse[ \t]*\([ \t]*\)' + ''.join(r'|\b%s\b' % re.escape(n) for n in name_list))
+    rx_negate = re.compile(
+        r'\bnot[ \t(]+(?:JNUse[ \t]*\([ \t]*\)' + ''.join(r'|%s\b' % re.escape(n) for n in name_list) + ')'
+    )
+    line_list = t.split('\n')
+    for k, ln in enumerate(line_list):
+        if re.match(r'[ \t]*(?:if|elseif)\b', ln) and rx_negate.search(ln):
+            body = next((line.strip() for line in line_list[k + 1:k + 4] if line.strip()), '')
+            if re.match(r'return\b', body):
+                return 'true'
     for body in re.findall(r'(?ms)^[ \t]*function\s+\w+.*?^[ \t]*endfunction', t):
         if not RX_GAME_END.search(body):
             continue
@@ -409,8 +418,26 @@ def ui_mouse_pos(body_text):
 
 
 def ui_borders(body_text):
-    return 'true' if _call(body_text, 'DzFrameEditBlackBorders', r'[^,\n]*,[ \t]*\(?[ \t]*0*\.?0*[ \t]*\)?[ \t]*\)') \
-        else 'false'
+    for m in re.finditer(r'\bDzFrameEditBlackBorders[ \t]*\(', body_text):
+        begin = body_text.rfind('\n', 0, m.start()) + 1
+        if re.match(r'[ \t]*(?:constant[ \t]+)?native\b', body_text[begin:m.start()]):
+            continue
+        args, level, k = [''], 1, m.end()
+        while k < len(body_text) and level and body_text[k] != '\n':
+            c = body_text[k]
+            level += (c == '(') - (c == ')')
+            if level == 1 and c == ',':
+                args.append('')
+            elif level:
+                args[-1] += c
+            k += 1
+        if len(args) == 2 and re.fullmatch(r'[\d \t.()*/+\-]+', args[1]):
+            try:
+                if eval(args[1], {'__builtins__': {}}) == 0:
+                    return 'true'
+            except (SyntaxError, ZeroDivisionError, TypeError):
+                pass
+    return 'false'
 
 
 def ui_portrait(body_text):
