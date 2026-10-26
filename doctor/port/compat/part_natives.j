@@ -2292,6 +2292,9 @@ function DB_ui_pos_init takes nothing returns nothing
     //{{KK_SE:KK_TECLAS}}
     call DB_teclas_registra()
     //{{KK_FIMSE:KK_TECLAS}}
+    //{{KK_SE:KK_TECLAS_ESC}}
+    call DB_esc_registra()
+    //{{KK_FIMSE:KK_TECLAS_ESC}}
     call DB_mov_registra(DB_mundo_trig)
     set i=0
     loop
@@ -2743,6 +2746,37 @@ endfunction
 
 //{{KK_FIMSE:KK_TECLAS}}
 
+//{{KK_SE:KK_TECLAS_ESC}}
+function DB_esc_solta takes nothing returns nothing
+    local integer p=0
+    loop
+        exitwhen p>=bj_MAX_PLAYERS
+        set DB_key_down[p*256+27]=false
+        set p=p+1
+    endloop
+endfunction
+
+function DB_esc_cinematica takes nothing returns nothing
+    set DB_key_down[GetPlayerId(GetTriggerPlayer())*256+27]=true
+    call TimerStart(DB_esc_relogio, 0.12, false, function DB_esc_solta)
+endfunction
+
+function DB_esc_registra takes nothing returns nothing
+    local trigger t=CreateTrigger()
+    local integer p=0
+    set DB_esc_relogio=CreateTimer()
+    call TriggerAddAction(t, function DB_esc_cinematica)
+    loop
+        exitwhen p>=bj_MAX_PLAYERS
+        if GetPlayerController(Player(p))==MAP_CONTROL_USER and GetPlayerSlotState(Player(p))==PLAYER_SLOT_STATE_PLAYING then
+            call TriggerRegisterPlayerEvent(t, Player(p), EVENT_PLAYER_END_CINEMATIC)
+        endif
+        set p=p+1
+    endloop
+    set t=null
+endfunction
+//{{KK_FIMSE:KK_TECLAS_ESC}}
+
 function DzGetTriggerKey takes nothing returns integer
     return GetHandleId(BlzGetTriggerPlayerKey())
 endfunction
@@ -2910,6 +2944,138 @@ function DB_sf_envia takes string prefix,string data returns nothing
 endfunction
 
 //{{KK_FIMSE:KK_SYNC_FATIA}}
+//{{KK_SE:KK_SYNC_RITMO}}
+constant string DB_SR_PREFIXO="kkSR"
+constant integer DB_SR_POR_TIQUE=4
+constant real DB_SR_TIQUE=0.05
+constant integer DB_SR_TETO=8000
+timer DB_sr_tm=null
+trigger DB_sr_trig=null
+string array DB_sr_pre
+string array DB_sr_dado
+boolean array DB_sr_cru
+integer DB_sr_ini=0
+integer DB_sr_fim=0
+
+function DB_sr_reg takes string prefix,string data returns string
+    return I2S(StringLength(prefix))+"|"+prefix+I2S(StringLength(data))+"|"+data
+endfunction
+
+function DB_sr_poe1 takes string prefix,string data,boolean cru returns nothing
+    set DB_sr_pre[DB_sr_fim]=prefix
+    set DB_sr_dado[DB_sr_fim]=data
+    set DB_sr_cru[DB_sr_fim]=cru
+    set DB_sr_fim=DB_sr_fim+1
+endfunction
+
+function DB_sr_poe takes string prefix,string data returns boolean
+    local integer n=StringLength(data)
+    local integer tam=StringLength(prefix)
+    local integer pedaco=DB_SYNC_TRECHO
+    local integer partes
+    local integer i=0
+    local string cab
+    if StringLength(DB_sr_reg(prefix, data))<=DB_SYNC_DIRETO then
+        if DB_sr_fim>=DB_SR_TETO then
+            return false
+        endif
+        call DB_sr_poe1(prefix, data, false)
+        return true
+    endif
+    if 12+tam+pedaco>DB_SYNC_DIRETO then
+        set pedaco=DB_SYNC_DIRETO-12-tam
+        if pedaco<16 then
+            set pedaco=16
+        endif
+    endif
+    set partes=(n+pedaco-1)/pedaco
+    if DB_sr_fim+partes>DB_SR_TETO then
+        return false
+    endif
+    set cab="|"+I2S(partes)+"|"+I2S(tam)+"|"+prefix
+    loop
+        exitwhen i>=partes
+        call DB_sr_poe1(DB_SF_PREFIXO, I2S(i)+cab+SubString(data, i*pedaco, (i+1)*pedaco), true)
+        set i=i+1
+    endloop
+    return true
+endfunction
+
+function DB_sr_tique takes nothing returns nothing
+    local integer k=0
+    local string pacote
+    local string r
+    loop
+        exitwhen k>=DB_SR_POR_TIQUE or DB_sr_ini>=DB_sr_fim
+        if DB_sr_cru[DB_sr_ini] then
+            call BlzSendSyncData(DB_sr_pre[DB_sr_ini], DB_sr_dado[DB_sr_ini])
+            set DB_sr_ini=DB_sr_ini+1
+        else
+            set pacote=""
+            loop
+                exitwhen DB_sr_ini>=DB_sr_fim
+                exitwhen DB_sr_cru[DB_sr_ini]
+                set r=DB_sr_reg(DB_sr_pre[DB_sr_ini], DB_sr_dado[DB_sr_ini])
+                exitwhen pacote!="" and StringLength(pacote)+StringLength(r)>DB_SYNC_DIRETO
+                set pacote=pacote+r
+                set DB_sr_ini=DB_sr_ini+1
+            endloop
+            call BlzSendSyncData(DB_SR_PREFIXO, pacote)
+        endif
+        set k=k+1
+    endloop
+    if DB_sr_ini>=DB_sr_fim then
+        set DB_sr_ini=0
+        set DB_sr_fim=0
+    endif
+endfunction
+
+function DB_sr_recebe takes nothing returns nothing
+    local string s=BlzGetTriggerSyncData()
+    local player p=GetTriggerPlayer()
+    local integer n
+    local integer i=0
+    local integer a
+    local integer t
+    local string prefix
+    if s==null then
+        set p=null
+        return
+    endif
+    set n=StringLength(s)
+    loop
+        exitwhen i>=n
+        set a=DB_sf_barra(s, i)
+        exitwhen a<=i
+        set t=S2I(SubString(s, i, a))
+        set prefix=SubString(s, a+1, a+1+t)
+        set i=a+1+t
+        set a=DB_sf_barra(s, i)
+        exitwhen a<=i
+        set t=S2I(SubString(s, i, a))
+        call DB_sf_despacha(p, prefix, SubString(s, a+1, a+1+t))
+        set i=a+1+t
+    endloop
+    set p=null
+endfunction
+
+function DB_sr_guarda takes nothing returns nothing
+    local integer i=0
+    if DB_sr_tm!=null then
+        return
+    endif
+    set DB_sr_trig=CreateTrigger()
+    loop
+        exitwhen i>=bj_MAX_PLAYERS
+        call BlzTriggerRegisterPlayerSyncEvent(DB_sr_trig, Player(i), DB_SR_PREFIXO, false)
+        set i=i+1
+    endloop
+    call TriggerAddAction(DB_sr_trig, function DB_sr_recebe)
+    set DB_sr_tm=CreateTimer()
+    call TimerStart(DB_sr_tm, DB_SR_TIQUE, true, function DB_sr_tique)
+endfunction
+
+//{{KK_FIMSE:KK_SYNC_RITMO}}
 function DzTriggerRegisterSyncData takes trigger trig,string prefix,boolean server returns nothing
     local integer i=0
     if trig==null or prefix==null then
@@ -2923,6 +3089,9 @@ function DzTriggerRegisterSyncData takes trigger trig,string prefix,boolean serv
     //{{KK_SE:KK_SYNC_FATIA}}
     call DB_sf_guarda(trig, prefix)
     //{{KK_FIMSE:KK_SYNC_FATIA}}
+    //{{KK_SE:KK_SYNC_RITMO}}
+    call DB_sr_guarda()
+    //{{KK_FIMSE:KK_SYNC_RITMO}}
 endfunction
 
 function DzSyncData takes string prefix,string data returns nothing
@@ -2932,6 +3101,13 @@ function DzSyncData takes string prefix,string data returns nothing
     if data==null then
         set data=""
     endif
+    //{{KK_SE:KK_SYNC_RITMO}}
+    if DB_sr_tm!=null then
+        if DB_sr_poe(prefix, data) then
+            return
+        endif
+    endif
+    //{{KK_FIMSE:KK_SYNC_RITMO}}
     //{{KK_SE:KK_SYNC_FATIA}}
     if StringLength(data)>DB_SYNC_DIRETO then
         call DB_sf_envia(prefix, data)
