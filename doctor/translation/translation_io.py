@@ -374,7 +374,7 @@ def _collect_profiles(mt, read, names):
         text = _decode(b)
         found = []
         tr_extract.extract_misc_text(name, text, found, collections.Counter(), tem_text=is_text)
-        lines = tr_extract.line_break(text)[0]
+        lines = tr_extract.misc_parts(text)[0]
         sections = _sections(lines)
         for ln, line in enumerate(lines):
             m = RX_KEY.match(line)
@@ -1280,12 +1280,15 @@ def _build(mt, wanted, linked):
             text = _decode(orig)
             lines = tr_extract.line_break(text)[0]
             seps = separators(text, lines)
+            misto = items[0][0].get('_misc') and not tr_extract.misc_parts(text)[1]
+            if misto:
+                lines = tr_extract.misc_parts(text)[0]
             for e, tr in items:
                 m = RX_KEY.match(lines[e['_where']])
                 if not m or m.group(1) != e['_key']:
                     raise RuntimeError('%s: line %d is not %s' % (name, e['_where'] + 1, e['_key']))
                 lines[e['_where']] = '%s=%s' % (e['_key'], _written(e, tr))
-            new = _encode(join_lines(lines, seps))
+            new = _encode(''.join(lines) if misto else join_lines(lines, seps))
         if new != orig:
             out[name] = new
     if images:
