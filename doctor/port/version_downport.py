@@ -167,6 +167,9 @@ EMULATED = {
         'set c = null',
         'return u',
     ],
+    'SetTerrainFogExV': ['call SetTerrainFogEx({0}, {1}, {2}, {3}, {8}, {9}, {10})'],
+    'ChooseRandomItemExWithFilter': ['return ChooseRandomItemEx({0}, {1})'],
+    'ChooseRandomItemExWithFilterAndIncludes': ['return ChooseRandomItemEx({0}, {1})'],
 }
 
 
@@ -208,10 +211,10 @@ EMULATED['BlzBitAnd'] = _bit_op_body('x - x / 2 * 2 == 1 and y - y / 2 * 2 == 1'
 EMULATED['BlzBitOr'] = _bit_op_body('x - x / 2 * 2 == 1 or y - y / 2 * 2 == 1', 'sx == 1 or sy == 1')
 EMULATED['BlzBitXor'] = _bit_op_body('x - x / 2 * 2 != y - y / 2 * 2', 'sx != sy')
 NEUTRAL = {'integer': '0', 'real': '0.0', 'boolean': 'false', 'string': '""'}
-RX_DESTRUCTABLE = re.compile(r'^BlzCreate(Dead)?Destructable(Z)?WithSkin\w*$')
+RX_DESTRUCTABLE = re.compile(r'^BlzCreate(Dead)?Destructable(Z)?(WithSkin)?(?:PitchRoll|WithColor|Color)*$')
 
 
-def _emulate_destructable(fname, ps, args):
+def _emulate_destructable(fname, ps, args, tgt=None):
     m = RX_DESTRUCTABLE.match(fname)
     if not m:
         return None
@@ -219,6 +222,9 @@ def _emulate_destructable(fname, ps, args):
     wanted = ['objectid', 'x', 'y'] + (['z'] if m.group(2) else []) + ['face', 'scale', 'variation']
     if not all(q in name_list for q in wanted):
         return None
+    with_skin = 'BlzCreate%sDestructable%sWithSkin' % ('Dead' if m.group(1) else '', 'Z' if m.group(2) else '')
+    if tgt is not None and with_skin in tgt.natives and with_skin != fname and 'skinId' in name_list:
+        return ['return %s(%s)' % (with_skin, ', '.join(args[name_list.index(q)] for q in wanted + ['skinId']))]
     return ['return Create%sDestructable%s(%s)' % ('Dead' if m.group(1) else '', 'Z' if m.group(2) else '',
                                                   ', '.join(args[name_list.index(q)] for q in wanted))]
 
@@ -325,12 +331,33 @@ def _replace_in_code(body_text, rx, fn):
 
 RX_PLAYER_CALL = re.compile(r'\b(Player|ConvertedPlayer)[ \t]*\([ \t]*(\d+)[ \t]*\)')
 NEUTRALS_24 = {24: 12, 25: 13, 26: 14, 27: 15}
+RX_CAMERA_FIELD = re.compile(r'(?m)^[ \t]*(?:call[ \t]+)?CameraSetupSetField[ \t]*\([^\n]*?\b(CAMERA_FIELD_\w+)\b'
+                             r'[^\n]*\n')
 
 
-def layer(body_text, source_dir, target_dir, source_player_slots=24, target_slots=12):
+def without_camera_fields(body_text, origin, tgt):
+    missing_items = set(n for n in origin.globals_block if n.startswith('CAMERA_FIELD_') and n not in tgt.globals_block)
+    if not missing_items:
+        return body_text, 0
+    n = [0]
+
+    def left_out(m):
+        if m.group(1) not in missing_items:
+            return m.group(0)
+        n[0] += 1
+        return ''
+    return _replace_in_code(body_text, RX_CAMERA_FIELD, left_out), n[0]
+
+
+def layer(body_text, source_dir, target_dir, source_player_slots=24, target_slots=12, camera_fields=False,
+          hidden=False):
     origin, tgt = ruler(source_dir), ruler(target_dir)
+    original = body_text
     nl = '\r\n' if '\r\n' in body_text else '\r' if '\r' in body_text else '\n'
     body_text = body_text.replace('\r\n', '\n').replace('\r', '\n')
+    n_cam = 0
+    if camera_fields:
+        body_text, n_cam = without_camera_fields(body_text, origin, tgt)
     in_use, defined, _natives_declared = wc3_versions.script_names(body_text)
     missing = set()
     pend = [n for n in in_use if n not in defined and n not in tgt.name_list and n in origin.name_list]
@@ -343,7 +370,7 @@ def layer(body_text, source_dir, target_dir, source_player_slots=24, target_slot
             if d not in tgt.name_list and d in origin.name_list and d not in defined and d not in missing:
                 pend.append(d)
     info = {'types': {}, 'emulated': [], 'neutrals': [], 'copied': [], 'w3p_constants': [], 'neutral_constants': [],
-            'n_players': 0}
+            'n_players': 0, 'cameras': n_cam}
 
     def target_type(t):
         seen = set()
@@ -360,9 +387,13 @@ def layer(body_text, source_dir, target_dir, source_player_slots=24, target_slot
     def with_types(s):
         return _replace_in_code(s, rx_types, lambda m: types[m.group(1)]) if rx_types else s
     declaradas = []
+    mantidas = []
 
     def left_out(m):
         if m.group(1) in tgt.natives or m.group(1) in tgt.ai_natives:
+            return m.group(0)
+        if hidden and m.group(1) not in origin.natives and m.group(1) not in origin.ai_natives:
+            mantidas.append(m.group(1))
             return m.group(0)
         declaradas.append((m.group(1), _params(m.group(2)), m.group(3)))
         return ''
@@ -372,6 +403,7 @@ def layer(body_text, source_dir, target_dir, source_player_slots=24, target_slot
         body_text, info['damage'] = damage_event(body_text)
     used_after = _code_names(body_text)
     info['declaradas'] = [n for n, _p, _r in declaradas]
+    info['hidden'] = sorted(set(mantidas))
     info['declared_used'] = [n for n, _p, _r in declaradas if n in used_after]
     globals_of_map = set()
     for block_entry in RX_GLOBALS.findall(_without_comments(body_text)):
@@ -412,7 +444,7 @@ def layer(body_text, source_dir, target_dir, source_player_slots=24, target_slot
         header = 'function %s takes %s returns %s' % (
             fname, ', '.join('%s %s' % (target_type(t), a) for (t, _n), a in zip(ps, args)) or 'nothing', ret_t)
         body = EMULATED.get(fname)
-        destr = _emulate_destructable(fname, ps, args)
+        destr = _emulate_destructable(fname, ps, args, tgt)
         if destr:
             f_lines += [header] + ['    ' + c for c in destr] + ['endfunction']
             info['emulated'].append(fname)
@@ -448,6 +480,8 @@ def layer(body_text, source_dir, target_dir, source_player_slots=24, target_slot
             return '%s(%d)' % (m.group(1), NEUTRALS_24[base] + (1 if m.group(1) == 'ConvertedPlayer' else 0))
         new = _replace_in_code(new, RX_PLAYER_CALL, remap_neutral)
     if not g_lines and not f_lines:
+        if not (n_cam or declaradas or info['damage'] or info['n_players'] or types):
+            return original, info
         return new.replace('\n', nl), info
     mark = '//' + ' Devo\'s Map Doctor: what this older game does not have (port to an older game)'
     m = re.search(r'(?m)^[ \t]*globals[ \t]*$', new)
@@ -467,6 +501,113 @@ def layer(body_text, source_dir, target_dir, source_player_slots=24, target_slot
         pos = f.start() if f else len(new)
         new = new[:pos] + '\n'.join([mark] + f_lines) + '\n' + new[pos:]
     return new.replace('\n', nl), info
+
+
+RX_LUA_NOISE = re.compile(r'--\[(=*)\[.*?\]\1\]|--[^\n]*|\[(=*)\[.*?\]\2\]|"(?:[^"\\\n]|\\.)*"|\'(?:[^\'\\\n]|\\.)*\'',
+                          re.S)
+RX_LUA_DEF = re.compile(r'(?m)^[ \t]*(?:function[ \t]+([A-Za-z_]\w*)[ \t]*\(|([A-Za-z_]\w*)[ \t]*=[^=])')
+LUA_NEUTRAL = {'integer': '0', 'real': '0.0', 'boolean': 'false', 'string': '""'}
+
+
+def _lua_names(body_text):
+    clean = RX_LUA_NOISE.sub(' ', body_text)
+    in_use = set(RX_IDENT.findall(clean))
+    defined = set(a or b for a, b in RX_LUA_DEF.findall(clean))
+    return in_use, defined
+
+
+def _lua_line(c):
+    c = c.strip()
+    if c.startswith('call '):
+        return c[5:]
+    if c.startswith('return ') and not re.search(r'\b(?:set|local|loop|if)\b', c):
+        return c
+    return None
+
+
+def lua_layer(body_text, source_dir, target_dir):
+    origin, tgt = ruler(source_dir), ruler(target_dir)
+    original = body_text
+    nl = '\r\n' if '\r\n' in body_text else '\n'
+    body_text = body_text.replace('\r\n', '\n')
+    body_text, n_cam = without_camera_fields(body_text, origin, tgt)
+    in_use, defined = _lua_names(body_text)
+    missing = set()
+    pend = [n for n in in_use if n not in defined and n not in tgt.name_list and n in origin.name_list]
+    while pend:
+        n = pend.pop()
+        if n in missing:
+            continue
+        missing.add(n)
+        for d in origin.dependencies(n):
+            if d not in tgt.name_list and d in origin.name_list and d not in defined and d not in missing:
+                pend.append(d)
+    info = {
+        'emulated': [],
+        'neutrals': [],
+        'copied': [],
+        'w3p_constants': [],
+        'neutral_constants': [],
+        'cameras': n_cam,
+    }
+    line_list = []
+    done = set()
+    for fname in sorted(
+        (n for n in missing if n in origin.globals_block), key=lambda n: origin.globals_block[n]['order']
+    ):
+        g = origin.globals_block[fname]
+        init = g['init']
+        if g['array']:
+            field_value = '{}'
+        elif init and re.match(r'^[\w().,\s+\-]*$', init) and all(d in tgt.name_list or d in done or
+                                                                   re.match(r'^\d', d) for d in _code_names(init)):
+            field_value = re.sub(r'\bnull\b', 'nil', init)
+            info['w3p_constants'].append(fname)
+        else:
+            field_value = LUA_NEUTRAL.get(g['kind'], 'nil')
+            info['neutral_constants'].append(fname)
+        line_list.append('if %s == nil then %s = %s end' % (fname, fname, field_value))
+        done.add(fname)
+    for fname in sorted(n for n in missing if n in origin.natives):
+        ps, ret = origin.natives[fname]
+        args = ['a%d' % i for i in range(len(ps))]
+        body = None
+        destr = _emulate_destructable(fname, ps, args, tgt)
+        source = destr or EMULATED.get(fname)
+        if source and len(source) == 1 and all(('{%d}' % i) not in source[0] for i in range(len(ps), 10)):
+            c = source[0]
+            for i, a_ in enumerate(args):
+                c = c.replace('{%d}' % i, a_)
+            body = _lua_line(c)
+        if body:
+            info['emulated'].append(fname)
+        else:
+            body = ('return %s' % LUA_NEUTRAL.get(ret, 'nil')) if ret != 'nothing' else ''
+            info['neutrals'].append(fname)
+        line_list.append('if %s == nil then %s = function(%s) %s end end' % (fname, fname, ', '.join(args), body))
+    for fname in sorted((n for n in missing if n in origin.functions), key=lambda n: origin.functions[n]['order']):
+        fx = origin.functions[fname]
+        args = [n for _t, n in fx['params']]
+        body = ('return %s' % LUA_NEUTRAL.get(fx['ret'], 'nil')) if fx['ret'] != 'nothing' else ''
+        line_list.append('if %s == nil then %s = function(%s) %s end end' % (fname, fname, ', '.join(args), body))
+        info['neutrals'].append(fname)
+    if not line_list:
+        return (body_text.replace('\n', nl) if n_cam else original), info
+    mark = '-- Devo\'s Map Doctor: what this older game does not have (port to an older game)'
+    new = '\n'.join([mark] + line_list + ['-- end of what this older game does not have']) + '\n' + body_text
+    return new.replace('\n', nl), info
+
+
+def lua_compiles(body_text):
+    try:
+        from doctor.script import lua_ast
+    except ImportError:
+        return None
+    try:
+        lua_ast.parse(body_text)
+        return None
+    except Exception as e:
+        return str(e)[:200]
 
 
 RX_PJASS_ERROR_LINE = re.compile(r'^[^:\n]+:\d+:\s*')
@@ -526,8 +667,14 @@ def complete_listfile(output):
         except Exception:
             continue
     if new_ones:
-        mpqadd.add_files(output, [('(listfile)', '\r\n'.join(name_list + new_ones).encode('utf-8', 'surrogateescape') +
-                                   b'\r\n')], log=lambda *x: None)
+        try:
+            mpqadd.add_files(
+                output,
+                [('(listfile)', '\r\n'.join(name_list + new_ones).encode('utf-8', 'surrogateescape') + b'\r\n')],
+                log=lambda *x: None,
+            )
+        except SystemExit:
+            return 0
     return len(new_ones)
 
 
@@ -606,9 +753,13 @@ def port_down(map_path, tgt, output, an, log=print):
     from doctor.port import map_path as _map_mod
     detail = an['origin']
     lim = wc3_versions.limits(tgt) or {}
+    game = wc3_versions.reforged_game(tgt)
+    if wc3_versions.is_reforged(tgt) and not game:
+        raise Refusal('the data of Warcraft III %s (common/ref, game.json) are not in this program' % tgt)
     a = mpqread.Archive(map_path)
     j_name, j = _read(a, ('war3map.j', 'scripts' + B + 'war3map.j'))
-    if j is None:
+    lua_name, lua = _read(a, ('war3map.lua',)) if game else (None, None)
+    if j is None and lua is None:
         raise Refusal('the map has no war3map.j that can be read (a Lua script only runs on 1.31 and later)')
     _nb, blizz = _read(a, ('scripts' + B + 'blizzard.j',))
     chg, warnings, new_ones, to_delete = {}, [], [], []
@@ -621,22 +772,50 @@ def port_down(map_path, tgt, output, an, log=print):
         raise Refusal(str(e))
     except ValueError as e:
         raise Refusal('the map info: %s' % e)
+    except Exception as e:
+        raise Refusal('the map info does not read (%s): a protected map? Unprotect it first with Fix map, then port'
+                      % str(e)[:80])
     if new_w3i != w3i_b:
         new_ones.append(('war3map.w3i', new_w3i))
-    chg['w3i'] = {'from_': plain_name['from'], 'new_value': plain_name['target'], 'flags': plain_name['cleared_flags'],
-                  'fields': sorted(set(plain_name['dropped']))}
+    chg['w3i'] = {
+        'from_': plain_name['from'],
+        'new_value': plain_name['target'] if new_w3i != w3i_b else plain_name['from'],
+        'flags': plain_name['cleared_flags'],
+        'fields': sorted(set(plain_name['dropped'])),
+    }
     warnings += plain_name['warnings']
-    body_text = j.decode('latin-1')
     source_slots = 24 if detail.get('range') in ('1.29', '1.30+') else 12
-    new_text, info = layer(
-        body_text, source_dir(detail), wc3_versions.scripts_dir(tgt), source_slots, lim.get('players', 12)
-    )
-    from doctor.port import return_fixes
-    new_text, _r = return_fixes.applies(new_text)
-    chg['script'] = info
-    new_b = new_text.encode('latin-1')
-    pj = wc3_versions.pjass_check(new_b, tgt, own_blizzard=blizz)
-    if pj.get('skipped'):
+    if lua is not None:
+        body_text = lua.decode('utf-8', 'surrogateescape')
+        new_text, info = lua_layer(body_text, source_dir(detail), wc3_versions.scripts_dir(tgt))
+        err = lua_compiles(new_text)
+        if err:
+            raise Refusal('the Lua script does not read after the port: %s' % err)
+        chg['script'] = dict(info, lua=True)
+        new_b = new_text.encode('utf-8', 'surrogateescape')
+        pj = {'lua': True}
+        if new_b != lua:
+            new_ones.append((lua_name, new_b))
+    else:
+        body_text = j.decode('latin-1')
+        new_text, info = layer(body_text, source_dir(detail), wc3_versions.scripts_dir(tgt), source_slots,
+                               lim.get('players', 12), camera_fields=bool(game), hidden=bool(game))
+        if info.get('hidden'):
+            warnings.append(
+                'the map declares %d native(s) no common.j has (hidden natives of the game): %s. They stay: '
+                'if %s does not have one, it refuses the map'
+                % (len(info['hidden']), ', '.join(info['hidden'][:8]), tgt)
+            )
+        if not game:
+            from doctor.port import return_fixes
+            new_text, _r = return_fixes.applies(new_text)
+        chg['script'] = info
+        new_b = new_text.encode('latin-1')
+        pj = wc3_versions.pjass_check(new_b, tgt, own_blizzard=blizz)
+    script_text = body_text
+    if lua is not None:
+        pass
+    elif pj.get('skipped'):
         warnings.append('pjass was not run (%s)' % pj['skipped'])
     elif pj.get('rc') != 0 or pj.get('errors'):
         orig = wc3_versions.pjass_check(
@@ -653,7 +832,7 @@ def port_down(map_path, tgt, output, an, log=print):
         warnings.append('pjass finds in the script what it already found in the original (%d): %s'
                         % (len(existing), '; '.join(sorted(existing))[:300]))
         pj = dict(pj, in_original=sorted(existing))
-    if new_b != j:
+    if lua is None and new_b != j:
         new_ones.append((j_name, new_b))
     objects = {}
     for k in downgrade.OBJECT_KINDS:
@@ -662,7 +841,10 @@ def port_down(map_path, tgt, output, an, log=print):
             if d is not None:
                 objects[n] = d
     try:
-        obj_new, obj_info = downgrade.downgrade_objects(objects)
+        if game:
+            obj_new, obj_info = downgrade.downgrade_objects_reforged(objects, game)
+        else:
+            obj_new, obj_info = downgrade.downgrade_objects(objects)
     except ValueError as e:
         raise Refusal('the object data: %s' % e)
     for n, d in sorted(obj_new.items()):
@@ -670,11 +852,22 @@ def port_down(map_path, tgt, output, an, log=print):
             to_delete.append(n)
         else:
             new_ones.append((n, d))
-    chg['objects'] = obj_info
+    if game:
+        chg['reforged_objects'] = obj_info
+        bases = sorted(
+            set((new_object_id, base) for r in obj_info.values() for new_object_id, base in r['unknown_bases'])
+        )
+        if bases:
+            warnings.append('%d object(s) of the map are based on objects that %s does not have (they will not work '
+                            'there): %s' % (len(bases), tgt, ', '.join(('%s (%s)' % (n_, b_)) if n_ else b_
+                                                                        for n_, b_ in bases[:12]) +
+                                            (', ...' if len(bases) > 12 else '')))
+    else:
+        chg['objects'] = obj_info
     doo = _read(a, ('war3map.doo',))[1]
     if doo is not None:
         try:
-            doo_new, doo_info = downgrade.downgrade_doo(doo)
+            doo_new, doo_info = downgrade.downgrade_doo(doo, keep_skin=bool(game))
         except ValueError as e:
             doo_new, doo_info = doo, None
             warnings.append('war3map.doo was left as it is (%s): if it is in a newer layout, %s will not show the '
@@ -682,7 +875,7 @@ def port_down(map_path, tgt, output, an, log=print):
         if doo_new != doo:
             new_ones.append(('war3map.doo', doo_new))
             chg['doo'] = doo_info
-    w3e = _read(a, ('war3map.w3e',))[1]
+    w3e = _read(a, ('war3map.w3e',))[1] if not game else None
     if w3e is not None:
         try:
             w3e_new, w3e_info = downgrade.downgrade_w3e(w3e)
@@ -693,7 +886,8 @@ def port_down(map_path, tgt, output, an, log=print):
             chg['w3e'] = w3e_info
     ed = dict((n, d) for n, d in ((n, _read(a, (n,))[1]) for n in ('war3map.w3s', 'war3map.w3c', 'war3map.w3r',
                                                                    'war3mapUnits.doo')) if d is not None)
-    ed_new, ed_done, ed_left = downgrade.downgrade_editor_files(ed, source_slots > lim.get('players', 12))
+    ed_new, ed_done, ed_left = downgrade.downgrade_editor_files(ed, source_slots > lim.get('players', 12),
+                                                                reforged=bool(game))
     new_ones += sorted(ed_new.items())
     if ed_done:
         chg['editor'] = ed_done
@@ -712,9 +906,24 @@ def port_down(map_path, tgt, output, an, log=print):
         if trig_pair:
             new_ones += [('war3map.wtg', trig_pair[0]), ('war3map.wct', trig_pair[1])]
             chg['trigger_list'] = trig_pair[2]
+    if game:
+        def rd(n):
+            return _read(a, (n,))[1]
+        tally = downgrade.reforged_content(rd, game, script_text)
+        chg['content'] = tally
+        for hash_key, label in (('doodads', 'doodad/destructable type(s) placed on the map'),
+                                ('units', 'unit/item type(s) placed on the map'),
+                                ('terrain', 'ground or cliff tile(s) of the terrain'),
+                                ('weather', 'weather effect(s) the script creates'),
+                                ('files', 'game file(s) the map cites')):
+            if tally.get(hash_key):
+                warnings.append('%d %s that %s does not have (they will be missing there): %s' % (
+                    len(tally[hash_key]), label, tgt, ', '.join(tally[hash_key][:10]) +
+                    (', ...' if len(tally[hash_key]) > 10 else '')))
     log('port to %s (older): %d file(s) rewritten, %d removed' % (tgt, len(new_ones), len(to_delete)))
     _map_mod.attach(map_path, output, new_ones, to_delete=to_delete, log=lambda s: None)
-    chg.update(media_step(output, tgt, warnings, log))
+    if not game:
+        chg.update(media_step(output, tgt, warnings, log))
     for it in downgrade.media_items(output, tgt):
         warnings.append(it['text'])
     try:
