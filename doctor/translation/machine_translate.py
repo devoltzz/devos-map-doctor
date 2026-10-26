@@ -811,10 +811,11 @@ def translate_entries(entries, lang, engine, progress=None, language=''):
     return result, {'pieces': n_inputs, 'seconds': round(time.time() - t0, 1), 'rejected': dict(rejected)}
 
 
-def translate_map(path, out_file, progress=None, only=None, quality='best', lang=None, threads=0, images=False):
+def translate_map(path, out_file, progress=None, only=None, quality='best', lang=None, threads=0, images=False,
+                  keep=None):
     p = progress or _nothing
     rep = {'state': None, 'error': None, 'file': None, 'entries': 0, 'language': '', 'model': None, 'translated': 0,
-           'left': 0, 'rejected': {}, 'pieces': 0, 'seconds': 0, 'images': None}
+           'left': 0, 'rejected': {}, 'pieces': 0, 'seconds': 0, 'images': None, 'kept': 0}
     try:
         p('reading map')
         a = translation_io._open(path)
@@ -828,6 +829,24 @@ def translate_map(path, out_file, progress=None, only=None, quality='best', lang
     if not mt.entries:
         rep['state'] = 'no_text'
         return rep
+    kept = {}
+    if keep:
+        try:
+            with open(keep, encoding='utf-8') as f:
+                kdoc = json.load(f)
+        except (OSError, ValueError) as e:
+            rep.update(state='failed', error='cannot read the translation file to keep (%s)' % translation_io._error(e))
+            return rep
+        texts = dict((e['id'], e['text']) for e in mt.entries)
+        for t in kdoc.get('entries') or [] if isinstance(kdoc, dict) else []:
+            if isinstance(t, dict) and isinstance(t.get('translation'), str) and t['translation'] and \
+                    texts.get(t.get('id')) == t.get('text'):
+                kept[t['id']] = t['translation']
+        by_text = dict((texts[i], tr) for i, tr in kept.items())
+        for e in mt.entries:
+            if e['id'] not in kept and e['text'] in by_text:
+                kept[e['id']] = by_text[e['text']]
+        rep['kept'] = len(kept)
     lang = lang or detect_language(e['text'] for e in mt.entries)
     rep['language'] = lang
     if lang not in MODELS:
@@ -849,8 +868,9 @@ def translate_map(path, out_file, progress=None, only=None, quality='best', lang
         n, _lang, err = translation_io.add_images(mt, path, p)
         rep['images'] = {'entries': n, 'error': err}
         rep['entries'] = len(mt.entries)
-    result, info = translate_entries(mt.entries, lang, engine, p)
+    result, info = translate_entries([e for e in mt.entries if e['id'] not in kept], lang, engine, p)
     rep.update(info)
+    result.update(kept)
     order = {'w3i': 0, 'wts': 1, 'object': 2, 'profile': 3, 'fdf': 4, 'script': 5, 'lua': 6, 'image': 7}
     entries = []
     for e in sorted(mt.entries, key=lambda e: order[e['source']]):
