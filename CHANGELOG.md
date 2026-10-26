@@ -3,6 +3,59 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 1.9.0 (2026-10-26)
+
+### New
+
+- **Port to an older game: Reforged 2.0.4.** A map made for Reforged 3.0 can now go back to 2.0.4 (build 23745, the
+  last before 3.0), in the Port tab ("Reforged 2.0.4") or with `port <map> --to=2.0.4`. Every map the 3.0 editor
+  saves calls natives 2.0.4 does not have, even an empty one (`SetPlayerRaceSkin`, `SetHDWaterParamsEx`), so it does
+  not open there as it is. The port gives each native of 3.0 the 2.0.4 equivalent where there is one (the fog, the
+  destructables with pitch and colour, the random item drops) and makes the rest neutral, in JASS and in Lua maps; it
+  takes out the camera lines of 3.0; it writes the map info, the doodads, the units, the cameras and the regions in the
+  formats 2.0.4 reads; it takes out the object fields only 3.0 has; and its report lists what the map uses that 2.0.4
+  does not have (objects, terrain, weather, game files). A map saved by 2.0.x comes out the same. I have not tested the
+  ported maps in 2.0.4 yet.
+- **Translation: finish a translation done in parts.** `translation machine <map> <out.json> --keep=<your file>`
+  keeps every text you already translated and sends only the empty ones to the translation model (issue 57).
+- **Port to Reforged (KK and M16 maps): nothing on the loading screen.** The map's own start (its units, its triggers,
+  the tables of the port layer) now runs right after the game starts, a piece per frame, instead of on the loading
+  screen. On a big Korean RPG that stopped at 50 to 60% of the loading screen in multiplayer, the loading screen became
+  almost instant.
+- **Port to Reforged: a map AI that is a 1.2x memory exploit is switched off.** An AI script that reads and writes the
+  memory of the old game at fixed addresses (to load a platform DLL) closed Reforged while loading.
+
+### Fixed
+
+- **Open in World Editor for the editors of 1.24 to 1.29 and the JassNative Editor: the placed units** (issue 49). The
+  units made from the script went in with the neutral players numbered like the Reforged editor (27 for neutral
+  passive), which a 12 player editor has no player for, the units whose model is a map file were left out (that filter
+  is for the Reforged editor), and the file was in the Reign of Chaos layout. On FOCS3 9.7 C03 all 124 units now go in,
+  the neutral ones as player 15, in the layout every Frozen Throne map has.
+- **Open in World Editor: the abilities made from the SLK tables** (issue 49). Each column `DataA` to `DataI` of an
+  ability is a different field for each ability, and every converted ability got the fields of Blizzard (1,049 on FOCS
+  ver192). Now each one gets its own (Evasion's `Eev1`, and so on), for the parent the file names. The JassNative
+  Editor closed with "not enough memory" on FOCS ver192 made by 1.8.9; I could not run that editor to confirm this
+  was the cause.
+- **Port to Reforged of maps of 1.23 and older** (issues 55 and 56): Regicide v2.12 and Neverwinter Nights RPG v2.2c
+  now pass the compiler gates. A function that hands back a handle kept in a game cache as an integer goes through the
+  handle table, the `return 0.0` after an integer return no longer gets `I2R`, and the real-in-a-location casts of the
+  CSCache library are made neutral (the report lists them).
+- **Port to Reforged (KK and M16 maps), from the ports of the last days:**
+  - a map that turns a feature off when the platform server is missing (`if not JNUse() ... return`; on a Fate/Grand
+    Order map, the hero choice) now gets the answer as if the server were there;
+  - the black borders a map removes with a sum that gives 0 (`((0)*1.0)`, as the GUI writes it) are removed, so the
+    console strip no longer takes the clicks on the map's buttons at the bottom of the screen;
+  - a terrain of more than 65,536 height runs ports (it stopped at the compiler gates);
+  - `DzGroupGetCount` skips the units already removed from the game, as the KK platform does (a boss phase that waited
+    for its group to reach 0 never ended);
+  - the SLK reads a Korean port wraps in a `pcall` are found;
+  - the local save of M16 maps sizes each piece by its length in the file (a value with many `;` or quotes made the
+    game cut the line and the save did not load), and a save part that does not load is left untouched.
+- **Translation check: a number like `1,000,`** (the thousands followed by a sentence comma) reads as one number. The
+  Korean `금괴 1,000, 당첨 3%` read as 1 and 000, and the right translation failed the check.
+- **Translation: a Misc or Skin text file with mixed line endings** keeps every text on import.
+
 ## 1.8.9 (2026-10-24)
 
 ### New
