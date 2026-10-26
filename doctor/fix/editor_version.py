@@ -54,7 +54,7 @@ def normalize(version):
         return JN
     from doctor.data import wc3_versions
     exact = wc3_versions.normalize(v)
-    if exact == wc3_versions.REFORGED:
+    if exact == wc3_versions.REFORGED or exact in wc3_versions.REFORGED_OLD:
         return None
     if exact not in wc3_versions.CLASSIC:
         raise ValueError('no World Editor version %r here: %s, jn (the JassNative Editor) or reforged'
