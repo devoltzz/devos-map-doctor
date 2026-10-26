@@ -14,6 +14,8 @@ from doctor.port import effects
 from doctor.port import statuses
 from doctor.port import lbkkapi
 from doctor.port import memory_hacks
+from doctor.port import map_ai_exploit
+from doctor.port import deferred_main
 from doctor.port import typecast
 from doctor.port import shadowed
 from doctor.port import dead_type
@@ -253,6 +255,11 @@ def assemble(r, argv=None):
         medidas['return_fixes'] = info['real_blocks'] + info['codes'] + info['shadows']
 
     job_progress.step_size('0h', 'Building the script: memory hacks')
+    t, info = map_ai_exploit.applies(t, getattr(r, 'EXTRACT', None))
+    map_ai_exploit.report_data(info)
+    if info['neutrals'] or 'map_ai_exploit' in exp_len:
+        verify('0h map_ai_exploit', exp_len.get('map_ai_exploit'), sum(n for _, n in info['neutrals']))
+        medidas['map_ai_exploit'] = sum(n for _, n in info['neutrals'])
     memory_level = getattr(r, 'MEMORY_LEVEL', None)
     if memory_level:
         t, info = memory_hacks.applies(t, lbkkapi.read_reference(), equivalents=True,
@@ -391,6 +398,22 @@ def assemble(r, argv=None):
         if info['failures']:
             aborts('9b (hud_lol)', info['failures'])
         hud_lol.report_data(info)
+
+    requested = getattr(r, 'DEFERRED_MAIN', None)
+    if requested is not False:
+        t2, info = deferred_main.applies(t)
+        if info['failures'] and requested:
+            aborts('9c (deferred main)', info['failures'])
+        if info['failures']:
+            print('9c deferred main: NOT applied (main stays on the loading screen): %s' % '; '.join(info['failures']))
+        else:
+            t = t2
+            deferred_main.report_data(info)
+            medidas['deferred_main'] = {
+                'frames': info['frames'],
+                'slices': info['slices'],
+                'trigger_list': info['trigger_list'],
+            }
 
     job_progress.step_size('10-12', 'Building the script: the port layer')
     source = ['--source=' + r.NATIVES_SOURCE] if getattr(r, 'NATIVES_SOURCE', None) else []
