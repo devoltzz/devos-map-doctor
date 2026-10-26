@@ -884,6 +884,7 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
                'safe_units': safe_units, 'editor_w3i': editor_w3i, 'file_set': replacements}
     if tgt is not None:
         context['w3s_version'] = tgt['w3s']
+    context['editor_reforged'] = tgt is None
     try:
         _bd = a.read('war3map.doo')
         _game = (doodads.game_ids(version_num=tgt['base']) if tgt is not None else doodads.game_ids()) \
