@@ -298,7 +298,7 @@ def fixable(item, entry, en):
     return en, done
 
 
-RX_THOUSANDS = re.compile(r'(?<![\d.,])\d{1,3}(?:,\d{3})+(?![\d,]|\.\d)')
+RX_THOUSANDS = re.compile(r'(?<![\d.,])\d{1,3}(?:,\d{3})+(?!\d|,\d|\.\d)')
 
 
 def without_thousands(t):
