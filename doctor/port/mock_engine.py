@@ -1910,7 +1910,9 @@ __filter_unit = nil
 __enum_unit = nil
 function GetFilterUnit() return __filter_unit end
 function GetEnumUnit() return __enum_unit end
-function ForGroup(g, f) if not g then return end for _, u in ipairs(g.list) do M.nasc = M.nasc + 1 local p = __enum_unit __enum_unit = u local ok, e = pcall(f) __enum_unit = p if not ok then __logerr("ForGroup: " .. tostring(e)) end end end
+-- [F6:grailin] the removed unit stays as an EMPTY SLOT in the group (`BlzGroupGetSize` counts it); `ForGroup` skips it, as in the engine
+function ForGroup(g, f) if not g then return end for _, u in ipairs(g.list) do if u.typeid ~= 0 then M.nasc = M.nasc + 1 local p = __enum_unit __enum_unit = u local ok, e = pcall(f) __enum_unit = p if not ok then __logerr("ForGroup: " .. tostring(e)) end end end end
+function BlzGroupAddGroupFast(s, d) local n = 0 if s and d then for _, u in ipairs(s.list) do if u.typeid ~= 0 then GroupAddUnit(d, u) n = n + 1 end end end return n end
 local function enum_units(g, pred, f)
   if not g then return end
   g.set = {} g.list = {}
