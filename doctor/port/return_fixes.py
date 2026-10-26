@@ -226,6 +226,9 @@ def _pjass_lines(body_text, rx):
     return sorted(set(int(m.group(1)) for m in (rx.match(line) for line in r['line_list']) if m))
 
 
+RX_REAL_LITERAL = re.compile(r'^[\s(]*-?[\s(]*(?:\d+\.\d*|\.\d+)[\s)]*$')
+
+
 def integer_in_real(body_text):
     if not re.search(r'(?m)\breturns[ \t]+real\b', body_text):
         return body_text, 0
@@ -243,6 +246,8 @@ def integer_in_real(body_text):
             cr = '\r' if txt_ln.endswith('\r') else ''
             m = RX_RETURN_EXPR.match(txt_ln.rstrip('\r'))
             if m:
+                if RX_REAL_LITERAL.match(m.group(2)) or m.group(2).strip().startswith('I2R('):
+                    continue
                 if '//' not in m.group(2):
                     line_list[i] = '%sI2R(%s)%s%s' % (m.group(1), m.group(2), m.group(3), cr)
                     done_names.add(i)
