@@ -183,9 +183,23 @@ def extract_txt_text(details, body_text, entries, stats, unknown, tem_text=None)
         stats[details] += 1
 
 
+def misc_parts(body_text):
+    line_list, sep = line_break(body_text)
+    if not any('\n' in one_line or '\r' in one_line for one_line in line_list):
+        return line_list, sep
+    return re.split(r'(\r\n|\n|\r)', body_text), ''
+
+
+def misc_lines(body_text):
+    pieces, sep = misc_parts(body_text)
+    if sep:
+        return list(enumerate(pieces))
+    return [(i, p) for i, p in enumerate(pieces) if i % 2 == 0]
+
+
 def extract_misc_text(fn, body_text, entries, stats, tem_text=None):
     present = tem_text or CJK.search
-    for txt_ln, line_text in enumerate(line_break(body_text)[0]):
+    for txt_ln, line_text in misc_lines(body_text):
         mk = re.match(r'^([A-Za-z0-9_]+)=(.*)$', line_text)
         if mk and present(mk.group(2)):
             entries.append(
