@@ -3,6 +3,14 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 1.9.3 (2026-10-27)
+
+### Changed
+
+- **The line of the sites:** the program no longer shows the small line at the top of the left column that switched
+  between the devoltz.party sites; only the site has it now. On the site it gained Home (devoltz.party), it opens the
+  other sites in the same tab, and its items are a little narrower. Nothing else changed: the engine is the one of 1.9.1.
+
 ## 1.9.2 (2026-10-27)
 
 ### Changed
