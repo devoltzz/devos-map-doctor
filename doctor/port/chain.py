@@ -31,6 +31,7 @@ from doctor.app import job_progress
 from doctor.port import field_table
 from doctor.port import char_table
 from doctor.port import ui_local
+from doctor.port import thread_local
 
 
 RX_STRINGHASH = re.compile(r'StringHash\("((?:[^"\\]|\\.)*)"\)')
@@ -376,6 +377,19 @@ def assemble(r, argv=None):
     medidas['ui_local'] = dict(
         (k, info[k]) for k in ('local_vars', 'functions', 'synchronous_ones', 'quadro', 'boot_info')
     )
+    found_t = thread_local.audit(t)
+    found_c = [a for a in thread_local.audit(t, creation=True) if all(x.startswith('+') for x in a[1])]
+    if 'local' in exp_len:
+        thread_local.report_data(found_t)
+        if found_c:
+            print('   natives that create a handle reached from local code: %d function(s) (%s)'
+                  % (len(found_c), ', '.join(a[0] for a in found_c[:8])))
+        medida = {'threads': len(found_t), 'cria': len(found_c)}
+        verify('8b (local code)', exp_len['local'], medida)
+        medidas['local'] = medida
+    elif found_t:
+        print('WARNING 8b: a thread in local code (it desyncs; `common/kk/thread_local.py`): %s'
+              % '; '.join('%s (%s)' % (a[0], ', '.join(a[1])) for a in found_t[:6]))
 
     job_progress.step_size('9', 'Building the script: terrain and desync')
     cfg = {'ext': r.DESYNC_EXT, 'extract': r.EXTRACT, 'raw_data': r.CRU, 'copy': os.path.join(r.OUT, 'mapa_terreno.j'),
