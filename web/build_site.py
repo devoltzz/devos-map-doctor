@@ -16,6 +16,8 @@ PACKAGES = ('numpy', 'pillow')
 CORE = ('pyodide.js', 'pyodide.mjs', 'pyodide.asm.mjs', 'pyodide.asm.wasm', 'python_stdlib.zip', 'pyodide-lock.json')
 SIZE_LIMIT = 450 * 1024 * 1024
 THEME = '#121418'
+SHARED_CSS = 'devoltz.css'
+SHARED_CSS_LINK = re.compile(r'<link rel="stylesheet" href="[^"]*?devoltz\.css">')
 OPTIONAL = ('data/game_data.zip',)
 NOT_CACHED = ('sw.js', 'names.npz')
 DOCTOR = {
@@ -33,6 +35,7 @@ DOCTOR = {
         'short_name': 'Map Doctor',
         'description': 'Fix, open in the World Editor and port Warcraft III maps, in the browser.',
     },
+    'favicon': 'doctor.svg',
     'cache_prefix': 'doctor',
     'size_limit_mb': SIZE_LIMIT // (1024 * 1024),
     'mpqcrypt_c': 'doctor/mpq/mpqcrypt.c',
@@ -137,6 +140,7 @@ def page(ui, out, config, prod=None):
             shutil.copytree(p, os.path.join(out, n), dirs_exist_ok=True)
     with open(os.path.join(ui, 'index.html'), encoding='utf-8') as f:
         html = f.read()
+    html = shared_css(html, out)
     if prod.get('inline_script'):
         m = re.search(r'(?s)\n<script>\n(.*?)</script>\n', html)
         if not m:
@@ -151,6 +155,8 @@ def page(ui, out, config, prod=None):
                         ''.join('\n<script src="%s"></script>' % n for n in prod['after']))
     head = ('<link rel="manifest" href="manifest.webmanifest">\n<link rel="icon" href="icon-192.png">\n'
             '<meta name="theme-color" content="%s">' % THEME)
+    if favicon(out, prod):
+        head += '\n<link rel="icon" href="favicon.svg" type="image/svg+xml">'
     html = html.replace(css, head + '\n' + css if css.startswith('</') else css + '\n' + head)
     with open(os.path.join(out, 'index.html'), 'w', encoding='utf-8', newline='\n') as f:
         f.write(html)
@@ -166,6 +172,29 @@ def page(ui, out, config, prod=None):
                           {'src': 'icon-256.png', 'sizes': '256x256', 'type': 'image/png'}]}
     with open(os.path.join(out, 'manifest.webmanifest'), 'w', encoding='utf-8', newline='\n') as f:
         json.dump(manifest, f, indent=1)
+
+
+def favicon(out, prod):
+    name = prod.get('favicon')
+    for base in (prod.get('web_dir', HERE), HERE):
+        src = os.path.join(base, 'icones', name) if name else ''
+        if src and os.path.isfile(src):
+            shutil.copyfile(src, os.path.join(out, 'favicon.svg'))
+            return True
+    return False
+
+
+def shared_css(html, out):
+    n = len(SHARED_CSS_LINK.findall(html))
+    if not n:
+        return html
+    if n > 1:
+        raise SystemExit('build_site: the page links %s %d times' % (SHARED_CSS, n))
+    if os.path.isfile(os.path.join(HERE, SHARED_CSS)):
+        shutil.copyfile(os.path.join(HERE, SHARED_CSS), os.path.join(out, SHARED_CSS))
+    if not os.path.isfile(os.path.join(out, SHARED_CSS)):
+        raise SystemExit('build_site: %s is missing (next to build_site.py or in the page folder)' % SHARED_CSS)
+    return SHARED_CSS_LINK.sub('<link rel="stylesheet" href="%s">' % SHARED_CSS, html)
 
 
 def service_worker(out, version, prod=None):
