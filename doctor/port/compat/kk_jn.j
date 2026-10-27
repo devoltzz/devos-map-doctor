@@ -7,6 +7,13 @@ boolean KKJN_blob_lit=false
 string array KKJN_rec
 integer array KKJN_reclit
 boolean KKJN_dano_avisado=false
+integer KKJN_lidos=0
+integer KKJN_espera=0
+boolean KKJN_curto=false
+integer KKJN_cg_lidos=0
+integer KKJN_cg_espera=0
+boolean KKJN_cg_curto=false
+boolean KKJN_encolhe_avisado=false
 integer KKJN_nrec=0
 string array KKJN_pbuf
 integer KKJN_wescritas=0
@@ -313,6 +320,101 @@ function KKJN_PosB takes string s,string sub,integer start returns integer
         set i=i+1
     endloop
     return -1
+endfunction
+
+function KKJN_Especial takes string s returns boolean
+    local integer n=StringLength(s)
+    local integer i=0
+    local string b
+    loop
+        exitwhen i>=n
+        set b=SubString(s, i, i+1)
+        if b==";" or b=="\\" or b=="\"" or b=="\n" or b=="\r" or b=="%" then
+            return true
+        endif
+        set i=i+1
+    endloop
+    return false
+endfunction
+
+function KKJN_Esc2 takes string s,string p returns string
+    local integer n=StringLength(s)
+    local integer i=0
+    local string r=""
+    local string b
+    loop
+        exitwhen i>=n
+        set b=SubString(s, i, i+1)
+        if b=="#" then
+            set r=r+p+"23"
+        elseif b=="%" then
+            set r=r+p+"25"
+        elseif b==";" then
+            set r=r+p+"3B"
+        elseif b=="\\" then
+            set r=r+p+"5C"
+        elseif b=="\"" then
+            set r=r+p+"22"
+        elseif b=="\n" then
+            set r=r+p+"0A"
+        elseif b=="\r" then
+            set r=r+p+"0D"
+        elseif b=="=" then
+            set r=r+p+"3D"
+        else
+            set r=r+b
+        endif
+        set i=i+1
+    endloop
+    return r
+endfunction
+
+function KKJN_Unesc2 takes string s,string p returns string
+    local integer n=StringLength(s)
+    local integer i=0
+    local string r=""
+    local string c
+    if KKJN_PosB(s, p, 0)<0 then
+        return s
+    endif
+    loop
+        exitwhen i>=n
+        set c=SubString(s, i, i+1)
+        if c==p and i+2<n+1 then
+            set c=SubString(s, i+1, i+3)
+            if c=="23" then
+                set r=r+"#"
+            elseif c=="25" then
+                set r=r+"%"
+            elseif c=="3B" then
+                set r=r+";"
+            elseif c=="5C" then
+                set r=r+"\\"
+            elseif c=="22" then
+                set r=r+"\""
+            elseif c=="0A" then
+                set r=r+"\n"
+            elseif c=="0D" then
+                set r=r+"\r"
+            elseif c=="3D" then
+                set r=r+"="
+            else
+                set r=r+p+c
+            endif
+            set i=i+3
+        else
+            set r=r+c
+            set i=i+1
+        endif
+    endloop
+    return r
+endfunction
+
+function KKJN_RecS takes string nome,string valor returns string
+    if KKJN_Especial(nome) or KKJN_Especial(valor) then
+        return "q|"+KKJN_Esc2(nome, "#")+"="+KKJN_Esc2(valor, "#")+";"
+    endif
+    return "s|"+nome+"="+valor+";"
 endfunction
 //{{KK_SE:KK_JN_REGEX}}
 
@@ -722,7 +824,7 @@ function KKJN_PoeCampo takes string obj,string fld,integer tipo,string sval,inte
     endif
     if rec==null or rec=="" or nome!=fld then
         if tipo==1 then
-            set rec="s|"+KKJN_Esc(nome)+"="+KKJN_Esc(sval)+";"
+            set rec=KKJN_RecS(nome, sval)
         else
             set rec="i|"+KKJN_Esc(nome)+"="+I2S(ival)+";"
         endif
@@ -811,14 +913,22 @@ function KKJN_ParseRecs takes string obj,string s returns nothing
             set i=i+2
         elseif c==";" then
             set rec=SubString(s, start, i)
+            if SubString(rec, 0, 2)=="#n" then
+                set KKJN_espera=S2I(SubString(rec, 2, StringLength(rec)))
+            endif
             if StringLength(rec)>=3 and SubString(rec, 0, 1)!="#" then
                 set e=KKJN_PosB(rec, "=", 0)
                 if e>1 then
                     set vtxt=SubString(rec, e+1, StringLength(rec))
-                    if SubString(rec, 0, 1)=="s" then
+                    set KKJN_lidos=KKJN_lidos+1
+                    if SubString(rec, 0, 2)=="q|" then
+                        call KKJN_SetFieldS(obj, KKJN_Unesc2(SubString(rec, 2, e), "#"), KKJN_Unesc2(vtxt, "#"))
+                    elseif SubString(rec, 0, 2)=="p|" then
+                        call KKJN_SetFieldS(obj, KKJN_Unesc2(SubString(rec, 2, e), "%"), KKJN_Unesc2(vtxt, "%"))
+                    elseif SubString(rec, 0, 1)=="s" then
                         if esc then
                             call KKJN_SetFieldS(obj, KKJN_Unesc(SubString(rec, 2, e)), KKJN_Unesc(vtxt))
-                        elseif SubString(rec, 1, 2)=="|" then
+                        elseif SubString(rec, 1, 2)=="|" and not aspas then
                             call KKJN_PoeCampo(obj, SubString(rec, 2, e), 1, vtxt, 0, rec+";", aspas)
                         else
                             call KKJN_SetFieldS(obj, SubString(rec, 2, e), vtxt)
@@ -872,7 +982,7 @@ function KKJN_BuildBlob takes string obj returns nothing
                     set KKJN_blob_lit=true
                 endif
             elseif LoadInteger(KKJN_dbt, vk, h)==1 then
-                set r="s|"+KKJN_Esc(fld)+"="+KKJN_Esc(LoadStr(KKJN_db, vk, h))+";"
+                set r=KKJN_RecS(fld, LoadStr(KKJN_db, vk, h))
                 set KKJN_blob_lit=true
             else
                 set r="i|"+KKJN_Esc(fld)+"="+I2S(LoadInteger(KKJN_db, vk, h))+";"
@@ -925,7 +1035,7 @@ function KKJN_Reparte takes integer parts returns integer
     local integer i=0
     local integer p=0
     local integer n
-    local string b="#"+I2S(parts)+";"
+    local string b="#"+I2S(parts)+";#n"+I2S(KKJN_nrec)+";"
     local integer bl=StringLength(b)
     local string r
     local integer c
@@ -1000,8 +1110,28 @@ function KKJN_WriteParts takes string base returns nothing
     set KKJN_nrec=0
 endfunction
 
+function KKJN_FatiaCurta takes nothing returns boolean
+    local integer s=0
+    local string t
+    if KKJN_PosB(KKJN_SlotTudo(), "p|", 0)<0 and KKJN_PosB(KKJN_SlotTudo(), "%", 0)<0 then
+        return false
+    endif
+    loop
+        exitwhen s+1>=KKJN_nslots
+        set t=KKJN_SlotGet(s)
+        if KKJN_SlotGet(s+1)!="" and StringLength(t)<KKJN_TRECHO-1 and KKJN_LenLit(t)<KKJN_TRECHO-1 then
+            return true
+        endif
+        set s=s+1
+    endloop
+    return false
+endfunction
+
 function KKJN_LoadPart takes nothing returns nothing
     local integer s=0
+    if KKJN_FatiaCurta() then
+        set KKJN_curto=true
+    endif
     loop
         exitwhen s>=KKJN_nslots
         call KKJN_ParseRecs(KKJN_lobj, KKJN_resto+KKJN_SlotGet(s))
@@ -1015,6 +1145,17 @@ function KKJN_Dano takes string obj returns nothing
     if not KKJN_dano_avisado then
         set KKJN_dano_avisado=true
         call DisplayTimedTextToPlayer(GetLocalPlayer(), 0, 0, 60, "|cffff4040[Save] Your save file is damaged (an older version of the map cut one of its lines). It was left untouched and NOTHING will be saved this game, so it stays safe. Repair it with the save repair tool (ask on the map's Discord) and load again.|r")
+    endif
+endfunction
+
+function KKJN_ConfereCarga takes string obj,integer lidos,integer espera,boolean curto returns nothing
+    if not curto and (espera<=0 or lidos>=espera) then
+        return
+    endif
+    call SaveBoolean(KKJN_dbf, StringHash(obj), -6, true)
+    if not KKJN_encolhe_avisado then
+        set KKJN_encolhe_avisado=true
+        call DisplayTimedTextToPlayer(GetLocalPlayer(), 0, 0, 60, "|cffff4040[Save] Part of your save could not be read (it came back smaller than it was written). Your save file was left untouched and NOTHING will be saved this game, so it stays safe. Rebuild it with the save repair tool (ask on the map's Discord) and load again.|r")
     endif
 endfunction
 
@@ -1041,6 +1182,9 @@ function KKJN_LoadObjRaw takes string obj,string base returns boolean
     endif
     set KKJN_lobj=obj
     set KKJN_resto=""
+    set KKJN_lidos=0
+    set KKJN_espera=0
+    set KKJN_curto=false
     loop
         exitwhen p>=parts
         if p>0 then
@@ -1055,6 +1199,7 @@ function KKJN_LoadObjRaw takes string obj,string base returns boolean
         set p=p+1
     endloop
     set KKJN_resto=""
+    call KKJN_ConfereCarga(obj, KKJN_lidos, KKJN_espera, KKJN_curto)
     call SaveBoolean(KKJN_dbf, StringHash(obj), -4, false)
     call SaveStr(KKJN_dbf, StringHash(obj), -5, base)
     return true
@@ -1090,6 +1235,12 @@ function KKJN_CargaLe takes integer quantas returns boolean
     local integer k=StringHash(KKJN_cg_obj)
     local string lobj0=KKJN_lobj
     local string resto0=KKJN_resto
+    local integer lidos0=KKJN_lidos
+    local integer espera0=KKJN_espera
+    local boolean curto0=KKJN_curto
+    set KKJN_lidos=KKJN_cg_lidos
+    set KKJN_espera=KKJN_cg_espera
+    set KKJN_curto=KKJN_cg_curto
     loop
         exitwhen KKJN_cg_p>=KKJN_cg_parts
         exitwhen quantas>0 and n>=quantas
@@ -1107,10 +1258,17 @@ function KKJN_CargaLe takes integer quantas returns boolean
     endloop
     set KKJN_lobj=lobj0
     set KKJN_resto=resto0
+    set KKJN_cg_lidos=KKJN_lidos
+    set KKJN_cg_espera=KKJN_espera
+    set KKJN_cg_curto=KKJN_curto
+    set KKJN_lidos=lidos0
+    set KKJN_espera=espera0
+    set KKJN_curto=curto0
     call KKJN_SlotRestore()
     if KKJN_cg_p<KKJN_cg_parts then
         return false
     endif
+    call KKJN_ConfereCarga(KKJN_cg_obj, KKJN_cg_lidos, KKJN_cg_espera, KKJN_cg_curto)
     call SaveBoolean(KKJN_dbf, k, -4, false)
     call SaveStr(KKJN_dbf, k, -5, KKJN_cg_base)
     call SaveBoolean(KKJN_dbf, k, -2, true)
@@ -1157,6 +1315,9 @@ function KKJN_CargaComeca takes string MapId,string UserId,string SecretKey,stri
                 endif
                 set KKJN_cg_p=0
                 set KKJN_cg_resto=""
+                set KKJN_cg_lidos=0
+                set KKJN_cg_espera=0
+                set KKJN_cg_curto=false
                 if not KKJN_CargaLe(KKJN_CARGA_POR_TIQUE) then
                     return KKJN_CARGA_PENDENTE
                 endif
