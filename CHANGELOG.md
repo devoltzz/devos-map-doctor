@@ -3,6 +3,28 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 1.9.1 (2026-10-27)
+
+### Fixed
+
+- **Open in World Editor: the abilities made from the SLK tables, again** (issue 58). A tooltip the map keeps as one
+  line split by commas (`Tip=level 1,level 2,level 3`) went whole into level 1 when the list had more parts than the
+  ability has levels: on FOCS ver192, tooltips of up to 1,131 characters. Each level now gets its own part, as the game
+  reads the list, and no ability gets a value for a level it does not have (983 of them on ver192). The JassNative
+  Editor still closed with "not enough memory" on FOCS ver192 made by 1.9.0; the long tooltips were the one thing those
+  abilities had that the ones of FOCS3, which opens, did not. I could not run that editor to confirm this was the
+  cause.
+- **Port to Reforged of maps of 1.23 and older:** 1.9.0 sent the vJass string cast (`SH2I`, a function that returns
+  the global that holds its parameter) through the handle table instead of converting it by its type, as 1.8.9 did. It
+  is converted by its type again; Regicide v2.12 and Neverwinter Nights RPG v2.2c still pass the compiler gates.
+- **Port to Reforged (KK and M16 maps), from the ports of the last days:**
+  - the local save of M16 maps writes a value with `;`, a backslash, a quote or a line break as an escaped record with
+    no backslash at all (on a Korean RPG such values came back cut, and the backslashes doubled on every save); the
+    saves without those characters stay byte for byte the same, and the load reads both;
+  - the save records how many records it wrote: a load that comes back with fewer (a save the game cut) is kept for
+    the game, and nothing writes over it in that game;
+  - the save folder of a KK map: a player name the panel cut (a BattleTag of 6 digits or more) keeps the full account.
+
 ## 1.9.0 (2026-10-26)
 
 ### New
