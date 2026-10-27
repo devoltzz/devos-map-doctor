@@ -137,8 +137,8 @@ class Columns(object):
                 self.simple.setdefault(name, []).append(entry)
 
     def applies(self, field, code):
-        use, nao = self.spec.get(field, (frozenset(), frozenset()))
-        return code in use if use else code not in nao
+        use, excluded = self.spec.get(field, (frozenset(), frozenset()))
+        return code in use if use else code not in excluded
 
     def resolve(self, col, code=None):
         if col in self.simple:
@@ -199,15 +199,23 @@ def _mods_of(species, cols, meta, row, cru_row, base_row, base_cru, rep, code=No
     mapped, unmapped = _row_fields(cols, row, code if species == 'ability' else None)
     for col in unmapped:
         rep['unmapped'][col] += 1
+    levels = _levels(row, base_row) if species == 'ability' and code is not None else None
     listed = set()
     for col, text, targets in mapped:
         for code, idx, level, mtype, data in targets:
+            if levels is not None and level > levels:
+                rep['above_levels'] = rep.get('above_levels', 0) + 1
+                continue
             if species == 'ability' and col in cols.per_level:
                 if (col, code) in listed:
                     continue
                 listed.add((col, code))
-                mine = ob.value_levels((cru_row or {}).get(col), row.get('levels'))
-                theirs = ob.value_levels((base_cru or {}).get(col), base_row.get('levels')) if base_row else []
+                if levels is None:
+                    mine = ob.value_levels((cru_row or {}).get(col), row.get('levels'))
+                    theirs = ob.value_levels((base_cru or {}).get(col), base_row.get('levels')) if base_row else []
+                else:
+                    mine = _per_level((cru_row or {}).get(col), levels)
+                    theirs = _per_level((base_cru or {}).get(col), _levels(base_row, None)) if base_row else []
                 for i, v in enumerate(mine):
                     if i < len(theirs) and _norm(theirs[i]) == _norm(v):
                         continue
@@ -233,6 +241,22 @@ def _mods_of(species, cols, meta, row, cru_row, base_row, base_cru, rep, code=No
         taken.add(k)
         final.append(m)
     return final
+
+
+def _levels(row, base_row):
+    for r in (row, base_row):
+        n = _num((r or {}).get('levels')) if r else None
+        if n:
+            return max(1, int(n))
+    return 1
+
+
+def _per_level(raw, levels):
+    if raw is None or raw == '':
+        return []
+    ob = _objetos()
+    parts = [ob._unquoted(p.strip()) for p in ob._split_levels(raw)]
+    return [parts[min(i, len(parts) - 1)] for i in range(levels)]
 
 
 def _value(tipo, text, profile=False):
@@ -268,7 +292,8 @@ def convert(read, names, species, base, w3i=None, progress=None):
     p = progress or (lambda *_a, **_k: None)
     cfg = ob.OBJ_KINDS[species]
     rep = {'rows': 0, 'unchanged': 0, 'originals': 0, 'new': 0, 'mods': 0, 'parent_code': 0, 'parent_inferred': 0,
-           'parent_equal_columns': 0, 'parent_columns': 0, 'unmapped': collections.Counter(), 'twins': 0}
+           'parent_equal_columns': 0, 'parent_columns': 0, 'unmapped': collections.Counter(), 'twins': 0,
+           'above_levels': 0}
     p('Reading the %s tables' % species)
     tab, cru = map_tables(read, names, species)
     out = {'file': cfg['map_path'], 'bytes': None, 'objects': [], 'report': rep}
