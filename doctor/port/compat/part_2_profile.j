@@ -291,7 +291,11 @@ endfunction
 function DB_nome_conta takes player p returns string
     local integer i=GetPlayerId(p)
     local string n=GetPlayerName(p)
-    if DB_pos(n, "|", 0)<0 and (DB_nome_cru[i]==null or DB_nome_cru[i]=="" or DB_eh_battletag(n)) then
+    local string c=DB_nome_cru[i]
+    if DB_pos(n, "|", 0)<0 and (c==null or c=="" or DB_eh_battletag(n)) then
+        if c!=null and c!="" and StringLength(n)<StringLength(c) and SubString(c, 0, StringLength(n))==n then
+            return c
+        endif
         set DB_nome_cru[i]=n
         return n
     endif
@@ -1615,7 +1619,7 @@ function DB_pasta_corte5 takes nothing returns string
     if t<7 or not DB_eh_battletag(n) then
         return ""
     endif
-    if SubString(n, t-6, t-5)!="#" then
+    if DB_pos(SubString(n, t-5, t), "#", 0)>=0 then
         return ""
     endif
     return DB_safe_name(SubString(n, 0, t-5))
