@@ -3,6 +3,15 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 1.9.2 (2026-10-27)
+
+### Changed
+
+- **The look of the window and the site:** the Doctor now shares its colors, its frame and its buttons with the other
+  devoltz.party sites (DevoProtect and the map releases), so the three look like one family. The top of the left
+  column has a small line to switch between them (Doctor, Protect, Releases); in the program they open in your
+  browser. The site has its own icon in the browser tab. Nothing else changed: the engine is the one of 1.9.1.
+
 ## 1.9.1 (2026-10-27)
 
 ### Fixed
