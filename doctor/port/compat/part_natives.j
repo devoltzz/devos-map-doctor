@@ -830,6 +830,9 @@ constant integer DB_UI_TEX=492
 constant integer DB_UI_TEX_FLAG=493
 constant integer DB_UI_TXT_SOMA=494
 constant integer DB_UI_NOSSO=495
+//{{KK_SE:KK_UI_ESCONDE_UMA}}
+constant integer DB_UI_VIS=496
+//{{KK_FIMSE:KK_UI_ESCONDE_UMA}}
 
 function DB_ui_nosso takes integer nid returns integer
     if DB_ui_ht!=null and nid!=0 then
@@ -851,8 +854,21 @@ function DzFrameShow takes integer frame,boolean enable returns nothing
         endif
         //{{KK_FIMSE:KK_UI_PAI}}
         if enable and BlzFrameIsVisible(f) then
+            //{{KK_SE:KK_UI_ESCONDE_UMA}}
+            if DB_ui_ht!=null and LoadBoolean(DB_ui_ht, frame, DB_UI_NOSSO) then
+                call SaveBoolean(DB_ui_ht, frame, DB_UI_VIS, true)
+            endif
+            //{{KK_FIMSE:KK_UI_ESCONDE_UMA}}
             return
         endif
+        //{{KK_SE:KK_UI_ESCONDE_UMA}}
+        if DB_ui_ht!=null and LoadBoolean(DB_ui_ht, frame, DB_UI_NOSSO) then
+            if not enable and HaveSavedBoolean(DB_ui_ht, frame, DB_UI_VIS) and not LoadBoolean(DB_ui_ht, frame, DB_UI_VIS) and not BlzFrameIsVisible(f) then
+                return
+            endif
+            call SaveBoolean(DB_ui_ht, frame, DB_UI_VIS, enable)
+        endif
+        //{{KK_FIMSE:KK_UI_ESCONDE_UMA}}
         call BlzFrameSetVisible(f, enable)
     endif
 endfunction
