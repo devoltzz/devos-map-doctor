@@ -351,11 +351,24 @@ def merge_new(data, name, objects):
     ob = _objetos()
     levels = ob.uses_levels(name)
     ver, had, _n = ob.read_objects_bytes(data, levels, name, True)
-    seen = set((o[2] if o[0] == 1 else o[1]).lower() for o in had)
-    added = [o for o in objects if o[0] == 1 and o[2].lower() not in seen]
-    out = {'bytes': None, 'added': [o[2] for o in added], 'kept': len(had), 'version': ver}
+    new = dict((o[2].lower(), o) for o in objects if o[0] == 1)
+    orphans = dict((o[1].lower(), o) for o in had if o[0] == 0 and o[1].lower() in new)
+    seen = set(o[2].lower() for o in had if o[0] == 1) | set(o[1].lower() for o in had if o[0] == 0 and
+                                                              o[1].lower() not in orphans)
+    added = []
+    for o in objects:
+        if o[0] != 1 or o[2].lower() in seen:
+            continue
+        orphan = orphans.get(o[2].lower())
+        if orphan is not None:
+            mine = set((m[0], m[2]) for m in orphan[3])
+            o = (1, o[1], o[2], [m for m in o[3] if (m[0], m[2]) not in mine] + list(orphan[3]))
+        added.append(o)
+    out = {'bytes': None, 'added': [o[2] for o in added], 'kept': len(had) - len(orphans), 'version': ver,
+           'merged': [o[1] for o in orphans.values()]}
     if added and ver <= 2:
-        out['bytes'] = ob.write_objects_bytes(ver, list(had) + added, levels)
+        out['bytes'] = ob.write_objects_bytes(ver, [o for o in had if not (o[0] == 0 and o[1].lower() in orphans)] +
+                                              added, levels)
     return out
 
 
@@ -517,6 +530,12 @@ def fix(path_in, path_out, progress=None, base=None, species=SPECIES):
                 ),
             )
         )
+        if m['merged']:
+            rep['lines'].append(('good', '%s: %d of them were in %s as changes to a game object that does not exist '
+                                         '(the levels the SLK table has no column for: the editor showed them as '
+                                         '"Unknown"); they are new objects now, with those changes (%s).' % (
+                                             s, len(m['merged']), fname, ', '.join(m['merged'][:6]) +
+                                             ('...' if len(m['merged']) > 6 else ''))))
     if outras:
         rep['lines'].append(
             (
