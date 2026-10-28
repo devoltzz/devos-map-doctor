@@ -196,8 +196,30 @@ function GetPlayerStartLocation(p) return 0 end
 function GetPlayerColor(p) return PLAYER_COLOR_RED end
 function IsPlayerAlly(a, b) return a == b end
 function IsPlayerEnemy(a, b) return a ~= b end
-function IsUnitAlly(u, p) return u and u.owner == p end
-function IsUnitEnemy(u, p) return u and u.owner ~= p end
+-- [26/10/2026, a F5 do IS9] as ALIANCAS que o mapa declara (o `InitCustomTeams` do World Editor: o
+-- `SetPlayerAllianceStateAllyBJ` do blizzard.j chama o `SetPlayerAlliance`; eram stubs): `__mock.alianca[de][para][tipo]`.
+-- A unidade e' aliada do dono e de quem declarou o dono dela PASSIVO (o `ALLIANCE_PASSIVE`); inimiga do resto. Antes era
+-- "dono diferente = inimigo", ate' entre os jogadores do mesmo time aliado. O par que o mapa nao declara fica inimigo,
+-- como antes: o Neutral Hostile, os computadores de outro time e o Neutral Passive (o padrao do motor para os neutros
+-- NAO foi medido). Os lados vem do mapa e nao de uma regra fixa: o Sacred Tree tem o computador 7 inimigo, o fairy o 10
+-- aliado dos jogadores, o MJSK 10 jogadores. O `IsPlayerAlly`/`IsPlayerEnemy` ficam como estavam (so' aliado de si).
+M.alianca = {}
+function SetPlayerAlliance(a, b, tipo, v)
+  if a == nil or b == nil or tipo == nil then return end
+  local t = M.alianca
+  t[a.id] = t[a.id] or {}
+  t[a.id][b.id] = t[a.id][b.id] or {}
+  t[a.id][b.id][tipo.__h or 0] = (v == true)
+end
+function GetPlayerAlliance(a, b, tipo)
+  if a == nil or b == nil or tipo == nil then return false end
+  local x = M.alianca[a.id]
+  x = x and x[b.id]
+  return x ~= nil and x[tipo.__h or 0] == true
+end
+function __mock_aliado(p, dono) return p == dono or GetPlayerAlliance(p, dono, ALLIANCE_PASSIVE) end
+function IsUnitAlly(u, p) return u ~= nil and p ~= nil and u.owner ~= nil and __mock_aliado(p, u.owner) end
+function IsUnitEnemy(u, p) return u ~= nil and p ~= nil and u.owner ~= nil and not __mock_aliado(p, u.owner) end
 -- [F5:desyncyone] antes devolvia sempre true: com isso CountPlayersInForceBJ sem ForForce contaria
 -- os 16 slots. A forca do mock e { list = {...} }, entao da para responder de verdade.
 function IsPlayerInForce(p, f)
@@ -893,8 +915,10 @@ function __mock_unit_removed(u)
   if not u or not M.trig_events then return end
   local gat = {} for t in pairs(M.trig_events) do gat[#gat + 1] = t end
   table.sort(gat, function(x, y) return x.__seq < y.__seq end)
-  local pu, pf, po, pp, po2 = __trigger_unit, __filter_unit, __mock_order_id, __trigger_player, __ordem_id
+  -- [26/10/2026] com o `GetTriggerEventId` do evento de ordem, como o `Issue*OrderById`
+  local pu, pf, po, pp, po2, pe = __trigger_unit, __filter_unit, __mock_order_id, __trigger_player, __ordem_id, __trigger_event
   __trigger_unit, __filter_unit, __mock_order_id, __trigger_player, __ordem_id = u, u, 852056, u.owner, 852056
+  __trigger_event = EVENT_PLAYER_UNIT_ISSUED_ORDER
   for _, t in ipairs(gat) do
     for _, ev in ipairs(t.events) do
       if ev[1] == "playerunit" and ev[2] == EVENT_PLAYER_UNIT_ISSUED_ORDER then
@@ -906,7 +930,7 @@ function __mock_unit_removed(u)
       end
     end
   end
-  __trigger_unit, __filter_unit, __mock_order_id, __trigger_player, __ordem_id = pu, pf, po, pp, po2
+  __trigger_unit, __filter_unit, __mock_order_id, __trigger_player, __ordem_id, __trigger_event = pu, pf, po, pp, po2, pe
 end
 -- cadaver: o motor remove a unidade morta (nao heroi) depois do tempo de decomposicao (~88 s)
 M.decay = {}
@@ -977,7 +1001,7 @@ function TriggerRegisterPlayerEvent(t, p, ev) return reg(t, "player", ev) end
 -- [R1F1:comandos] o 4o parametro (casamento EXATO) passa a ser guardado: sem ele o simulador
 -- tratava todo registro de chat como prefixo, e "-skills" respondia a um registro de "-skill".
 function TriggerRegisterPlayerChatEvent(t, p, s, e) return reg(t, "chat", s, e == true) end
-function TriggerRegisterEnterRegion(t, r, f) M.enter_triggers = M.enter_triggers or {} M.enter_triggers[#M.enter_triggers + 1] = { t, f } return reg(t, "enter", r) end
+function TriggerRegisterEnterRegion(t, r, f) M.enter_triggers = M.enter_triggers or {} M.enter_triggers[#M.enter_triggers + 1] = { t, f, r } return reg(t, "enter", r) end
 function TriggerRegisterLeaveRegion(t, r, f) return reg(t, "leave", r) end
 function TriggerRegisterGameEvent(t, e) return reg(t, "game", e) end
 -- [18/10/2026] o evento "Value of Real Variable" do GUI fica guardado pelo NOME da global, para o `globals` do Lua
@@ -1156,7 +1180,14 @@ function CreateUnit(p, id, x, y, face)
       local t, f = e[1], e[2]
       local pu = __filter_unit __filter_unit = u
       local pass = true
-      if f and f.fn then local ok, v = pcall(f.fn) if not ok then __logerr("enter filter: " .. tostring(v)) end pass = v ~= false end
+      local rg = e[3]
+      if rg and rg.rects then
+        pass = false
+        for _, rc in ipairs(rg.rects) do
+          if (u.x or 0) >= rc.minx and (u.x or 0) <= rc.maxx and (u.y or 0) >= rc.miny and (u.y or 0) <= rc.maxy then pass = true end
+        end
+      end
+      if pass and f and f.fn then local ok, v = pcall(f.fn) if not ok then __logerr("enter filter: " .. tostring(v)) end pass = v ~= false end
       __filter_unit = pu
       if pass then __mock_fire(t, u, p) end
     end
@@ -1910,7 +1941,7 @@ __filter_unit = nil
 __enum_unit = nil
 function GetFilterUnit() return __filter_unit end
 function GetEnumUnit() return __enum_unit end
--- [F6:grailin] the removed unit stays as an EMPTY SLOT in the group (`BlzGroupGetSize` counts it); `ForGroup` skips it, as in the engine
+-- [F6:grailin] a unidade removida fica como VAGA no grupo (o `BlzGroupGetSize` a conta); o `ForGroup` a pula, como no motor
 function ForGroup(g, f) if not g then return end for _, u in ipairs(g.list) do if u.typeid ~= 0 then M.nasc = M.nasc + 1 local p = __enum_unit __enum_unit = u local ok, e = pcall(f) __enum_unit = p if not ok then __logerr("ForGroup: " .. tostring(e)) end end end end
 function BlzGroupAddGroupFast(s, d) local n = 0 if s and d then for _, u in ipairs(s.list) do if u.typeid ~= 0 then GroupAddUnit(d, u) n = n + 1 end end end return n end
 local function enum_units(g, pred, f)
@@ -2026,7 +2057,10 @@ function GetWorldBounds() return newh("rect", { minx = -32000, miny = -32000, ma
 function GetPlayableMapRect() return Rect(-32000, -32000, 32000, 32000) end
 function GetEntireMapRect() return Rect(-32000, -32000, 32000, 32000) end
 function CreateRegion() return newh("region") end
-function RegionAddRect(r, rc) end
+-- [28/10/2026, a F3.5 da Inotia] a regiao guarda os retangulos: o "entra na regiao" so' dispara para a unidade que
+-- nasce DENTRO de um deles (antes disparava para toda unidade criada: os portais do original levavam os NPCs novos
+-- do hub para o outro lado do mapa). Regiao sem retangulo continua disparando sempre (o comportamento antigo).
+function RegionAddRect(r, rc) if r and rc and rc.minx then r.rects = r.rects or {} r.rects[#r.rects + 1] = rc end end
 -- itens: no chao (dono nil, visivel) ou no inventario (dono = unidade, invisivel)
 M.items = {}
 -- [F5:perf] a nativa recebe inteiro: com rawcode em texto (o mapa carrega o codigo do item da hashtable,
@@ -2675,7 +2709,18 @@ function ClearTextMessages() end
 --   IssueXOrder*           -> dispara EVENT_PLAYER_UNIT_ISSUED_*_ORDER nos gatilhos registrados
 -- As duas primeiras linhas sao o que separa o defeito da correcao; as outras medem o custo.
 function PauseUnit(u, f) if u then u.pausado = (f == true) end end
-function BlzPauseUnitEx(u, f) if u then u.stun_ex = (f == true) end end
+-- [26/10/2026, a F5 do IS9] o `BlzPauseUnitEx` do motor e' CONTADO (cada pausa pede a sua soltura: `common/docs/
+-- kk-plataforma.md`, o `EXPauseUnit`): `u.stun_n` soma 1 no true e tira 1 no false, e a unidade fica presa (`u.stun_ex`,
+-- o que o resto do mock le) enquanto a conta passa de 0. A conta pode ficar negativa (o false a mais; NAO medido em
+-- jogo). Antes era um booleano: a 1.a soltura soltava a unidade com outra pausa de pe'. Com `__mock_stun_log = {}`
+-- cada chamada entra nele ({ tempo, unidade, conta }).
+__mock_stun_log = nil
+function BlzPauseUnitEx(u, f)
+  if not u then return end
+  u.stun_n = (u.stun_n or 0) + ((f == true) and 1 or -1)
+  u.stun_ex = u.stun_n > 0
+  if __mock_stun_log then __mock_stun_log[#__mock_stun_log + 1] = { M.now, u, u.stun_n } end
+end
 function SetUnitPropWindow(u, r) if u then u.prop = r + 0.0 end end
 function GetUnitPropWindow(u) return u and (u.prop or 1.0472) or 0.0 end
 -- sondas: o que o jogador VE
@@ -2693,19 +2738,40 @@ function QueueUnitAnimation(u, a) anima(u, a) end
 function AddUnitAnimationProperties(u, a, b) end
 function ResetUnitAnimation(u) anima(u, "stand") end
 -- ordens: evento sincronizado, na ordem do handle do gatilho (como __mock_say)
+-- [26/10/2026, a F5 do IS9] a ORDEM EM CURSO fica na unidade: `u.ordem` (o id, o `GetUnitCurrentOrder`), `u.ponto` ({x, y}
+-- da ordem de ponto) e `u.alvo_o` (o alvo da ordem de alvo); a FILA das `BlzQueue*OrderById` em `u.fila` ({id, x, y,
+-- alvo}), que toda ordem nova sem fila limpa. Tudo muda ANTES do evento: a ordem que o gatilho de ordem da' vale por
+-- cima. A ordem IMEDIATA acaba no fim do proprio evento (a habilidade instantanea por script: a Q do IS9 tirava a ordem
+-- em curso, o relato da F5; NAO medido para toda ordem), menos o "holdposition" (fica) e o "stop" (fica em `u.ordem`, que
+-- o uso de item le; o `GetUnitCurrentOrder` dele e' 0). A de ponto e a de alvo nunca acabam sozinhas (o mock nao anda
+-- com a unidade): `__mock_ordem_cumpre(u)` termina a em curso e poe a 1.a da fila no lugar. O evento roda com o
+-- `GetTriggerEventId` dele (antes: o de fora) e o `GetOrderTarget`/`GetOrderTargetItem`/`GetOrderTargetDestructable` e'
+-- o alvo (antes: o stub, um handle novo a cada chamada). O `OrderId`/`OrderId2String` pela tabela do motor
+-- (`__MOCK_ORDENS`, a `ORDER_IDS` do `common/scripts/jass_normal.py`; antes: 0 e "" para todo nome).
+__MOCK_ORDENS, __MOCK_ORDEM_NOME = {}, {}
+function OrderId(s) return (s ~= nil and __MOCK_ORDENS[s]) or 0 end
+function OrderId2String(i) return __MOCK_ORDEM_NOME[i] or "" end
 __ordem_id, __ordem_alvo, __ordem_x, __ordem_y = 0, nil, 0.0, 0.0
 function GetIssuedOrderId() return __ordem_id or __mock_order_id or 0 end  -- [F5:castui]+[F5:perf]
 function GetOrderedUnit() return __trigger_unit end
 function GetOrderTargetUnit() return __ordem_alvo end
+function GetOrderTarget() return __ordem_alvo end
+function GetOrderTargetItem() local a = __ordem_alvo if a and a.__kind == "item" then return a end return nil end
+function GetOrderTargetDestructable() local a = __ordem_alvo if a and a.__kind == "destructable" then return a end return nil end
 function GetOrderPointX() return __ordem_x end
 function GetOrderPointY() return __ordem_y end
-local function dispara_ordem(u, oid, ev)
+function GetUnitCurrentOrder(u)
+  local o = (u and u.ordem) or 0
+  if o == 851972 then return 0 end
+  return o
+end
+local function dispara_ordem(u, oid, ev, ponto, alvo)
   if not u then return false end
   M.ordens = (M.ordens or 0) + 1
   if u.pausado then M.ordens_ignoradas = (M.ordens_ignoradas or 0) + 1 return false end
-  u.ordem = oid
-  local po, pu = __ordem_id, __trigger_unit
-  __ordem_id = oid
+  u.ordem, u.ponto, u.alvo_o, u.fila = oid, ponto, alvo, nil
+  local po, pu, pe = __ordem_id, __trigger_unit, __trigger_event
+  __ordem_id, __trigger_event = oid, ev
   local gat = {} for t in pairs(M.trig_events or {}) do gat[#gat + 1] = t end
   table.sort(gat, function(x, y) return x.__h < y.__h end)
   for _, t in ipairs(gat) do
@@ -2713,19 +2779,47 @@ local function dispara_ordem(u, oid, ev)
       if e[1] == "playerunit" and e[2] == ev then __mock_fire(t, u, u.owner) break end
     end
   end
-  __ordem_id, __trigger_unit = po, pu
+  __ordem_id, __trigger_unit, __trigger_event = po, pu, pe
+  if ev == EVENT_PLAYER_UNIT_ISSUED_ORDER and u.ordem == oid and oid ~= 851993 and oid ~= 851972 then u.ordem = 0 end
   return true
 end
-function IssueImmediateOrderById(u, oid) return dispara_ordem(u, oid, EVENT_PLAYER_UNIT_ISSUED_ORDER) end
+function IssueImmediateOrderById(u, oid)
+  local pa, px, py = __ordem_alvo, __ordem_x, __ordem_y
+  __ordem_alvo, __ordem_x, __ordem_y = nil, 0.0, 0.0
+  local r = dispara_ordem(u, oid, EVENT_PLAYER_UNIT_ISSUED_ORDER)
+  __ordem_alvo, __ordem_x, __ordem_y = pa, px, py return r
+end
 function IssueTargetOrderById(u, oid, alvo)
   local pa = __ordem_alvo __ordem_alvo = alvo
-  local r = dispara_ordem(u, oid, EVENT_PLAYER_UNIT_ISSUED_TARGET_ORDER)
+  local r = dispara_ordem(u, oid, EVENT_PLAYER_UNIT_ISSUED_TARGET_ORDER, nil, alvo)
   __ordem_alvo = pa return r
 end
 function IssuePointOrderById(u, oid, x, y)
   local px, py = __ordem_x, __ordem_y __ordem_x, __ordem_y = x, y
-  local r = dispara_ordem(u, oid, EVENT_PLAYER_UNIT_ISSUED_POINT_ORDER)
+  local r = dispara_ordem(u, oid, EVENT_PLAYER_UNIT_ISSUED_POINT_ORDER, { x, y })
   __ordem_x, __ordem_y = px, py return r
+end
+-- a fila (o shift do jogador): a ordem entra no fim de `u.fila` sem trocar a em curso e sem evento (NAO medido em jogo:
+-- se o motor dispara o evento ao enfileirar, e se a fila da unidade parada anda na hora)
+local function enfileira(u, e)
+  if not u then return false end
+  if u.pausado then M.ordens_ignoradas = (M.ordens_ignoradas or 0) + 1 return false end
+  u.fila = u.fila or {}
+  u.fila[#u.fila + 1] = e
+  return true
+end
+function BlzQueueImmediateOrderById(u, oid) return enfileira(u, { oid }) end
+function BlzQueuePointOrderById(u, oid, x, y) return enfileira(u, { oid, x, y }) end
+function BlzQueueTargetOrderById(u, oid, alvo) return enfileira(u, { oid, nil, nil, alvo }) end
+function BlzQueueInstantPointOrderById(u, oid, x, y, inst) return enfileira(u, { oid, x, y, nil, inst }) end
+function BlzQueueInstantTargetOrderById(u, oid, alvo, inst) return enfileira(u, { oid, nil, nil, alvo, inst }) end
+-- a sonda termina a ordem em curso (a unidade chegou, o alvo morreu): a 1.a da fila vira a em curso, sem evento
+function __mock_ordem_cumpre(u)
+  if not u then return end
+  local e = u.fila and table.remove(u.fila, 1)
+  if u.fila and #u.fila == 0 then u.fila = nil end
+  if e then u.ordem, u.ponto, u.alvo_o = e[1], (e[2] ~= nil) and { e[2], e[3] } or nil, e[4]
+  else u.ordem, u.ponto, u.alvo_o = 0, nil, nil end
 end
 function IssueImmediateOrder(u, s) return IssueImmediateOrderById(u, OrderId(s)) end
 function IssueTargetOrder(u, s, alvo) return IssueTargetOrderById(u, OrderId(s), alvo) end
@@ -2962,6 +3056,10 @@ function GetSpellTargetLoc() return newh("location", { x = __spell_x, y = __spel
 -- O .slk so tem coluna de custo ate onde o autor preencheu; acima disso o motor cai no ultimo
 -- nivel que existe, e o modelo faz o mesmo.
 function BlzGetUnitAbilityManaCost(u, id, nivel)
+  -- [28/10/2026, a F3.3 da Inotia] o custo trocado na unidade (`BlzSetUnitAbilityManaCost`) vale antes do .slk
+  if u ~= nil and u.custo_mana ~= nil and u.custo_mana[(id or 0) * 100 + (nivel or 0)] ~= nil then
+    return u.custo_mana[(id or 0) * 100 + (nivel or 0)]
+  end
   local tab = __slk_raw and __slk_raw.ability
   local rec = tab and tab[string.pack(">I4", (id or 0) & 0xFFFFFFFF)]
   if rec == nil then return 0 end
@@ -2974,6 +3072,11 @@ function BlzGetUnitAbilityManaCost(u, id, nivel)
   return 0
 end
 function BlzGetAbilityManaCost(id, nivel) return BlzGetUnitAbilityManaCost(nil, id, nivel) end
+function BlzSetUnitAbilityManaCost(u, id, nivel, v)
+  if u == nil then return end
+  u.custo_mana = u.custo_mana or {}
+  u.custo_mana[(id or 0) * 100 + (nivel or 0)] = math.floor(v or 0)
+end
 
 -- lanca como o jogador lanca. Devolve: ordem aceita, conjuracao despachada, motivo.
 __MOCK_RECARGA_SKILL = true   -- [R1F2:astrologer2] o motor comeca a recarga ao conjurar
@@ -3287,4 +3390,26 @@ do
   for _, n in ipairs({ "__mock_kill", "__mock_unit_event", "__mock_unit_removed", "__mock_say" }) do no_contexto(n) end
 end
 '''
+
+
+def orders_lua():
+    import ast
+    file_ = os.path.join(HERE, '..', '..', 'scripts', 'jass_normal.py')
+    for no in ast.parse(open(file_, encoding='utf-8').read()).body:
+        if isinstance(no, ast.Assign) and [getattr(t, 'id', None) for t in no.targets] == ['ORDER_IDS']:
+            orders = ast.literal_eval(no.value)
+            break
+    else:
+        raise SystemExit('mock_test: ORDER_IDS is gone from %s' % file_)
+    name_list = dict((v, k) for k, v in orders.items())
+    if len(name_list) != len(orders):
+        raise SystemExit('mock_test: two names with the same id in ORDER_IDS of %s' % file_)
+    return '__MOCK_ORDENS, __MOCK_ORDEM_NOME = {%s}, {%s}' % (
+        ', '.join('["%s"] = %d' % (k, orders[k]) for k in sorted(orders)),
+        ', '.join('[%d] = "%s"' % (v, name_list[v]) for v in sorted(name_list)))
+
+
+_EMPTY_ORDERS = '__MOCK_ORDENS, __MOCK_ORDEM_NOME = {}, {}'
+assert MOCK_PRELUDE.count(_EMPTY_ORDERS) == 1
+MOCK_PRELUDE = MOCK_PRELUDE.replace(_EMPTY_ORDERS, orders_lua())
 
