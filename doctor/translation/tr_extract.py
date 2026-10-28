@@ -2,7 +2,7 @@
 import json
 import os
 import re
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -199,12 +199,22 @@ def misc_lines(body_text):
 
 def extract_misc_text(fn, body_text, entries, stats, tem_text=None):
     present = tem_text or CJK.search
+    line_list, sections, secao = [], Counter(), ''
     for txt_ln, line_text in misc_lines(body_text):
+        ms = re.match(r'^\[(.*)\]\s*$', line_text)
+        if ms:
+            secao = ms.group(1)
+            continue
         mk = re.match(r'^([A-Za-z0-9_]+)=(.*)$', line_text)
-        if mk and present(mk.group(2)):
+        if mk:
+            line_list.append((txt_ln, secao, mk))
+            sections[mk.group(1)] += 1
+    for txt_ln, secao, mk in line_list:
+        if present(mk.group(2)):
+            hash_key = mk.group(1) if sections[mk.group(1)] == 1 else '%s:%s' % (secao, mk.group(1))
             entries.append(
                 OrderedDict(
-                    id='misc:%s:%s' % (fn, mk.group(1)),
+                    id='misc:%s:%s' % (fn, hash_key),
                     src=fn,
                     obj='',
                     key=mk.group(1),
