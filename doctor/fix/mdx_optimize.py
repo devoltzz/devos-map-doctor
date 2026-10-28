@@ -15,7 +15,6 @@ OTHER = ('KGAO', 'KGAC', 'KMTA', 'KMTE', 'KFC3', 'KFCA', 'KFTC', 'KLAS', 'KLAE',
 DEFAULT_TOLERANCE = {'translation': 0.05, 'rotation': 0.002, 'scale': 0.002, 'other': 0.002}
 MIN_GAIN = 64
 
-
 def _class(tag):
     if tag in TRANSLATION:
         return 'translation'
