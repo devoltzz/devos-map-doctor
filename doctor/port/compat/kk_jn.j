@@ -1113,14 +1113,13 @@ endfunction
 function KKJN_FatiaCurta takes nothing returns boolean
     local integer s=0
     local string t
-    if KKJN_PosB(KKJN_SlotTudo(), "p|", 0)<0 and KKJN_PosB(KKJN_SlotTudo(), "%", 0)<0 then
-        return false
-    endif
     loop
         exitwhen s+1>=KKJN_nslots
         set t=KKJN_SlotGet(s)
-        if KKJN_SlotGet(s+1)!="" and StringLength(t)<KKJN_TRECHO-1 and KKJN_LenLit(t)<KKJN_TRECHO-1 then
-            return true
+        if StringLength(t)<KKJN_TRECHO-1 and KKJN_SlotGet(s+1)!="" then
+            if KKJN_LenLit(t)<KKJN_TRECHO-1 and (KKJN_PosB(KKJN_SlotTudo(), "p|", 0)>=0 or KKJN_PosB(KKJN_SlotTudo(), "%", 0)>=0) then
+                return true
+            endif
         endif
         set s=s+1
     endloop
