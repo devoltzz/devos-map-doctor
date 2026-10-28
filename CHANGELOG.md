@@ -3,6 +3,27 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 1.9.4 (2026-10-28)
+
+### Fixed
+
+- **Port between game versions, maps whose script ends its lines with a lone carriage return** (issue 61): Regicide
+  v2.12 keeps its script with CR line ends and a byte order mark before `globals`, so the port to 1.29.2 and older saw
+  the whole script as one line and converted nothing. The script is now prepared the way the port to Reforged already
+  did it: to 1.24a, 1.26a, 1.27b, 1.28.5 and 1.29.2 it converts the 29 uses of the return bug and the compiler accepts
+  every one.
+- **Open in World Editor: abilities shown as "Unknown"** (issue 59): FOCS keeps the levels above 4 of some abilities as
+  a change to a game ability that uses the id of a new ability from the map's SLK tables. I took that id as one the map
+  already had and did not add the new ability. Those now become the new ability with the changes of the file on top
+  (291 on FOCS ver192, 242 on 9.7 C03).
+
+### Changed
+
+- **Port to Reforged (KK and M16 maps):** loading a large local save is faster (a part is checked again only when its
+  middle came back short).
+- **Translation:** a key that `war3mapMisc.txt` or `war3mapSkin.txt` repeats in more than one section gets its section
+  in the id, so each one is translated on its own; a translation made with the old ids still applies.
+
 ## 1.9.3 (2026-10-27)
 
 ### Changed
