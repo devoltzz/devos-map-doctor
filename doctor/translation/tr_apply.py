@@ -792,7 +792,23 @@ def fix_value(en, entry):
     return en
 
 
+def with_legacy_misc(entries, tr):
+    missing = {}
+    for e in entries:
+        pieces = e['id'].split(':')
+        if pieces[0] == 'misc' and len(pieces) == 4 and e['id'] not in tr:
+            former_id = 'misc:%s:%s' % (pieces[1], pieces[3])
+            if former_id in tr:
+                missing[e['id']] = tr[former_id]
+    if not missing:
+        return tr
+    tr = dict(tr)
+    tr.update(missing)
+    return tr
+
+
 def apply_txt(root, entries, tr, stats):
+    tr = with_legacy_misc(entries, tr)
     by_file = {}
     for e in entries:
         if e['src'].endswith('.txt') and e['id'] in tr:
@@ -814,6 +830,7 @@ def apply_txt(root, entries, tr, stats):
 
 
 def apply_misc(root, entries, tr, stats):
+    tr = with_legacy_misc(entries, tr)
     for fn in ('war3mapMisc.txt', 'war3mapSkin.txt'):
         p = os.path.join(root, fn)
         if not os.path.exists(p):
