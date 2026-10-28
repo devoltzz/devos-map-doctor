@@ -82,6 +82,10 @@ integer KKP_arg_aba=0
 integer KKP_arg_sub=0
 integer KKP_arg_i=0
 integer KKP_arg_btn=0
+//{{KK_SE:KK_PAINEL_CRAFT}}
+constant integer KKP_G_CRAFT=6
+integer KKP_arg_item=0
+//{{KK_FIMSE:KK_PAINEL_CRAFT}}
 string KKP_arg_s=""
 boolean KKP_arg_ok=false
 unit array KKP_heroi
@@ -737,6 +741,9 @@ function KKP_tem takes integer pid,integer x returns integer
         endif
         set k=k+1
     endloop
+//{{KK_SE:KK_PAINEL_CRAFT}}
+    set n=n+LoadInteger(KKP_ht, 930000+pid, x)
+//{{KK_FIMSE:KK_PAINEL_CRAFT}}
     set u=null
     set it=null
     return n
@@ -884,6 +891,9 @@ function KKP_des_codex_det takes nothing returns nothing
     call KKP_bvis(6003, vis)
     call KKP_bvis(6004, false)
     call KKP_bvis(6005, false)
+//{{KK_SE:KK_PAINEL_CRAFT}}
+    call KKP_bvis(6007, false)
+//{{KK_FIMSE:KK_PAINEL_CRAFT}}
     if not vis then
         call BlzFrameSetText(KKP_c_desc, "|cffffcc00"+KKP_titulo+"|r|n|n"+KKP_txt_codex)
         return
@@ -897,6 +907,9 @@ function KKP_des_codex_det takes nothing returns nothing
     else
         call KKP_rot(6003, "Favorite", false)
     endif
+//{{KK_SE:KK_PAINEL_CRAFT}}
+    call KKP_bvis(6007, KKP_g_tem[KKP_G_CRAFT] and KKP_it_rc[x]>0)
+//{{KK_FIMSE:KK_PAINEL_CRAFT}}
     set r=KKP_it_rc[x]
     if r>0 then
         set n=IMinBJ(KKP_rc_ingn[r], 8)
@@ -1503,6 +1516,10 @@ function KKP_clique_local takes integer g,integer i returns nothing
     elseif g==6 then
         if i==3 and KKP_c_sel>0 then
             call BlzSendSyncData("kkp", "F"+KKP_id2s(KKP_it[KKP_c_sel]))
+//{{KK_SE:KK_PAINEL_CRAFT}}
+        elseif i==7 and KKP_c_sel>0 then
+            call BlzSendSyncData("kkp", "C"+KKP_id2s(KKP_it[KKP_c_sel]))
+//{{KK_FIMSE:KK_PAINEL_CRAFT}}
         elseif i==4 then
             set KKP_c_utop=KKP_c_utop-6
             set KKP_c_pend=true
@@ -1712,6 +1729,15 @@ function KKP_sync takes nothing returns nothing
                 call KKP_des_codex_lista()
             endif
         endif
+//{{KK_SE:KK_PAINEL_CRAFT}}
+    elseif c=="C" and StringLength(v)==5 then
+        set KKP_arg_pid=pid
+        set KKP_arg_item=KKP_s2id(SubString(v, 1, 5))
+        call KKP_chama(KKP_G_CRAFT)
+        if GetLocalPlayer()==p then
+            set KKP_c_pend=true
+        endif
+//{{KK_FIMSE:KK_PAINEL_CRAFT}}
     elseif c=="O" then
         call KKP_abre(p, S2I(SubString(v, 1, StringLength(v))))
     elseif c=="G" then
@@ -1911,6 +1937,10 @@ function KKP_cria_codex takes nothing returns nothing
     set KKP_c_dnome=KKP_txt(pg, "EscMenuLabelTextTemplate", 0.450, 0.514, 0.314, 0.020)
     set KKP_c_dsub=KKP_txt(pg, "EscMenuLabelTextSmallTemplate", 0.450, 0.493, 0.150, 0.014)
     call KKP_btxt(pg, "Favorite", 0.674, 0.496, 0.090, 0.024, 6003)
+//{{KK_SE:KK_PAINEL_CRAFT}}
+    call KKP_btxt(pg, "Craft", 0.580, 0.496, 0.090, 0.024, 6007)
+    call BlzFrameSetSize(KKP_c_dsub, 0.125, 0.014)
+//{{KK_FIMSE:KK_PAINEL_CRAFT}}
     set KKP_c_rtit=KKP_txt(pg, "EscMenuLabelTextSmallTemplate", 0.408, 0.468, 0.356, 0.014)
     set s=1
     loop
