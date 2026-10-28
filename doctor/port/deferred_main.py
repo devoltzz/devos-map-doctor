@@ -22,8 +22,56 @@ def _body(body_text, fname):
     return m.start(), begin, end_pos.start()
 
 
-def applies(body_text, sector_slice=SLICE):
-    info = {'failures': [], 'mantidas': 0, 'frames': 0, 'deferred_ones': 0, 'slices': 0, 'trigger_list': 0}
+def _ica_locals(body_text, nl):
+    pos = _body(body_text, 'main')
+    if pos is None:
+        return body_text, 0, None
+    header, begin, end_pos = pos
+    body = body_text[begin:end_pos]
+    decl = []
+    name_list = []
+    line_list = []
+    for brute in body.splitlines(True):
+        m = re.match(r'^([ \t]*)local[ \t]+(\w+)[ \t]+(array[ \t]+)?(\w+)[ \t]*(=[^\r\n]*)?(\r?\n)?$', brute)
+        if not m:
+            line_list.append(brute)
+            continue
+        kind, arr, fname, ini_v = m.group(2), m.group(3), m.group(4), m.group(5)
+        decl.append('%s %sKK_mn_%s' % (kind, 'array ' if arr else '', fname))
+        name_list.append(fname)
+        if ini_v:
+            line_list.append('%sset %s%s%s' % (m.group(1), fname, ini_v, m.group(6) or ''))
+    if not name_list:
+        return body_text, 0, None
+    body = ''.join(line_list)
+    for fname in name_list:
+        pieces = re.split(r'("(?:[^"\\]|\\.)*"|\'[^\']*\')', body)
+        body = ''.join(p if k % 2 else re.sub(r'(?<![\w$])%s(?!\w)' % re.escape(fname), 'KK_mn_' + fname, p)
+                       for k, p in enumerate(pieces))
+    eg = re.search(r'(?m)^endglobals[ \t]*\r?$', body_text)
+    if not eg or eg.start() > header:
+        return body_text, 0, 'no globals block before main'
+    body_text = body_text[:begin] + body + body_text[end_pos:]
+    body_text = body_text[:eg.start()] + ''.join(d + nl for d in decl) + body_text[eg.start():]
+    return body_text, len(name_list), None
+
+
+def applies(body_text, sector_slice=SLICE, local_vars=False):
+    info = {
+        'failures': [],
+        'mantidas': 0,
+        'frames': 0,
+        'deferred_ones': 0,
+        'slices': 0,
+        'trigger_list': 0,
+        'local_vars': 0,
+    }
+    if local_vars and MARK not in body_text:
+        body_text, n, failure = _ica_locals(body_text, '\r\n' if '\r\n' in body_text else '\n')
+        if failure:
+            info['failures'].append(failure)
+            return body_text, info
+        info['local_vars'] = n
     if MARK in body_text:
         info['failures'].append('step 9c already ran on this text (the deferred main' + "'" + 's marker is there)')
         return body_text, info
@@ -77,6 +125,8 @@ def applies(body_text, sector_slice=SLICE):
         if not line.startswith('//'):
             info['deferred_ones'] += 1
     frames = [q for q in frames if q]
+    if len(frames) == 1:
+        frames.append(['    // ' + MARK[3:] + ': the end (the clock)'])
     n = len(frames)
     funcs = []
     for k in range(n, 0, -1):
