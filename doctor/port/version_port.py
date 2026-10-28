@@ -168,7 +168,10 @@ def analyze(map_path):
 
 def transform(body_text, target_v, map_version):
     folder, ref_text = _ref_text(target_v)
-    new_text = body_text
+    from doctor.port import chain
+    new_text = re.sub(r'\r(?!\n)', '\n', body_text)
+    new_text, _n = chain.strip_bom(new_text)
+    prepared = new_text
     chg = {}
     warnings = []
     from doctor.port import shadowed
@@ -195,6 +198,8 @@ def transform(body_text, target_v, map_version):
     outside = memhack_outside(body_text, target_v)
     if outside:
         warnings.append(outside)
+    if new_text == prepared:
+        new_text = body_text
     return new_text, chg, warnings
 
 
