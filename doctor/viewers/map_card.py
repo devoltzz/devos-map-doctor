@@ -1397,6 +1397,8 @@ def _write(path_in, path_out, changes, p):
         raise
     except CardError as e:
         failure = (e.code, e.message)
+    except OSError as e:
+        failure = ('write_failed', 'The map could not be written (%s).' % unprotect._error(e))
     except BaseException as e:
         failure = (
             'write_failed',
