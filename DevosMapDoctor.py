@@ -5,7 +5,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 from doctor.fix import unprotect as D
 
-VERSION = '1.10.0'
+VERSION = '1.10.1'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -1003,18 +1003,24 @@ def icon_ico():
 
 
 def _no_console():
+    missed = False
     for fname in ('stdout', 'stderr'):
         if getattr(sys, fname) is None:
             setattr(sys, fname, open(os.devnull, 'w', encoding='utf-8'))
+            missed = True
+    return missed
 
 
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else list(argv)
-    _no_console()
+    missed = _no_console()
     if '--worker' in argv:
         from doctor.app import doctor_app
         return doctor_app.worker_main(sys.modules[__name__])
     from doctor.app import doctor_cli
+    if missed and argv and '--cli' not in argv and os.path.isabs(argv[0]) and not os.path.isfile(argv[0]):
+        window(None)
+        return 0
     cli_only = ('--help', '-h', '--version', '--json-schema')
     if '--cli' in argv or (argv and not argv[0].startswith('--') and not os.path.isfile(argv[0])) or \
             (argv and argv[0] in cli_only) or \
@@ -1030,23 +1036,27 @@ def main(argv=None):
         args = [a for a in argv if not a.startswith('--')]
         if not args or not os.path.isfile(args[0]):
             print('usage: --text <map.w3x> [--unprotect] [--editor] [--log=<file>]', file=out)
+            if log:
+                out.close()
             return 2
         map_path = args[0]
         action_codes = (
             ['diag'] + (['unprotect'] if '--unprotect' in argv else []) + (['editor'] if '--editor' in argv else [])
         )
         safe_units = '--units=all' not in argv
-        for action_code in action_codes:
-            for st, txt in execute(
-                action_code,
-                map_path,
-                progress=lambda c: print('   [%s]' % STAGES.get(c, c), file=out),
-                safe_units=safe_units,
-            ):
-                print(('## ' if st == 'heading' else '') + txt, file=out)
-            print(file=out)
-        if log:
-            out.close()
+        try:
+            for action_code in action_codes:
+                for st, txt in execute(
+                    action_code,
+                    map_path,
+                    progress=lambda c: print('   [%s]' % STAGES.get(c, c), file=out),
+                    safe_units=safe_units,
+                ):
+                    print(('## ' if st == 'heading' else '') + txt, file=out)
+                print(file=out)
+        finally:
+            if log:
+                out.close()
         return 0
     args = [a for a in argv if not a.startswith('--')]
     window(os.path.normpath(args[0]) if args and os.path.isfile(args[0]) else None)
