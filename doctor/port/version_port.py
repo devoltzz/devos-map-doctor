@@ -284,6 +284,13 @@ def map_port(map_path, tgt, output, stats=None, log=print):
         details['pjass'] = pj
         if pj.get('skipped'):
             details.setdefault('warnings', []).append('pjass was not run (%s)' % pj['skipped'])
+        elif (pj.get('rc') != 0 or pj.get('errors')) and wc3_versions.pjass_runtime_only(
+                pj.get('errors'), wc3_versions.pjass_check(j, target_v, own_blizzard=blizz).get('errors')):
+            pj['runtime_only'] = True
+            details.setdefault('warnings', []).append(
+                'pjass: %s (the map\'s own code, the same in the original: the game loads the script and only the '
+                'thread that reaches that line stops, as before the port)' % '; '.join(
+                    e for e in pj['errors'] if re.search(r':\d+:', e))[:400])
         elif pj.get('rc') != 0 or pj.get('errors'):
             raise Refusal(
                 'the script does not compile on %s after the port: %s'
@@ -482,6 +489,11 @@ def report_text(details):
         elif pj.get('lua'):
             L.append('- the Lua script reads after the port (the Lua parser: a Lua script is not compiled before the '
                      'game runs it)')
+        elif pj.get('runtime_only'):
+            L.append(
+                '- the script compiles with the game scripts of %s (pjass), but for the map\'s own errors that only '
+                'stop a thread (below)' % details['tgt']
+            )
         else:
             L.append('- the script compiles with the game scripts of %s (pjass)' % details['tgt'])
     for a in details.get('warnings') or []:
