@@ -11,6 +11,9 @@
   const jobs = new Map();
   let newVersion = false;
   const reads = new Map();
+  const lost = new Set();
+  const GONE = 'This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). ' +
+    'Run the action again.';
   let next = 0;
 
   const emit = ev => window.doctor && window.doctor.onEvent(ev);
@@ -26,6 +29,7 @@
       const m = ev.data;
       if (m.type === 'ready') ok();
       else if (m.type === 'boot_failed') bad(new Error(m.message));
+      else if (m.type === 'broken') { if (workers[key] === rec) retire(key, null); }
       else if (m.type === 'read') {
         const r = reads.get(m.rid);
         reads.delete(m.rid);
@@ -55,9 +59,11 @@
   function finish(key, e) {
     const job = jobs.get(e.job);
     jobs.delete(e.job);
-    for (const p of e.written || []) where.set(p, key);
+    for (const p of e.written || []) { where.set(p, key); lost.delete(p); }
     if (job && !job.silent && e.type === 'result') {
-      for (const p of job.outs) if (where.has(p) || isOutFolder(p)) download(p);
+      for (const p of job.outs) {
+        if (where.has(p) || isOutFolder(p)) download(p).catch(x => say(String(x && x.message || x), { bad: true }));
+      }
     }
   }
 
@@ -66,7 +72,7 @@
   function request(key, msg) {
     const rid = 'r' + (++next);
     return new Promise((resolve, reject) => {
-      reads.set(rid, { resolve, reject });
+      reads.set(rid, { key, resolve, reject });
       worker(key).w.postMessage(Object.assign({ rid }, msg));
     });
   }
@@ -74,7 +80,26 @@
   function fetchFile(path) {
     let key = where.get(path);
     if (!key) for (const [p, k] of where) if (p.startsWith(path.replace(/\/?$/, '/'))) { key = k; break; }
+    if (!key && (lost.has(path) || [...lost].some(p => p.startsWith(path.replace(/\/?$/, '/'))))) {
+      return Promise.reject(new Error(GONE));
+    }
     return request(key || 'main', { type: 'read', path });
+  }
+
+  function retire(key, cancelledJob) {
+    const rec = workers[key];
+    if (!rec) return;
+    delete workers[key];
+    rec.w.terminate();
+    for (const [j, x] of [...jobs]) {
+      if (x.key !== key) continue;
+      jobs.delete(j);
+      const ev = cancelledJob !== null ? { type: 'cancelled', job: j } :
+        { type: 'error', job: j, message: 'The engine stopped.' };
+      if (x.silent) x.silent.resolve(ev); else emit(ev);
+    }
+    for (const [p, k] of [...where]) if (k === key) { where.delete(p); lost.add(p); }
+    for (const [rid, r] of [...reads]) if (r.key === key) { reads.delete(rid); r.reject(new Error(GONE)); }
   }
 
   function saveBytes(bytes, name) {
@@ -185,15 +210,7 @@
     cancel: async id => {
       const job = jobs.get(id);
       if (!job) return false;
-      const rec = workers[job.key];
-      delete workers[job.key];
-      rec.w.terminate();
-      for (const [j, x] of [...jobs]) {
-        if (x.key !== job.key) continue;
-        jobs.delete(j);
-        if (x.silent) x.silent.resolve({ type: 'cancelled', job: j }); else emit({ type: 'cancelled', job: j });
-      }
-      for (const [p, k] of [...where]) if (k === job.key) where.delete(p);
+      retire(job.key, id);
       return true;
     },
     busy: async () => jobs.size > 0,
