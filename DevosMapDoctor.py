@@ -5,7 +5,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 from doctor.fix import unprotect as D
 
-VERSION = '1.9.4'
+VERSION = '1.10.0'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -42,6 +42,7 @@ STAGES = {
     'extra_shrink': 'Making the map smaller...',
     'extra_attributes': 'Redoing the file checksums...',
     'extra_game_overrides': 'Checking the game file overrides...',
+    'extra_graphics_modes': 'Importing the game files of the other graphics modes...',
     'extra_requirements': 'Checking the requirements...',
     'extra_fdf': 'Checking the frame definitions...',
     'extra_null_handles': 'Nulling the handles the script leaks...',
@@ -180,6 +181,9 @@ def describe(p):
     if c == 'kk_encrypted':
         return ('Encrypted by the KK platform: %s of the map is stored outside the MPQ archive.'
                 % mb(p.get('outside', 0)))
+    if c == 'kk_virtual_mpq':
+        return ('%s hidden after the MPQ (KK virtual MPQ, %s): "files" lists them and "extract" takes them out.'
+                % (pluralize(p.get('file_set', 0), 'file', 'files'), mb(p.get('byte_size', 0))))
     if c == 'script_kkwe':
         return ('Compiled script (KKWE): the real script is kkmap.jc (%s) as bytecode.' % mb(p.get('byte_size', 0)))
     if c == 'script_j2b':
@@ -210,7 +214,12 @@ def describe(p):
     if c == 'script_decoy':
         return 'A decoy scripts\\war3map.j (unreadable) sits next to the real script.'
     if c == 'sector512':
-        return 'The MPQ sectors are 512 bytes (wSectorSize 0): StormLib refuses to open the map.'
+        return ('The MPQ sectors are 512 bytes (wSectorSize 0): old StormLib tools refuse the map; the MPQ Editor of '
+                '03/10/2026 opens it.')
+    if c == 'lua_wc3fuscator':
+        return 'Lua script obfuscated by WC3Fuscator 2.1.'
+    if c == 'lua_layers':
+        return 'Lua script wrapped in loader layers (WC3Fuscator kind).'
     if c == 'locale_decoy':
         name_list = p.get('name_list') or []
         return ('%s stored only under the language codes, with a decoy under the neutral entry%s.'
@@ -325,6 +334,10 @@ def diagnosis_text(d):
         out.append(('info', 'SLK mode: %s data table files.' % num(len(d['slk']))))
     if d.get('jassnative'):
         out.append(('info', 'Compiled in the JassNative Editor.'))
+    if d.get('repacker'):
+        out.append(
+            ('info', 'Repacked by %s: the script and the editor files may have been regenerated.' % d['repacker'])
+        )
     if data_bytes:
         out.append(('', ''))
         out.append(('heading2', 'Needs fixing for Reforged 3.0:'))
@@ -1002,8 +1015,10 @@ def main(argv=None):
         from doctor.app import doctor_app
         return doctor_app.worker_main(sys.modules[__name__])
     from doctor.app import doctor_cli
+    cli_only = ('--help', '-h', '--version', '--json-schema')
     if '--cli' in argv or (argv and not argv[0].startswith('--') and not os.path.isfile(argv[0])) or \
-            (argv and argv[0] in ('--help', '-h', '--version')):
+            (argv and argv[0] in cli_only) or \
+            (argv and any(a in cli_only for a in argv) and all(a in cli_only + ('--json', '--quiet') for a in argv)):
         return doctor_cli.main([a for a in argv if a != '--cli'], sys.modules[__name__], VERSION)
     if '--text' in argv:
         log = next((a.split('=', 1)[1] for a in argv if a.startswith('--log=')), None)
