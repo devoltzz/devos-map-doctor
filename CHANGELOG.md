@@ -3,6 +3,64 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 1.10.1 (2026-10-29)
+
+### Fixed
+
+- **Open in World Editor for an older editor (1.24 to 1.29, JassNative):** when the map was protected and an extra ran
+  before the editor step, the copy for the old editor got the Reforged data fixes (the models moved to the skin files,
+  which the classic game does not read). The old editor now gets the map without them, as it already did without the
+  extras.
+- **Object files made from the SLK tables for a classic game** came out with their fields in a different order each
+  run (the same objects, other bytes). The order is fixed now, so the same map always gives the same file.
+- **Fix map on a campaign** whose maps were all ready already ended as "failed" with an empty list. It now saves the
+  unprotected campaign.
+- **A leftover `.part` file next to your map** when a step failed on Windows (the file was still held open while it was
+  removed), and a map named `X.part.w3x` saved as `X.w3x` could be overwritten by its own copy. Both are handled now.
+- **An extra that answered "failed" but left a file** was counted as applied.
+- **Window:**
+  - two settings saves at the same moment could leave the settings file broken, and all settings were lost at the
+    next start;
+  - a damaged cached diagnosis made every job on that map fail until the map changed;
+  - closing the window while a job was running left the `.part` file and the job folder in TEMP;
+  - Cancel clicked just as a job finished replaced the saved map with "cancelled";
+  - job folders left in TEMP by windows the system closed are removed when the program starts (only folders older
+    than a day that no open window uses).
+- **Page:**
+  - a double click on Fix map, Port or QoL started two jobs on the same map;
+  - Cancel of a job the program no longer knew left the page "running";
+  - a lobby image picked and then cancelled ran Fix map without it, without a word;
+  - the browser's harmless "ResizeObserver loop" notice showed as an error.
+- **Site (doctor.devoltz.party):**
+  - Cancel removed the files of the earlier jobs, and Download then failed with a read error; it now says why;
+  - a read on an engine that was restarted never answered;
+  - after a crash of the engine (out of memory), the next jobs went to the same broken engine;
+  - a failed zip of the queue said "written".
+- **Command line:**
+  - `script --to` and `recipes --out` into a folder that does not exist gave a traceback, `script --to` with `--json`
+    did not write the file, and a map that failed wrote an empty file;
+  - the exported script keeps CRLF line ends when the map has them, and says when it was cut;
+  - Ctrl+C or an error while `fix` and `editor` diagnose the map gave a traceback;
+  - `files`, `card`, `rawcodes` and `translation groups` on an unreadable map printed nothing;
+  - `DevosMapDoctor.exe` started without a console with a path that no longer exists did nothing: it opens the window.
+- **Compare:** two long generated scripts took over a minute to compare (50,000 lines: 67 s, now 0.2 s).
+- **Linux:** the check for a new version never worked outside Ubuntu (Fedora, Arch, openSUSE): the program did not find
+  the system's certificates.
+
+### Changed
+
+- **Command line, the same defaults as the window:**
+  - `fix` turns on by itself the extras the window ticks when its check finds them: the models that crash the game,
+    the model names, the leveled data pointers, the KK textures, the green icons, the file checksums, the graphics
+    modes, the requirements and the frame file lists. `--no-<extra>` leaves one out (`--no-models`);
+  - `port` keeps the icons and the textures on, as the window does (`--no-icons`, `--no-textures`).
+- **Command line, exit codes:** `diag` of a file that is not a map the Doctor can read (not a map, incomplete,
+  unreadable) and `check` whose answer is "no" now exit with 1. `diag --json` says which in `state`.
+- **Page:** the dialogs close with Escape and keep the keyboard focus, the notices are read by screen readers, a click
+  on the text of an option ticks it, and the page fits a narrow window. The file table says "showing 3000 of N" when it
+  cuts, a preview shown as bytes says why, a failed port offers its chain log, and the Triggers tab shows the custom
+  script.
+
 ## 1.10.0 (2026-10-29)
 
 ### Fixed
