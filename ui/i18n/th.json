@@ -3374,5 +3374,9 @@
  "The Lua script creates {0} handle(s) while it loads, outside any function: {1}{2}.": "สคริปต์ Lua สร้าง handle {0} รายการระหว่างโหลด นอกฟังก์ชันใดๆ: {1}{2}",
  "The Lua script was obfuscated by WC3Fuscator 2.1: layers peeled: {0} (the key is in the loader).": "สคริปต์ Lua ถูกอำพรางโดย WC3Fuscator 2.1: เลเยอร์ที่ลอกออก: {0} (คีย์อยู่ในตัวโหลด)",
  "The Lua script was wrapped in loader layers of the WC3Fuscator kind (additive cipher, the one DevoProtect uses): layers peeled: {0}.": "สคริปต์ Lua ถูกห่อด้วยเลเยอร์ตัวโหลดแบบ WC3Fuscator (รหัสแบบบวก แบบที่ DevoProtect ใช้): เลเยอร์ที่ลอกออก: {0}",
- "{0}Handles made there are a known source of multiplayer desyncs when they are thrown away and collected; if the map desyncs, move them into a function the map runs at its start.": "{0}handle ที่สร้างตรงนั้นเป็นสาเหตุ desync ในโหมดผู้เล่นหลายคนที่รู้กันดีเมื่อถูกทิ้งและถูกเก็บกวาด หากแมพเกิด desync ให้ย้ายไปไว้ในฟังก์ชันที่แมพเรียกตอนเริ่ม"
+ "{0}Handles made there are a known source of multiplayer desyncs when they are thrown away and collected; if the map desyncs, move them into a function the map runs at its start.": "{0}handle ที่สร้างตรงนั้นเป็นสาเหตุ desync ในโหมดผู้เล่นหลายคนที่รู้กันดีเมื่อถูกทิ้งและถูกเก็บกวาด หากแมพเกิด desync ให้ย้ายไปไว้ในฟังก์ชันที่แมพเรียกตอนเริ่ม",
+ "Choose a picture for \"Use my own lobby image\", or untick it.": "เลือกรูปภาพสำหรับ \"ใช้รูปล็อบบี้ของฉันเอง\" หรือยกเลิกการติ๊กเครื่องหมายออก",
+ "Download the chain log": "ดาวน์โหลดบันทึกสายการทำงาน (chain log)",
+ "Show the chain log": "แสดงบันทึกสายการทำงาน (chain log)",
+ "This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). Run the action again.": "ไฟล์นี้หายไปแล้ว: เอนจินที่เก็บไฟล์ไว้ในหน่วยความจำถูกรีสตาร์ท (จากการยกเลิกหรือการแครช) กรุณาทำรายการอีกครั้ง"
 }
