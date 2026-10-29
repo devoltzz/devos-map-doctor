@@ -11,7 +11,6 @@ function el(tag, attrs, ...kids) {
     if (k === 'class') e.className = v;
     else if (k === 'text') e.textContent = v;
     else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
-    else if (k === 'html') e.innerHTML = v;
     else e.setAttribute(k, v === true ? '' : v);
   }
   for (const kid of kids.flat()) {
@@ -25,10 +24,14 @@ function mb(n) { return (n / 1e6).toFixed(n >= 1e8 ? 0 : 1) + ' MB'; }
 function clock(s) { s = Math.floor(s); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
 function base(path) { return (path || '').split(/[\\/]/).pop(); }
 const web = () => !!(state.hello && state.hello.web);
-const WEB_LABELS = { 'Show in folder': 'Download the map', 'Show the report': 'Download the report' };
+const WEB_LABELS = { 'Show in folder': 'Download the map', 'Show the report': 'Download the report',
+  'Show the chain log': 'Download the chain log' };
 const showLabel = what => web() ? WEB_LABELS[what] || 'Download' : what;
 const folderButton = (path, what) => el('button', { class: 'btn', text: showLabel(what || 'Show in folder'),
-  onclick: () => api().open_folder(path) });
+  onclick: () => showFile(path) });
+function showFile(path) {
+  return Promise.resolve(api().open_folder(path)).catch(e => toast((e && e.message) || String(e), { bad: true }));
+}
 function status(text) {
   state.say = text;
   state.sayAt = Date.now();
@@ -48,15 +51,31 @@ function toast(text, opts) {
   return t;
 }
 
+let dialogSeq = 0;
 function dialog(title, body, buttons) {
   return new Promise(resolve => {
-    const box = el('div', { class: 'dialog' }, el('h2', { text: title }), body,
-      el('div', { class: 'buttons' }, (buttons || [['Close', null]]).map(([label, value, primary]) =>
-        el('button', { class: 'btn' + (primary ? ' primary' : ''), text: label,
-          onclick: () => { ov.remove(); resolve(value); } }))));
-    const ov = el('div', { class: 'overlay', onclick: e => { if (e.target === ov) { ov.remove(); resolve(null); } } },
-      box);
+    const before = document.activeElement;
+    const close = value => { ov.remove(); if (before && before.focus) try { before.focus(); } catch (e) { }
+      resolve(value); };
+    const list = buttons || [['Close', null]];
+    const id = 'dlg' + (++dialogSeq);
+    const btns = list.map(([label, value, primary]) =>
+      el('button', { class: 'btn' + (primary ? ' primary' : ''), text: label, onclick: () => close(value) }));
+    const box = el('div', { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': id },
+      el('h2', { id, text: title }), body, el('div', { class: 'buttons' }, btns));
+    const ov = el('div', { class: 'overlay', onclick: e => { if (e.target === ov) close(null); },
+      onkeydown: e => {
+        if (e.key === 'Escape') { e.preventDefault(); close(null); }
+        else if (e.key === 'Enter' && e.target.tagName === 'INPUT') {
+          const main = list.findIndex(b => b[2]);
+          if (main >= 0) { e.preventDefault(); close(list[main][1]); }
+        }
+      } }, box);
     document.body.appendChild(ov);
+    setTimeout(() => { if (!box.contains(document.activeElement)) {
+      const main = list.findIndex(b => b[2]);
+      (btns[main >= 0 ? main : btns.length - 1] || box).focus();
+    } }, 0);
   });
 }
 
@@ -149,10 +168,17 @@ function tagApi(e, name) {
 
 const pendingEvents = {};
 
+const STARTING = '(starting)';
 async function run(task, params, opts) {
   opts = opts || {};
-  const id = await api().start(task, Object.assign({ map: state.map }, params || {},
-    opts.quiet ? { quiet: true } : {}));
+  if (!opts.quiet) { state.running = STARTING; setBusy(true); }
+  let id;
+  try {
+    id = await api().start(task, Object.assign({ map: state.map }, params || {}, opts.quiet ? { quiet: true } : {}));
+  } catch (e) {
+    if (!opts.quiet && state.running === STARTING) { state.running = null; setBusy(false); }
+    throw e;
+  }
   const ex = (params || {}).extras || {};
   const key = task + (Object.keys(ex).length ? ':' + Object.keys(ex).filter(k => ex[k]).sort().join(',') : '');
   return new Promise((resolve, reject) => {
@@ -189,11 +215,13 @@ window.doctor = {
       if (job.onProgress) job.onProgress(ev.label);
       return;
     }
+    if (ev.type !== 'result' && ev.type !== 'cancelled' && ev.type !== 'error') return;
     delete state.jobs[ev.job];
     state.quietJobs.delete(ev.job);
     if (state.running === ev.job) hideJob();
     if (ev.type === 'result') { if (!job.quiet) learnTime(job); job.resolve(ev.data); }
-    else if (ev.type === 'cancelled') job.reject({ cancelled: true, kept: !!ev.kept, output: ev.output || null });
+    else if (ev.type === 'cancelled') job.reject({ cancelled: true, kept: !!ev.kept, output: ev.output || null,
+      message: 'Cancelled.' });
     else job.reject({ message: ev.message, trace: ev.trace });
   },
 };
@@ -389,6 +417,17 @@ function renderCat() {
   line.textContent = 'working\n' + bar + '\n' + tail;
 }
 
+async function cancelRunning() {
+  const id = state.running;
+  if (!id || !state.jobs[id]) return;
+  let known = true;
+  try { known = await api().cancel(id); } catch (e) { known = false; }
+  if (known !== false) return;
+  setTimeout(() => {
+    if (state.running === id && state.jobs[id]) window.doctor.onEvent({ type: 'cancelled', job: id });
+  }, 1500);
+}
+
 function hideJob() {
   state.running = null;
   clearInterval(timer);
@@ -406,7 +445,7 @@ function failed(e, what) {
   if (e && e.cancelled) {
     status('Cancelled.');
     if (e.kept) toast(what + ' was cancelled. What it had written before the cancel stays as ' + base(e.output) + '.',
-      e.output ? { actions: [[showLabel('Show in folder'), () => api().open_folder(e.output)]] } : {});
+      e.output ? { actions: [[showLabel('Show in folder'), () => showFile(e.output)]] } : {});
     else toast(what + ' was cancelled. Nothing was saved.');
     return;
   }
@@ -418,6 +457,7 @@ function failed(e, what) {
 
 function unhandled(e) {
   if (e && e.cancelled) return;
+  if (typeof e === 'string' && /ResizeObserver loop/.test(e)) return;
   const name = e && e.name && e.name !== 'Error' ? e.name + ': ' : '';
   const msg = name + ((e && e.message) || String(e));
   const where = e && e.api ? String(e.api) : '';
@@ -985,14 +1025,22 @@ function foldedGroup(owner, key, title, items, openByDefault) {
 
 function stepItem(action, s, checked) {
   const locked = s.locked && s.applies;
+  const id = 'opt' + (++optionSeq);
   const box = el('input', { type: 'checkbox', checked: !!checked, disabled: locked || !s.applies,
-    'data-key': s.key, onchange: () => {
+    'data-key': s.key, 'aria-labelledby': id, onchange: () => {
       if (s.key === 'x:stripIndent') setStripIndent(box.checked);
       rememberChoice(action); shellLine(action); } });
-  return el('li', { class: 'step' + (locked ? ' locked' : '') + (s.applies ? '' : ' na') },
-    box, el('div', {}, el('div', { class: 't', text: s.label }),
+  return el('li', { class: 'step' + (locked ? ' locked' : '') + (s.applies ? '' : ' na'), onclick: e => tickFrom(e, box) },
+    box, el('div', {}, el('div', { class: 't', id, text: s.label }),
       s.detail ? el('div', { class: 'd', text: s.detail }) : null,
       s.why && (locked || !s.applies) ? el('div', { class: 'why', text: s.why }) : null));
+}
+
+let optionSeq = 0;
+function tickFrom(e, box) {
+  if (box.disabled || e.target === box || e.target.closest('a, button, input, select, textarea, summary, label')) return;
+  if (window.getSelection && String(window.getSelection())) return;
+  box.click();
 }
 
 function readChoices(action) {
@@ -1082,7 +1130,9 @@ async function runAction(action) {
   else if (extras.portraits && extras.portraitStamp) params.extras.portraits = 'stamp';
   if (extras.lobbyImage) {
     const img = await api().pick_file('image');
-    if (img) params.extras.lobby_image = img;
+    if (state.running) return;
+    if (!img) { toast('Choose a picture for "Use my own lobby image", or untick it.'); return; }
+    params.extras.lobby_image = img;
   }
   if (extras.card && state.extras.card) params.extras.card = state.extras.card;
   if (extras.translation && state.extras.translation) params.extras.translation = state.extras.translation.file;
@@ -1248,7 +1298,7 @@ function tabFailed(name, what, e) {
   setTabState(name, 'failed');
   tabBody(name, el('div', { class: 'card' }, el('div', { class: 'report' },
     el('div', { class: 'l bad', text: what + (e && e.cancelled ? ' was cancelled.' : ' failed.') }),
-    el('div', { class: 'l info', text: (e && e.message) || '' })),
+    e && e.cancelled ? null : el('div', { class: 'l info', text: (e && e.message) || '' })),
   el('button', { class: 'btn small', text: 'Try again', onclick: () => {
     setTabState(name, 'wait');
     tabBody(name, el('div', { class: 'card muted', text: 'Loading again...' }));
@@ -1601,9 +1651,11 @@ function renderFiles() {
     allBox.checked = !!list.length && n === list.length;
     allBox.indeterminate = n > 0 && n < list.length;
   };
+  const count = el('span', { class: 'faint' });
   const draw = () => {
     const list = shown();
-    rows.replaceChildren(...list.slice(0, 3000).map(x => {
+    count.textContent = list.length > FILES_LIMIT ? 'showing ' + FILES_LIMIT + ' of ' + list.length : '';
+    rows.replaceChildren(...list.slice(0, FILES_LIMIT).map(x => {
       const box = el('input', { type: 'checkbox', checked: selected.has(x.id), onclick: e => { e.stopPropagation();
         if (e.target.checked) selected.add(x.id); else selected.delete(x.id); syncAll(list); } });
       const tr = el('tr', { class: 'click', onclick: () => {
@@ -1620,7 +1672,7 @@ function renderFiles() {
   const pkg = !!(state.open && state.open.summary.package);
   tabBody('files', pkg ? null : rawcodesCard(), pkg ? null : recipesCard(), el('div', { class: 'card' },
     el('div', { class: 'row' }, el('h2', { class: 'grow', text: f.files.length + ' files' +
-      (f.unnamed && f.unnamed.length ? ', ' + f.unnamed.length + ' without a name' : '') }), filter,
+      (f.unnamed && f.unnamed.length ? ', ' + f.unnamed.length + ' without a name' : '') }), filter, count,
       el('button', { class: 'btn needs-idle', text: 'Extract selected...', disabled: !!state.running,
         onclick: () => {
           if (!selected.size) { toast('Tick the files to extract first.'); return; }
@@ -1642,6 +1694,8 @@ function renderFiles() {
       rows)), preview)));
 }
 
+const FILES_LIMIT = 3000;
+
 async function extractFiles(task, params) {
   if (state.running) return;
   const dir = await api().pick_folder();
@@ -1656,7 +1710,7 @@ async function extractFiles(task, params) {
     if (bad.length) toast(bad.length + (bad.length === 1 ? ' file' : ' files') + ' could not be extracted: ' +
       bad.slice(0, 5).map(x => x.name + (x.reason ? ' (' + x.reason + ')' : '')).join(', ') +
       (bad.length > 5 ? ', ...' : ''), { bad: true, sticky: true });
-    const show = { actions: [[showLabel('Show'), () => api().open_folder(dir)]] };
+    const show = { actions: [[showLabel('Show'), () => showFile(dir)]] };
     if (params.kind === 'models') {
       const out = (r.outside || []).length;
       toast('Extracted ' + r.models + (r.models === 1 ? ' model' : ' models') + ' with ' + r.textures +
@@ -1737,7 +1791,9 @@ async function showPreview(file, box) {
       text: p.text + (p.truncated ? '\n\n(cut short)' : '') }));
     else if (p.kind === 'model') box.replaceChildren(el('pre', { class: 'code', style: 'width:100%',
       text: JSON.stringify(p.info, null, 1) }), model3dButton(file, box, seq));
-    else box.replaceChildren(el('pre', { class: 'code', style: 'width:100%', text: p.hex || '(empty)' }));
+    else box.replaceChildren(el('div', { style: 'width:100%' },
+      p.note ? el('p', { class: 'muted', style: 'margin:0 0 8px', text: p.note }) : null,
+      el('pre', { class: 'code', text: p.hex || '(empty)' })));
   } catch (e) {
     if (box.previewSeq !== seq) return;
     box.replaceChildren(el('span', { class: 'bad', text: 'Cannot show it: ' + (e.message || e) }));
@@ -2291,16 +2347,24 @@ async function loadTriggers(gen) {
 
 function renderTriggers(t) {
   const notes = (t.notes || []).map(n => el('p', { class: 'muted', text: n }));
+  const cs = t.custom_script && t.custom_script.text ? t.custom_script : null;
+  const csText = cs ? (cs.text.length > 3e6 ? cs.text.slice(0, 3e6) : cs.text) +
+    (cs.truncated || cs.text.length > 3e6 ? '\n\n(cut short)' : '') : '';
   if (!t.categories || !t.categories.length) {
     tabBody('triggers', el('div', { class: 'card' },
       t.error ? el('div', { class: 'report' }, el('div', { class: 'l bad', text: t.error })) :
         el('p', { class: 'muted', text: t.reason || 'No triggers to show.' }),
-      notes));
+      notes,
+      cs ? el('div', {}, el('h3', { text: 'custom script' }), el('pre', { class: 'code', text: csText })) : null));
     return;
   }
   const view = el('div', { class: 'card', style: 'min-height:200px' }, el('span', { class: 'faint',
     text: 'Choose a trigger.' }));
-  const tree = el('div', { class: 'tree scroll', style: 'padding:8px' }, t.categories.map(c => el('details',
+  const root = cs ? el('div', { class: 'trig mono', translate: 'no', text: base(state.map), onclick: e => {
+    $$('.trig.sel', tree).forEach(x => x.classList.remove('sel')); e.target.classList.add('sel');
+    showTrigger({ name: base(state.map), kind: 'text', text: csText }, view);
+  } }) : null;
+  const tree = el('div', { class: 'tree scroll', style: 'padding:8px' }, root, t.categories.map(c => el('details',
     { open: t.categories.length < 6 }, el('summary', { text: c.name + ' (' + c.triggers.length + ')' }),
     c.triggers.map(g => el('div', { class: 'trig', text: g.name + (g.kind === 'text' ? '  (text)' : '') +
       (g.enabled === false ? '  (off)' : ''), onclick: e => {
@@ -2321,9 +2385,12 @@ function showTrigger(g, view) {
 }
 
 function optionItem(o) {
-  return el('li', { class: 'step' + (o.disabled ? ' na' : '') },
-    el('input', { type: 'checkbox', checked: !!o.checked, disabled: !!o.disabled, onchange: o.onchange }),
-    el('div', { class: 'grow' }, el('div', { class: 't' }, o.title, o.tag ? el('span', { class: 'tag', text: o.tag, translate: o.tagIsName ? 'no' : null }) :
+  const id = 'opt' + (++optionSeq);
+  const box = el('input', { type: 'checkbox', checked: !!o.checked, disabled: !!o.disabled, onchange: o.onchange,
+    'aria-labelledby': id });
+  return el('li', { class: 'step' + (o.disabled ? ' na' : ''), onclick: e => tickFrom(e, box) },
+    box,
+    el('div', { class: 'grow' }, el('div', { class: 't', id }, o.title, o.tag ? el('span', { class: 'tag', text: o.tag, translate: o.tagIsName ? 'no' : null }) :
       null), o.detail ? el('div', { class: 'd', text: o.detail }) : null),
     o.count !== undefined ? el('span', { class: 'count', text: String(o.count) }) : null);
 }
@@ -2442,7 +2509,7 @@ async function makeOverride() {
     state.trOverride = { file: tr.file, result: r };
     renderTranslation();
     if (r.state === 'done') toast('Wrote ' + base(r.output) + ' with ' + r.applied + ' texts.',
-      { actions: [[showLabel('Show'), () => api().open_folder(r.output)]] });
+      { actions: [[showLabel('Show'), () => showFile(r.output)]] });
     else if (r.state === 'failed') failed({ message: r.error }, 'Writing the translation archive');
   } catch (e) { failed(e, 'Writing the translation archive'); }
 }
@@ -2599,7 +2666,7 @@ async function machineTranslate(model) {
     renderTranslation(); renderActions();
     toast('Translated ' + (r.translated || 0) + ' of ' + (r.entries || 0) + ' texts into English. Tick "Apply the ' +
       'translation" in Fix or Editor to write them into a copy of the map.',
-      { actions: [[showLabel('Show'), () => api().open_folder(p)]] });
+      { actions: [[showLabel('Show'), () => showFile(p)]] });
   } catch (e) { failed(e, 'Translating on this computer'); }
 }
 
@@ -2619,7 +2686,7 @@ async function exportTexts(kind) {
     }
     toast('Exported ' + (r.entries || 0) + ' texts to ' + base(p) + '.' + (r.linked_added ? ' ' + r.linked_added +
       ' of them are from files left out: the script compares the same text, so they must be translated together.' :
-      ''), { actions: [[showLabel('Show'), () => api().open_folder(p)]] });
+      ''), { actions: [[showLabel('Show'), () => showFile(p)]] });
   } catch (e) { failed(e, 'Exporting the texts'); }
 }
 
@@ -3027,6 +3094,7 @@ function portResult(r) {
     el('div', { class: 'foot row', style: 'margin-top:14px' },
       r.file ? folderButton(r.file) : null,
       r.report ? folderButton(r.report, 'Show the report') : null,
+      p.log ? folderButton(p.log, 'Show the chain log') : null,
       el('button', { class: 'btn', text: 'Copy report', onclick: async () => {
         await copyText(plainReport(r.lines)); toast('The report is in the clipboard.'); } }),
       el('button', { class: 'btn ghost', text: 'Report a problem', onclick: reportProblem })));
@@ -3051,7 +3119,7 @@ function wire() {
   $('#btnOpen2').onclick = pickMap;
   $('#btnReport').onclick = reportProblem;
   $('#btnAbout').onclick = showAbout;
-  $('#btnCancel').onclick = () => { if (state.running) api().cancel(state.running); };
+  $('#btnCancel').onclick = cancelRunning;
   $$('#modes button').forEach(b => { b.onclick = () => selectMode(b.dataset.mode); });
   $$('.subtabs button').forEach(b => { b.onclick = () => selectTab(b.dataset.tab); });
   const drop = $('#drop');
