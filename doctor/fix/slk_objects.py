@@ -23,7 +23,7 @@ def _objetos():
 INTERNAL_NAME = {('unit', 'units\\unitui.slk'): ('name',)}
 
 
-def map_tables(read, names, species):
+def map_tables(read, names, species, columns=None):
     ob = _objetos()
     cfg = ob.OBJ_KINDS[species]
     tab = {}
@@ -36,6 +36,8 @@ def map_tables(read, names, species):
         for rid, row in rows.items():
             dst = tab.setdefault(rid, {})
             for k, v in row.items():
+                if columns is not None and k.lower() not in fora:
+                    columns.add(k.lower())
                 if v != '' and v is not None and k.lower() not in fora:
                     dst[k.lower()] = v
     ids = set(tab)
@@ -176,6 +178,41 @@ def balance_of(w3i_bytes):
             pass
 
 
+CLASSIC_FOR_OLDER = '1.27b'
+
+
+def game_of(path=None, version=None):
+    from doctor.data import wc3_versions
+    if version:
+        if wc3_versions.is_reforged(version):
+            return None, 'Reforged (the target)'
+        v = wc3_versions.normalize(version) or version
+        return v, '%s (the target)' % v
+    if not path:
+        return None, 'Reforged'
+    try:
+        d = wc3_versions.detect(path)
+    except Exception as e:
+        return None, 'Reforged (the version of the map was not found: %s)' % str(e)[:60]
+    rng = d.get('range')
+    if rng == 'pre-1.24':
+        return CLASSIC_FOR_OLDER, '%s (the map is older than 1.24)' % CLASSIC_FOR_OLDER
+    if rng in ('1.24-1.28', '1.29') and d.get('version'):
+        return d['version'], '%s (the map is for %s)' % (d['version'], rng)
+    return None, 'Reforged (the map is for %s)' % (rng or 'Reforged')
+
+
+def game_base(version, w3i=None):
+    ob = _objetos()
+    if version:
+        from doctor.data import wc3_versions
+        g = wc3_versions.game(version)
+        if g is None:
+            raise RuntimeError('the game data of Warcraft III %s is not here' % version)
+        return ob.GameBase(casc=g, balance=balance_of(w3i))
+    return ob.GameBase(balance=balance_of(w3i))
+
+
 def _row_fields(cols, row, code=None):
     mapped, unmapped = [], []
     for col, text in row.items():
@@ -287,7 +324,7 @@ def infer_parent(row, base_norm, candidates=None):
     return best
 
 
-def convert(read, names, species, base, w3i=None, progress=None):
+def convert(read, names, species, base, w3i=None, progress=None, complete=False):
     ob = _objetos()
     p = progress or (lambda *_a, **_k: None)
     cfg = ob.OBJ_KINDS[species]
@@ -295,11 +332,12 @@ def convert(read, names, species, base, w3i=None, progress=None):
            'parent_equal_columns': 0, 'parent_columns': 0, 'unmapped': collections.Counter(), 'twins': 0,
            'above_levels': 0}
     p('Reading the %s tables' % species)
-    tab, cru = map_tables(read, names, species)
+    slk_cols = set()
+    tab, cru = map_tables(read, names, species, slk_cols)
     out = {'file': cfg['map_path'], 'bytes': None, 'objects': [], 'report': rep}
     if not tab:
         return out
-    meta = base.metadata(species)
+    meta = dict((k, v) for k, v in base.metadata(species).items() if _id_ok(k))
     cols = Columns(species, meta)
     base_tab = base.table(species)
     base_cru = base.raw_data(species)
@@ -310,6 +348,8 @@ def convert(read, names, species, base, w3i=None, progress=None):
         if k % 200 == 0:
             p('Converting %s %d/%d' % (species, k, len(tab)))
         row = tab[rid]
+        if complete:
+            row = dict(dict((c, '') for c in slk_cols), **row)
         if rid in base_tab:
             mods = _mods_of(species, cols, meta, row, cru.get(rid), base_tab[rid], base_cru.get(rid), rep, rid)
             if not mods:
@@ -323,7 +363,7 @@ def convert(read, names, species, base, w3i=None, progress=None):
                 parent = code
                 rep['parent_code'] += 1
             else:
-                parent, eq, total = infer_parent(row, base_norm)
+                parent, eq, total = infer_parent(tab[rid], base_norm)
                 rep['parent_inferred'] += 1
                 rep['parent_equal_columns'] += max(eq, 0)
                 rep['parent_columns'] += total
@@ -364,11 +404,23 @@ def merge_new(data, name, objects):
             mine = set((m[0], m[2]) for m in orphan[3])
             o = (1, o[1], o[2], [m for m in o[3] if (m[0], m[2]) not in mine] + list(orphan[3]))
         added.append(o)
+    changed = dict((o[1].lower(), o) for o in objects if o[0] == 0)
+    keep = []
+    for o in had:
+        if o[0] == 0 and o[1].lower() in orphans:
+            continue
+        slk = changed.pop(o[1].lower(), None) if o[0] == 0 else None
+        if o[0] == 1 and o[2].lower() in new and new[o[2].lower()][1].lower() == o[1].lower():
+            slk = new[o[2].lower()]
+        if slk is not None:
+            mine = set((m[0], m[2]) for m in o[3])
+            o = (o[0], o[1], o[2], [m for m in slk[3] if (m[0], m[2]) not in mine] + list(o[3]))
+        keep.append(o)
+    originals = [o for o in objects if o[0] == 0 and o[1].lower() in changed]
     out = {'bytes': None, 'added': [o[2] for o in added], 'kept': len(had) - len(orphans), 'version': ver,
-           'merged': [o[1] for o in orphans.values()]}
+           'merged': [o[1] for o in orphans.values()], 'originals': len(originals)}
     if added and ver <= 2:
-        out['bytes'] = ob.write_objects_bytes(ver, [o for o in had if not (o[0] == 0 and o[1].lower() in orphans)] +
-                                              added, levels)
+        out['bytes'] = ob.write_objects_bytes(ver, originals + keep + added, levels)
     return out
 
 
@@ -409,7 +461,7 @@ def compare(objs, real_objects):
     return dict(r)
 
 
-def fix(path_in, path_out, progress=None, base=None, species=SPECIES):
+def fix(path_in, path_out, progress=None, base=None, species=SPECIES, version=None):
     from doctor.fix import unprotect
     from doctor.fix import map_rewrite
     from doctor.models import model_check
@@ -454,17 +506,29 @@ def fix(path_in, path_out, progress=None, base=None, species=SPECIES):
         return stop('nothing_to_do', 'The map has no SLK tables that lack their object file.')
     p('Finding the file names')
     names = model_check._names(a)
+    lower = {}
+    for n in list(names) + [r for s in species for r in ob.OBJ_KINDS[s]['slk']]:
+        k = n.replace('/', '\\').lower()
+        if k not in lower and read(n) is not None:
+            lower[k] = n
+    game_line = None
+    gv, why = game_of(path_in, version)
+    leave = gv is not None
     if base is None:
         try:
-            base = ob.GameBase(balance=balance_of(read('war3map.w3i')))
+            base = game_base(gv, read('war3map.w3i'))
         except Exception as e:
-            return stop('refused', 'The game data is needed to tell what the map changed, and it cannot be read (%s).'
-                        % str(e)[:80])
+            return stop('refused', 'The game data of Warcraft III %s is needed to tell what the map changed, and it '
+                        'cannot be read (%s).' % (gv or 'Reforged', str(e)[:80]))
+        game_line = ('info', 'Measured against the tables of Warcraft III %s.' % why)
     files = []
+    done = []
     rep['lines'].append(('title', 'Object files made from the SLK tables'))
+    if game_line:
+        rep['lines'].append(game_line)
     for s in todo:
         try:
-            r = convert(read, names, s, base, progress=p)
+            r = convert(read, names, s, base, progress=p, complete=leave)
         except Exception as e:
             rep['lines'].append(('bad', '%s: not converted (%s).' % (s, str(e)[:100])))
             continue
@@ -473,6 +537,8 @@ def fix(path_in, path_out, progress=None, base=None, species=SPECIES):
             rep['lines'].append(('info', '%s: the tables hold nothing the game does not already have.' % s))
             continue
         files.append((r['file'], r['bytes']))
+        if leave and not r['report'].get('skipped'):
+            done.append(s)
         x = r['report']
         rep['lines'].append(
             (
@@ -497,7 +563,7 @@ def fix(path_in, path_out, progress=None, base=None, species=SPECIES):
     for s in partial:
         fname = ob.OBJ_KINDS[s]['map_path']
         try:
-            r = convert(read, names, s, base, progress=p)
+            r = convert(read, names, s, base, progress=p, complete=leave)
             m = merge_new(read(fname), fname, r['objects'])
         except Exception as e:
             rep['lines'].append(('bad', '%s: the new objects only the SLK tables hold were not added to %s (%s).' % (
@@ -516,6 +582,8 @@ def fix(path_in, path_out, progress=None, base=None, species=SPECIES):
             )
             continue
         files.append((fname, m['bytes']))
+        if leave and not r['report'].get('skipped'):
+            done.append(s)
         rep['lines'].append(
             (
                 'good',
@@ -530,6 +598,9 @@ def fix(path_in, path_out, progress=None, base=None, species=SPECIES):
                 ),
             )
         )
+        if m.get('originals'):
+            rep['lines'].append(('good', '%s: %d game objects the SLK tables change went into %s too.' % (
+                s, m['originals'], fname)))
         if m['merged']:
             rep['lines'].append(('good', '%s: %d of them were in %s as changes to a game object that does not exist '
                                          '(the levels the SLK table has no column for: the editor showed them as '
@@ -548,11 +619,16 @@ def fix(path_in, path_out, progress=None, base=None, species=SPECIES):
     if not files:
         rep['state'] = 'failed' if any(k == 'bad' for k, _t in rep['lines']) else 'nothing_to_do'
         return rep
+    remove = [n for s in done for n in (lower.get(r) for r in ob.OBJ_KINDS[s]['slk']) if n]
     try:
-        w = map_rewrite.write(path_in, path_out, files, p)
+        w = map_rewrite.write(path_in, path_out, files, p, remove=remove)
     except Exception as e:
         return stop('failed', 'The map could not be written (%s).' % unprotect._error(e))
-    rep.update(state='done', file=path_out, same_files=w['same_files'], written=[n for n, _b in files])
+    rep.update(state='done', file=path_out, same_files=w['same_files'], written=[n for n, _b in files], removed=remove)
+    if remove:
+        rep['lines'].append(('good', 'The %d SLK tables these objects came from left the map (%s): the game reads them '
+                                     'as its own objects and then the object files on top, which made each new object '
+                                     'twice and crashed the game at load.' % (len(remove), ', '.join(remove))))
     rep['lines'].append(
         (
             'warn',
