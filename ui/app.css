@@ -52,7 +52,16 @@ main { flex: 1; overflow: auto; padding: 22px 28px 40px; }
   header.top .grow { display: none; }
   .modehead h2 { font-size: 28px; }
   main { padding: 16px; }
+  .row { flex-wrap: wrap; }
+  .form { grid-template-columns: minmax(0, 1fr); gap: 4px 0; }
+  .form label { padding-top: 6px; }
+  .maphead { flex-wrap: wrap; }
+  .split { grid-template-columns: minmax(0, 1fr); }
+  .item { flex-wrap: wrap; }
 }
+#toasts { left: 18px; align-items: flex-end; pointer-events: none; }
+#toasts .toast { pointer-events: auto; max-width: min(420px, 100%); }
+.step:has(> input[type=checkbox]:not(:disabled)) { cursor: pointer; }
 
 .btn { cursor: pointer; }
 .btn:disabled { opacity: .45; cursor: default; }
