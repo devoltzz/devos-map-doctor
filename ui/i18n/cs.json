@@ -3375,5 +3375,9 @@
  "The Lua script creates {0} handle(s) while it loads, outside any function: {1}{2}.": "Skript Lua při načítání vytváří mimo jakoukoli funkci handly ({0}): {1}{2}.",
  "The Lua script was obfuscated by WC3Fuscator 2.1: layers peeled: {0} (the key is in the loader).": "Skript Lua byl obfuskován nástrojem WC3Fuscator 2.1: sloupnuté vrstvy: {0} (klíč je v loaderu).",
  "The Lua script was wrapped in loader layers of the WC3Fuscator kind (additive cipher, the one DevoProtect uses): layers peeled: {0}.": "Skript Lua byl zabalen ve vrstvách loaderu typu WC3Fuscator (aditivní šifra, ta, kterou používá DevoProtect): sloupnuté vrstvy: {0}.",
- "{0}Handles made there are a known source of multiplayer desyncs when they are thrown away and collected; if the map desyncs, move them into a function the map runs at its start.": "{0}Handly vytvořené tam jsou známým zdrojem desynchronů v multiplayeru, když jsou zahozeny a uklizeny; pokud mapa desynchronizuje, přesuňte je do funkce, kterou mapa spouští na začátku."
+ "{0}Handles made there are a known source of multiplayer desyncs when they are thrown away and collected; if the map desyncs, move them into a function the map runs at its start.": "{0}Handly vytvořené tam jsou známým zdrojem desynchronů v multiplayeru, když jsou zahozeny a uklizeny; pokud mapa desynchronizuje, přesuňte je do funkce, kterou mapa spouští na začátku.",
+ "Choose a picture for \"Use my own lobby image\", or untick it.": "Vyberte obrázek pro \"Použít můj vlastní obrázek lobby\", nebo zrušte zaškrtnutí.",
+ "Download the chain log": "Stáhnout log řetězce",
+ "Show the chain log": "Zobrazit log řetězce",
+ "This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). Run the action again.": "Tento soubor zmizel: engine, který ho držel v paměti, byl restartován (zrušením nebo pádem). Spusťte akci znovu."
 }
