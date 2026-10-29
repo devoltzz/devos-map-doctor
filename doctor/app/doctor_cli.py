@@ -22,7 +22,7 @@ a .w3mod): a package is read as data, never run; diag, files and extract work on
                                   saved for)
   port <map> [--to=<version>] [--package=<name>] [--icons] [--textures] [--keep-memory] [--balance-numbers]
        [--strip-indent]
-       (every extra of fix and port is off unless given: the window turns the usual ones on by itself)
+       (the icons and the textures are on, as in the window: --no-icons, --no-textures)
        [--remove-game-files] [--lossy] [--classic-effects]
                                   Port to Reforged (KK and M16 maps): saves <map>_reforged.w3x and the report;
                                   --to=<version>: to another version of the classic game instead (1.24a to
@@ -97,7 +97,9 @@ a .w3mod): a package is read as data, never run; diag, files and extract work on
 Steps of fix / editor (none given: the defaults the window ticks for this map; --no-<step> drops one):
   --unprotect --fake-files --listfile --ids --data --script-back --editor-files --counts --doodads
   --gui-triggers --script-objects --safe-units
-Extras of fix / editor:
+Extras of fix / editor (fix turns on by itself the ones the window ticks when its check finds them: --models
+  --model-names --data-pointers --kk-textures --green-icons --fix-attributes --fix-graphics-modes --fix-requirements
+  --fix-fdf; --no-<extra> leaves one out; the others are off unless given):
   --models --model-names --portraits --data-pointers --kk-textures --green-icons --uabi --preload
   --single-player --shrink --shrink-lossy --translation=<file> --strip-indent
   --fix-attributes --remove-game-files --remove-game-copies --fix-requirements --fix-fdf --null-handles --minify
@@ -230,6 +232,25 @@ def pick_steps(steps, action, opts):
     return out
 
 
+DEFAULT_EXTRAS = (('models', 'models', 'models'), ('model-names', 'model_names', 'model_names'),
+                  ('data-pointers', 'data_pointers', 'data_pointers'), ('kk-textures', 'kk_textures', 'kk_textures'),
+                  ('green-icons', 'disabled_icons', 'disabled_icons'), ('fix-attributes', 'attributes', 'attributes'),
+                  ('fix-graphics-modes', 'graphics_modes', 'graphics_modes'),
+                  ('fix-requirements', 'requirements', 'requirements'), ('fix-fdf', 'fdf', 'fdf'))
+
+
+def default_extras(path, opts, run):
+    wanted = [x for x in DEFAULT_EXTRAS if opts.get(x[0]) is not False]
+    if not wanted:
+        return {}
+    try:
+        r = run({'task': 'reforged', 'map': path}) or {}
+    except Exception as e:
+        sys.stderr.write('doctor: the check that picks the default extras failed (%s): none of them runs\n' % e)
+        return {}
+    return dict((key, True) for _flag, found, key in wanted if ((r.get(found) or {}).get('fixable')))
+
+
 def pick_extras(action, opts):
     extras = {}
     for flag, key in EXTRA_FLAGS.items():
@@ -326,7 +347,7 @@ def show(command, r):
             print('%s  %s  %d bytes' % (x.get('path'), x.get('kind'), x.get('bytes') or 0))
         return
     if command == 'replay compare':
-        print(r.get('text') or '')
+        print(r.get('text') or r.get('error') or '')
         return
     if command in ('log', 'crash', 'replay'):
         print(r.get('text') or r.get('error') or '')
@@ -381,6 +402,8 @@ def show(command, r):
             print('  %-18s %s' % (k, ', '.join(v) if isinstance(v, list) else v))
         return
     if command == 'files':
+        if r.get('error'):
+            print(r['error'])
         for f in r.get('files') or []:
             print('%10d  %-8s  %s' % (f.get('size') or 0, f.get('kind') or '', f.get('name')))
         for f in r.get('unnamed') or []:
@@ -393,6 +416,8 @@ def show(command, r):
                                                       'hidden\\' % len(hidden) if hidden else ''))
         return
     if command == 'rawcodes':
+        if r.get('error'):
+            print(r['error'])
         sys.stdout.write(r.get('text') or '')
         return
     if command == 'recipes':
@@ -401,6 +426,8 @@ def show(command, r):
         sys.stdout.write(r.get('text') or '')
         return
     if command == 'translation groups':
+        if r.get('error'):
+            print(r['error'])
         for g in r.get('groups') or []:
             print('%-24s %5d  %s' % (g.get('key'), g.get('count') or 0, g.get('label')))
         if r.get('script_note'):
@@ -525,6 +552,9 @@ def show(command, r):
             print(r['error'])
         return
     if command == 'card':
+        if r.get('ok') is False:
+            print(r.get('message') or r.get('error'))
+            return
         for k in ('name', 'author', 'players_suggested', 'description'):
             if r.get(k):
                 print('%s: %s' % (k.replace('_', ' ').capitalize(), r[k]))
@@ -556,7 +586,7 @@ def need(pos, n, what):
         raise UsageError('missing %s' % what)
     for p in pos[1:2]:
         if not os.path.isfile(p):
-            raise UsageError('no such map: %s' % p)
+            raise UsageError('no such %s: %s' % ('map' if what.startswith('<map') else 'file', p))
 
 
 def build_job(command, pos, opts, run):
@@ -566,9 +596,12 @@ def build_job(command, pos, opts, run):
     if command in ('fix', 'editor'):
         need(pos, 2, '<map>')
         version = editor_version_flag(command, opts)
+        extras = pick_extras(command, opts)
         opened = run({'task': 'open', 'map': pos[1]})
+        if command == 'fix':
+            extras = dict(default_extras(pos[1], opts, run), **extras)
         job = {'task': command, 'map': pos[1], 'options': pick_steps(opened['steps'], command, opts),
-               'extras': pick_extras(command, opts)}
+               'extras': extras}
         if version:
             job['editor_version'] = version
         return command, job
@@ -576,8 +609,8 @@ def build_job(command, pos, opts, run):
         need(pos, 2, '<map>')
         packages = [p for p in str(opts.get('package') or '').split(',') if p] if opts.get('package') else []
         return 'port', {'task': 'port', 'map': pos[1], 'packages': packages,
-                        'memory': not opts.get('keep-memory'), 'icons': bool(opts.get('icons')),
-                        'textures': bool(opts.get('textures')), 'balance': bool(opts.get('balance-numbers')),
+                        'memory': not opts.get('keep-memory'), 'icons': opts.get('icons') is not False,
+                        'textures': opts.get('textures') is not False, 'balance': bool(opts.get('balance-numbers')),
                         'strip_indent': opts.get('strip-indent') is True,
                         'game_files': bool(opts.get('remove-game-files')), 'lossy': bool(opts.get('lossy')),
                         'classic': bool(opts.get('classic-effects')),
@@ -742,6 +775,7 @@ GLOBAL_OPTIONS = {'json': {'kind': 'flag', 'about': 'print the result as one JSO
 ENVELOPE = {'schema': 'integer', 'doctor_version': 'string', 'command': 'string', 'exit_code': 'integer'}
 FAILURE = {'outcome': 'string', 'error': 'string', 'error_kind': 'string'}
 OUTCOMES = ('ok', 'nothing', 'partial', 'failed')
+DIAG_FAILED = ('not_a_map', 'incomplete', 'cannot_read', 'unreadable')
 EXIT_CODES = {'0': 'done, or nothing to do', '1': 'failed', '2': 'wrong command line', '3': 'done with leftovers',
               '130': 'cancelled'}
 _WRITES = {'outcome': 'string', 'file': 'string|null', 'lines': 'array'}
@@ -785,7 +819,7 @@ def _editor_options():
 CONTRACT = (
     ('diag', 'diag <map>', {},
      {'map': 'string', 'name': 'string', 'size': 'integer', 'lines': 'array', 'steps': 'array', 'summary': 'object',
-      'editor_version': 'object'}),
+      'editor_version': 'object', 'state': 'string|null?'}),
     ('fix', 'fix <map> [steps] [extras]', _fix_options(), dict(_WRITES, changes='object')),
     ('editor', 'editor <map> [steps] [extras] [--editor-version=<v>]', _editor_options(),
      dict(_WRITES, changes='object')),
@@ -904,7 +938,49 @@ def outcome_code(command, r):
         return OUTCOME_CODE.get(r['outcome'], 1)
     if (r or {}).get('error') or (r or {}).get('state') == 'failed':
         return 1
+    if command == 'diag' and (r or {}).get('state') in DIAG_FAILED:
+        return 1
+    if command == 'check' and (r or {}).get('verdict') == 'no':
+        return 1
     return 0
+
+
+def save_text(path, text, newline='\n'):
+    path = os.path.abspath(path)
+    part = path + '.part'
+    try:
+        with open(part, 'w', encoding='utf-8', newline=newline) as f:
+            f.write(text)
+        os.replace(part, path)
+    except BaseException:
+        try:
+            os.remove(part)
+        except OSError:
+            pass
+        raise
+    return path
+
+
+def save_output(command, r, opts):
+    if (r or {}).get('error'):
+        return None
+    if command == 'recipes' and isinstance(opts.get('out'), str):
+        low = opts['out'].lower()
+        data = r.get('json') if low.endswith('.json') else r.get('csv') if low.endswith('.csv') else r.get('text')
+        return save_text(opts['out'], data or '', newline='')
+    if command == 'script' and isinstance(opts.get('to'), str) and r.get('text'):
+        return save_text(opts['to'], r['text'], newline='\r\n' if r.get('line_endings') == 'crlf' else '\n')
+    return None
+
+
+def script_notes(r, saved):
+    if r.get('note'):
+        sys.stderr.write('doctor: %s\n' % r['note'])
+    if r.get('truncated'):
+        sys.stderr.write(
+            'doctor: the script has %d bytes and only its first part was %s; extract <map> %s writes it '
+            'whole\n' % (r.get('size') or 0, 'saved' if saved else 'printed', r.get('name') or 'war3map.j')
+        )
 
 
 def main(argv, window, version=''):
@@ -948,6 +1024,19 @@ def main(argv, window, version=''):
             sys.stdout = real
             out.done()
 
+    def stopped(e, name):
+        if isinstance(e, KeyboardInterrupt):
+            sys.stderr.write('doctor: cancelled\n')
+            if as_json:
+                print_json(failure(version, name, 'cancelled', 'cancelled', 130))
+            return 130
+        sys.stderr.write('doctor: %s failed: %s: %s\n' % (pos[0], type(e).__name__, e))
+        if os.environ.get('DOCTOR_TRACE'):
+            raise e
+        if as_json:
+            print_json(failure(version, name, '%s: %s' % (type(e).__name__, e), 'exception', 1))
+        return 1
+
     try:
         command, job = build_job(pos[0], pos, opts, run)
         asked = command
@@ -965,38 +1054,41 @@ def main(argv, window, version=''):
         if as_json:
             print_json(failure(version, asked, str(e), 'usage', 2))
         return 2
+    except (KeyboardInterrupt, Exception) as e:
+        return stopped(e, asked)
     t0 = time.time()
     try:
         r = run(job)
-    except KeyboardInterrupt:
-        sys.stderr.write('doctor: cancelled\n')
+    except (KeyboardInterrupt, Exception) as e:
+        return stopped(e, command)
+    refused = (r or {}).get('package') or (r or {}).get('no_edit')
+    try:
+        saved = None if refused else save_output(command, r, opts)
+    except OSError as e:
+        message = 'cannot write %s: %s' % (os.path.abspath(opts['out' if command == 'recipes' else 'to']),
+                                           e.strerror or e)
+        sys.stderr.write('doctor: %s\n' % message)
         if as_json:
-            print_json(failure(version, command, 'cancelled', 'cancelled', 130))
-        return 130
-    except Exception as e:
-        sys.stderr.write('doctor: %s failed: %s: %s\n' % (pos[0], type(e).__name__, e))
-        if os.environ.get('DOCTOR_TRACE'):
-            raise
-        if as_json:
-            print_json(failure(version, command, '%s: %s' % (type(e).__name__, e), 'exception', 1))
+            print_json(failure(version, command, message, 'exception', 1))
         return 1
+    if command == 'script' and not as_json and not refused:
+        script_notes(r, saved)
     if as_json:
-        print_json(envelope(r, version, command, outcome_code(command, r)))
-    elif (r or {}).get('package') or (r or {}).get('no_edit'):
+        result = envelope(r, version, command, outcome_code(command, r))
+        if saved:
+            result['saved'] = saved
+        print_json(result)
+    elif refused:
         print(r.get('error'))
-    elif command == 'recipes' and isinstance(opts.get('out'), str):
-        out_file = opts['out']
-        low = out_file.lower()
-        data = r.get('json') if low.endswith('.json') else r.get('csv') if low.endswith('.csv') else r.get('text')
-        with open(out_file, 'w', encoding='utf-8', newline='') as f:
-            f.write(data or '')
-        print('%d recipes saved as: %s' % (len(r.get('recipes') or []), os.path.abspath(out_file)))
-    elif command == 'script' and isinstance(opts.get('to'), str):
-        with open(opts['to'], 'w', encoding='utf-8', newline='') as f:
-            f.write(r.get('text') or '')
-        print('Saved as: %s' % os.path.abspath(opts['to']))
+    elif command == 'recipes' and saved:
+        print('%d recipes saved as: %s' % (len(r.get('recipes') or []), saved))
+    elif command == 'script' and saved:
+        print('Saved as: %s' % saved)
     elif command == 'script':
-        sys.stdout.write(r.get('text') or r.get('error') or '')
+        if not isinstance(opts.get('to'), str):
+            sys.stdout.write(r.get('text') or '')
+        if r.get('error'):
+            print(r['error'])
     else:
         show(command, r)
     sys.stdout.flush()
@@ -1021,4 +1113,7 @@ def install_launcher():
             f.write(blob)
         os.replace(dst + '.new', dst)
     except OSError:
-        pass
+        try:
+            os.remove(dst + '.new')
+        except OSError:
+            pass
