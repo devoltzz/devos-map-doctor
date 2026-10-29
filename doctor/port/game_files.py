@@ -76,6 +76,17 @@ def _game_forms(fname):
     return []
 
 
+def _all_modes(fname, g):
+    try:
+        from doctor.fix import gfx_modes
+        lay = getattr(g, '_gfx_layers', None)
+        if lay is None:
+            lay = g._gfx_layers = gfx_modes.Layers(g.casc)
+        return len(lay.where(fname)) == len(gfx_modes.MODES)
+    except Exception:
+        return True
+
+
 def scan(map_path, progress=None, casc=None):
     from doctor.fix import unprotect
     from doctor.fix import game_paths
@@ -111,6 +122,9 @@ def scan(map_path, progress=None, casc=None):
             out['unknown'].append(n)
             continue
         mine = unprotect._read(a, n)
+        if mine == game and not _all_modes(n, g):
+            out['different'].append(n)
+            continue
         (out['identical'] if mine == game else out['different']).append(n)
     out['counts']['identical'] = len(out['identical'])
     return out
