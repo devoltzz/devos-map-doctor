@@ -3374,5 +3374,9 @@
  "The Lua script creates {0} handle(s) while it loads, outside any function: {1}{2}.": "Script Lua tạo {0} handle khi nạp, bên ngoài mọi hàm: {1}{2}.",
  "The Lua script was obfuscated by WC3Fuscator 2.1: layers peeled: {0} (the key is in the loader).": "Script Lua đã bị làm rối bởi WC3Fuscator 2.1: số lớp đã bóc: {0} (khóa nằm trong trình nạp).",
  "The Lua script was wrapped in loader layers of the WC3Fuscator kind (additive cipher, the one DevoProtect uses): layers peeled: {0}.": "Script Lua được bọc trong các lớp trình nạp kiểu WC3Fuscator (mã cộng, loại DevoProtect dùng): số lớp đã bóc: {0}.",
- "{0}Handles made there are a known source of multiplayer desyncs when they are thrown away and collected; if the map desyncs, move them into a function the map runs at its start.": "{0}Handle tạo ở đó là nguồn desync nhiều người chơi đã biết khi chúng bị bỏ đi và thu gom; nếu bản đồ bị desync, hãy chuyển chúng vào một hàm mà bản đồ chạy khi bắt đầu."
+ "{0}Handles made there are a known source of multiplayer desyncs when they are thrown away and collected; if the map desyncs, move them into a function the map runs at its start.": "{0}Handle tạo ở đó là nguồn desync nhiều người chơi đã biết khi chúng bị bỏ đi và thu gom; nếu bản đồ bị desync, hãy chuyển chúng vào một hàm mà bản đồ chạy khi bắt đầu.",
+ "Choose a picture for \"Use my own lobby image\", or untick it.": "Hãy chọn một ảnh cho \"Dùng ảnh sảnh của tôi\", hoặc bỏ chọn mục đó.",
+ "Download the chain log": "Tải nhật ký chuỗi",
+ "Show the chain log": "Hiện nhật ký chuỗi",
+ "This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). Run the action again.": "Tệp này đã mất: bộ máy giữ nó trong bộ nhớ đã được khởi động lại (do hủy hoặc do sự cố). Hãy chạy lại thao tác."
 }
