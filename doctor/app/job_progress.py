@@ -31,6 +31,10 @@ def default_on():
     return _emit is not None
 
 
+def current(default_value=('', '')):
+    return (_stack[-1:] or [default_value])[0]
+
+
 def file_path():
     return '/'.join(n for n, _r in _stack)
 
@@ -62,24 +66,25 @@ def topo(fname, label=None):
 
 @contextlib.contextmanager
 def stage(fname, label=None):
-    label = label or (_stack[-1][1] if _stack else fname)
+    label = label or current((fname, fname))[1]
     _stack.append((fname, label))
     stack_depth = len(_stack)
     _send(label)
     try:
         yield
     finally:
-        if len(_stack) >= stack_depth and _stack[stack_depth - 1][0] == fname:
+        x = _stack[stack_depth - 1:stack_depth]
+        if x and x[0][0] == fname:
             del _stack[stack_depth - 1:]
             if _stack:
-                _send(_stack[-1][1])
+                _send(current()[1])
 
 
 def step_size(fname, label=None):
-    while _stack and _stack[-1][0].startswith(('c_', 'l_')):
-        _stack.pop()
-    if _stack and _stack[-1][0].startswith('p_'):
-        _stack.pop()
+    while current()[0].startswith(('c_', 'l_')):
+        del _stack[-1:]
+    if current()[0].startswith('p_'):
+        del _stack[-1:]
     _stack.append(('p_' + fname, label or fname))
     _send(label or fname)
 
@@ -87,7 +92,7 @@ def step_size(fname, label=None):
 def call_expr():
     if _emit is None:
         return lambda code, total=None: None
-    label = _stack[-1][1] if _stack else ''
+    label = current()[1]
 
     def p(code, total=None):
         c = None if isinstance(code, int) else label_count(code)
@@ -107,7 +112,7 @@ def avanca(done, total, label=None):
     if done < total and current_time - _last[0] < INTERVAL:
         return
     _last[0] = current_time
-    _send(label or (_stack[-1][1] if _stack else ''), done, total)
+    _send(label or current()[1], done, total)
 
 
 def detail(body_text):
@@ -137,9 +142,9 @@ def legacy(body_text, is_stage=True, fase=True):
     if c:
         label, done, total = c
         fname = 'c_' + _name(label)
-        if not _stack or _stack[-1][0] != fname:
-            if _stack and _stack[-1][0].startswith(('c_', 'l_')):
-                _stack.pop()
+        if current()[0] != fname:
+            if current()[0].startswith(('c_', 'l_')):
+                del _stack[-1:]
             _stack.append((fname, label))
             _send(label)
         avanca(done, total, label)
@@ -154,10 +159,10 @@ def legacy(body_text, is_stage=True, fase=True):
         detail(body_text)
         return
     fname = 'l_' + _name(body_text)
-    if _stack[-1][0] == fname:
+    if current()[0] == fname:
         detail(body_text)
         return
-    if _stack[-1][0].startswith(('c_', 'l_')):
-        _stack.pop()
+    if current()[0].startswith(('c_', 'l_')):
+        del _stack[-1:]
     _stack.append((fname, str(body_text).strip()))
     _send(str(body_text).strip())
