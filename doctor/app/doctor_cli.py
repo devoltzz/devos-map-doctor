@@ -87,6 +87,9 @@ a .w3mod): a package is read as data, never run; diag, files and extract work on
   replay [<file.w3g>|<folder>]    reads a replay: the players, chat, who left, sync and frame events, the checksums
                                   (none given: lists the replays the game kept)
   replay-compare <a.w3g> <b.w3g>  the first turn where the two games' state checksums differ (a desync)
+  save <file.w3z|file.w3v> [--to=<folder>]
+                                  reads a save game or a campaign save (the container, the map, the game); --to
+                                  writes its parts
   crash [<folder|Crash.txt|War3Log.txt>] [--map=<map>]
                                   reads the game's crash report or log (none given: lists the crash reports);
                                   --map: counts that map's files at the game's own paths
@@ -98,7 +101,7 @@ Extras of fix / editor:
   --models --model-names --portraits --data-pointers --kk-textures --green-icons --uabi --preload
   --single-player --shrink --shrink-lossy --translation=<file> --strip-indent
   --fix-attributes --remove-game-files --remove-game-copies --fix-requirements --fix-fdf --null-handles --minify
-  --slk-objects
+  --slk-objects --fix-graphics-modes
   --portraits=stamp|upgrade --shrink-models --shrink-models-lossy --lobby-image=<picture>
   --fix-attributes         redo the file checksums
   --remove-game-files      take out the map files that replace the game's own (needs the game installed)
@@ -108,6 +111,8 @@ Extras of fix / editor:
   --null-handles           null handle locals (JASS)
   --minify                 shrink the JASS script
   --slk-objects            make the editor object files from the SLK tables of an optimized map (needs the game)
+  --fix-graphics-modes     copy into the map the game files that only some graphics modes have (Classic,
+                           Reforged, Definitive Edition), as many as fit below 512 MB (needs the game)
   --portraits=stamp|upgrade  the black portrait fix with the model version 1800 (stamp), or also the 3.0 layout
                            (upgrade): untested in game, try one hero first
   --shrink-models          models smaller without loss; --shrink-models-lossy also drops animation keys that change
@@ -118,6 +123,8 @@ Extras of fix / editor:
 --strip-indent (fix, editor, port, cheat, qol): the script without the spaces and tabs that start its lines
 
 Everywhere: --json (what the job returned), --quiet (no progress), --help, --version
+--json-schema (or: doctor schema)  the --json contract: each command's options and result keys, versioned by the
+                                   "schema" number every --json result carries (readme/CLI.md)
 '''
 
 STEP_FLAGS = {'mpq': 'unprotect', 'fake_list': 'fake-files', 'fake_list': 'fake-files', 'listing': 'listfile',
@@ -145,6 +152,7 @@ EXTRA_FLAGS = {
     'null-handles': 'null_handles',
     'minify': 'minify',
     'slk-objects': 'slk_objects',
+    'fix-graphics-modes': 'graphics_modes',
 }
 EDITOR_EXTRAS = ('single-player', 'translation', 'strip-indent')
 OUTCOME_CODE = {'ok': 0, 'nothing': 0, 'partial': 3, 'failed': 1}
@@ -323,6 +331,12 @@ def show(command, r):
     if command in ('log', 'crash', 'replay'):
         print(r.get('text') or r.get('error') or '')
         return
+    if command == 'save':
+        for line in r.get('lines') or []:
+            print(line)
+        for p in r.get('written') or []:
+            print('  ' + p)
+        return
     if command == 'crash list':
         reports = r.get('reports') or []
         if not reports:
@@ -372,7 +386,11 @@ def show(command, r):
         for f in r.get('unnamed') or []:
             print('%10d  %-8s  #%s  (no name%s)' % (f.get('size') or 0, f.get('kind') or '', f.get('block'),
                                                    ', ' + f['ext'] if f.get('ext') else ''))
-        print('%d files' % (r.get('total') or 0))
+        hidden = r.get('hidden') or []
+        for f in hidden:
+            print('%10d  %-8s  %s' % (f.get('size') or 0, 'hidden', f.get('name')))
+        print('%d files' % (r.get('total') or 0) + (', %d hidden (KK virtual MPQ): extract --all writes them under '
+                                                      'hidden\\' % len(hidden) if hidden else ''))
         return
     if command == 'rawcodes':
         sys.stdout.write(r.get('text') or '')
@@ -692,6 +710,10 @@ def build_job(command, pos, opts, run):
         if len(pos) == 1:
             return 'replay list', {'task': 'replay_list'}
         return 'replay', {'task': 'replay_read', 'file': os.path.abspath(pos[1])}
+    if command == 'save':
+        need(pos, 2, '<file.w3z|file.w3v>')
+        folder = os.path.abspath(opts['to']) if isinstance(opts.get('to'), str) else None
+        return 'save', {'task': 'save_read', 'file': os.path.abspath(pos[1]), 'folder': folder}
     if command == 'replay-compare':
         need(pos, 3, '<a.w3g> <b.w3g>')
         return 'replay compare', {'task': 'replay_compare', 'a': os.path.abspath(pos[1]), 'b': os.path.abspath(pos[2])}
@@ -711,6 +733,172 @@ def build_job(command, pos, opts, run):
     raise UsageError('unknown command %r' % command)
 
 
+JSON_SCHEMA = 1
+GLOBAL_OPTIONS = {'json': {'kind': 'flag', 'about': 'print the result as one JSON object on stdout'},
+                  'quiet': {'kind': 'flag', 'about': 'no progress on stderr'},
+                  'help': {'kind': 'flag', 'about': 'the usage (also -h)'},
+                  'version': {'kind': 'flag', 'about': 'the program version (with --json: the envelope only)'},
+                  'json-schema': {'kind': 'flag', 'about': 'this contract as JSON (also the command: schema)'}}
+ENVELOPE = {'schema': 'integer', 'doctor_version': 'string', 'command': 'string', 'exit_code': 'integer'}
+FAILURE = {'outcome': 'string', 'error': 'string', 'error_kind': 'string'}
+OUTCOMES = ('ok', 'nothing', 'partial', 'failed')
+EXIT_CODES = {'0': 'done, or nothing to do', '1': 'failed', '2': 'wrong command line', '3': 'done with leftovers',
+              '130': 'cancelled'}
+_WRITES = {'outcome': 'string', 'file': 'string|null', 'lines': 'array'}
+_STEP_NAMES = sorted(set(STEP_FLAGS.values()) | {'data', 'identical-textures'})
+
+
+def _steps():
+    return dict((f, {'kind': 'step'}) for f in _STEP_NAMES)
+
+
+def _flags(*names):
+    return dict((n, {'kind': 'flag'}) for n in names)
+
+
+def _value(about, values=None):
+    v = {'kind': 'value', 'about': about}
+    if values:
+        v['values'] = list(values)
+    return v
+
+
+def _fix_options():
+    o = _steps()
+    o.update(_flags(*EXTRA_FLAGS))
+    o.update(_flags('remove-game-copies', 'shrink', 'shrink-lossy', 'shrink-models', 'shrink-models-lossy'))
+    o['portraits'] = {'kind': 'flag-or-value', 'values': ['stamp', 'upgrade']}
+    o['translation'] = _value('a translation file of the map')
+    o['lobby-image'] = _value('a picture')
+    return o
+
+
+def _editor_options():
+    o = _steps()
+    o.update(_flags(*[f for f in EDITOR_EXTRAS if f in EXTRA_FLAGS]))
+    o['translation'] = _value('a translation file of the map')
+    o['editor-version'] = _value('the World Editor to open the map in',
+                                 ['reforged', 'auto', 'jn', '1.24', '1.25', '1.26', '1.27', '1.28', '1.29'])
+    return o
+
+
+CONTRACT = (
+    ('diag', 'diag <map>', {},
+     {'map': 'string', 'name': 'string', 'size': 'integer', 'lines': 'array', 'steps': 'array', 'summary': 'object',
+      'editor_version': 'object'}),
+    ('fix', 'fix <map> [steps] [extras]', _fix_options(), dict(_WRITES, changes='object')),
+    ('editor', 'editor <map> [steps] [extras] [--editor-version=<v>]', _editor_options(),
+     dict(_WRITES, changes='object')),
+    ('port', 'port <map> [options]',
+     dict(_flags('icons', 'textures', 'keep-memory', 'balance-numbers', 'strip-indent', 'remove-game-files', 'lossy',
+                 'classic-effects'),
+          to=_value('a game version: 1.24a to 1.29.2, 2.0.4 (none: Reforged 3.0)'),
+          package=_value('art packages, comma separated')),
+     dict(_WRITES, report='string', port='object')),
+    ('check', 'check <map> [--game=<version>]', {'game': _value('1.24a to 1.28.5, 1.29.2 or 3.0')},
+     {'verdict': 'string', 'verdict_code': 'string', 'items': 'array', 'version': 'string',
+      'made_for': 'object|null', 'versions': 'array'}),
+    ('cheatpacks', 'cheatpacks <map>', {},
+     {'language': 'string|null', 'script': 'string|null', 'packs': 'array', 'error': 'string|null'}),
+    ('cheat', 'cheat <map> --pack=<id> [--set <key>=<value> ...]',
+     dict(_flags('strip-indent', 'durable'), pack=_value('a pack id (cheatpacks lists them)'),
+          set={'kind': 'repeat', 'about': '<key>=<value>'}),
+     dict(_WRITES, pack='string|null')),
+    ('qol', 'qol <map>', {},
+     {'supported': 'boolean', 'reason': 'string|null', 'language': 'string|null', 'script': 'string|null',
+      'found': 'object?'}),
+    ('qol apply', 'qol <map> --xp=<x> ... (any edit given)',
+     dict(dict((k, _value('a multiplier')) for k in ('xp', 'gold', 'lumber', 'drop', 'craft', 'respawn', 'creep')),
+          **_flags('noshake', 'noshake-off', 'reveal', 'vip', 'strip-indent')),
+     dict(_WRITES, state='string|null')),
+    ('translation groups', 'translation groups <map>', {},
+     {'groups': 'array', 'entries': 'integer', 'error': 'string|null'}),
+    ('translation export', 'translation export <map> <file.json|file.html>',
+     dict(_flags('images'), only=_value('groups, comma separated')),
+     {'state': 'string|null', 'file': 'string|null', 'entries': 'integer', 'error': 'string|null'}),
+    ('translation check', 'translation check <map> <file>', {},
+     {'ok': 'integer', 'empty': 'integer', 'rejected': 'array', 'unknown': 'array', 'error': 'string|null'}),
+    ('translation override', 'translation override <map> <file>', {},
+     {'state': 'string|null', 'output': 'string|null', 'applied': 'integer', 'files': 'array', 'error': 'string|null'}),
+    ('translation machine', 'translation machine <map> <file.json>',
+     dict(_flags('images'), only=_value('groups, comma separated'), quality=_value('the model', ['best', 'fast']),
+          keep=_value('a translation file whose filled texts stay')),
+     {'state': 'string|null?', 'translated': 'integer?', 'entries': 'integer?', 'file': 'string|null?',
+      'error': 'string|null?'}),
+    ('files', 'files <map>', {},
+     {'files': 'array', 'unnamed': 'array', 'total': 'integer', 'error': 'string|null', 'hidden': 'array?'}),
+    ('extract', 'extract <map> <name>... [--to=<folder>]', {'to': _value('the folder')},
+     {'out_dir': 'string', 'written': 'array', 'same': 'array', 'exists': 'array', 'failed': 'array',
+      'error': 'string|null'}),
+    ('extract all', 'extract <map> --all|--models [--to=<folder>]',
+     dict(_flags('all', 'models'), to=_value('the folder')),
+     {'out_dir': 'string', 'written': 'array', 'same': 'array', 'exists': 'array', 'failed': 'array',
+      'kind': 'string|null', 'total': 'integer', 'models': 'integer', 'textures': 'integer', 'outside': 'array',
+      'error': 'string|null'}),
+    ('script', 'script <map> [--to=<file>]', {'to': _value('a file')},
+     {'language': 'string', 'text': 'string', 'size': 'integer', 'error': 'string|null'}),
+    ('rawcodes', 'rawcodes <map>', {}, {'total': 'integer', 'text': 'string', 'error': 'string|null'}),
+    ('recipes', 'recipes <map> [--out=<file>] [--all]', dict(_flags('all'), out=_value('a .txt, .json or .csv file')),
+     {'recipes': 'array', 'text': 'string', 'csv': 'string', 'json': 'string', 'error': 'string|null'}),
+    ('card', 'card <map>', {}, {'name': 'string?', 'author': 'string?', 'players_suggested': 'string?'}),
+    ('compare', 'compare <map> <other map>', {},
+     {'files': 'object', 'script': 'object', 'info': 'object', 'strings': 'object', 'objects': 'object',
+      'error': 'string|null'}),
+    ('diagnose', 'diagnose <map> [--all|--init]', _flags('all', 'init'), dict(_WRITES)),
+    ('log', 'log [<file.pld>|<folder _init>]', {}, {'text': 'string?', 'error': 'string|null?'}),
+    ('crash list', 'crash', {}, {'folder': 'string', 'reports': 'array', 'log': 'string|null'}),
+    ('crash', 'crash <folder|Crash.txt|War3Log.txt> [--map=<map>]', {'map': _value('a map')},
+     {'text': 'string?', 'error': 'string|null?'}),
+    ('replay list', 'replay', {}, {'replays': 'array'}),
+    ('replay', 'replay <file.w3g|folder>', {}, {'text': 'string?', 'error': 'string|null?'}),
+    ('replay compare', 'replay-compare <a.w3g> <b.w3g>', {}, {'text': 'string?'}),
+    ('save', 'save <file.w3z|file.w3v> [--to=<folder>]', {'to': _value('a folder')},
+     {'lines': 'array', 'ok': 'boolean', 'written': 'array'}),
+)
+ALIASES = {'check': {'version': 'game'}}
+CONTRACT_BY_NAME = dict((c[0], c) for c in CONTRACT)
+
+
+def contract(version=''):
+    commands = []
+    for name, usage, options, result in CONTRACT:
+        x = {'command': name, 'usage': 'doctor ' + usage, 'options': options, 'result': result}
+        if ALIASES.get(name):
+            x['aliases'] = ALIASES[name]
+        commands.append(x)
+    return {'schema': JSON_SCHEMA, 'doctor_version': version, 'command': 'schema', 'exit_code': 0,
+            'envelope': ENVELOPE, 'failure': FAILURE, 'outcomes': list(OUTCOMES), 'exit_codes': EXIT_CODES,
+            'global_options': GLOBAL_OPTIONS,
+            'refusal': {'error': 'string', 'outcome': 'string', 'no_edit': 'boolean?', 'package': 'boolean?'},
+            'types': 'string, integer, number, boolean, array, object; "x|null" may be null; a trailing "?": the key '
+                     'may be missing; keys not listed may appear',
+            'commands': commands}
+
+
+def envelope(r, version, command, code):
+    from doctor.app import doctor_app
+    out = doctor_app._jsonable(r) if isinstance(r, dict) else {'result': doctor_app._jsonable(r)}
+    out.update(schema=JSON_SCHEMA, doctor_version=version, command=command, exit_code=code)
+    return out
+
+
+def failure(version, command, error, kind, code):
+    return {'schema': JSON_SCHEMA, 'doctor_version': version, 'command': command, 'exit_code': code,
+            'outcome': 'failed', 'error': error, 'error_kind': kind}
+
+
+_MISSING = object()
+
+
+def print_json(obj):
+    print(json.dumps(obj, ensure_ascii=False, indent=1))
+
+
+def allowed_options(command):
+    spec = CONTRACT_BY_NAME.get(command)
+    return set(spec[2] if spec else ()) | set(ALIASES.get(command) or ()) | set(GLOBAL_OPTIONS)
+
+
 def outcome_code(command, r):
     if 'outcome' in (r or {}):
         return OUTCOME_CODE.get(r['outcome'], 1)
@@ -723,17 +911,28 @@ def main(argv, window, version=''):
     from doctor.app import doctor_app
     from doctor.app import windows_rules
     windows_rules.apply()
+    argv = list(argv)
     try:
-        pos, opts = parse(list(argv))
+        pos, opts = parse(argv)
     except UsageError as e:
         sys.stderr.write('doctor: %s\n' % e)
+        if '--json' in argv:
+            print_json(failure(version, '', str(e), 'usage', 2))
         return 2
+    as_json = bool(opts.get('json'))
+    if opts.get('json-schema') is True or (pos and pos[0] == 'schema'):
+        print_json(contract(version))
+        return 0
     if opts.get('version') is True or (opts.get('version') and not (pos and pos[0] == 'check')):
-        print(version)
+        if as_json:
+            print_json({'schema': JSON_SCHEMA, 'doctor_version': version, 'command': 'version', 'exit_code': 0})
+        else:
+            print(version)
         return 0
     if opts.get('help') or not pos:
         sys.stdout.write(USAGE.replace('{version}', version))
         return 0 if opts.get('help') else 2
+    asked = ' '.join(pos[:2]) if pos[0] == 'translation' and len(pos) > 1 else pos[0]
     out = Out(bool(opts.get('quiet')) or bool(opts.get('json')) and not sys.stderr.isatty())
     if version and not os.environ.get('DOCTOR_CACHE'):
         os.environ['DOCTOR_CACHE'] = doctor_app.cache_folder(version)
@@ -751,7 +950,10 @@ def main(argv, window, version=''):
 
     try:
         command, job = build_job(pos[0], pos, opts, run)
-        unknown = sorted(k for k in opts if k not in opts.seen and k not in ('json', 'quiet', 'out', 'to', 'help'))
+        asked = command
+        allowed = allowed_options(command)
+        unknown = sorted(k for k in opts if k not in GLOBAL_OPTIONS and (
+            k not in allowed or (k not in opts.seen and k not in ('out', 'to'))))
         if unknown:
             named = ', '.join('--' + k for k in unknown)
             if command in ('fix', 'editor'):
@@ -760,20 +962,26 @@ def main(argv, window, version=''):
                 raise UsageError('unknown option%s: %s' % ('s' if len(unknown) > 1 else '', named))
     except UsageError as e:
         sys.stderr.write('doctor: %s\n(doctor --help lists the commands)\n' % e)
+        if as_json:
+            print_json(failure(version, asked, str(e), 'usage', 2))
         return 2
     t0 = time.time()
     try:
         r = run(job)
     except KeyboardInterrupt:
         sys.stderr.write('doctor: cancelled\n')
+        if as_json:
+            print_json(failure(version, command, 'cancelled', 'cancelled', 130))
         return 130
     except Exception as e:
         sys.stderr.write('doctor: %s failed: %s: %s\n' % (pos[0], type(e).__name__, e))
         if os.environ.get('DOCTOR_TRACE'):
             raise
+        if as_json:
+            print_json(failure(version, command, '%s: %s' % (type(e).__name__, e), 'exception', 1))
         return 1
-    if opts.get('json'):
-        print(json.dumps(doctor_app._jsonable(r), ensure_ascii=False, indent=1))
+    if as_json:
+        print_json(envelope(r, version, command, outcome_code(command, r)))
     elif (r or {}).get('package') or (r or {}).get('no_edit'):
         print(r.get('error'))
     elif command == 'recipes' and isinstance(opts.get('out'), str):
