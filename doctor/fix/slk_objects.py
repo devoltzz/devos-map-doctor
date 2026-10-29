@@ -349,7 +349,7 @@ def convert(read, names, species, base, w3i=None, progress=None, complete=False)
             p('Converting %s %d/%d' % (species, k, len(tab)))
         row = tab[rid]
         if complete:
-            row = dict(dict((c, '') for c in slk_cols), **row)
+            row = dict(dict((c, '') for c in sorted(slk_cols)), **row)
         if rid in base_tab:
             mods = _mods_of(species, cols, meta, row, cru.get(rid), base_tab[rid], base_cru.get(rid), rep, rid)
             if not mods:
