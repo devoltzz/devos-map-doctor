@@ -3374,5 +3374,9 @@
  "The Lua script creates {0} handle(s) while it loads, outside any function: {1}{2}.": "Скрипт Lua під час завантаження, поза будь-якою функцією, створює handle ({0}): {1}{2}.",
  "The Lua script was obfuscated by WC3Fuscator 2.1: layers peeled: {0} (the key is in the loader).": "Скрипт Lua було обфусковано WC3Fuscator 2.1: знято шарів: {0} (ключ міститься в завантажувачі).",
  "The Lua script was wrapped in loader layers of the WC3Fuscator kind (additive cipher, the one DevoProtect uses): layers peeled: {0}.": "Скрипт Lua було обгорнуто в шари завантажувача типу WC3Fuscator (адитивний шифр, той самий, що використовує DevoProtect): знято шарів: {0}.",
- "{0}Handles made there are a known source of multiplayer desyncs when they are thrown away and collected; if the map desyncs, move them into a function the map runs at its start.": "{0}Створені там handle — відоме джерело розсинхронів у мультиплеєрі, коли їх викидають і збирають; якщо мапа розсинхронізується, перенесіть їх у функцію, яку мапа виконує на старті."
+ "{0}Handles made there are a known source of multiplayer desyncs when they are thrown away and collected; if the map desyncs, move them into a function the map runs at its start.": "{0}Створені там handle — відоме джерело розсинхронів у мультиплеєрі, коли їх викидають і збирають; якщо мапа розсинхронізується, перенесіть їх у функцію, яку мапа виконує на старті.",
+ "Choose a picture for \"Use my own lobby image\", or untick it.": "Виберіть зображення для \"Використати власне зображення лобі\" або зніміть позначку.",
+ "Download the chain log": "Завантажити журнал ланцюжка",
+ "Show the chain log": "Показати журнал ланцюжка",
+ "This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). Run the action again.": "Цей файл зник: рушій, який тримав його в пам'яті, було перезапущено (скасування або збій). Виконайте дію ще раз."
 }
