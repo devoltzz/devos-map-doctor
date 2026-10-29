@@ -81,7 +81,7 @@ def _open(path):
         failure = e
         with open(path, 'rb') as f:
             data = f.read()
-    if ntfs_undo.detect(data) is not None:
+    if ntfs_undo.detect_ntfs(data) is not None:
         restored, _report = unprotect.restore_copy(path, data)
         if restored:
             archive = unprotect._open(restored)
@@ -217,6 +217,21 @@ def _about(name):
     return '%s (%s%s)' % (d['what'], who, ', Reforged %s' % d['era'] if d['era'] in ('1.32', '2.0') else '')
 
 
+def _hidden(d, names):
+    try:
+        from doctor.mpq import kk_mpqpack
+        lay = kk_mpqpack.probe_map(d, names)
+        if lay is None:
+            return []
+        heads = list(kk_mpqpack.records(d, lay, decode=False))
+        pairs = [(h[0] ^ lay.k0, h[1] ^ lay.k1) if lay.k0 is not None else (h[0], h[1]) for h in heads]
+        named = kk_mpqpack.name_records(pairs, names)
+        return [{'name': named.get(p) or kk_mpqpack._fallback_name(i, p), 'size': heads[i][2]}
+                for i, p in enumerate(pairs)]
+    except Exception:
+        return []
+
+
 def list_files(path, progress=None, dictionary=True, classify=False):
     say = progress or _quiet
     out = {'files': [], 'unnamed': [], 'total': 0, 'map': None, 'notes': [], 'error': None}
@@ -284,6 +299,7 @@ def list_files(path, progress=None, dictionary=True, classify=False):
             out['unnamed'].append(item)
         out['files'].sort(key=lambda f: (f['name'].lower(), f['name']))
         out['total'] = len(out['files']) + len(out['unnamed'])
+        out['hidden'] = _hidden(a.d, [f['name'] for f in out['files']])
         if not names:
             out['notes'].append('No name reaches the files of this map (its tables are scrambled or its names are '
                                 'gone): "Fix map" rebuilds what can be rebuilt.' if out['unnamed'] else
@@ -793,6 +809,16 @@ def extract_all(path, out_dir, progress=None, kind=None, overwrite=False):
                 out['failed'].append({'name': ref_name, 'reason': _error(e)})
     out['outside'] = sorted(outside, key=lambda x: (x.lower(), x))
     out['folders'] = sorted(folders.values(), key=lambda f: (f.lower(), f))
+    if kind is None and listing.get('hidden'):
+        from doctor.mpq import kk_mpqpack
+        say('Extracting the hidden files (KK virtual MPQ)')
+        try:
+            h = kk_mpqpack.extract(path, os.path.join(root, 'hidden'),
+                                   names=[f['name'] for f in listing.get('files') or []])
+            out['hidden'] = {'records': h['records'], 'named': h['named'], 'bytes': h['bytes'],
+                             'folder': os.path.join(root, 'hidden')}
+        except (Exception, SystemExit) as e:
+            out['failed'].append({'name': 'hidden (KK virtual MPQ)', 'reason': _error(e)})
     return out
 
 
