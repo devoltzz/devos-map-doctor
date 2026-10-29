@@ -89,7 +89,7 @@ def plausible_tables(d, fname=None):
     return sum(1 for b in block_list if b >= 0xFFFFFFFE or b < bn) / float(hn)
 
 
-def detect(d):
+def detect_ntfs(d):
     ff = None
     i = d.find(b'\xff\x3f')
     seen = 0
@@ -114,7 +114,7 @@ def undo_accepted(before, after_diag, three_ff3f):
 
 def undo(d, fname=None):
     details = {'units': 0, 'lznt1': 0, 'raw': 0, 'lost': 0, 'grown': 0}
-    evidence = detect(d)
+    evidence = detect_ntfs(d)
     if evidence is None:
         details['err'] = 'no sign found (FF 3F every 4,098 bytes, or the last unit in LZNT1)'
         return None, details
