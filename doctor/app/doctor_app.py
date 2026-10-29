@@ -48,12 +48,21 @@ def load_settings():
         return {}
 
 
+_SETTINGS_LOCK = threading.Lock()
+
+
 def save_settings(data):
     p = settings_path()
-    os.makedirs(os.path.dirname(p), exist_ok=True)
-    with open(p + '.new', 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=1)
-    os.replace(p + '.new', p)
+    tmp = '%s.%d.%d.new' % (p, os.getpid(), threading.get_ident())
+    with _SETTINGS_LOCK:
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        try:
+            with open(tmp, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=1)
+            os.replace(tmp, p)
+        finally:
+            if os.path.exists(tmp):
+                os.remove(tmp)
 
 
 def worker_command():
@@ -71,20 +80,44 @@ def _cache_file(path):
     return os.path.join(folder, 'diag_%s.pickle' % key)
 
 
-def cached_diagnosis(D, path, progress):
+def _cached(path):
     p = _cache_file(path)
     try:
         with open(p, 'rb') as f:
-            return pickle.load(f)
-    except (OSError, pickle.PickleError, EOFError, AttributeError, ImportError):
-        pass
-    d = D.diagnose(path, progress)
+            d = pickle.load(f)
+    except OSError:
+        return None
+    except Exception:
+        try:
+            os.remove(p)
+        except OSError:
+            pass
+        return None
+    if not isinstance(d, dict):
+        return None
     try:
-        with open(p + '.new', 'wb') as f:
-            pickle.dump(d, f)
-        os.replace(p + '.new', p)
-    except (OSError, pickle.PickleError, TypeError):
+        os.utime(p)
+    except OSError:
         pass
+    return d
+
+
+def cached_diagnosis(D, path, progress):
+    d = _cached(path)
+    if d is not None:
+        return d
+    d = D.diagnose(path, progress)
+    p = _cache_file(path)
+    tmp = '%s.%d.new' % (p, os.getpid())
+    try:
+        with open(tmp, 'wb') as f:
+            pickle.dump(d, f)
+        os.replace(tmp, p)
+    except (OSError, pickle.PickleError, TypeError, AttributeError, RecursionError):
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
     return d
 
 
@@ -231,9 +264,8 @@ NO_EDIT_REFUSED = 'Not allowed to edit'
 
 def no_edit_of(path):
     try:
-        with open(_cache_file(path), 'rb') as f:
-            d = pickle.load(f)
-        if isinstance(d, dict) and 'no_edit' in d:
+        d = _cached(path)
+        if d is not None and 'no_edit' in d:
             return d['no_edit']
     except Exception:
         pass
@@ -254,8 +286,9 @@ def no_edit_refusal(job):
 
 def is_package(D, path):
     try:
-        with open(_cache_file(path), 'rb') as f:
-            return pickle.load(f).get('fixable') == 'is_pack'
+        d = _cached(path)
+        if d is not None:
+            return d.get('fixable') == 'is_pack'
     except Exception:
         pass
     return D.is_package(path)
@@ -366,7 +399,7 @@ def extra_lines(x):
 
 def strip_indent_step(out, progress):
     from doctor.fix import script_indent
-    tmp = os.path.splitext(out)[0] + '.strip_indent' + os.path.splitext(out)[1]
+    tmp = step_copy(out, 'strip_indent')
     try:
         try:
             rel = script_indent.fix(out, tmp, progress)
@@ -430,7 +463,13 @@ def run_action(D, G, job, path, task, progress, emit):
             try:
                 base, r1 = path, None
                 if set(p['code'] for p in d['protections']) - set(D.BUTTON3_ONLY) - set(D.DATA_ONLY):
-                    r1 = D.unprotect(path, os.path.join(tmp, 'unprotected.w3x'), progress, diag=d, options=options)
+                    unprotect = options
+                    try:
+                        if D.target_version(path, version) is not None:
+                            unprotect = dict(options or {}, **dict(('dados:' + k, False) for k in D.slk_patch.PROBLEMS))
+                    except ValueError:
+                        pass
+                    r1 = D.unprotect(path, os.path.join(tmp, 'unprotected.w3x'), progress, diag=d, options=unprotect)
                     if r1.get('status') in ('done', 'partial'):
                         base = r1['output']
                 x = D.apply_extras(base, os.path.join(tmp, 'extras.w3x'), before, progress)
@@ -492,15 +531,17 @@ def run_port(D, G, path, progress, emit, packages=(), memory=True, icons=False, 
                                   memory_hacks='neutralize' if memory else 'equivalents', balance_numbers=bool(balance),
                                   shrink_with_loss=bool(lossy), sd_models=bool(classic))
         except BaseException as e:
-            import traceback
             write_port_failure(report, '%s: %s' % (type(e).__name__, e), traceback.format_exc()[-3000:])
             raise
         if r.get('err'):
             chain = os.path.join(work, 'port', 'port', 'out', 'cadeia.log')
             if os.path.isfile(chain):
                 log = os.path.splitext(out)[0] + '.chain.log'
-                shutil.copyfile(chain, log)
-                r['log'] = log
+                try:
+                    shutil.copyfile(chain, log)
+                    r['log'] = log
+                except OSError:
+                    pass
     finally:
         shutil.rmtree(work, ignore_errors=True)
     ported = r.get('resultado', '').startswith('ported')
@@ -571,7 +612,7 @@ def _port_targets(job, progress):
 
 
 def port_step(out, progress, module, nothing):
-    tmp = os.path.splitext(out)[0] + '.' + module + os.path.splitext(out)[1]
+    tmp = step_copy(out, module)
     try:
         try:
             if module == 'kk_textures':
@@ -620,7 +661,8 @@ def _run_job(job, emit, G, D, task, path, progress):
         d = cached_diagnosis(D, path, progress)
         return {'map': os.path.abspath(path), 'name': os.path.basename(path), 'size': os.path.getsize(path),
                 'lines': page_lines(G.diagnosis_text(d)), 'steps': page_steps(D, d),
-                'summary': page_summary(D, d), 'editor_version': editor_version_guess(path, d)}
+                'summary': page_summary(D, d), 'editor_version': editor_version_guess(path, d),
+                'state': d.get('fixable')}
     refused = no_edit_refusal(job)
     if refused:
         return refused
@@ -1079,12 +1121,27 @@ def _warm_up():
         pass
 
 
+def _stdout_to_stderr():
+    try:
+        sys.stderr.flush()
+        os.dup2(2, 1)
+        if os.name == 'nt':
+            import ctypes
+            import msvcrt
+            k32 = ctypes.WinDLL('kernel32')
+            k32.SetStdHandle.argtypes = (ctypes.c_ulong, ctypes.c_void_p)
+            k32.SetStdHandle(ctypes.c_ulong(-11).value, msvcrt.get_osfhandle(1))
+    except (OSError, AttributeError, ValueError):
+        pass
+
+
 def worker_main(window=None):
     window = window or sys.modules['__main__']
     from doctor.app import windows_rules
     windows_rules.apply()
     out = os.fdopen(os.dup(1), 'w', encoding='utf-8', newline='\n')
     sys.stdout = sys.stderr
+    _stdout_to_stderr()
     lock = threading.Lock()
 
     def emit(event):
@@ -1128,12 +1185,93 @@ def cache_folder(version):
                     pass
     except OSError:
         pass
+    prune_diagnoses(folder)
     return folder
+
+
+DIAG_DAYS = 30
+DIAG_BYTES = 1 << 30
+
+
+def prune_diagnoses(folder, now=None):
+    now = time.time() if now is None else now
+    found, gone = [], 0
+    try:
+        names = os.listdir(folder)
+    except OSError:
+        return 0
+    for name in names:
+        if not name.startswith('diag_') or not name.endswith(('.pickle', '.new')):
+            continue
+        p = os.path.join(folder, name)
+        try:
+            st = os.stat(p)
+        except OSError:
+            continue
+        if (name.endswith('.new') and now - st.st_mtime > 3600) or now - st.st_mtime > DIAG_DAYS * 86400:
+            try:
+                os.remove(p)
+                gone += 1
+            except OSError:
+                pass
+        elif name.endswith('.pickle'):
+            found.append((st.st_mtime, st.st_size, p))
+    total = sum(s for _t, s, _p in found)
+    for _t, size, p in sorted(found):
+        if total <= DIAG_BYTES:
+            break
+        try:
+            os.remove(p)
+            gone += 1
+            total -= size
+        except OSError:
+            pass
+    return gone
+
+
+JOB_PREFIX = 'devos_map_doctor_job_'
+
+
+def sweep_job_folders(base=None, age=86400, now=None):
+    if os.name != 'nt':
+        return 0
+    base = base or tempfile.gettempdir()
+    now = time.time() if now is None else now
+    gone = 0
+    try:
+        names = [n for n in os.listdir(base) if n.startswith(JOB_PREFIX)]
+    except OSError:
+        return 0
+    for name in names:
+        p = os.path.join(base, name)
+        try:
+            if not os.path.isdir(p) or now - os.stat(p).st_mtime < age:
+                continue
+            log = os.path.join(p, 'worker.log')
+            if os.path.exists(log):
+                os.remove(log)
+        except OSError:
+            continue
+        shutil.rmtree(p, ignore_errors=True)
+        gone += not os.path.isdir(p)
+    return gone
 
 
 def part_of(output):
     base, ext = os.path.splitext(output)
     return base + '.part' + (ext or '.w3x')
+
+
+def step_copy(out, step):
+    base, ext = os.path.splitext(out)
+    return base + '.' + step + ext
+
+
+LEFTOVER_STEPS = ('strip_indent', 'kk_textures', 'disabled_icons', 'small')
+
+
+def leftovers_of(output):
+    return [part_of(output)] + [step_copy(output, s) for s in LEFTOVER_STEPS]
 
 
 WARM = 2
@@ -1147,7 +1285,7 @@ class Job:
         self.output = None
         self.cancelled = False
         self.started = time.time()
-        self.reader = None
+        self.log = None
 
 
 class Api:
@@ -1157,6 +1295,7 @@ class Api:
         self._initial = initial_map
         self._updater = updater
         self._cache = cache_folder(version)
+        sweep_job_folders()
         self._jobs = {}
         self._next = 0
         self._lock = threading.Lock()
@@ -1281,15 +1420,19 @@ class Api:
             job.proc = proc
         else:
             job = Job(ident, task)
-            job.proc, log = self._spawn(job.tmp)
+            try:
+                job.proc, log = self._spawn(job.tmp)
+            except BaseException:
+                shutil.rmtree(job.tmp, ignore_errors=True)
+                raise
+        job.log = log
         self._jobs[ident] = job
         try:
             job.proc.stdin.write(json.dumps(dict(params or {}, task=task)).encode('utf-8'))
             job.proc.stdin.close()
         except OSError:
             pass
-        job.reader = threading.Thread(target=self._read, args=(job, log), daemon=True)
-        job.reader.start()
+        threading.Thread(target=self._read, args=(job, log), daemon=True).start()
         self._refill()
         return ident
 
@@ -1297,8 +1440,12 @@ class Api:
         env = dict(os.environ, TEMP=tmp, TMP=tmp, DOCTOR_CACHE=self._cache, PYTHONIOENCODING='utf-8',
                    PYTHONUTF8='1')
         log = open(os.path.join(tmp, 'worker.log'), 'wb')
-        proc = subprocess.Popen(worker_command(), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log,
-                                env=env, creationflags=NO_WINDOW if os.name == 'nt' else 0)
+        try:
+            proc = subprocess.Popen(worker_command(), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log,
+                                    env=env, creationflags=NO_WINDOW if os.name == 'nt' else 0)
+        except BaseException:
+            log.close()
+            raise
         return proc, log
 
     def _take_warm(self):
@@ -1318,7 +1465,7 @@ class Api:
                     tmp = tempfile.mkdtemp(prefix='devos_map_doctor_job_')
                     try:
                         proc, log = self._spawn(tmp)
-                    except OSError:
+                    except Exception:
                         shutil.rmtree(tmp, ignore_errors=True)
                         return
                     self._warm.append((proc, log, tmp))
@@ -1357,7 +1504,7 @@ class Api:
                     self._push(ev)
             code = job.proc.wait()
             log.close()
-            if job.cancelled:
+            if job.cancelled and final is None:
                 final = {'type': 'cancelled', 'job': job.ident}
                 if job.output:
                     self._drop_part(job)
@@ -1375,11 +1522,16 @@ class Api:
                     self._drop_part(job)
                 if job.task == 'port' and job.output:
                     write_port_failure(os.path.splitext(job.output)[0] + '.report.txt', final['message'], tail)
+            elif final.get('type') == 'error' and job.output:
+                self._drop_part(job)
         except Exception as e:
             try:
                 job.proc.kill()
-            except OSError:
+                job.proc.wait(5)
+            except (OSError, subprocess.TimeoutExpired):
                 pass
+            if job.output:
+                self._drop_part(job)
             final = {'type': 'error', 'job': job.ident, 'trace': traceback.format_exc(limit=8),
                      'message': 'The window could not read the worker (%s: %s).' % (type(e).__name__, e)}
         finally:
@@ -1396,13 +1548,14 @@ class Api:
 
     @staticmethod
     def _drop_part(job):
-        try:
-            os.remove(part_of(job.output))
-        except OSError:
-            pass
+        for p in leftovers_of(job.output):
+            try:
+                os.remove(p)
+            except OSError:
+                pass
 
     def _push(self, ev):
-        if self._window is None:
+        if self._window is None or self._closed:
             return
         try:
             self._window.evaluate_js('window.doctor && window.doctor.onEvent(%s)' % json.dumps(ev))
@@ -1429,6 +1582,23 @@ class Api:
 
     def busy(self):
         return sorted(self._jobs)
+
+    def _close(self, wait=2.0):
+        self._close_warm()
+        jobs = list(self._jobs.values())
+        for job in jobs:
+            self.cancel(job.ident)
+        end = time.time() + wait
+        for job in jobs:
+            try:
+                job.proc.wait(max(0.05, end - time.time()))
+            except (OSError, subprocess.TimeoutExpired):
+                continue
+            if job.log is not None:
+                job.log.close()
+            if job.output:
+                self._drop_part(job)
+            shutil.rmtree(job.tmp, ignore_errors=True)
 
     def check_update(self):
         u = self._updater
@@ -1469,12 +1639,7 @@ def run(version, initial_map=None, updater=None, icon=None):
     api._refill()
 
     def closing():
-        api._close_warm()
-        readers = [j.reader for j in api._jobs.values() if j.reader is not None]
-        for ident in list(api._jobs):
-            api.cancel(ident)
-        for t in readers:
-            t.join(2.0)
+        api._close()
 
     def dropped(e):
         files = (e.get('dataTransfer') or {}).get('files') or []
