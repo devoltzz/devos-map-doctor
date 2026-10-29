@@ -3375,5 +3375,9 @@
  "The Lua script creates {0} handle(s) while it loads, outside any function: {1}{2}.": "Luaスクリプトが読み込み中に、関数の外で{0}個のハンドルを作っています: {1}{2}。",
  "The Lua script was obfuscated by WC3Fuscator 2.1: layers peeled: {0} (the key is in the loader).": "LuaスクリプトはWC3Fuscator 2.1で難読化されていました: 剥がしたレイヤー: {0}(キーはローダー内にあります)。",
  "The Lua script was wrapped in loader layers of the WC3Fuscator kind (additive cipher, the one DevoProtect uses): layers peeled: {0}.": "LuaスクリプトはWC3Fuscator方式のローダーレイヤーで包まれていました(加算暗号、DevoProtectが使うもの): 剥がしたレイヤー: {0}。",
- "{0}Handles made there are a known source of multiplayer desyncs when they are thrown away and collected; if the map desyncs, move them into a function the map runs at its start.": "{0}そこで作られたハンドルは、捨てられて回収されるとマルチプレイのデシンクの原因として知られています。マップがデシンクする場合は、マップの開始時に実行される関数の中へ移してください。"
+ "{0}Handles made there are a known source of multiplayer desyncs when they are thrown away and collected; if the map desyncs, move them into a function the map runs at its start.": "{0}そこで作られたハンドルは、捨てられて回収されるとマルチプレイのデシンクの原因として知られています。マップがデシンクする場合は、マップの開始時に実行される関数の中へ移してください。",
+ "Choose a picture for \"Use my own lobby image\", or untick it.": "「自分のロビー画像を使う」の画像を選ぶか、チェックを外してください。",
+ "Download the chain log": "チェーンログをダウンロード",
+ "Show the chain log": "チェーンログを表示",
+ "This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). Run the action again.": "このファイルは失われました。メモリに保持していたエンジンが再起動されました(キャンセルまたはクラッシュ)。もう一度操作を実行してください。"
 }
