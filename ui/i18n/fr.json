@@ -3375,5 +3375,9 @@
  "The Lua script creates {0} handle(s) while it loads, outside any function: {1}{2}.": "Le script Lua crée {0} handle(s) pendant son chargement, hors de toute fonction : {1}{2}.",
  "The Lua script was obfuscated by WC3Fuscator 2.1: layers peeled: {0} (the key is in the loader).": "Le script Lua était obfusqué par WC3Fuscator 2.1 : couches retirées : {0} (la clé est dans le chargeur).",
  "The Lua script was wrapped in loader layers of the WC3Fuscator kind (additive cipher, the one DevoProtect uses): layers peeled: {0}.": "Le script Lua était enveloppé dans des couches de chargeur du type WC3Fuscator (chiffrement additif, celui qu'utilise DevoProtect) : couches retirées : {0}.",
- "{0}Handles made there are a known source of multiplayer desyncs when they are thrown away and collected; if the map desyncs, move them into a function the map runs at its start.": "{0}Les handles créés là sont une source connue de désynchronisations multijoueur quand ils sont abandonnés puis collectés ; si la carte se désynchronise, déplacez-les dans une fonction que la carte exécute à son démarrage."
+ "{0}Handles made there are a known source of multiplayer desyncs when they are thrown away and collected; if the map desyncs, move them into a function the map runs at its start.": "{0}Les handles créés là sont une source connue de désynchronisations multijoueur quand ils sont abandonnés puis collectés ; si la carte se désynchronise, déplacez-les dans une fonction que la carte exécute à son démarrage.",
+ "Choose a picture for \"Use my own lobby image\", or untick it.": "Choisissez une image pour « Utiliser ma propre image de salon », ou décochez l'option.",
+ "Download the chain log": "Télécharger le journal de chaîne",
+ "Show the chain log": "Afficher le journal de chaîne",
+ "This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). Run the action again.": "Ce fichier a disparu : le moteur qui le gardait en mémoire a été redémarré (une annulation ou un plantage). Relancez l'action."
 }
