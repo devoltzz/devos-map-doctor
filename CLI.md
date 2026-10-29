@@ -23,6 +23,9 @@ every output is a new file next to it (`<map>_fixed.w3x`, `<map>_editor.w3x`, `<
 | 3 | done with leftovers (`outcome` is `partial`) |
 | 130 | cancelled |
 
+Since 1.10.1, `diag` of a file that is not a map the Doctor can read (not a map, incomplete, unreadable) and `check`
+whose answer is "no" also exit with 1. `diag` says which in `state`.
+
 ## `--json`
 
 With `--json`, stdout carries exactly one JSON object (UTF-8) and nothing else. Since 1.10.0 every object has these
