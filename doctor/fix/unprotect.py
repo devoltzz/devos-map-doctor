@@ -224,7 +224,7 @@ def apply_extras(entry, output, extras, progress=None):
                 if (details or {}).get('state') in ('nothing_to_do', 'nothing_to_apply') and not os.path.isfile(t):
                     out['reports'][extra] = details
                     continue
-                if not os.path.isfile(t):
+                if (details or {}).get('state') in ('failed', 'refused') or not os.path.isfile(t):
                     raise RuntimeError(
                         (details or {}).get('error') or (details or {}).get('reason') or 'nothing was written'
                     )
@@ -399,7 +399,11 @@ def restore_copy(file_path, d=None):
             if rep is not None:
                 out = rep
         ext = os.path.splitext(file_path)[1] or '.w3x'
-        t = os.path.join(_restored_folder(), 'restored_%d%s' % (len(_RESTORED), ext))
+        n = len(_RESTORED)
+        t = os.path.join(_restored_folder(), 'restored_%d%s' % (n, ext))
+        while os.path.exists(t):
+            n += 1
+            t = os.path.join(_restored_folder(), 'restored_%d%s' % (n, ext))
         with open(t, 'wb') as f:
             f.write(out)
         res = (t, details)
@@ -1206,7 +1210,7 @@ def unprotect(file_path, output, progress=None, diag=None, options=None):
         'content': None,
         'err': None,
     }
-    if _same_file(file_path, output):
+    if _same_file(file_path, output) or _same_file(file_path, _part(output)):
         res['status'], res['err'] = 'failed', 'the output is the input map itself: the original is never written'
         return res
     if diag['fixable'] != 'yes':
@@ -1257,6 +1261,8 @@ def unprotect(file_path, output, progress=None, diag=None, options=None):
                     sprotect_fix.fix(src, t)
             except SystemExit as e:
                 raise RuntimeError('sprotect_fix: %s' % e)
+            if not os.path.isfile(t):
+                raise RuntimeError('sprotect_fix: %s' % ''.join(reg.body_text().strip().splitlines()[-1:]))
             src = t
             res['steps']['sprotect'] = True
         modified = []
@@ -1286,7 +1292,7 @@ def unprotect(file_path, output, progress=None, diag=None, options=None):
                     report=details,
                 )
             if out is None or not os.path.isfile(t):
-                raise RuntimeError('mpqdoctor.fix: %s' % reg.body_text().strip().splitlines()[-1:])
+                raise RuntimeError('mpqdoctor.fix: %s' % ''.join(reg.body_text().strip().splitlines()[-1:]))
             res['steps']['repair'] = details
             src = t
             if not virtual and step_on(options, 'listing'):
@@ -1302,7 +1308,7 @@ def unprotect(file_path, output, progress=None, diag=None, options=None):
             except SystemExit as e:
                 raise RuntimeError('object_ids: %s' % e)
             if rc or not os.path.isfile(t):
-                raise RuntimeError('object_ids: %s' % reg.body_text().strip().splitlines()[-1:])
+                raise RuntimeError('object_ids: %s' % ''.join(reg.body_text().strip().splitlines()[-1:]))
             res['steps']['ids'] = prot_ids['n']
             modified = list(OBJECT_IDS_FILES)
             src = t
@@ -1335,9 +1341,10 @@ def unprotect(file_path, output, progress=None, diag=None, options=None):
     except (Exception, SystemExit) as e:
         res['status'] = 'failed'
         res['err'] = _error(e)
-        _remove_quietly(res['output'])
-        res['output'] = None
     finally:
+        if res['err'] is not None:
+            _remove_quietly(res['output'])
+            res['output'] = None
         shutil.rmtree(tmp, ignore_errors=True)
     return res
 
@@ -1367,12 +1374,14 @@ def _unprotect_ntfs_copy(file_path, output, p, diag, res, options=None):
         except (Exception, SystemExit) as e:
             res['status'] = 'failed'
             res['err'] = _error(e)
-            _remove_quietly(res['output'])
-            res['output'] = None
+        finally:
+            if res['err'] is not None:
+                _remove_quietly(res['output'])
+                res['output'] = None
         return res
     if r2.get('status') == 'partial' and any(x['code'] == 'unreadable_tables'
                                              for x in (r2.get('after_diag') or {}).get('protections') or []):
-        r3 = _unprotect_by_carving(t, output, p, None, {'steps': {}})
+        r3 = _unprotect_by_carving(t, output, p, None, {'steps': {}, 'output': None, 'err': None})
         if r3.get('status') in ('done', 'partial'):
             r2 = dict(r2, **dict((k, r3.get(k)) for k in ('status', 'output', 'after_diag', 'content', 'err')))
             r2['steps'] = dict(r2.get('steps') or {}, carver=r3['steps'].get('carver'))
@@ -1426,9 +1435,10 @@ def _unprotect_by_carving(file_path, output, p, diag, res):
     except (Exception, SystemExit) as e:
         res['status'] = 'failed'
         res['err'] = _error(e)
-        _remove_quietly(res['output'])
-        res['output'] = None
     finally:
+        if res.get('err') is not None:
+            _remove_quietly(res.get('output'))
+            res['output'] = None
         shutil.rmtree(tmp, ignore_errors=True)
     return res
 
@@ -1484,6 +1494,12 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
            'err': None}
     version_num = target_version(file_path, version_num)
     res['editor_version_used'] = version_num
+    if _same_file(file_path, output) or _same_file(file_path, _part(output)):
+        res['status'], res['err'] = 'failed', 'the output is the input map itself: the original is never written'
+        return res
+    if diag['fixable'] in ('not_a_map', 'cannot_read', 'impossible', 'unreadable', 'incomplete', 'is_pack'):
+        res['status'] = diag['fixable']
+        return res
     if version_num is not None:
         from doctor.fix import editor_version
         from doctor.data import wc3_versions
@@ -1510,12 +1526,8 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
                 )
             return res
         options = dict(options or {}, **dict(('dados:' + x, False) for x in slk_patch.PROBLEMS))
-    if _same_file(file_path, output):
-        res['status'], res['err'] = 'failed', 'the output is the input map itself: the original is never written'
-        return res
-    if diag['fixable'] in ('not_a_map', 'cannot_read', 'impossible', 'unreadable', 'incomplete', 'is_pack'):
-        res['status'] = diag['fixable']
-        return res
+        if unprotection is not None and ((unprotection.get('steps') or {}).get('data_bytes') or {}).get('modified'):
+            unprotection = None
     status = diag['editor'].get('status')
     if status == 'campaign_needs_work':
         if version_num is not None:
@@ -1616,9 +1628,10 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
             'wrong_editor_version' if isinstance(e, editor_prep.EditorVersionMismatch) else 'failed'
         res['err'] = str(e) if isinstance(e, (editor_prep.ScriptNotRestored, editor_prep.EditorVersionMismatch)) else \
             _error(e)
-        _remove_quietly(res['output'])
-        res['output'] = None
     finally:
+        if res['err'] is not None:
+            _remove_quietly(res['output'])
+            res['output'] = None
         shutil.rmtree(tmp, ignore_errors=True)
     return res
 
@@ -1661,14 +1674,15 @@ def _prepare_campaign_for_editor(file_path, output, p, diag, res, safe_units, un
         campaign_names = map_names(a)
         del a
         res['editor'] = {'map_list': map_list, 'failures': [], 'new_ones': [], 'campaign_info': True}
-        if not replacements:
+        if not replacements and (src == file_path or [x for x in map_list if x['status'] != 'nothing_to_do']):
             raise RuntimeError('no campaign map could be prepared: %s'
                                % ', '.join('%s (%s)' % (x['fname'], x['status']) for x in map_list))
         part = _part(output)
         res['output'] = part
         shutil.copyfile(src, part)
-        with quiet():
-            mpqadd.add_files(part, replacements, log=_nothing, no_slot=[], fake_count=True, grow=campaign_names)
+        if replacements:
+            with quiet():
+                mpqadd.add_files(part, replacements, log=_nothing, no_slot=[], fake_count=True, grow=campaign_names)
         p('verify')
         res['after_diag'] = after_diag = diagnose(part)
         b2 = _open(part)
@@ -1683,9 +1697,10 @@ def _prepare_campaign_for_editor(file_path, output, p, diag, res, safe_units, un
     except (Exception, SystemExit) as e:
         res['status'] = 'failed'
         res['err'] = _error(e)
-        _remove_quietly(res['output'])
-        res['output'] = None
     finally:
+        if res['err'] is not None:
+            _remove_quietly(res['output'])
+            res['output'] = None
         shutil.rmtree(tmp, ignore_errors=True)
     return res
 
