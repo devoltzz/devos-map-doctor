@@ -3375,5 +3375,9 @@
  "The Lua script creates {0} handle(s) while it loads, outside any function: {1}{2}.": "Lua 脚本在加载时于任何函数之外创建了 {0} 个句柄：{1}{2}。",
  "The Lua script was obfuscated by WC3Fuscator 2.1: layers peeled: {0} (the key is in the loader).": "Lua 脚本曾被 WC3Fuscator 2.1 混淆：已剥离的层数：{0}（密钥在加载器中）。",
  "The Lua script was wrapped in loader layers of the WC3Fuscator kind (additive cipher, the one DevoProtect uses): layers peeled: {0}.": "Lua 脚本曾被包裹在 WC3Fuscator 类型的加载器层中（加法密码，即 DevoProtect 使用的那种）：已剥离的层数：{0}。",
- "{0}Handles made there are a known source of multiplayer desyncs when they are thrown away and collected; if the map desyncs, move them into a function the map runs at its start.": "{0}在那里创建的句柄被丢弃并回收时，是已知的多人游戏不同步原因；如果地图出现不同步，请把它们移到地图开始时运行的函数中。"
+ "{0}Handles made there are a known source of multiplayer desyncs when they are thrown away and collected; if the map desyncs, move them into a function the map runs at its start.": "{0}在那里创建的句柄被丢弃并回收时，是已知的多人游戏不同步原因；如果地图出现不同步，请把它们移到地图开始时运行的函数中。",
+ "Choose a picture for \"Use my own lobby image\", or untick it.": "请为“使用我自己的大厅图片”选择一张图片,或取消勾选。",
+ "Download the chain log": "下载链日志",
+ "Show the chain log": "显示链日志",
+ "This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). Run the action again.": "此文件已丢失:将其保存在内存中的引擎已重新启动(因取消或崩溃)。请再次执行该操作。"
 }
