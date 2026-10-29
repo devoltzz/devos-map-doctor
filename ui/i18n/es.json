@@ -3376,5 +3376,9 @@
  "The Lua script creates {0} handle(s) while it loads, outside any function: {1}{2}.": "El script Lua crea {0} handle(s) mientras carga, fuera de cualquier función: {1}{2}.",
  "The Lua script was obfuscated by WC3Fuscator 2.1: layers peeled: {0} (the key is in the loader).": "El script Lua estaba ofuscado por WC3Fuscator 2.1: capas quitadas: {0} (la clave está en el cargador).",
  "The Lua script was wrapped in loader layers of the WC3Fuscator kind (additive cipher, the one DevoProtect uses): layers peeled: {0}.": "El script Lua estaba envuelto en capas de cargador del tipo WC3Fuscator (cifrado aditivo, el que usa DevoProtect): capas quitadas: {0}.",
- "{0}Handles made there are a known source of multiplayer desyncs when they are thrown away and collected; if the map desyncs, move them into a function the map runs at its start.": "{0}Los handles creados ahí son una fuente conocida de desyncs multijugador cuando se descartan y se recolectan; si el mapa se desincroniza, muévelos a una función que el mapa ejecute al empezar."
+ "{0}Handles made there are a known source of multiplayer desyncs when they are thrown away and collected; if the map desyncs, move them into a function the map runs at its start.": "{0}Los handles creados ahí son una fuente conocida de desyncs multijugador cuando se descartan y se recolectan; si el mapa se desincroniza, muévelos a una función que el mapa ejecute al empezar.",
+ "Choose a picture for \"Use my own lobby image\", or untick it.": "Elige una imagen para \"Use my own lobby image\", o desmárcala.",
+ "Download the chain log": "Descargar el registro de la cadena",
+ "Show the chain log": "Mostrar el registro de la cadena",
+ "This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). Run the action again.": "Este archivo ya no existe: el motor que lo guardaba en memoria se reinició (una cancelación o un fallo). Ejecuta la acción de nuevo."
 }
