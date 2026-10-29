@@ -37,7 +37,7 @@ HEADER_MARKS = {0x504F7856: 'vexorian', 0x00200102: 'w3p', 0x2E324750: 'pg2', 0x
 EDITOR_BLOCKERS = ('read_only', 'fake_header', 'missing_hm3w', 'virtual_tables', 'sprotect', 'kk_encrypted',
                    'scrambled_ids', 'locale_decoy', 'inflated_counts', 'invalid_doodad', 'unreadable_tables',
                    'script_kkwe', 'script_j2b')
-BUTTON3_ONLY = ('inflated_counts', 'invalid_doodad', 'script_kkwe', 'script_j2b')
+BUTTON3_ONLY = ('inflated_counts', 'invalid_doodad', 'script_kkwe', 'script_j2b', 'lua_wc3fuscator', 'lua_layers')
 EDITOR_SCRIPTS = ('jass', 'lua', 'kkwe', 'j2b')
 DATA_ONLY = ('slk_file_column', 'slk_levels', 'slk_buttonpos', 'fdf_stray_comment', 'slk_id_list', 'slk_quoted_numbers')
 SLK_CODE = {'file_column': 'slk_file_column', 'levels': 'slk_levels', 'buttonpos': 'slk_buttonpos',
@@ -108,6 +108,7 @@ EXTRAS = (
     'slk_objects',
     'attributes',
     'game_overrides',
+    'graphics_modes',
     'models',
     'model_names',
     'portraits',
@@ -153,6 +154,9 @@ def apply_extras(entry, output, extras, progress=None):
                     elif extra == 'game_overrides':
                         from doctor.port import game_files
                         details = game_files.fix(src, t, p, scope='identical' if param == 'identical' else 'all')
+                    elif extra == 'graphics_modes':
+                        from doctor.fix import gfx_modes
+                        details = gfx_modes.fix(src, t, p, modes=param if isinstance(param, (list, tuple)) else None)
                     elif extra == 'requirements':
                         from doctor.fix import requirement_check
                         details = requirement_check.fix(src, t, p)
@@ -161,6 +165,9 @@ def apply_extras(entry, output, extras, progress=None):
                         details = fdf_lint.fix(src, t, p)
                     elif extra == 'slk_objects':
                         from doctor.fix import slk_objects
+                        if getattr(sys, 'frozen', False) and slk_objects.game_of(src)[0]:
+                            from doctor.data import wc3_versions
+                            wc3_versions.ensure(lambda s: None)
                         details = slk_objects.fix(src, t, p)
                     elif extra == 'lobby_image':
                         from doctor.fix import lobby_image
@@ -489,11 +496,28 @@ def _diagnose_package(r, file_path, format, p):
     return r
 
 
+THIRD_PARTY_SEALS = ((b'Map deprotected by WC3MapRepacker', 'WC3MapRepacker'),)
+
+
+def repacker_seal(script):
+    if not script:
+        return None
+    if isinstance(script, str):
+        script = script.encode('utf-8', 'replace')
+    first = script[:300].lstrip(b'\xef\xbb\xbf').split(b'\n', 1)[0].strip()
+    if not (first.startswith(b'//') or first.startswith(b'--')):
+        return None
+    for seal, fname in THIRD_PARTY_SEALS:
+        if seal in first:
+            return fname
+    return None
+
+
 def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
     p = progress or _nothing
     r = {'file_name': os.path.abspath(file_path), 'byte_size': os.path.getsize(file_path), 'mpq': None, 'fname': None,
          'protections': [], 'warnings': [], 'script': None, 'listfile': None, 'editor': {}, 'err': None,
-         'fixable': None, 'no_edit': None, 'jassnative': None}
+         'fixable': None, 'no_edit': None, 'jassnative': None, 'repacker': None}
 
     def prot(code, **info):
         info['code'] = code
@@ -502,7 +526,7 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
     p('read_map')
     with open(file_path, 'rb') as f:
         d = f.read()
-    if _ntfs and ntfs_undo.detect(d) is not None:
+    if _ntfs and ntfs_undo.detect_ntfs(d) is not None:
         rn = _diagnose_ntfs_copy(file_path, d, progress, depth, extra_ids)
         if rn is not None:
             return rn
@@ -577,6 +601,13 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
     r['w3i_language'] = language = language_from_w3i(_read(a, 'war3map.w3i'))
     if lua and (language == 1 or not j):
         r['script'] = 'lua'
+        try:
+            from doctor.script import lua_fuscator
+            _fz = lua_fuscator.detect(_read(a, 'war3map.lua') or b'')
+        except Exception:
+            _fz = None
+        if _fz:
+            prot('lua_wc3fuscator' if _fz['family'] == 'wc3fuscator' else 'lua_layers', mark=_fz.get('marker'))
     elif j and script_j2b(a, j):
         r['script'] = 'j2b'
         prot('script_j2b', byte_size=a.blocks[a.find(J2B_FILE)[1]][2])
@@ -590,6 +621,15 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
             outside, _t = mpqdoctor.outside_tables(a, r['byte_size'])
             prot('kk_encrypted', outside=outside)
             r['script'] = 'kk_encrypted'
+            try:
+                from doctor.mpq import kk_mpqpack
+                _lay = kk_mpqpack.probe_map(a.d)
+                if _lay is not None:
+                    _hs = list(kk_mpqpack.records(a.d, _lay, decode=False))
+                    prot('kk_virtual_mpq', file_set=len(_hs), byte_size=sum(h[2] for h in _hs))
+                    r['kk_virtual_mpq'] = {'file_set': len(_hs), 'first_pos': _lay.stream}
+            except Exception:
+                pass
         else:
             r['script'] = 'kkwe'
             prot('script_kkwe', byte_size=a.blocks[a.find('kkmap.jc')[1]][2])
@@ -597,6 +637,9 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
         r['script'] = 'jass'
         from doctor.fix import editor_version
         r['jassnative'] = editor_version.jassnative_mark(j)
+    r['repacker'] = repacker_seal(
+        j if r['script'] == 'jass' else _read(a, 'war3map.lua') if r['script'] == 'lua' else None
+    )
     if not virtual and r['script'] != 'kk_encrypted':
         x = mpqdoctor.analyze_tables(a)
         if x['free_slots'] == 0 and x['deleted'] == 0 and a.hash_n_read:
@@ -1536,7 +1579,9 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
                 from doctor.fix import slk_objects
                 t = os.path.join(tmp, '3_slk_objects.w3x')
                 with quiet():
-                    slk_rep = slk_objects.fix(src, t, _nothing)
+                    slk_rep = slk_objects.fix(
+                        src, t, _nothing, version=editor_version.base_version(version_num) if version_num else '3.0'
+                    )
                 res['slk_objects'] = dict((k, v) for k, v in slk_rep.items()
                                           if k in ('state', 'lines', 'written', 'reason', 'error'))
                 if slk_rep.get('state') == 'done' and os.path.isfile(t):
