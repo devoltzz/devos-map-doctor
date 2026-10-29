@@ -17,8 +17,6 @@ try:
 except ImportError:
     _libdeflate = None
 
-SECTOR_NEW = 512
-TETO = 512 * 1024 * 1024
 SLICE = 128
 CODIFICADORES = ('auto', 'zopfli', 'libdeflate', 'zlib9', 'zlib6')
 
@@ -110,8 +108,11 @@ def encode_sector(s, code_part, margem=8):
 
 
 def _slice(job):
-    data_bytes, code_part, margem = job[:3]
-    sector_bytes = job[3] if len(job) > 3 else SECTOR_NEW
+    if len(job) < 4:
+        raise ValueError(
+            '_slice: (data, encoder, margin, sector); the default 512 sector left with the package (29/10/2026)'
+        )
+    data_bytes, code_part, margem, sector_bytes = job[:4]
     nat = _native_codec(code_part)
     if nat:
         r = nat(data_bytes, sector_bytes, margem, code_part)
@@ -157,12 +158,6 @@ def build_block(pieces):
         pos += len(p)
     offs.append(pos)
     return struct.pack('<%dI' % len(offs), *offs) + b''.join(pieces)
-
-
-def pack_file(content, sector_bytes=SECTOR_NEW, encoder='zlib6', margem=8):
-    assert sector_bytes == SECTOR_NEW
-    code_part = resolve_encoder(encoder)
-    return build_block(_slice((content, code_part, margem)))
 
 
 class Cache:
