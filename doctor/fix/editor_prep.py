@@ -806,6 +806,15 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
     raw_bytes = a.read(j_source)
     if raw_bytes is None:
         raise ValueError('the map has no war3map.j (nor scripts\\war3map.j, nor war3map.lua)')
+    map_raw = raw_bytes
+    if is_lua:
+        from doctor.script import lua_fuscator
+        _plaintext, _rf = lua_fuscator.peel(raw_bytes)
+        details['lua_fuscator'] = dict(
+            (k, _rf.get(k)) for k in ('ok', 'family', 'layers', 'renamed_locals', 'notes', 'error')
+        )
+        if _rf.get('ok'):
+            raw_bytes = _plaintext
     body_text = raw_bytes.decode('latin-1').replace('\r\n', '\n').replace('\r', '\n')
     details['good'] = body_text.startswith('\xef\xbb\xbf')
     if details['good']:
@@ -1144,7 +1153,12 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
         details['jassnative']['removed_from_script'] = without_mark is not None
         if without_mark is not None:
             final_script = without_mark
-    if output_script != j_source or final_script != raw_bytes:
+    if details.get('renamed_locals') and not is_lua:
+        new_j, renamed_done = locals_without_clash(final_script.decode('latin-1'), log, kept=[])
+        if renamed_done:
+            final_script = new_j.encode('latin-1')
+            details['locals_in_script'] = len(renamed_done)
+    if output_script != j_source or final_script != map_raw:
         (replacements if a.find(output_script) else new_ones)[output_script] = final_script
     details['new_ones'] = missing_items
     details['imported'] = len(imported)
