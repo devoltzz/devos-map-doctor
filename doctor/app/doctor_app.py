@@ -225,7 +225,7 @@ MAP_ONLY = ('port', 'reforged', 'card', 'card_image', 'gradient', 'script', 'scr
             'translation_machine', 'translation_images', 'translation_image_preview', 'translation_update',
             'translation_override', 'rawcodes', 'recipes', 'diag_make', 'downgrade_w3i', 'port_targets')
 NO_EDIT_TASKS = ('open', 'card', 'card_image', 'gradient', 'reforged', 'diag_logs', 'diag_read', 'crash_list',
-                 'crash_read', 'replay_list', 'replay_read', 'replay_compare', 'desync_compare')
+                 'crash_read', 'replay_list', 'replay_read', 'replay_compare', 'desync_compare', 'save_read')
 NO_EDIT_REFUSED = 'Not allowed to edit'
 
 
@@ -312,6 +312,7 @@ EXTRA_DONE = {
     'attributes': 'Rewrote the file checksums that no longer matched.',
     'game_overrides': 'Removed the map files that replaced the game\'s own.',
     'requirements': 'Unlocked the abilities that required a tech the map lacks.',
+    'graphics_modes': 'Imported the game files the other graphics modes lacked.',
     'fdf': 'Fixed the frame file lists.',
     'null_handles': 'Wrote the missing null lines of the handle locals.',
     'slk_objects': 'Made the editor object files from the SLK tables.',
@@ -335,6 +336,7 @@ EXTRA_NAME = {
     'shrink': 'the shrink',
     'attributes': 'the file checksums',
     'game_overrides': 'the game files',
+    'graphics_modes': 'the graphics modes',
     'requirements': 'the requirements',
     'fdf': 'the frame file lists',
     'null_handles': 'the null lines',
@@ -722,6 +724,7 @@ def _reforged(job, progress):
         'identical': _n('game_file_override', 'identical'),
     }
     r['requirements'] = {'fixable': _n('inherited_requirement', 'fixable')}
+    r['graphics_modes'] = {'fixable': _n('graphics_mode_only', 'fixable')}
     _fdf = items.get('fdf_lint')
     r['fdf'] = {'fixable': 1 if _fdf and _fdf.get('fix') == 'doctor' and writable else 0}
     r['slk_objects'] = {'fixable': 0}
@@ -1010,6 +1013,14 @@ def _replay_read(job, progress):
     return out
 
 
+def _save_read(job, progress):
+    from doctor.fix import save_files
+    progress('Reading the save')
+    out = save_files.diag(job['file'])
+    out['written'] = save_files.extract(job['file'], job['folder']) if job.get('folder') else []
+    return out
+
+
 def _replay_compare(job, progress):
     from doctor.fix import replay_read
     return replay_read.compare(job['a'], job['b'])
@@ -1053,6 +1064,7 @@ TOOLS = {
     'model3d': _model3d,
     'replay_list': _replay_list,
     'replay_read': _replay_read,
+    'save_read': _save_read,
     'replay_compare': _replay_compare,
     'desync_compare': _desync_compare,
     'port_targets': _port_targets,
