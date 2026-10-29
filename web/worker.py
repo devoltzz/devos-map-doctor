@@ -107,7 +107,11 @@ def run(job_json, emit_js):
                  'trace': traceback.format_exc(limit=8)}
     after = files_now()
     final['written'] = sorted(p for p, st in after.items() if before.get(p) != st)
-    emit(final)
+    try:
+        emit(final)
+    except Exception as e:
+        emit({'type': 'error', 'written': final['written'],
+              'message': 'The result could not reach the page (%s: %s).' % (type(e).__name__, str(e)[:120])})
 
 
 def zip_folder(folder, target):
