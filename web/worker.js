@@ -86,6 +86,7 @@ function readFile(rid, path) {
       self.zipFolder(path, p);
     }
     const bytes = py.FS.readFile(p);
+    if (p !== path) try { py.FS.unlink(p); } catch (e) { }
     post({ type: 'read', rid, name: p.split('/').pop(), bytes }, [bytes.buffer]);
   } catch (e) {
     post({ type: 'read', rid, error: String(e && e.message || e) });
@@ -117,7 +118,10 @@ self.onmessage = ev => {
     }).catch(e => post({ type: 'event', event: JSON.stringify({ type: 'index_failed', message: String(e) }) }));
     else if (m.type === 'job') runJob(JSON.stringify(m.job), s => post({ type: 'event', event: s }));
   }).catch(e => {
-    if (m.type === 'job' && m.job && m.job.id) post({ type: 'event', event: JSON.stringify({
-      type: 'error', job: m.job.id, message: 'The engine stopped: ' + String(e && e.message || e) }) });
+    if (m.type === 'job' && m.job && m.job.id) {
+      post({ type: 'event', event: JSON.stringify({
+        type: 'error', job: m.job.id, message: 'The engine stopped: ' + String(e && e.message || e) }) });
+      post({ type: 'broken' });
+    }
   });
 };
