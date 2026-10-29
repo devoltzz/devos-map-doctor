@@ -3374,5 +3374,9 @@
  "The Lua script creates {0} handle(s) while it loads, outside any function: {1}{2}.": "Lua scripti yüklenirken, herhangi bir fonksiyonun dışında {0} handle oluşturuyor: {1}{2}.",
  "The Lua script was obfuscated by WC3Fuscator 2.1: layers peeled: {0} (the key is in the loader).": "Lua scripti WC3Fuscator 2.1 ile gizlenmişti: soyulan katmanlar: {0} (anahtar yükleyicide).",
  "The Lua script was wrapped in loader layers of the WC3Fuscator kind (additive cipher, the one DevoProtect uses): layers peeled: {0}.": "Lua scripti WC3Fuscator türünde yükleyici katmanlarına sarılmıştı (toplamalı şifre, DevoProtect'in kullandığı): soyulan katmanlar: {0}.",
- "{0}Handles made there are a known source of multiplayer desyncs when they are thrown away and collected; if the map desyncs, move them into a function the map runs at its start.": "{0}Orada oluşturulan handle'lar atılıp toplandığında bilinen bir çok oyunculu desync kaynağıdır; harita desync olursa onları haritanın başlangıçta çalıştırdığı bir fonksiyona taşıyın."
+ "{0}Handles made there are a known source of multiplayer desyncs when they are thrown away and collected; if the map desyncs, move them into a function the map runs at its start.": "{0}Orada oluşturulan handle'lar atılıp toplandığında bilinen bir çok oyunculu desync kaynağıdır; harita desync olursa onları haritanın başlangıçta çalıştırdığı bir fonksiyona taşıyın.",
+ "Choose a picture for \"Use my own lobby image\", or untick it.": "\"Kendi lobi görselimi kullan\" için bir resim seçin veya işareti kaldırın.",
+ "Download the chain log": "Zincir günlüğünü indir",
+ "Show the chain log": "Zincir günlüğünü göster",
+ "This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). Run the action again.": "Bu dosya artık yok: onu bellekte tutan motor yeniden başlatıldı (bir iptal veya çökme). İşlemi tekrar çalıştırın."
 }
