@@ -3,6 +3,70 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 1.10.0 (2026-10-29)
+
+### Fixed
+
+- **Open in World Editor: 9.7 C03 crashed Warcraft III 1.28.5 at load** (issue 59): the SLK tables the object files are
+  made from stayed in the map next to them. The game reads the map's SLK rows as its own objects and then applies the
+  object files on top, so each new object was created twice and the game crashed while loading. The tables that were
+  converted now leave the map, and what they held goes into the object files: the changes to the game's own objects,
+  the rows of a new object the file already had, and the cells the table leaves empty (an empty cell is a value: a new
+  unit with no abilities no longer gets its parent's). The 9.7 C03 made this way loads and plays in 1.28.5, and opens
+  and saves in the JassNative Editor. A Reforged map keeps its tables as before.
+- **Objects measured against the wrong game's tables** (issue 59): the object files made from a classic map's SLK
+  tables were compared with Reforged's data. They are now measured against the tables of the game the map is for (the
+  editor you chose in "Open in World Editor"; in the SLK option of "Fix map", the version the map was made for), with
+  the balance layer the map asks for. I measured that layer in 1.28.5: a custom map uses the custom tables (the Knight
+  has 800 hit points), the same map marked melee the melee ones (835). The report says which game it used.
+- **JassNative Editor: "Identifier redeclared: nu" when saving** (issue 59): on FOCS ver192 the Doctor renamed a local
+  variable named like a function or a global in the trigger text, but not in the map's `war3map.j`, which the editor
+  also reads when it saves. It is renamed there too; the name of a local changes nothing in the game.
+- **Port between game versions refused maps with a run-time pjass error they already had** (issues 62 and 63): Age of
+  Myths 3.7F and Enmity Campaign Beta79b were refused to 1.24a, 1.27b and 1.29.2 because pjass found a local variable
+  read before it gets a value. That error is in the original map too, and it does not stop the game from loading the
+  script: only the thread that reaches that line stops, as before the port. The port now accepts the map when every
+  pjass error is of that kind (a local read before it gets a value, or a text over 1023 characters) and was already in
+  the original; the report lists them. Any other error, or one the port made, is still refused. "Runs on 1.2x?" shows
+  these as a warning instead of a blocker.
+
+### New
+
+- **Maps made for one graphics mode** (Classic, Reforged or Definitive Edition): "Runs on Reforged?" says which game
+  files the map uses are missing in the other modes, and the new "Fix map" option "Make the map work in every graphics
+  mode" copies them from the game into the map at the same paths, as many as fit below 512 MB (the terrain first, then
+  the models, then the textures); what did not fit is listed. Needs the game installed. A map that uses Definitive
+  Edition art (the Lordaeron Capital tiles have no Classic texture at all) can lack 500 files in Classic.
+- **KK maps with hidden files** (the "virtual MPQ" of the KK platform, StormLib issue 426): the map keeps most of its
+  files after the MPQ archive, encrypted, where no MPQ tool sees them. The diagnosis now counts them, "files" lists
+  them with the names the Doctor finds, and "extract --all" writes them (the real script included) under `hidden\`.
+  Measured on a map from the KK servers: 5,058 hidden files, 404 MB. A playable copy outside the platform is not made
+  from them: the game asks for the files without a known name by their real names.
+- **Lua scripts obfuscated by WC3Fuscator 2.1**: the diagnosis names it, and "Open in World Editor" takes the loader
+  layers off without running the map, so the script comes back as it was except the local names (they stay
+  `__L0`...).
+- **"Runs on Reforged?": a Lua script that creates handles while it loads, outside any function** (the desync reported
+  by Luashine): a warning when a function later sets the same global again, a note otherwise. Also a note for a map that
+  uses the Balnazzar/Tichondrius skin `Udrb`, which the 3.0 game data no longer has.
+- **Save games:** `doctor save <file.w3z|file.w3v> [--to=<folder>]` reads a save (the container, its checks, the map
+  and the game) and writes its parts.
+- **Diagnosis:** a map whose script carries the "Map deprotected by WC3MapRepacker" line is named as repacked by it.
+- **Shrink:** the report says why each removed or merged file went (no table entry points to it; the same bytes as
+  another file).
+
+### Changed
+
+- **Maps with 512-byte MPQ sectors** are no longer reported as a protection: the MPQ Editor opens them since
+  2026-10-03 (StormLib 744ec1d). "Fix map" still rewrites them to the usual sector size.
+- **Command line, a versioned `--json`:** every `--json` result now carries `schema` (the contract version, `1`),
+  `doctor_version`, `command` and `exit_code` on top of the same keys as before, and a wrong command line or a failed
+  job also prints one JSON object (`outcome: "failed"`, `error`, `error_kind`). `doctor --json-schema` (or
+  `doctor schema`) prints the contract: each command's options and the result keys with their types, made from the
+  tables the command line itself uses. What may change without a new `schema`, and the old option names that keep
+  working: [CLI.md](CLI.md). An option a command does not take is now refused everywhere (`files <map> --to=x` ran
+  before and ignored it); in fix and editor it stays a warning.
+- **Every report line the page shows** is in the 16 languages of the page, including the ones added since 1.9.0.
+
 ## 1.9.4 (2026-10-28)
 
 ### Fixed
