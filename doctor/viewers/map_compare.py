@@ -21,6 +21,7 @@ OBJECT_FILES = tuple(p + e for p in ('war3map.', 'war3mapSkin.') for e in ('w3u'
                                                                            'w3q'))
 EXTRA_NAMES = ('scripts\\war3map.j', 'war3map.lua')
 MPQ_FILE_FIX_KEY = 0x00020000
+EXACT_LINES = 4000 * 4000
 
 
 def _nothing(*_a, **_k):
@@ -264,8 +265,18 @@ def _objects(read_a, read_b, na, nb):
 
 
 def _changed_lines(a, b):
+    lo, end_a, end_b = 0, len(a), len(b)
+    while lo < end_a and lo < end_b and a[lo] == b[lo]:
+        lo += 1
+    while end_a > lo and end_b > lo and a[end_a - 1] == b[end_b - 1]:
+        end_a -= 1
+        end_b -= 1
+    a, b = a[lo:end_a], b[lo:end_b]
+    if not a or not b:
+        return max(len(a), len(b))
     n = 0
-    for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
+    junk = len(a) * len(b) > EXACT_LINES
+    for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=junk).get_opcodes():
         if op != 'equal':
             n += max(i2 - i1, j2 - j1)
     return n
