@@ -174,6 +174,8 @@
       renderer = null;
       listeners.forEach(function (l) { l[0].removeEventListener(l[1], l[2], l[3]); });
       listeners = [];
+      try { var lose = gl && gl.getExtension('WEBGL_lose_context'); if (lose) lose.loseContext(); } catch (e) { }
+      gl = null;
       if (box && box.parentNode) box.parentNode.removeChild(box);
       box = null;
       canvas.style.display = '';
