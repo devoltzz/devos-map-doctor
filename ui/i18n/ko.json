@@ -3375,5 +3375,9 @@
  "The Lua script creates {0} handle(s) while it loads, outside any function: {1}{2}.": "Lua 스크립트가 로드되는 동안 함수 밖에서 핸들 {0}개를 만듭니다: {1}{2}.",
  "The Lua script was obfuscated by WC3Fuscator 2.1: layers peeled: {0} (the key is in the loader).": "Lua 스크립트가 WC3Fuscator 2.1로 난독화되어 있었습니다: 벗겨낸 레이어: {0} (키는 로더 안에 있음).",
  "The Lua script was wrapped in loader layers of the WC3Fuscator kind (additive cipher, the one DevoProtect uses): layers peeled: {0}.": "Lua 스크립트가 WC3Fuscator 방식의 로더 레이어로 감싸여 있었습니다 (가산 암호, DevoProtect가 쓰는 것): 벗겨낸 레이어: {0}.",
- "{0}Handles made there are a known source of multiplayer desyncs when they are thrown away and collected; if the map desyncs, move them into a function the map runs at its start.": "{0}거기서 만든 핸들은 버려지고 수집될 때 멀티플레이 desync의 알려진 원인입니다. 맵이 desync되면 맵이 시작할 때 실행하는 함수 안으로 옮기세요."
+ "{0}Handles made there are a known source of multiplayer desyncs when they are thrown away and collected; if the map desyncs, move them into a function the map runs at its start.": "{0}거기서 만든 핸들은 버려지고 수집될 때 멀티플레이 desync의 알려진 원인입니다. 맵이 desync되면 맵이 시작할 때 실행하는 함수 안으로 옮기세요.",
+ "Choose a picture for \"Use my own lobby image\", or untick it.": "\"내 로비 이미지 사용\"에 쓸 그림을 선택하거나, 체크를 해제하세요.",
+ "Download the chain log": "체인 로그 다운로드",
+ "Show the chain log": "체인 로그 표시",
+ "This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). Run the action again.": "이 파일이 사라졌습니다: 메모리에 보관하던 엔진이 다시 시작되었습니다 (취소 또는 충돌). 작업을 다시 실행하세요."
 }
