@@ -5,7 +5,7 @@
   const ACTIONS = {
     fix: { label: 'Fix map', params: () => ({ options: null, extras: {} }) },
     editor: { label: 'Open in World Editor', params: () => ({ options: null, extras: {} }) },
-    port: { label: 'Port to Reforged', params: () => ({ packages: [], memory: true }) },
+    port: { label: 'Port to Reforged', params: () => ({ packages: [], memory: true, icons: true, textures: true }) },
     cheatpack_inject: { label: 'Add a cheat pack', perMap: true },
   };
   const MAP = /\.w3[xmn]$/i;
@@ -163,7 +163,7 @@
           const got = await W.read(p);
           if (picked.dir) {
             saved.push(await write(picked.dir, got.name, got.bytes));
-            await W.remove(p);
+            await W.remove(p).catch(() => null);
           } else {
             zipped.push(p);
             saved.push(got.name);
@@ -178,12 +178,19 @@
       const why = (res.lines || []).find(l => l[0] === 'bad') || (res.lines || []).find(l => l[0] === 'warn');
       r.set(kind, saved.length ? (picked.dir ? 'Saved ' : 'In the zip: ') + saved.join(', ') :
         (why ? why[1].trim() : 'Nothing was written.'));
-      done += saved.length ? 1 : 0;
+      done += res.file ? 1 : 0;
     }
     if (!picked.dir && zipped.length) {
-      const z = await W.zip(zipped, 'Devos Map Doctor results.zip');
-      W.saveBytes(z.bytes, z.name);
-      for (const p of zipped) await W.remove(p);
+      try {
+        const z = await W.zip(zipped, 'Devos Map Doctor results.zip');
+        W.saveBytes(z.bytes, z.name);
+      } catch (e) {
+        foot.replaceChildren(el('div', { class: 'report' }, el('div', { class: 'l bad',
+          text: 'Could not save the result: ' + (e && e.message || e) })));
+        for (const p of zipped) await W.remove(p).catch(() => null);
+        return;
+      }
+      for (const p of zipped) await W.remove(p).catch(() => null);
     }
     foot.replaceChildren(el('span', { class: 'muted', text: stop ? 'Stopped.' :
       done + ' of ' + picked.length + ' maps written' + (picked.dir ? ' into the folder.' : ', in the zip.') }));
