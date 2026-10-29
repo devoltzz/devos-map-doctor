@@ -125,7 +125,7 @@ const state = {
   trImages: false, trReview: null,
   trOverride: null,
   extras: { card: null, translation: null, models: null, modelNames: null, singlePlayer: null, portraits: null,
-    dataPointers: null, kkTextures: null, disabledIcons: null, uabi: null, preload: null, attributes: null, gameOverrides: null, requirements: null, fdf: null, slkObjects: null, lobbyImage: null },
+    dataPointers: null, kkTextures: null, disabledIcons: null, uabi: null, preload: null, attributes: null, gameOverrides: null, graphicsModes: null, requirements: null, fdf: null, slkObjects: null, lobbyImage: null },
   cheatpacks: null, cheatPack: { id: null, options: {}, result: null },
   qol: null, qolOpt: {}, qolResult: null,
   rawcodes: null,
@@ -471,7 +471,7 @@ async function openMap(path) {
   state.portTargets = null;
   state.portTarget = '';
   state.extras = { card: null, translation: null, models: null, modelNames: null, singlePlayer: null, portraits: null,
-    dataPointers: null, kkTextures: null, disabledIcons: null, uabi: null, preload: null, attributes: null, gameOverrides: null, requirements: null, fdf: null, slkObjects: null, lobbyImage: null };
+    dataPointers: null, kkTextures: null, disabledIcons: null, uabi: null, preload: null, attributes: null, gameOverrides: null, graphicsModes: null, requirements: null, fdf: null, slkObjects: null, lobbyImage: null };
   state.cheatpacks = null;
   state.cheatPack = { id: null, options: {}, result: null };
   state.qol = null;
@@ -714,6 +714,7 @@ async function checkReforgedQuietly(gen) {
     if (r.attributes && r.attributes.fixable) { state.extras.attributes = r.attributes; renderActions(); }
     if (r.game_overrides && r.game_overrides.count) { state.extras.gameOverrides = r.game_overrides; renderActions(); }
     if (r.requirements && r.requirements.fixable) { state.extras.requirements = r.requirements; renderActions(); }
+    if (r.graphics_modes && r.graphics_modes.fixable) { state.extras.graphicsModes = r.graphics_modes; renderActions(); }
     if (r.fdf && r.fdf.fixable) { state.extras.fdf = r.fdf; renderActions(); }
     if (r.slk_objects && r.slk_objects.fixable) { state.extras.slkObjects = r.slk_objects; renderActions(); }
     if (r.lobby_image && r.lobby_image.ready) { state.extras.lobbyImage = r.lobby_image; renderActions(); }
@@ -733,7 +734,7 @@ const ACTIONS = {
     lead: 'Saves a copy the World Editor opens, triggers back as GUI.' },
 };
 const EXTRA_STEPS = {
-  fix: ['attributes', 'gameOverrides', 'models', 'modelNames', 'portraits', 'dataPointers', 'kkTextures',
+  fix: ['attributes', 'gameOverrides', 'graphicsModes', 'models', 'modelNames', 'portraits', 'dataPointers', 'kkTextures',
     'disabledIcons', 'uabi', 'preload', 'singlePlayer', 'card', 'translation', 'requirements', 'fdf', 'nullHandles',
     'minify', 'stripIndent', 'shrinkModels', 'shrinkModelsLossy', 'shrink', 'shrinkLossy', 'slkObjects',
     'lobbyImage'],
@@ -825,6 +826,11 @@ function extraSteps(action) {
       detail: x.gameOverrides.identical + ' of them are byte-for-byte copies of the game\'s own file: taking them out ' +
         'changes nothing the map shows, and the game uses its own. Needs the game installed.',
       on: false, applies: true, group: 'extra' });
+    if (k === 'graphicsModes' && x.graphicsModes) out.push({ key: 'x:graphicsModes',
+      label: 'Make the map work in every graphics mode',
+      detail: x.graphicsModes.fixable + ' game files the map uses exist only in some graphics modes (Classic, ' +
+        'Reforged, Definitive Edition). They are copied from the game into the map, as many as fit below 512 MB. ' +
+        'Needs the game installed.', on: true, applies: true, group: 'extra' });
     if (k === 'requirements' && x.requirements) out.push({ key: 'x:requirements',
       label: 'Unlock abilities that require a tech the map lacks',
       detail: x.requirements.fixable + ' abilities inherit a requirement that only the 3.0 game data has and the map ' +
@@ -880,7 +886,7 @@ const FLAGS = { mpq: 'unprotect', falsos: 'fake-files', fake_list: 'fake-files',
   'x:uabi': 'uabi', 'x:preload': 'preload', 'x:singlePlayer': 'single-player', 'x:card': 'card',
   'x:translation': 'translation', 'x:stripIndent': 'strip-indent', 'x:shrink': 'shrink',
   'x:shrinkLossy': 'shrink-lossy', 'x:attributes': 'fix-attributes', 'x:gameOverrides': 'remove-game-files', 'x:gameOverridesIdentical': 'remove-game-copies',
-  'x:requirements': 'fix-requirements', 'x:fdf': 'fix-fdf', 'x:nullHandles': 'null-handles', 'x:minify': 'minify',
+  'x:graphicsModes': 'fix-graphics-modes', 'x:requirements': 'fix-requirements', 'x:fdf': 'fix-fdf', 'x:nullHandles': 'null-handles', 'x:minify': 'minify',
   'x:slkObjects': 'slk-objects', 'x:lobbyImage': 'lobby-image', 'x:shrinkModels': 'shrink-models',
   'x:shrinkModelsLossy': 'shrink-models-lossy', 'x:portraitStamp': 'portraits=stamp',
   'x:portraitUpgrade': 'portraits=upgrade' };
@@ -1065,6 +1071,7 @@ async function runAction(action) {
   if (extras.attributes) params.extras.attributes = true;
   if (extras.gameOverrides) params.extras.game_overrides = true;
   else if (extras.gameOverridesIdentical) params.extras.game_overrides = 'identical';
+  if (extras.graphicsModes) params.extras.graphics_modes = true;
   if (extras.requirements) params.extras.requirements = true;
   if (extras.fdf) params.extras.fdf = true;
   if (extras.nullHandles) params.extras.null_handles = true;
