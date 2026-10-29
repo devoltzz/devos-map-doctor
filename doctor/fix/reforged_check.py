@@ -288,7 +288,7 @@ FDF_PHRASES = (
 )
 
 
-def check_items(path):
+def check_items(path, made_for=None):
     items = []
 
     def safe(f):
@@ -371,6 +371,21 @@ def check_items(path):
                            'doodads or destructables that may never be placed.' % (len(bad), soft), 'none',
                            paths=[dict((k, x.get(k)) for k in ('source', 'id', 'field', 'path', 'suggestion'))
                                   for x in (bad or m['missing'])[:10]]))
+    rng = (made_for or {}).get('range') if isinstance(made_for, dict) else None
+    if rng is None:
+        try:
+            from doctor.data import wc3_versions
+            rng = (wc3_versions.detect(path) or {}).get('range')
+        except Exception:
+            rng = None
+    if rng == '1.30+':
+        from doctor.fix import gfx_modes
+        gm = safe(gfx_modes.scan)
+        if gm and gm.get('severity'):
+            items.append(_item('graphics_mode_only', gm['severity'], ' '.join(gm['lines']), 'doctor',
+                               modes_ok=gm['modes_ok'], reference=gm['reference'],
+                               fixable=sum(gm['fixable'].values()), missing=gm['fixable'],
+                               terrain=gm.get('terrain') or [], room=gm.get('room') or 0, bytes=gm.get('bytes') or 0))
     from doctor.fix import item_pick
     ip = safe(item_pick.scan)
     if ip and ip.get('items'):
@@ -405,7 +420,32 @@ def check_items(path):
                            'which can make the game refuse the map as corrupted (%s).' % (
                                len(at['stale']), ', '.join(str(x) for x in at['stale'][:5])), 'doctor',
                            fixable=len(at['stale'])))
+    g = safe(removed_ids_scan)
+    if g and g.get('found'):
+        items.append(_item('removed_game_object', 'info', 'The map uses %s, which the 3.0 game data no longer defines '
+                           '(%s); what the game shows in its place was not measured.' % (
+                               ', '.join(sorted(g['found'])),
+                               '; '.join('%s: %s' % (k, REMOVED_IDS[k]) for k in sorted(g['found']))), 'none',
+                           found=g['found']))
     return items
+
+
+REMOVED_IDS = {'Udrb': 'the Balnazzar/Tichondrius skin of the 2.0 data'}
+_REMOVED_FILES = ('war3map.j', 'scripts\\war3map.j', 'war3map.lua', 'war3map.w3u', 'war3mapskin.w3u',
+                  'war3mapunits.doo')
+
+
+def removed_ids_scan(path):
+    a = unprotect._open(path)
+    found = {}
+    for name in _REMOVED_FILES:
+        b = unprotect._read(a, name)
+        if not b:
+            continue
+        for k in REMOVED_IDS:
+            if k.encode() in b:
+                found.setdefault(k, []).append(name)
+    return {'found': found}
 
 
 def script_rule_items(tree, text, made):
@@ -473,6 +513,18 @@ def pjass_items(text, version, own_blizzard=None):
     if r['rc'] == 0 and not r['errors']:
         return []
     errors = [e for e in r['errors'] if not e.startswith(('Parse failed', 'war3map.j failed'))] or r['errors']
+    if wc3_versions.pjass_runtime_only(r['errors']):
+        return [
+            _item(
+                'pjass_runtime',
+                'warning',
+                'pjass, with the common.j and blizzard.j of %s, finds %d error(s) that '
+                'only stop a thread when the game reaches the line, not the map (the first: %s).'
+                % (_label(version), len(errors), errors[0]),
+                'none',
+                errors=errors[:30],
+            )
+        ]
     return [_item('pjass_errors', 'blocker', 'pjass, with the common.j and blizzard.j of %s, finds %d errors in the '
                   'script (the first: %s).' % (_label(version), len(errors), errors[0] if errors else 'exit %d'
                                                % r['rc']), 'none', errors=errors[:30])]
@@ -760,6 +812,11 @@ def _script_items(src, diag, progress, version=None, extra=None):
             items.append(_item('lua_attributes', 'blocker', 'The script declares a local with a Lua 5.4 attribute '
                                '(<const> or <close>, line %d), which the game\'s Lua 5.3 does not read: the script '
                                'does not load.' % line, 'none'))
+        try:
+            from doctor.script import lua_desync
+            items += lua_desync.reforged_items(lua_desync.scan(text, tree), _item)
+        except Exception:
+            pass
     if lang == 'jass':
         from doctor.script import ydwe_lua
         lua = ydwe_lua.detect(text, lambda name: unprotect._read(a, name))
@@ -894,7 +951,7 @@ def check(path, progress=None, diag=None, version=None):
             p('Checking the object data')
             items += object_items(src)
             p('Checking the frame files, the game files and the model paths')
-            items += check_items(src)
+            items += check_items(src, res.get('made_for'))
         p('Checking the imported files')
         items += import_items(src)
         p('Checking the textures')
