@@ -3379,5 +3379,17 @@
  "Choose a picture for \"Use my own lobby image\", or untick it.": "Vyberte obrázek pro \"Použít můj vlastní obrázek lobby\", nebo zrušte zaškrtnutí.",
  "Download the chain log": "Stáhnout log řetězce",
  "Show the chain log": "Zobrazit log řetězce",
- "This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). Run the action again.": "Tento soubor zmizel: engine, který ho držel v paměti, byl restartován (zrušením nebo pádem). Spusťte akci znovu."
+ "This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). Run the action again.": "Tento soubor zmizel: engine, který ho držel v paměti, byl restartován (zrušením nebo pádem). Spusťte akci znovu.",
+ ", and {0} more": " a dalších {0}",
+ "The script has no texts of its own: {0} texts and {1} numbers are read from a table ({2}) that the platform DLL fills in at startup, and the game does not load that DLL. As it is, the map shows no text and those numbers are 0. The port puts them back into the script.": "Skript nemá vlastní texty: {0} textů a {1} čísel se čte z tabulky ({2}), kterou DLL platformy naplní při spuštění, a hra tuto DLL nenačítá. Tak, jak je, mapa nezobrazuje žádný text a tato čísla jsou 0. Port je vrátí zpět do skriptu.",
+ "level 0 decodes as {0}x{1}, the header says {2}x{3}": "úroveň 0 se dekóduje jako {0}x{1}, hlavička uvádí {2}x{3}",
+ "the map reads its texts from a table the platform DLL fills, and it could not be read back: {0}": "mapa čte své texty z tabulky, kterou plní DLL platformy, a nepodařilo se ji načíst zpět: {0}",
+ "the new texture is not {0}x{1}": "nová textura nemá rozměr {0}x{1}",
+ "the new texture still has: {0}": "nová textura stále obsahuje: {0}",
+ "the texture does not decode: {0}": "textura se nedekóduje: {0}",
+ "{0} had a side that is not a power of two; each now has the nearest one ({1}{2}). The renderer of the old World Editor (the one the JassNative Editor runs) can close the editor while it loads the units that use them; the game reads both, and the picture stays the same.": "{0} měly stranu, která není mocninou dvou; každá nyní má nejbližší mocninu ({1}{2}). Renderer starého World Editoru (toho, který spouští JassNative Editor) může editor zavřít při načítání jednotek, které je používají; hra čte obě varianty a obraz zůstává stejný.",
+ "{0} kept the name of a global array ({1}): that is how a memory library reads the array's address in the game. For JassHelper, which compiles the script again on every save, it is written the way the map was compiled: the function that reads the array without an index is marked for pjass (//# +nosemanticerror), and the typecast also has the local that JassHelper renames into the array. The game runs the same code.": "{0} si ponechalo název globálního pole ({1}): tak knihovna paměti čte adresu pole ve hře. Pro JassHelper, který skript při každém uložení kompiluje znovu, je to zapsáno tak, jak byla mapa zkompilována: funkce, která čte pole bez indexu, je označena pro pjass (//# +nosemanticerror) a přetypování má také lokální proměnnou, kterou JassHelper přejmenuje na pole. Hra spouští stejný kód.",
+ "{0} texture": "{0} textura",
+ "{0} textures": "{0} textur",
+ "{0}: a name the script reads as data": "{0}: název, který skript čte jako data"
 }
