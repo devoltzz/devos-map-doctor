@@ -3,6 +3,21 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 1.10.3 (2026-10-30)
+
+### Fixed
+
+- **Open in World Editor for the JassNative Editor, a save that stopped at pjass ("Index missing for array variable"):**
+  some maps use a memory library that reads the address of an array through a local variable with the array's own
+  name. The JassHelper of that editor builds that name when the map compiles, and the author's code told pjass to skip
+  that spot, but an optimizer had stripped those lines from the map. Compiled a second time, the trick broke and the
+  save failed. The editor copy now writes that part the way the map was compiled: the pjass mark is back, and the
+  local is declared so that JassHelper renames it onto the array again. The game runs the same code.
+- **Open in World Editor for the older editors (1.24 to 1.29 and the JassNative Editor), the editor closing while it
+  loads the units:** a texture whose size is not a power of two (511x512, 514x512...) is now resized to the nearest one
+  in the editor copy. The old World Editor can write past such a texture while it loads a unit that uses it and close,
+  on some PCs only; the game reads both, and the picture stays the same.
+
 ## 1.10.2 (2026-10-30)
 
 ### Added
