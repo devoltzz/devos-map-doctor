@@ -415,7 +415,7 @@ def assemble(r, argv=None):
 
     requested = getattr(r, 'DEFERRED_MAIN', None)
     if requested is not False:
-        t2, info = deferred_main.applies(t)
+        t2, info = deferred_main.applies(t, local_vars=bool(getattr(r, 'MAIN_LOCALS', False)))
         if info['failures'] and requested:
             aborts('9c (deferred main)', info['failures'])
         if info['failures']:
