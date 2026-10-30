@@ -11,6 +11,14 @@ RX_CALL0 = re.compile(r'^call[ \t]+(\w+)[ \t]*\([ \t]*\)[ \t]*(//.*)?$')
 RX_CALL = re.compile(r'^call[ \t]+(\w+)[ \t]*\(')
 
 
+def _lines(s, ends=False):
+    return re.findall(r'[^\n]*\n|[^\n]+', s) if ends else s.split('\n')
+
+
+def _remove(line):
+    return line.strip(' \t\r\n')
+
+
 def _body(body_text, fname):
     m = re.search(
         r'(?m)^function[ \t]+%s[ \t]+takes[ \t]+nothing[ \t]+returns[ \t]+nothing[ \t]*\r?$' % fname, body_text
@@ -31,7 +39,7 @@ def _ica_locals(body_text, nl):
     decl = []
     name_list = []
     line_list = []
-    for brute in body.splitlines(True):
+    for brute in _lines(body, True):
         m = re.match(r'^([ \t]*)local[ \t]+(\w+)[ \t]+(array[ \t]+)?(\w+)[ \t]*(=[^\r\n]*)?(\r?\n)?$', brute)
         if not m:
             line_list.append(brute)
@@ -81,9 +89,9 @@ def applies(body_text, sector_slice=SLICE, local_vars=False):
     if pos is not None:
         header, begin, end_pos = pos
         line_list = [
-            line.strip()
-            for line in body_text[begin:end_pos].splitlines()
-            if line.strip() and not line.strip().startswith('//')
+            _remove(line)
+            for line in _lines(body_text[begin:end_pos])
+            if _remove(line) and not _remove(line).startswith('//')
         ]
     if line_list and all(RX_CALL0.match(line) for line in line_list):
         calls = [RX_CALL0.match(line).group(1) for line in line_list]
@@ -102,8 +110,8 @@ def applies(body_text, sector_slice=SLICE, local_vars=False):
     header, begin, end_pos = pos
     keep = []
     frames = [[]]
-    for brute in body_text[begin:end_pos].splitlines():
-        line = brute.strip()
+    for brute in _lines(body_text[begin:end_pos]):
+        line = _remove(brute)
         if not line:
             continue
         if line.startswith('local '):
