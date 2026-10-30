@@ -155,6 +155,10 @@ STEP_TEXT = {
     'dados:fdf_comment': ('Remove the stray */ in frame files', '3.0 closes on the loading screen.'),
     'dados:id_lists': ('Remove the |n from ability lists', '3.0 reads a nonexistent ability.'),
     'dados:quoted_numbers': ('Turn numbers stored as text back into numbers', 'Not a crash, cleaned up as well.'),
+    'dados:graphics_lock': (
+        'Let every graphics mode into the lobby',
+        'The map info refuses Classic or Reforged players.',
+    ),
     'unprotection': ('Remove the protection first', 'The steps of "Fix map" the editor needs.'),
     'script_restore': ('Turn the compiled script back into JASS', 'The editor cannot read the KK bytecode.'),
     'editor_only_files': ('Add the files only the editor reads', 'Map info, triggers, import list and JassHelper.'),
@@ -344,7 +348,8 @@ EXTRA_DONE = {
     'shrink': 'Made the map smaller.',
     'attributes': 'Rewrote the file checksums that no longer matched.',
     'game_overrides': 'Removed the map files that replaced the game\'s own.',
-    'requirements': 'Unlocked the abilities that required a tech the map lacks.',
+    'requirements': 'Unlocked the abilities and items that required a tech the map lacks.',
+    'model_paths': 'Pointed the model paths that named no file at the model of the map.',
     'graphics_modes': 'Imported the game files the other graphics modes lacked.',
     'fdf': 'Fixed the frame file lists.',
     'null_handles': 'Wrote the missing null lines of the handle locals.',
@@ -371,6 +376,7 @@ EXTRA_NAME = {
     'game_overrides': 'the game files',
     'graphics_modes': 'the graphics modes',
     'requirements': 'the requirements',
+    'model_paths': 'the model paths',
     'fdf': 'the frame file lists',
     'null_handles': 'the null lines',
     'minify': 'the minified script',
@@ -765,7 +771,10 @@ def _reforged(job, progress):
         'count': _n('game_file_override', 'count'),
         'identical': _n('game_file_override', 'identical'),
     }
-    r['requirements'] = {'fixable': _n('inherited_requirement', 'fixable')}
+    r['requirements'] = {
+        'fixable': _n('inherited_requirement', 'fixable') + _n('inherited_item_requirement', 'fixable')
+    }
+    r['model_paths'] = {'fixable': _n('model_path_fixable', 'fixable')}
     r['graphics_modes'] = {'fixable': _n('graphics_mode_only', 'fixable')}
     _fdf = items.get('fdf_lint')
     r['fdf'] = {'fixable': 1 if _fdf and _fdf.get('fix') == 'doctor' and writable else 0}
