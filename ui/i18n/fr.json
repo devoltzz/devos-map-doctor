@@ -3379,5 +3379,17 @@
  "Choose a picture for \"Use my own lobby image\", or untick it.": "Choisissez une image pour « Utiliser ma propre image de salon », ou décochez l'option.",
  "Download the chain log": "Télécharger le journal de chaîne",
  "Show the chain log": "Afficher le journal de chaîne",
- "This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). Run the action again.": "Ce fichier a disparu : le moteur qui le gardait en mémoire a été redémarré (une annulation ou un plantage). Relancez l'action."
+ "This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). Run the action again.": "Ce fichier a disparu : le moteur qui le gardait en mémoire a été redémarré (une annulation ou un plantage). Relancez l'action.",
+ ", and {0} more": ", et {0} de plus",
+ "The script has no texts of its own: {0} texts and {1} numbers are read from a table ({2}) that the platform DLL fills in at startup, and the game does not load that DLL. As it is, the map shows no text and those numbers are 0. The port puts them back into the script.": "Le script n'a pas de textes propres : {0} textes et {1} nombres sont lus depuis une table ({2}) que la DLL de la plateforme remplit au démarrage, et le jeu ne charge pas cette DLL. En l'état, la carte n'affiche aucun texte et ces nombres valent 0. Le portage les remet dans le script.",
+ "level 0 decodes as {0}x{1}, the header says {2}x{3}": "le niveau 0 se décode en {0}x{1}, l'en-tête indique {2}x{3}",
+ "the map reads its texts from a table the platform DLL fills, and it could not be read back: {0}": "la carte lit ses textes depuis une table que la DLL de la plateforme remplit, et elle n'a pas pu être relue : {0}",
+ "the new texture is not {0}x{1}": "la nouvelle texture n'est pas en {0}x{1}",
+ "the new texture still has: {0}": "la nouvelle texture présente encore : {0}",
+ "the texture does not decode: {0}": "la texture ne se décode pas : {0}",
+ "{0} had a side that is not a power of two; each now has the nearest one ({1}{2}). The renderer of the old World Editor (the one the JassNative Editor runs) can close the editor while it loads the units that use them; the game reads both, and the picture stays the same.": "{0} avait un côté qui n'est pas une puissance de deux ; chacune a maintenant la plus proche ({1}{2}). Le moteur de rendu de l'ancien World Editor (celui qu'exécute le JassNative Editor) peut fermer l'éditeur pendant le chargement des unités qui les utilisent ; le jeu lit les deux, et l'image reste la même.",
+ "{0} kept the name of a global array ({1}): that is how a memory library reads the array's address in the game. For JassHelper, which compiles the script again on every save, it is written the way the map was compiled: the function that reads the array without an index is marked for pjass (//# +nosemanticerror), and the typecast also has the local that JassHelper renames into the array. The game runs the same code.": "{0} a gardé le nom d'un tableau global ({1}) : c'est ainsi qu'une bibliothèque mémoire lit l'adresse du tableau dans le jeu. Pour JassHelper, qui recompile le script à chaque enregistrement, il est écrit comme la carte a été compilée : la fonction qui lit le tableau sans index est marquée pour pjass (//# +nosemanticerror), et la conversion de type possède aussi la variable locale que JassHelper renomme en tableau. Le jeu exécute le même code.",
+ "{0} texture": "{0} texture",
+ "{0} textures": "{0} textures",
+ "{0}: a name the script reads as data": "{0} : un nom que le script lit comme donnée"
 }
