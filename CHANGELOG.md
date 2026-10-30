@@ -20,6 +20,9 @@ What each version of Devo's Map Doctor brought, the newest first. The downloads 
 
 - **Port to Reforged, Chinese text cut in two:** the step that moves the map's start out of the loading screen split a
   text when one of its characters contains a certain byte (for example `免`), and the text came out broken in two lines.
+- **Open in World Editor for an older editor (1.24 to 1.27):** the copy now carries the editor number those World Editor
+  versions write (6059, as their worldedit.exe does), not 6052, which is the number of the 1.21 editor and of the
+  editors built on it.
 - **Translation:** an object whose name the script reads as data (a number or a save key hidden in an ability name,
   read with `GetObjectName`) no longer has its name exported for translation: translating it broke those reads without
   any error. Its tooltip is still exported, and a name the script only shows on screen is exported as before.
