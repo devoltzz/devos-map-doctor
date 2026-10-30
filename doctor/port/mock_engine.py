@@ -192,7 +192,20 @@ function GetPlayerName(p) return "Player" .. tostring(p and p.id or 0) .. "#1234
 function GetPlayerController(p) if p and p.id < 8 then return MAP_CONTROL_USER end return MAP_CONTROL_COMPUTER end
 function GetPlayerSlotState(p) if p and p.id < 2 then return PLAYER_SLOT_STATE_PLAYING end return PLAYER_SLOT_STATE_EMPTY end
 function GetPlayerRace(p) return RACE_HUMAN end
-function GetPlayerStartLocation(p) return 0 end
+-- [30/10/2026, o DragonBall 21.11 F1] as POSICOES INICIAIS que o `config()` do mapa declara (`DefineStartLocation` e o
+-- `SetPlayerStartLocation`; eram stubs: toda posicao inicial dava (0,0)). O heroi do load do DragonBall nasce na posicao
+-- inicial do jogador; a cena dele passava porque o "entra na regiao" (antes de 28/10, a Inotia) disparava para toda
+-- unidade e um gatilho de regiao o tirava de (0,0). O jogador sem `SetPlayerStartLocation` fica com a posicao do proprio
+-- numero (o padrao do motor sem posicao fixa NAO foi medido); a posicao nao declarada continua (0,0), como antes.
+M.inicio = {}
+function DefineStartLocation(i, x, y) if i ~= nil then M.inicio[i] = { x or 0.0, y or 0.0 } end end
+function DefineStartLocationLoc(i, l) if i ~= nil and l ~= nil then M.inicio[i] = { l.x or 0.0, l.y or 0.0 } end end
+function SetPlayerStartLocation(p, i) if p ~= nil then p.inicio = i end end
+function ForcePlayerStartLocation(p, i) if p ~= nil then p.inicio = i end end
+function GetPlayerStartLocation(p) if p == nil then return 0 end return p.inicio or p.id or 0 end
+function GetStartLocationX(i) local s = M.inicio[i] return s and s[1] or 0.0 end
+function GetStartLocationY(i) local s = M.inicio[i] return s and s[2] or 0.0 end
+function GetStartLocationLoc(i) return Location(GetStartLocationX(i), GetStartLocationY(i)) end
 function GetPlayerColor(p) return PLAYER_COLOR_RED end
 function IsPlayerAlly(a, b) return a == b end
 function IsPlayerEnemy(a, b) return a ~= b end
