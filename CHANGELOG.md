@@ -3,6 +3,27 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 1.10.2 (2026-10-30)
+
+### Added
+
+- **Port to Reforged, maps whose script has no text of its own:** some maps of the Chinese KK platform keep every text
+  and most numbers outside the script. The script reads them from a table that a platform DLL (disguised as a texture)
+  fills in at startup, running a hidden Lua program stored in unnamed files of the map. Reforged never loads that DLL,
+  so the map showed no text at all and those numbers were 0. The port now reads the hidden table and puts every text
+  and number back into the script, and removes the DLL from the map.
+- **Runs on Reforged?:** a new blocker for those maps ("The script has no texts of its own"), with the port as the fix.
+- **Open in World Editor:** for those maps the texts are put back into the editor copy too, so the restored triggers
+  show the messages instead of table reads. The copy still plays like the original.
+
+### Fixed
+
+- **Port to Reforged, Chinese text cut in two:** the step that moves the map's start out of the loading screen split a
+  text when one of its characters contains a certain byte (for example `免`), and the text came out broken in two lines.
+- **Translation:** an object whose name the script reads as data (a number or a save key hidden in an ability name,
+  read with `GetObjectName`) no longer has its name exported for translation: translating it broke those reads without
+  any error. Its tooltip is still exported, and a name the script only shows on screen is exported as before.
+
 ## 1.10.1 (2026-10-29)
 
 ### Fixed
