@@ -3408,12 +3408,16 @@ end
 def orders_lua():
     import ast
     file_ = os.path.join(HERE, '..', '..', 'scripts', 'jass_normal.py')
-    for no in ast.parse(open(file_, encoding='utf-8').read()).body:
-        if isinstance(no, ast.Assign) and [getattr(t, 'id', None) for t in no.targets] == ['ORDER_IDS']:
-            orders = ast.literal_eval(no.value)
-            break
+    if not os.path.isfile(file_):
+        from doctor.script import jass_normal
+        orders = dict(jass_normal.ORDER_IDS)
     else:
-        raise SystemExit('mock_test: ORDER_IDS is gone from %s' % file_)
+        for no in ast.parse(open(file_, encoding='utf-8').read()).body:
+            if isinstance(no, ast.Assign) and [getattr(t, 'id', None) for t in no.targets] == ['ORDER_IDS']:
+                orders = ast.literal_eval(no.value)
+                break
+        else:
+            raise SystemExit('mock_test: ORDER_IDS is gone from %s' % file_)
     name_list = dict((v, k) for k, v in orders.items())
     if len(name_list) != len(orders):
         raise SystemExit('mock_test: two names with the same id in ORDER_IDS of %s' % file_)
