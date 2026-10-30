@@ -3379,5 +3379,17 @@
  "Choose a picture for \"Use my own lobby image\", or untick it.": "「自分のロビー画像を使う」の画像を選ぶか、チェックを外してください。",
  "Download the chain log": "チェーンログをダウンロード",
  "Show the chain log": "チェーンログを表示",
- "This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). Run the action again.": "このファイルは失われました。メモリに保持していたエンジンが再起動されました(キャンセルまたはクラッシュ)。もう一度操作を実行してください。"
+ "This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). Run the action again.": "このファイルは失われました。メモリに保持していたエンジンが再起動されました(キャンセルまたはクラッシュ)。もう一度操作を実行してください。",
+ ", and {0} more": "、ほか {0} 件",
+ "The script has no texts of its own: {0} texts and {1} numbers are read from a table ({2}) that the platform DLL fills in at startup, and the game does not load that DLL. As it is, the map shows no text and those numbers are 0. The port puts them back into the script.": "スクリプト自体にはテキストがありません。{0} 個のテキストと {1} 個の数値は、起動時にプラットフォームの DLL が埋めるテーブル ({2}) から読み込まれますが、ゲームはその DLL を読み込みません。このままではマップにテキストが表示されず、それらの数値は 0 になります。移植版ではこれらをスクリプトに戻します。",
+ "level 0 decodes as {0}x{1}, the header says {2}x{3}": "レベル 0 のデコード結果は {0}x{1} ですが、ヘッダーでは {2}x{3} となっています",
+ "the map reads its texts from a table the platform DLL fills, and it could not be read back: {0}": "マップはプラットフォームの DLL が埋めるテーブルからテキストを読み込みますが、読み戻せませんでした: {0}",
+ "the new texture is not {0}x{1}": "新しいテクスチャは {0}x{1} ではありません",
+ "the new texture still has: {0}": "新しいテクスチャには次がまだ残っています: {0}",
+ "the texture does not decode: {0}": "テクスチャをデコードできません: {0}",
+ "{0} had a side that is not a power of two; each now has the nearest one ({1}{2}). The renderer of the old World Editor (the one the JassNative Editor runs) can close the editor while it loads the units that use them; the game reads both, and the picture stays the same.": "{0} に2のべき乗でない辺がありました。各辺を最も近い2のべき乗にしました ({1}{2})。旧 World Editor (JassNative Editor が動かすもの) のレンダラーは、それらを使うユニットの読み込み中にエディターを閉じてしまうことがあります。ゲームはどちらも読み込め、画像は変わりません。",
+ "{0} kept the name of a global array ({1}): that is how a memory library reads the array's address in the game. For JassHelper, which compiles the script again on every save, it is written the way the map was compiled: the function that reads the array without an index is marked for pjass (//# +nosemanticerror), and the typecast also has the local that JassHelper renames into the array. The game runs the same code.": "{0} はグローバル配列の名前 ({1}) を保持しています。メモリライブラリはこの名前でゲーム内の配列のアドレスを読み取ります。保存のたびにスクリプトを再コンパイルする JassHelper 向けには、マップがコンパイルされたときの形で書き込まれます。インデックスなしで配列を読む関数には pjass 用のマーク (//# +nosemanticerror) が付き、型キャストには JassHelper が配列名に置き換えるローカル変数も含まれます。ゲームは同じコードを実行します。",
+ "{0} texture": "{0} 個のテクスチャ",
+ "{0} textures": "{0} 個のテクスチャ",
+ "{0}: a name the script reads as data": "{0}: スクリプトがデータとして読み取る名前"
 }
