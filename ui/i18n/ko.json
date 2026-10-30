@@ -3379,5 +3379,17 @@
  "Choose a picture for \"Use my own lobby image\", or untick it.": "\"내 로비 이미지 사용\"에 쓸 그림을 선택하거나, 체크를 해제하세요.",
  "Download the chain log": "체인 로그 다운로드",
  "Show the chain log": "체인 로그 표시",
- "This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). Run the action again.": "이 파일이 사라졌습니다: 메모리에 보관하던 엔진이 다시 시작되었습니다 (취소 또는 충돌). 작업을 다시 실행하세요."
+ "This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). Run the action again.": "이 파일이 사라졌습니다: 메모리에 보관하던 엔진이 다시 시작되었습니다 (취소 또는 충돌). 작업을 다시 실행하세요.",
+ ", and {0} more": " 외 {0}개",
+ "The script has no texts of its own: {0} texts and {1} numbers are read from a table ({2}) that the platform DLL fills in at startup, and the game does not load that DLL. As it is, the map shows no text and those numbers are 0. The port puts them back into the script.": "스크립트에는 자체 텍스트가 없습니다. 텍스트 {0}개와 숫자 {1}개는 플랫폼 DLL이 시작 시 채우는 테이블({2})에서 읽어오는데, 게임은 그 DLL을 불러오지 않습니다. 이대로라면 맵에 텍스트가 표시되지 않고 해당 숫자는 0이 됩니다. 포팅 과정에서 이를 스크립트에 다시 넣습니다.",
+ "level 0 decodes as {0}x{1}, the header says {2}x{3}": "레벨 0은 {0}x{1}(으)로 디코딩되지만 헤더에는 {2}x{3}(으)로 되어 있습니다",
+ "the map reads its texts from a table the platform DLL fills, and it could not be read back: {0}": "맵이 플랫폼 DLL이 채우는 테이블에서 텍스트를 읽어오는데, 다시 읽을 수 없었습니다: {0}",
+ "the new texture is not {0}x{1}": "새 텍스처가 {0}x{1}이(가) 아닙니다",
+ "the new texture still has: {0}": "새 텍스처에 여전히 남아 있는 항목: {0}",
+ "the texture does not decode: {0}": "텍스처를 디코딩할 수 없습니다: {0}",
+ "{0} had a side that is not a power of two; each now has the nearest one ({1}{2}). The renderer of the old World Editor (the one the JassNative Editor runs) can close the editor while it loads the units that use them; the game reads both, and the picture stays the same.": "{0}개는 한 변이 2의 거듭제곱이 아니었으며, 이제 각각 가장 가까운 값({1}{2})을 가집니다. 구버전 World Editor(JassNative Editor가 실행하는 것)의 렌더러는 이를 사용하는 유닛을 불러오는 동안 에디터가 종료될 수 있습니다. 게임은 둘 다 읽을 수 있고 그림은 그대로 유지됩니다.",
+ "{0} kept the name of a global array ({1}): that is how a memory library reads the array's address in the game. For JassHelper, which compiles the script again on every save, it is written the way the map was compiled: the function that reads the array without an index is marked for pjass (//# +nosemanticerror), and the typecast also has the local that JassHelper renames into the array. The game runs the same code.": "{0}은(는) 전역 배열의 이름({1})을 유지했습니다. 메모리 라이브러리가 게임에서 배열의 주소를 읽는 방식이 바로 이것입니다. 저장할 때마다 스크립트를 다시 컴파일하는 JassHelper를 위해, 맵이 컴파일된 방식 그대로 기록됩니다. 인덱스 없이 배열을 읽는 함수에는 pjass용 표시(//# +nosemanticerror)가 붙고, 타입 캐스트에는 JassHelper가 배열로 이름을 바꾸는 로컬 변수도 함께 있습니다. 게임은 동일한 코드를 실행합니다.",
+ "{0} texture": "텍스처 {0}개",
+ "{0} textures": "텍스처 {0}개",
+ "{0}: a name the script reads as data": "{0}: 스크립트가 데이터로 읽는 이름"
 }
