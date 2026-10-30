@@ -99,16 +99,18 @@ Steps of fix / editor (none given: the defaults the window ticks for this map; -
   --gui-triggers --script-objects --safe-units
 Extras of fix / editor (fix turns on by itself the ones the window ticks when its check finds them: --models
   --model-names --data-pointers --kk-textures --green-icons --fix-attributes --fix-graphics-modes --fix-requirements
-  --fix-fdf; --no-<extra> leaves one out; the others are off unless given):
+  --fix-model-paths --fix-fdf; --no-<extra> leaves one out; the others are off unless given):
   --models --model-names --portraits --data-pointers --kk-textures --green-icons --uabi --preload
   --single-player --shrink --shrink-lossy --translation=<file> --strip-indent
-  --fix-attributes --remove-game-files --remove-game-copies --fix-requirements --fix-fdf --null-handles --minify
+  --fix-attributes --remove-game-files --remove-game-copies --fix-requirements --fix-model-paths --fix-fdf
+  --null-handles --minify
   --slk-objects --fix-graphics-modes
   --portraits=stamp|upgrade --shrink-models --shrink-models-lossy --lobby-image=<picture>
   --fix-attributes         redo the file checksums
   --remove-game-files      take out the map files that replace the game's own (needs the game installed)
   --remove-game-copies     only the ones that are byte-for-byte copies of the game's file (needs the game installed)
-  --fix-requirements       unlock abilities that require a tech the map lacks
+  --fix-requirements       unlock abilities and items that require a tech the map lacks
+  --fix-model-paths        point model paths that name no file at the one model of the map with that name
   --fix-fdf                fix frame file lists
   --null-handles           null handle locals (JASS)
   --minify                 shrink the JASS script
@@ -155,6 +157,7 @@ EXTRA_FLAGS = {
     'minify': 'minify',
     'slk-objects': 'slk_objects',
     'fix-graphics-modes': 'graphics_modes',
+    'fix-model-paths': 'model_paths',
 }
 EDITOR_EXTRAS = ('single-player', 'translation', 'strip-indent')
 OUTCOME_CODE = {'ok': 0, 'nothing': 0, 'partial': 3, 'failed': 1}
@@ -232,11 +235,18 @@ def pick_steps(steps, action, opts):
     return out
 
 
-DEFAULT_EXTRAS = (('models', 'models', 'models'), ('model-names', 'model_names', 'model_names'),
-                  ('data-pointers', 'data_pointers', 'data_pointers'), ('kk-textures', 'kk_textures', 'kk_textures'),
-                  ('green-icons', 'disabled_icons', 'disabled_icons'), ('fix-attributes', 'attributes', 'attributes'),
-                  ('fix-graphics-modes', 'graphics_modes', 'graphics_modes'),
-                  ('fix-requirements', 'requirements', 'requirements'), ('fix-fdf', 'fdf', 'fdf'))
+DEFAULT_EXTRAS = (
+    ('models', 'models', 'models'),
+    ('model-names', 'model_names', 'model_names'),
+    ('data-pointers', 'data_pointers', 'data_pointers'),
+    ('kk-textures', 'kk_textures', 'kk_textures'),
+    ('green-icons', 'disabled_icons', 'disabled_icons'),
+    ('fix-attributes', 'attributes', 'attributes'),
+    ('fix-graphics-modes', 'graphics_modes', 'graphics_modes'),
+    ('fix-requirements', 'requirements', 'requirements'),
+    ('fix-model-paths', 'model_paths', 'model_paths'),
+    ('fix-fdf', 'fdf', 'fdf'),
+)
 
 
 def default_extras(path, opts, run):
