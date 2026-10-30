@@ -3379,5 +3379,17 @@
  "Choose a picture for \"Use my own lobby image\", or untick it.": "Выберите картинку для «Использовать собственное изображение лобби» или снимите галочку.",
  "Download the chain log": "Скачать журнал цепочки",
  "Show the chain log": "Показать журнал цепочки",
- "This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). Run the action again.": "Этот файл пропал: движок, державший его в памяти, был перезапущен (отмена или сбой). Запустите действие снова."
+ "This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). Run the action again.": "Этот файл пропал: движок, державший его в памяти, был перезапущен (отмена или сбой). Запустите действие снова.",
+ ", and {0} more": ", и ещё {0}",
+ "The script has no texts of its own: {0} texts and {1} numbers are read from a table ({2}) that the platform DLL fills in at startup, and the game does not load that DLL. As it is, the map shows no text and those numbers are 0. The port puts them back into the script.": "В скрипте нет собственных текстов: {0} текстов и {1} чисел читаются из таблицы ({2}), которую DLL платформы заполняет при запуске, а игра эту DLL не загружает. В таком виде карта не показывает текст, а эти числа равны 0. Порт возвращает их в скрипт.",
+ "level 0 decodes as {0}x{1}, the header says {2}x{3}": "уровень 0 декодируется как {0}x{1}, а в заголовке указано {2}x{3}",
+ "the map reads its texts from a table the platform DLL fills, and it could not be read back: {0}": "карта читает свои тексты из таблицы, которую заполняет DLL платформы, и её не удалось прочитать обратно: {0}",
+ "the new texture is not {0}x{1}": "новая текстура не имеет размер {0}x{1}",
+ "the new texture still has: {0}": "в новой текстуре по-прежнему: {0}",
+ "the texture does not decode: {0}": "текстура не декодируется: {0}",
+ "{0} had a side that is not a power of two; each now has the nearest one ({1}{2}). The renderer of the old World Editor (the one the JassNative Editor runs) can close the editor while it loads the units that use them; the game reads both, and the picture stays the same.": "У {0} была сторона, не являющаяся степенью двойки; теперь у каждой ближайшая степень двойки ({1}{2}). Рендерер старого World Editor (того, который запускает JassNative Editor) может закрыть редактор при загрузке юнитов, использующих их; игра читает оба варианта, и изображение остаётся прежним.",
+ "{0} kept the name of a global array ({1}): that is how a memory library reads the array's address in the game. For JassHelper, which compiles the script again on every save, it is written the way the map was compiled: the function that reads the array without an index is marked for pjass (//# +nosemanticerror), and the typecast also has the local that JassHelper renames into the array. The game runs the same code.": "{0} сохранил имя глобального массива ({1}): так библиотека работы с памятью читает адрес массива в игре. Для JassHelper, который заново компилирует скрипт при каждом сохранении, это записано так, как карта была скомпилирована: функция, читающая массив без индекса, помечена для pjass (//# +nosemanticerror), а в приведении типа есть и локальная переменная, которую JassHelper переименовывает в массив. Игра выполняет тот же код.",
+ "{0} texture": "{0} текстура",
+ "{0} textures": "{0} текстур",
+ "{0}: a name the script reads as data": "{0}: имя, которое скрипт читает как данные"
 }
