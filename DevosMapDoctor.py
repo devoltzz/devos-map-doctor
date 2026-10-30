@@ -5,7 +5,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 from doctor.fix import unprotect as D
 
-VERSION = '1.10.3'
+VERSION = '1.11.0'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -44,6 +44,7 @@ STAGES = {
     'extra_game_overrides': 'Checking the game file overrides...',
     'extra_graphics_modes': 'Importing the game files of the other graphics modes...',
     'extra_requirements': 'Checking the requirements...',
+    'extra_model_paths': 'Fixing the model paths...',
     'extra_fdf': 'Checking the frame definitions...',
     'extra_null_handles': 'Nulling the handles the script leaks...',
     'extra_minify': 'Minifying the script...',
@@ -120,7 +121,18 @@ def describe_data(p):
     if c == 'slk_quoted_numbers':
         return ('%s stored as text in %s: not a crash, cleaned up as well.'
                 % (pluralize(n, 'number', 'numbers'), where))
+    if c == 'w3i_graphics_mode':
+        return ('The map info lets only %s graphics into the lobby: players in another graphics mode cannot create or '
+                'join it.' % names_of_lobby_modes(n))
     return c
+
+
+LOBBY_MODE_NAMES = (('Classic', 1), ('Reforged', 2), ('Definitive Edition', 4))
+
+
+def names_of_lobby_modes(n):
+    name_list = [fname for fname, bit in LOBBY_MODE_NAMES if n & bit]
+    return ' and '.join(name_list) if name_list else 'no'
 
 
 def data_done(steps):
@@ -151,6 +163,10 @@ def data_done(steps):
     if x:
         out.append('Turned %s back into numbers in %s.'
                    % (pluralize(sum(x.values()), 'value stored as text', 'values stored as text'), _short_names(x)))
+    x = details.get('graphics_lock')
+    if x:
+        out.append('Opened the lobby to every graphics mode (the map info allowed only %s).'
+                   % names_of_lobby_modes(sum(x.values())))
     return out
 
 
