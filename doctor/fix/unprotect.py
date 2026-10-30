@@ -1578,6 +1578,16 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
                 res['script'] = editor_prep.script_restore(src, t, diag['script'], log=_nothing)
             src = t
             name_list = None
+        t = os.path.join(tmp, '2b_texts.w3x')
+        try:
+            with quiet():
+                r_texts = editor_prep.texts_back(src, t, log=_nothing)
+        except editor_prep.ScriptNotRestored as e:
+            r_texts = None
+            res['texts_back'] = {'err': str(e)}
+        if r_texts:
+            res['texts_back'] = r_texts
+            src = t
         if name_list is None:
             p('name_list')
             name_list = map_names(_open(src))
