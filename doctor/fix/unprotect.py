@@ -39,9 +39,11 @@ EDITOR_BLOCKERS = ('read_only', 'fake_header', 'missing_hm3w', 'virtual_tables',
                    'script_kkwe', 'script_j2b')
 BUTTON3_ONLY = ('inflated_counts', 'invalid_doodad', 'script_kkwe', 'script_j2b', 'lua_wc3fuscator', 'lua_layers')
 EDITOR_SCRIPTS = ('jass', 'lua', 'kkwe', 'j2b')
-DATA_ONLY = ('slk_file_column', 'slk_levels', 'slk_buttonpos', 'fdf_stray_comment', 'slk_id_list', 'slk_quoted_numbers')
+DATA_ONLY = ('slk_file_column', 'slk_levels', 'slk_buttonpos', 'fdf_stray_comment', 'slk_id_list', 'slk_quoted_numbers',
+             'w3i_graphics_mode')
 SLK_CODE = {'file_column': 'slk_file_column', 'levels': 'slk_levels', 'buttonpos': 'slk_buttonpos',
-            'fdf_comment': 'fdf_stray_comment', 'id_lists': 'slk_id_list', 'quoted_numbers': 'slk_quoted_numbers'}
+            'fdf_comment': 'fdf_stray_comment', 'id_lists': 'slk_id_list', 'quoted_numbers': 'slk_quoted_numbers',
+            'graphics_lock': 'w3i_graphics_mode'}
 
 
 def _nothing(*_a, **_k):
@@ -121,6 +123,7 @@ EXTRAS = (
     'card',
     'translation',
     'requirements',
+    'model_paths',
     'fdf',
     'null_handles',
     'minify',
@@ -160,6 +163,9 @@ def apply_extras(entry, output, extras, progress=None):
                     elif extra == 'requirements':
                         from doctor.fix import requirement_check
                         details = requirement_check.fix(src, t, p)
+                    elif extra == 'model_paths':
+                        from doctor.fix import model_paths
+                        details = model_paths.fix(src, t, p)
                     elif extra == 'fdf':
                         from doctor.fix import fdf_lint
                         details = fdf_lint.fix(src, t, p)
