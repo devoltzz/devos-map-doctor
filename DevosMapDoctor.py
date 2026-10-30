@@ -5,7 +5,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 from doctor.fix import unprotect as D
 
-VERSION = '1.10.2'
+VERSION = '1.10.3'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -729,10 +729,53 @@ def editor_text(r):
         )
     kept = (r.get('editor') or {}).get('kept_locals') or []
     if kept:
-        out.append(('warning', '  - %s kept the name of a global array (%s): that is how a memory library reads the '
-                               "array's address in the game. JassHelper may refuse it when you save; renaming it would "
-                               'stop the map in the game.' % (pluralize(len(kept), 'local variable', 'local variables'),
-                                                           ', '.join(sorted(set(x[1] for x in kept))[:3]))))
+        tc = (r.get('editor') or {}).get('typecast_jasshelper') or {}
+        if tc.get('decoys') or tc.get('marked'):
+            out.append(
+                (
+                    'info',
+                    '  - %s kept the name of a global array (%s): that is how a memory library reads the '
+                    "array's address in the game. For JassHelper, which compiles the script again on every "
+                    'save, it is written the way the map was compiled: the function that reads the array '
+                    'without an index is marked for pjass (//# +nosemanticerror), and the typecast also has '
+                    'the local that JassHelper renames into the array. The game runs the same code.'
+                    % (
+                        pluralize(len(kept), 'local variable', 'local variables'),
+                        ', '.join(sorted(set(x[1] for x in kept))[:3]),
+                    ),
+                )
+            )
+        else:
+            out.append(
+                (
+                    'warning',
+                    '  - %s kept the name of a global array (%s): that is how a memory library reads the '
+                    "array's address in the game. JassHelper may refuse it when you save; renaming it "
+                    'would stop the map in the game.'
+                    % (
+                        pluralize(len(kept), 'local variable', 'local variables'),
+                        ', '.join(sorted(set(x[1] for x in kept))[:3]),
+                    ),
+                )
+            )
+    pot = (r.get('editor') or {}).get('textures_power_of_two') or []
+    if pot:
+        out.append(
+            (
+                'info',
+                '  - %s had a side that is not a power of two; each now has the nearest one (%s%s). The '
+                'renderer of the old World Editor (the one the JassNative Editor runs) can close the editor '
+                'while it loads the units that use them; the game reads both, and the picture stays the '
+                'same.'
+                % (
+                    pluralize(len(pot), 'texture', 'textures'),
+                    ', '.join(
+                        '%s %dx%d -> %dx%d' % ((n.split('\\')[-1],) + tuple(f) + tuple(t)) for n, f, t in pot[:3]
+                    ),
+                    ', and %d more' % (len(pot) - 3) if len(pot) > 3 else '',
+                ),
+            )
+        )
     out.append(('', ''))
     if (r.get('editor') or {}).get('campaign_info'):
         for m in r['editor'].get('map_list') or []:
