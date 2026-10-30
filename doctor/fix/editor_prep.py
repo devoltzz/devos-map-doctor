@@ -784,6 +784,66 @@ def locals_without_clash(body_text, log=print, kept=None):
     return '\n'.join(line_list), replacements
 
 
+PRAGMA_ON, PRAGMA_OFF = '//# +nosemanticerror', '//# -nosemanticerror'
+
+
+def typecast_for_jasshelper(body_text, kept):
+    done = {'decoys': [], 'marked': []}
+    if not kept:
+        return body_text, done
+    try:
+        from doctor.script import jass_ast
+        specs = list(jass_ast.function_specs(jass_ast.parse(body_text)))
+    except Exception:
+        return body_text, done
+    line_list = body_text.split('\n')
+    plain_globals = set()
+    for blk in re.finditer(r'(?ms)^[ \t]*globals\b(.*?)^[ \t]*endglobals\b', body_text):
+        for m in re.finditer(r'(?m)^[ \t]*(?:constant[ \t]+)?(\w+)[ \t]+(\w+)', blk.group(1)):
+            if m.group(1) != 'array' and m.group(2) != 'array':
+                plain_globals.add(m.group(2))
+    vectors = sorted(set(n for _f, n in kept))
+    declare = dict((n, set(f for f, v in kept if v == n)) for n in vectors)
+    after_diag, before = {}, {}
+    for fname in vectors:
+        isca = fname[3:] if fname.startswith('l__') else None
+        rx = _without_text(fname)
+        for f_name, f_start, f_end, parameters, local_vars in specs:
+            body = range(f_start - 1, min(f_end, len(line_list)))
+            if f_name in declare[fname]:
+                if not isca or isca not in plain_globals or isca in local_vars or isca in parameters:
+                    continue
+                for i in body:
+                    m = re.match(r'^([ \t]*)local[ \t]+(\w+)[ \t]+%s\b' % re.escape(fname), line_list[i])
+                    if m:
+                        cr = '\r' if line_list[i].endswith('\r') else ''
+                        after_diag.setdefault(i, []).append('%slocal %s %s%s' % (m.group(1), m.group(2), isca, cr))
+                        done['decoys'].append((f_name, isca))
+                        break
+            elif fname not in parameters and fname not in local_vars:
+                reads_without_index = any(m.group(0) == fname and not line_list[i][m.end():].lstrip().startswith('[')
+                                          for i in body for m in rx.finditer(line_list[i]))
+                if not reads_without_index or f_name in done['marked']:
+                    continue
+                begin, end_pos = f_start - 1, min(f_end, len(line_list)) - 1
+                if begin > 0 and line_list[begin - 1].strip() == PRAGMA_ON:
+                    continue
+                cr = '\r' if line_list[begin].endswith('\r') else ''
+                before.setdefault(begin, []).append(PRAGMA_ON + cr)
+                after_diag.setdefault(end_pos, []).append(
+                    PRAGMA_OFF + ('\r' if line_list[end_pos].endswith('\r') else '')
+                )
+                done['marked'].append(f_name)
+    if not after_diag and not before:
+        return body_text, done
+    out = []
+    for i, ln in enumerate(line_list):
+        out.extend(before.get(i, ()))
+        out.append(ln)
+        out.extend(after_diag.get(i, ()))
+    return '\n'.join(out), done
+
+
 def fit_to_editor(header_text, file_set, original, log=print, tgt=None):
     try:
         from doctor.triggers import editor_render
@@ -852,6 +912,7 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
         if tgt is not None:
             details['kept_locals'] = []
             body_text, details['renamed_locals'] = locals_without_clash(body_text, log, kept=details['kept_locals'])
+            body_text, details['typecast_jasshelper'] = typecast_for_jasshelper(body_text, details['kept_locals'])
             from doctor.fix import editor_version
             body_text, details['jassnative'] = editor_version.without_jassnative_mark(body_text)
     expected_len = body_text
@@ -905,6 +966,20 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
             missing_items.append(n)
     if skin_files:
         details['skin'] = sorted(n for n in skin_files if n.startswith('war3mapSkin'))
+    if tgt is not None:
+        details['textures_power_of_two'] = []
+        from doctor.fix import blp_check
+        for n in imported:
+            if not n.lower().endswith('.blp'):
+                continue
+            try:
+                new_blp, blp_info = blp_check.power_of_two(a.read(n) or b'')
+            except Exception as e:
+                log('%s: %s' % (n, e))
+                continue
+            if new_blp is not None:
+                replacements[n] = new_blp
+                details['textures_power_of_two'].append((n, blp_info['from'], blp_info['to']))
     try:
         w3i_version = struct.unpack_from('<i', w3i_era, 0)[0] if w3i_era else None
     except struct.error:
@@ -1177,10 +1252,13 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
         details['jassnative']['removed_from_script'] = without_mark is not None
         if without_mark is not None:
             final_script = without_mark
-    if details.get('renamed_locals') and not is_lua:
-        new_j, renamed_done = locals_without_clash(final_script.decode('latin-1'), log, kept=[])
-        if renamed_done:
+    if (details.get('renamed_locals') or details.get('kept_locals')) and not is_lua:
+        kept_j = []
+        new_j, renamed_done = locals_without_clash(final_script.decode('latin-1'), log, kept=kept_j)
+        new_j, tc = typecast_for_jasshelper(new_j, kept_j)
+        if renamed_done or tc['decoys'] or tc['marked']:
             final_script = new_j.encode('latin-1')
+        if renamed_done:
             details['locals_in_script'] = len(renamed_done)
     if output_script != j_source or final_script != map_raw:
         (replacements if a.find(output_script) else new_ones)[output_script] = final_script
