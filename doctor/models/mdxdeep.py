@@ -7,23 +7,25 @@ from doctor.models import mdxnodes as mn
 
 NODE_CHUNKS = mn.NODE_CHUNKS + (b'CORN',)
 CAMERA_MASK = 0x00FFFFFF
-
-
+LINT_EXAMPLES = 3
 def bad(v):
     return math.isnan(v) or math.isinf(v) or abs(v) > 1e7
 
 
-def deep(data):
+def deep(data, lint=True):
     r = {}
     chunks = mn.parse_chunks(data)
     version = next((struct.unpack_from('<I', b, 0)[0] for t, b in chunks if t == b'VERS' and len(b) >= 4), None)
     placed = None
-    if version is not None and version >= 900:
+    model = None
+    if lint or (version is not None and version >= 900):
         try:
             from doctor.fix import mdx_struct
-            placed = mdx_struct.read(data).geos
+            model = mdx_struct.read(data)
         except Exception:
-            placed = None
+            model = None
+    if version is not None and version >= 900 and model is not None:
+        placed = model.geos
     tags = [c[0] for c in chunks]
     r['chunks'] = ' '.join(t.decode('latin-1') for t in tags)
     nodes = {}
@@ -85,6 +87,7 @@ def deep(data):
     ngeos = 0
     geos_body = next((b for t, b in chunks if t == b'GEOS'), None)
     geo_issues = []
+    geo_meta = []
     if geos_body is not None:
         gsets = mn.split_geosets(geos_body)
         ngeos = len(gsets)
@@ -145,6 +148,7 @@ def deep(data):
             p2 = after + 44 + lod + next_ * 28
             if info is not None:
                 p2 = info['tail_at'] - (info['off'] + 4)
+            geo_meta.append((gi, g, parts, p2, nv))
             if g[p2:p2 + 4] != b'UVAS':
                 geo_issues.append('g%d:sem_UVAS' % gi)
             else:
@@ -241,4 +245,131 @@ def deep(data):
         r['modl_blend'] = struct.unpack_from('<I', modl, 368)[0]
         r['modl_anim_file'] = modl[80:340].split(b'\0')[0].decode('latin-1', 'replace')
     r['version'] = version
+    if lint:
+        _lint(r, data, model, geo_meta)
     return r
+
+
+def _lint(r, data, model, geo_meta):
+    lint = {}
+    examples = {}
+
+    def add(code, n, example):
+        if n:
+            lint[code] = lint.get(code, 0) + n
+            ex = examples.setdefault(code, [])
+            if len(ex) < LINT_EXAMPLES:
+                ex.append(example)
+
+    try:
+        import numpy as np
+    except ImportError:
+        r['lint_skipped'] = 'numpy is missing'
+        return
+    for gi, g, parts, p2, nv in geo_meta:
+        where = 'g%d' % gi
+        v = n = None
+        if nv and b'VRTX' in parts and parts[b'VRTX'][2] + nv * 12 <= len(g):
+            v = np.frombuffer(g, dtype='<f4', count=nv * 3, offset=parts[b'VRTX'][2]).reshape(nv, 3)
+            bad_v = ~_ok(np, v).all(axis=1)
+            add('vertex_bad', int(bad_v.sum()), '%s: %d of %d vertices' % (where, int(bad_v.sum()), nv))
+        nn = parts[b'NRMS'][1] if b'NRMS' in parts else 0
+        if nn and parts[b'NRMS'][2] + nn * 12 <= len(g):
+            n = np.frombuffer(g, dtype='<f4', count=nn * 3, offset=parts[b'NRMS'][2]).reshape(nn, 3)
+            good = _ok(np, n).all(axis=1)
+            add('normal_bad', int((~good).sum()), '%s: %d of %d normals' % (where, int((~good).sum()), nn))
+            txt_ln = np.sqrt((n[good].astype(np.float64) ** 2).sum(axis=1))
+            zero = int((txt_ln < 1e-6).sum())
+            add('normal_zero', zero, '%s: %d of %d normals' % (where, zero, nn))
+        if g[p2:p2 + 4] == b'UVAS':
+            p3 = p2 + 8
+            for _k in range(struct.unpack_from('<I', g, p2 + 4)[0]):
+                if g[p3:p3 + 4] != b'UVBS':
+                    break
+                c2 = struct.unpack_from('<I', g, p3 + 4)[0]
+                if p3 + 8 + c2 * 8 > len(g):
+                    break
+                uv = np.frombuffer(g, dtype='<f4', count=c2 * 2, offset=p3 + 8).reshape(c2, 2)
+                bad_uv = int((~_ok(np, uv).all(axis=1)).sum())
+                add('uv_bad', bad_uv, '%s: %d of %d UVs' % (where, bad_uv, c2))
+                p3 += 8 + c2 * 8
+        npv = parts[b'PVTX'][1] if b'PVTX' in parts else 0
+        if npv and parts[b'PVTX'][2] + npv * 2 <= len(g):
+            idx = np.frombuffer(g, dtype='<u2', count=npv, offset=parts[b'PVTX'][2])
+            past = int((idx >= nv).sum())
+            add('face_index', past, '%s: index %d, %d vertices' % (where, int(idx.max()), nv))
+            if v is not None and npv >= 3:
+                tri = idx[:npv - npv % 3].reshape(-1, 3)
+                tri = tri[(tri < nv).all(axis=1)]
+                a, b, c = (v[tri[:, k]].astype(np.float64) for k in range(3))
+                area = np.sqrt((np.cross(b - a, c - a) ** 2).sum(axis=1))
+                with np.errstate(invalid='ignore'):
+                    flat = int((area <= 1e-9).sum())
+                add('face_degenerate', flat, '%s: %d of %d triangles' % (where, flat, len(tri)))
+    if model is None:
+        if geo_meta:
+            r['lint_skipped'] = 'the model could not be read whole (mdx_struct): SKIN, tracks and textures unchecked'
+    else:
+        _lint_model(np, data, model, geo_meta, add)
+    if lint:
+        r['lint'] = lint
+        r['lint_examples'] = examples
+
+
+def _ok(np, a):
+    with np.errstate(invalid='ignore'):
+        return np.isfinite(a) & (np.abs(a) <= 1e7)
+
+
+def _lint_model(np, data, model, geo_meta, add):
+    ids = set(nd['id'] for nd in model.nodes)
+    for gi, g, parts, _p2, nv in geo_meta:
+        geo = model.geos[gi] if gi < len(model.geos) else None
+        if not geo or not geo.get('skin') or not nv:
+            continue
+        cnt, off, width = geo['skin']
+        if cnt != nv * 8 or off + cnt * width > len(data):
+            add('skin_size', 1, 'g%d: %d SKIN elements, %d vertices' % (gi, cnt, nv))
+            continue
+        a = np.frombuffer(data, dtype='<u2' if width == 2 else 'u1', count=cnt, offset=off).reshape(nv, 8)
+        bones = a[:, :4].astype(np.int64)
+        w = a[:, 4:].astype(np.int64)
+        off255 = int((w.sum(axis=1) != 255).sum())
+        add('skin_weight', off255, 'g%d: %d of %d vertices' % (gi, off255, nv))
+        mats = list(struct.unpack_from('<%dI' % parts[b'MATS'][1], g, parts[b'MATS'][2])) if b'MATS' in parts else []
+        used = bones[w > 0]
+        far = int((used >= len(mats)).sum())
+        add('skin_bone', far, 'g%d: bone %d of a %d-bone list' % (gi, int(used.max()) if used.size else 0, len(mats)))
+        if mats:
+            undefined = sorted(set(mats[int(b)] for b in np.unique(used) if b < len(mats)) - ids)
+            add('skin_node', len(undefined), 'g%d: node %s' % (gi, undefined[:3]))
+    for t in model.tracks:
+        if t.event or t.kind != 'f' or not t.count:
+            continue
+        end = t.body + t.count * t.stride
+        if end > len(data):
+            continue
+        k = np.frombuffer(data, dtype='<f4', count=t.count * t.stride // 4, offset=t.body).reshape(t.count, -1)[:, 1:]
+        bad_k = int((~np.isfinite(k).all(axis=1)).sum())
+        add('track_bad', bad_k, '%s %s: %d of %d keys' % (t.owner, t.tag, bad_k, t.count))
+    ntex = len(model.texs)
+    if ntex:
+        used = set()
+        for mat in model.mats:
+            for lay in mat['layers']:
+                if lay['slots']:
+                    used.update(x[0] for x in lay['slots'])
+                else:
+                    used.add(lay['texture'])
+                for t in lay['tracks']:
+                    if t.tag == 'KMTF' and t.body + t.count * t.stride <= len(data):
+                        used.update(
+                            struct.unpack_from('<i', data, t.body + q * t.stride + 4)[0] for q in range(t.count)
+                        )
+        for nd in model.nodes:
+            if 'texture' in nd:
+                used.add(nd['texture'])
+        loose = [i for i in range(ntex) if i not in used]
+        add('texture_unused', len(loose), 'texture %s' % ', '.join(
+            '%d "%s"' % (i, model.texs[i]['path'][:50] or 'replaceable %d' % model.texs[i]['replaceable'])
+            for i in loose[:3]))
