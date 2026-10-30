@@ -825,3 +825,37 @@ def fix(path_in, path_out, progress=None, casc=None, modes=None, budget=True):
                                                            for m, n in sorted(replaced.items(),
                                                                               key=lambda x: MODES.index(x[0])))))
     return res
+
+
+MODE_BITS = {'sd': 1, 'hd': 2, 'de': 4}
+ALL_MODES = 7
+
+
+def lobby_lock(data):
+    try:
+        from doctor.data import w3i
+        m = w3i.parse(data)
+    except Exception:
+        return None
+    modes = m.get('supported_modes')
+    return modes if isinstance(modes, int) and modes and modes & 3 != 3 else None
+
+
+def lobby_unlock(data):
+    from doctor.data import w3i
+    if lobby_lock(data) is None:
+        return None
+    m = w3i.parse(data)
+    if w3i.write(m) != data:
+        return None
+    modes = m['supported_modes'] | ALL_MODES
+    unlocked = w3i.write(dict(m, supported_modes=modes))
+    if len(unlocked) != len(data) or sum(1 for a, b in zip(unlocked, data) if a != b) > 4 or \
+            w3i.parse(unlocked).get('supported_modes') != modes:
+        return None
+    return unlocked
+
+
+def lobby_modes(modes):
+    names = [MODE_NAMES[m] for m in MODES if modes & MODE_BITS[m]]
+    return ' and '.join([', '.join(names[:-1])] + names[-1:]) if len(names) > 1 else (names or ['no'])[0]
