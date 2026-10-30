@@ -181,6 +181,28 @@ def ujapi_route(extract, raw_data, body_text, scripts_dir, log):
     return info, new_raw, new_text
 
 
+def route_text_table(original, extract, raw_data, body_text, scripts_dir, log):
+    from doctor.port import text_table
+    try:
+        new_text, info = text_table.prepare(body_text, original)
+    except text_table.TableError as e:
+        raise Aborts(
+            'the map reads its texts from a table the platform DLL fills, and it could not be read back: %s' % e
+        )
+    if not info:
+        return None, raw_data, body_text
+    new_raw = os.path.join(scripts_dir, 'war3map.j')
+    _writes(new_raw, new_text.encode('latin-1'))
+    from doctor.mpq import mpqread
+    file_ = mpqread.Archive(original)
+    info['dlls'] = [n for n in text_table.DLLS if file_.find(n) and (file_.read(n) or b'')[:2] == b'MZ']
+    log(
+        '2d. the script had no texts: %d text(s) and %d number(s) the platform DLL filled in at startup put back into the '
+        'script (from the hidden Lua table, MPQ blocks %s)' % (info['str_swaps'], info['int_swaps'], info['chunks'])
+    )
+    return info, new_raw, new_text
+
+
 def build_lua_route(r, lua, original, extract, log, details):
     from doctor.port import ydwe_port
     from doctor.port import slk_tables
@@ -1671,6 +1693,13 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
         body_text = re.sub(r'\r(?!\n)', '\n', open(raw_data, 'rb').read().decode('latin-1'))
         lua, raw_data, body_text = lua_route(a, raw_data, body_text, os.path.join(root, 'scripts'), log)
         uj, raw_data, body_text = ujapi_route(extract, raw_data, body_text, os.path.join(root, 'scripts'), log)
+        ht, raw_data, body_text = route_text_table(
+            original, extract, raw_data, body_text, os.path.join(root, 'scripts'), log
+        )
+        if ht:
+            details['text_table'] = {
+                k: ht[k] for k in ('hashtable', 'str_swaps', 'int_swaps', 'cut_texts', 'chunks', 'dlls')
+            }
         job_progress.topo('diagnostico', 'Reading what the map uses')
         diag = diagnostico(body_text, extract)
         if uj:
@@ -1871,6 +1900,9 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
                     % (len(set((k, i) for k, _s, i, _p in ic['items'])), len(ic['paths']))
                 )
         to_remove = ['kkmap.jc'] if forma == 'kkwe' else (['war3map.bin'] if forma == 'j2b' else [])
+        if ht and ht['dlls']:
+            to_remove += ht['dlls']
+            log('6. the platform DLL disguised as a texture removed: %s' % ', '.join(ht['dlls']))
         scripts_folder = scripts_folder_files(original, name_list)
         if scripts_folder:
             to_remove += scripts_folder
