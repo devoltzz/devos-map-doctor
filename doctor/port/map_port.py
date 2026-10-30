@@ -968,6 +968,24 @@ def build_w3x(original, output, r, to_remove, no_dot_list, log, name_list=(), sc
     return sz, slack, [n for n, _v in entra]
 
 
+def lobby_opened(original, r, script, log):
+    from doctor.fix import gfx_modes
+    item_entries = list(script) if script else [('war3map.j', os.path.join(r.OUT, 'war3map.j'))]
+    file_path = next((v for n, v in item_entries if n.lower() == 'war3map.w3i'), None)
+    data_bytes = open(file_path, 'rb').read() if file_path else mpqread.Archive(original).read('war3map.w3i')
+    new = gfx_modes.lobby_unlock(data_bytes) if data_bytes else None
+    if not new:
+        return script, None
+    if file_path is None:
+        file_path = os.path.join(r.OUT, 'war3map.w3i')
+        item_entries.append(('war3map.w3i', file_path))
+    _writes(file_path, new)
+    before = gfx_modes.lobby_lock(data_bytes)
+    log('6. the map info let only %s graphics into the lobby: opened to every graphics mode'
+        % gfx_modes.lobby_modes(before))
+    return item_entries, before
+
+
 def shrinks(output, sz, log, with_loss=False):
     from doctor.fix import shrink
     smaller = os.path.splitext(output)[0] + '.small' + os.path.splitext(output)[1]
@@ -1383,6 +1401,11 @@ def report_text(details):
                % (vel['requested'], vel['requested'], vel['before'])) if vel['saved'] else
               ('- the map raises it to %g at run time; the gameplay constants already have MaxUnitSpeed %g'
                % (vel['requested'], vel['before']))]
+    if details.get('lobby_mode_bits'):
+        from doctor.fix import gfx_modes
+        L += ['', 'Graphics modes', '-' * 14,
+              '- the map info let only %s graphics into the lobby ("the map author has restricted play"): every '
+              'graphics mode can now create and join it' % gfx_modes.lobby_modes(details['lobby_mode_bits'])]
     if details.get('numbers'):
         from doctor.port import int32_balance
         L += [''] + int32_balance.report_lines(details['numbers'])
@@ -1914,6 +1937,7 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
             to_remove += [
                 n for n in ('war3map.j', 'scripts\\war3map.j') if a.find(n) is not None and n not in to_remove
             ]
+        script, details['lobby_mode_bits'] = lobby_opened(original, r, script, log)
         job_progress.topo('assemble', 'Assembling the ported map')
         sz, slack, entrou = build_w3x(original, output, r, to_remove, listing, log, name_list=name_list, script=script)
         if (details.get('arte') or {}).get('local_vars'):
