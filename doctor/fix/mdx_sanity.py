@@ -285,7 +285,8 @@ def _tracks(m, f):
 
 REFERENCE_CODES = ('mdx_geoset_index', 'mdx_geoset_nan', 'mdx_geoset_faces', 'mdx_geoset_material', 'mdx_layer_texture',
                    'mdx_layer_texanim', 'mdx_ref_geoset', 'mdx_emitter_texture', 'mdx_ribbon_material',
-                   'mdx_track_global_seq', 'mdx_skin', 'mdx_vertex_group', 'mdx_extent_nan', 'mdx_texture_path')
+                   'mdx_track_global_seq', 'mdx_skin', 'mdx_vertex_group', 'mdx_extent_nan', 'mdx_texture_path',
+                   'mdx_uv_nan', 'mdx_track_nan')
 TRACK_CODES = ('mdx_track_order', 'mdx_track_opening', 'mdx_track_duplicate')
 PHRASE = {
     'mdx_geoset_index': 'a triangle past its vertices',
@@ -302,6 +303,8 @@ PHRASE = {
     'mdx_vertex_group': 'a vertex in a matrix group that does not exist',
     'mdx_extent_nan': 'bounds that are not numbers',
     'mdx_texture_path': 'a texture path that is not an image file',
+    'mdx_uv_nan': 'a UV that is not a number',
+    'mdx_track_nan': 'an animation key that is not a number',
 }
 
 
