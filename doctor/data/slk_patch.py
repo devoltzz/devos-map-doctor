@@ -20,7 +20,8 @@ PROFILES = ('Units\\UnitSkin.txt', 'Units\\ItemSkin.txt', 'Units\\AbilitySkin.tx
     for kind in ('Unit', 'Ability', 'Upgrade') for part in ('Func', 'Strings'))
 MODEL_TABLES = (('Units\\UnitUI.slk', 'unitUIID', 'Units\\UnitSkin.txt'),
                 ('Units\\ItemData.slk', 'itemID', 'Units\\ItemSkin.txt'))
-PROBLEMS = ('file_column', 'levels', 'buttonpos', 'fdf_comment', 'id_lists', 'quoted_numbers')
+PROBLEMS = ('file_column', 'levels', 'buttonpos', 'fdf_comment', 'id_lists', 'quoted_numbers', 'graphics_lock')
+W3I = 'war3map.w3i'
 SKIN_BANNER = ('// Model paths moved out of the SLK tables by Devo\'s Map Doctor: Warcraft III 3.0 crashes on the',
                '// `file` column of UnitUI.slk and ItemData.slk and reads the model from here.')
 _lines = slk_cols.lines_of
@@ -38,7 +39,7 @@ def is_slk_map(names):
 
 
 def table_files(names, read):
-    wanted = {}
+    wanted = {W3I: W3I}
     for n in list(names) + list(TABLES) + list(PROFILES):
         low = n.lower()
         if low.endswith('.fdf') or (low.startswith('units\\') and low.endswith(('.slk', '.txt'))) or \
@@ -182,8 +183,18 @@ def fix_levels(files, cur, report):
         report.setdefault('levels', {})[name] = len(r['plain_name']) * len(slk_levels.NEW_LEVELS)
 
 
+def fix_graphics_lock(files, cur, report):
+    from doctor.fix import gfx_modes
+    name = _find(cur, W3I)
+    novo = gfx_modes.lobby_unlock(cur[name]) if name else None
+    if novo:
+        report.setdefault('graphics_lock', {})[name] = gfx_modes.lobby_lock(cur[name])
+        cur[name] = novo
+
+
 FIXES = (('file_column', fix_file_column), ('quoted_numbers', fix_quoted_numbers), ('id_lists', fix_id_lists),
-         ('buttonpos', fix_buttonpos), ('fdf_comment', fix_fdf_comment), ('levels', fix_levels))
+         ('buttonpos', fix_buttonpos), ('fdf_comment', fix_fdf_comment), ('levels', fix_levels),
+         ('graphics_lock', fix_graphics_lock))
 
 
 _CACHE = []
