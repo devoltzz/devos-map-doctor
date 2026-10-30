@@ -85,12 +85,18 @@ def _b64_decode_py(s):
     return bytes(out)
 
 
+_SAL = (75, 74)
+STRING_MOD = 32749
+
+
 def value_of(index_, digits_str):
-    x = (index_ * 75 + 74) % LEHMER
+    a, b = _SAL
+    x = (index_ * a + b) % STRING_MOD
     out = bytearray()
     for i in range(0, len(digits_str), 3):
         out.append((int(digits_str[i:i + 3]) - 100 - x % 256) % 256)
-        x = (x * 75 + 74) % LEHMER
+        q = (x * x) % STRING_MOD
+        x = (q + a * x + b) % STRING_MOD
     return bytes(out).decode('utf-8', 'surrogateescape')
 
 
