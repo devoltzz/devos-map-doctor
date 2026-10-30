@@ -796,6 +796,28 @@ def _wts_contexts(mt):
             e['context'] = 'used by ' + '; '.join(who[:3]) + (' and %d more' % (len(who) - 3) if len(who) > 3 else '')
 
 
+def _data_names(mt, src):
+    if not src:
+        return
+    from doctor.translation import tr_data_names
+
+    def obj(e):
+        parts = e['id'].split(':')
+        return parts[2] if len(parts) > 3 and e['source'] in ('object', 'profile') else None
+    names = [(obj(e), e['text']) for e in mt.entries if e.get('_kind') == 'name' and obj(e)]
+    text = src if isinstance(src, str) else _encode(src).decode('utf-8', 'surrogateescape')
+    out = set(tr_data_names.measure(text, names)[0])
+    if not out:
+        return
+    keep = []
+    for e in mt.entries:
+        if e.get('_kind') == 'name' and obj(e) in out:
+            mt.skipped['%s: a name the script reads as data' % e['source']] += 1
+        else:
+            keep.append(e)
+    mt.entries = keep
+
+
 def collect(a, progress=None):
     p = progress or _nothing
     mt = MapText()
@@ -813,6 +835,7 @@ def collect(a, progress=None):
     _collect_profiles(mt, read, unprotect.listfile_names(a))
     p('script')
     src, script_entries = _collect_script(mt, a, read)
+    _data_names(mt, src)
     p('frame definitions')
     _collect_fdf(mt, a, read)
     p('Lua')
