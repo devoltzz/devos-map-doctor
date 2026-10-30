@@ -823,6 +823,17 @@ def _script_items(src, diag, progress, version=None, extra=None):
         if lua:
             items.append(_item('ydwe_lua_engine', 'blocker' if lua['all_lua'] else 'warning', ydwe_lua.message(lua),
                                'port', entries=lua['entries'], modules=[m['name'] for m in lua['modules']]))
+        from doctor.port import text_table
+        ht = text_table.detect(text)
+        if ht:
+            rx_s, rx_i = text_table.rx_reads(ht)
+            n_s = len(rx_s.findall(text))
+            n_i = len(rx_i.findall(text)) - n_s
+            items.append(_item('platform_text_table', 'blocker', 'The script has no texts of its own: %d texts and %d '
+                               'numbers are read from a table (%s) that the platform DLL fills in at startup, and the '
+                               'game does not load that DLL. As it is, the map shows no text and those numbers are 0. '
+                               'The port puts them back into the script.' % (n_s, n_i, ht), 'port', hashtable=ht,
+                               texts=n_s, numbers=n_i))
     if tree is not None and lang == 'jass':
         p('Checking the natives')
         own = unprotect._read(a, 'scripts\\blizzard.j')
