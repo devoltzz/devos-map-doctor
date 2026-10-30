@@ -360,6 +360,25 @@ def check_items(path, made_for=None):
         if rest:
             items.append(_item('inherited_requirement_classic', 'info', '%d more abilities inherit a requirement the '
                                'classic data had too; if the gate is intended, leave it.' % rest, 'none'))
+    if q and q.get('item_count'):
+        names = ', '.join(sorted(q.get('item_bases') or {})[:5])
+        if q.get('item_new_count'):
+            items.append(
+                _item(
+                    'inherited_item_requirement',
+                    'warning',
+                    '%d items inherit a requirement from their base '
+                    'item that the map does not define (%s), and the 3.0 game data has it where the classic '
+                    'data did not, so a shop asks for a building the map never has (the Orb of Slow: '
+                    '"requires Castle"). The Doctor writes an empty requirement.' % (q['item_new_count'], names),
+                    'doctor',
+                    fixable=q['item_new_count'],
+                )
+            )
+        rest = q['item_count'] - (q.get('item_new_count') or 0)
+        if rest:
+            items.append(_item('inherited_item_requirement_classic', 'info', '%d more items inherit a requirement the '
+                               'classic data had too; if the gate is intended, leave it.' % rest, 'none'))
     from doctor.fix import model_paths
     m = safe(model_paths.scan)
     if m and m.get('missing'):
@@ -371,6 +390,11 @@ def check_items(path, made_for=None):
                            'doodads or destructables that may never be placed.' % (len(bad), soft), 'none',
                            paths=[dict((k, x.get(k)) for k in ('source', 'id', 'field', 'path', 'suggestion'))
                                   for x in (bad or m['missing'])[:10]]))
+        fixable = (m.get('counts') or {}).get('fixable') or 0
+        if fixable:
+            items.append(_item('model_path_fixable', 'info', '%d model paths in the object data name no file, but each '
+                               'matches exactly one model the map has (or only repeats the war3mapImported folder), so '
+                               'Fix map can point them at it.' % fixable, 'doctor', fixable=fixable))
     rng = (made_for or {}).get('range') if isinstance(made_for, dict) else None
     if rng is None:
         try:
@@ -460,8 +484,10 @@ def script_rule_items(tree, text, made):
     from doctor.fix import cheat_signs
     from doctor.fix import handle_nulls
     from doctor.fix import script_lint
+    from doctor.fix import script_locks
     for run in (lambda: handle_nulls.reforged_items(handle_nulls.analyze(tree), _item),
                 lambda: script_lint.reforged_items(script_lint.lint(tree), old, _item),
+                lambda: script_locks.reforged_items(script_locks.scan_jass_tree(tree), _item),
                 lambda: cheat_signs.reforged_items(cheat_signs.signs(tree, text), _item)):
         try:
             items += run() or []
@@ -815,6 +841,11 @@ def _script_items(src, diag, progress, version=None, extra=None):
         try:
             from doctor.script import lua_desync
             items += lua_desync.reforged_items(lua_desync.scan(text, tree), _item)
+        except Exception:
+            pass
+        try:
+            from doctor.fix import script_locks
+            items += script_locks.reforged_items(script_locks.scan_lua_tree(tree), _item)
         except Exception:
             pass
     if lang == 'jass':
