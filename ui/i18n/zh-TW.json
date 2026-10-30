@@ -3378,5 +3378,17 @@
  "Choose a picture for \"Use my own lobby image\", or untick it.": "請為「使用我自己的大廳圖片」選擇一張圖片，或取消勾選。",
  "Download the chain log": "下載鏈式記錄檔",
  "Show the chain log": "顯示鏈式記錄檔",
- "This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). Run the action again.": "此檔案已不存在：將它保存在記憶體中的引擎已重新啟動（因取消或當機）。請重新執行該操作。"
+ "This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). Run the action again.": "此檔案已不存在：將它保存在記憶體中的引擎已重新啟動（因取消或當機）。請重新執行該操作。",
+ ", and {0} more": "，以及另外 {0} 項",
+ "The script has no texts of its own: {0} texts and {1} numbers are read from a table ({2}) that the platform DLL fills in at startup, and the game does not load that DLL. As it is, the map shows no text and those numbers are 0. The port puts them back into the script.": "腳本本身沒有文字：{0} 段文字和 {1} 個數字是從一張表（{2}）中讀取的，該表由平台 DLL 在啟動時填入，而遊戲不會載入該 DLL。照現狀，地圖不會顯示任何文字，這些數字也都是 0。移植時會把它們放回腳本中。",
+ "level 0 decodes as {0}x{1}, the header says {2}x{3}": "第 0 級解碼為 {0}x{1}，但標頭寫的是 {2}x{3}",
+ "the map reads its texts from a table the platform DLL fills, and it could not be read back: {0}": "地圖從一張由平台 DLL 填入的表中讀取其文字，而該表無法讀回：{0}",
+ "the new texture is not {0}x{1}": "新貼圖不是 {0}x{1}",
+ "the new texture still has: {0}": "新貼圖仍然有：{0}",
+ "the texture does not decode: {0}": "該貼圖無法解碼：{0}",
+ "{0} had a side that is not a power of two; each now has the nearest one ({1}{2}). The renderer of the old World Editor (the one the JassNative Editor runs) can close the editor while it loads the units that use them; the game reads both, and the picture stays the same.": "{0} 有一邊的長度不是 2 的冪；現在每個都已改為最接近的 2 的冪（{1}{2}）。舊版 World Editor（JassNative Editor 所執行的那個）的渲染器在載入使用這些貼圖的單位時可能會使編輯器關閉；遊戲兩種尺寸都能讀取，畫面也保持不變。",
+ "{0} kept the name of a global array ({1}): that is how a memory library reads the array's address in the game. For JassHelper, which compiles the script again on every save, it is written the way the map was compiled: the function that reads the array without an index is marked for pjass (//# +nosemanticerror), and the typecast also has the local that JassHelper renames into the array. The game runs the same code.": "{0} 保留了全域陣列的名稱（{1}）：記憶體函式庫正是以此在遊戲中讀取該陣列的位址。對於每次儲存都會重新編譯腳本的 JassHelper，它是按照地圖當初編譯的方式寫成的：不帶索引讀取該陣列的函式會為 pjass 加上標記（//# +nosemanticerror），而型別轉換也帶有被 JassHelper 改名為該陣列的區域變數。遊戲執行的是相同的程式碼。",
+ "{0} texture": "{0} 個貼圖",
+ "{0} textures": "{0} 個貼圖",
+ "{0}: a name the script reads as data": "{0}：腳本當作資料讀取的名稱"
 }
