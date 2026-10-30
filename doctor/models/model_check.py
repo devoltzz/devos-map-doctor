@@ -44,7 +44,10 @@ def _structure(data):
 def _holds(data, out):
     if _structure(out) or max(mdxgroups.group_stats(out), default=0) > mdxgroups.LIMIT:
         return False
-    return len(mdxdeep.deep(out).get('geo_issues', ())) <= len(mdxdeep.deep(data).get('geo_issues', ()))
+    before, after = mdxdeep.deep(data), mdxdeep.deep(out)
+    if len(after.get('geo_issues', ())) > len(before.get('geo_issues', ())):
+        return False
+    return (after.get('lint') or {}).get('face_index', 0) <= (before.get('lint') or {}).get('face_index', 0)
 
 
 def _fixed(data):
@@ -371,6 +374,19 @@ def _open(path):
         return None, 'The map does not open (%s).' % (str(e) or type(e).__name__)
 
 
+LINT_EXTRA = {'uv_bad': ('mdx_uv_nan', 'a UV coordinate that is not a number or is absurdly far'),
+              'track_bad': ('mdx_track_nan', 'an animation key (a value or a tangent) that is not a number')}
+
+
+def _lint_extra(data):
+    try:
+        lint = mdxdeep.deep(data).get('lint') or {}
+    except Exception:
+        return []
+    return [{'code': LINT_EXTRA[c][0], 'level': 'warning', 'text': '%d x %s' % (n, LINT_EXTRA[c][1]), 'count': n,
+             'examples': []} for c, n in sorted(lint.items()) if c in LINT_EXTRA]
+
+
 def scan(path, progress=None, sanity=False, version=None):
     p = progress or _nothing
     out = {'models': [], 'checked': 0, 'skipped': []}
@@ -406,6 +422,7 @@ def scan(path, progress=None, sanity=False, version=None):
                 out['sanity']['skipped'].append({'file': name, 'reason': str(e)[:80]})
                 continue
             out['sanity']['checked'] += 1
+            issues = issues + _lint_extra(data)
             if issues:
                 out['sanity']['models'].append({'file': name, 'issues': issues})
                 for code in sorted(set(i['code'] for i in issues)):
