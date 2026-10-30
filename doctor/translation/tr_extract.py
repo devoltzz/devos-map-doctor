@@ -67,6 +67,13 @@ STRING_FILES = ['units/itemstrings.txt', 'units/campaignabilitystrings.txt', 'un
 STRING_FILES += [s.strip() for s in os.environ.get('TR_TXT_EXTRA', '').split(',') if s.strip()]
 
 
+RX_PROTECTED_PATH = re.compile(r'^[^\r\n"|]*[\x1c-\x1f][^\r\n"|]*\.(?:mdx|mdl|blp|tga|dds|mp3|wav|ogg|flac)$', re.I)
+
+
+def cjk_text(s):
+    return bool(CJK.search(s)) and not RX_PROTECTED_PATH.match(s.replace('\\\\', '\\'))
+
+
 def read_text(path):
     return open(path, 'rb').read().decode('utf-8', 'surrogateescape')
 
@@ -97,6 +104,10 @@ def config(tr_dir=None):
 
 def literal_multilinha(tr_dir=None):
     return bool(config(tr_dir).get('literal_multilinha'))
+
+
+def objects_out(tr_dir=None):
+    return set(config(tr_dir).get('objects_out', ()))
 
 
 _SEP_MODE = {'mista': r'\r\n|\r|\n', 'crlf': r'\r\n', 'lf': r'\n'}
@@ -146,7 +157,8 @@ def lines_protected(line_list, protected):
 
 
 def extract_txt_text(details, body_text, entries, stats, unknown, tem_text=None):
-    present = tem_text or CJK.search
+    present = tem_text or cjk_text
+    outside = objects_out()
     obj = None
     for txt_ln, line_text in enumerate(line_break(body_text)[0]):
         mo = re.match(r'^\[(.+)\]\s*$', line_text)
@@ -163,7 +175,7 @@ def extract_txt_text(details, body_text, entries, stats, unknown, tem_text=None)
         if kind is None:
             unknown[key] += 1
             continue
-        if kind == 'skip':
+        if kind == 'skip' or (kind == 'name' and obj in outside):
             continue
         quoted = len(val) >= 2 and val.startswith('"') and val.endswith('"')
         core = val[1:-1] if quoted else val
@@ -198,7 +210,7 @@ def misc_lines(body_text):
 
 
 def extract_misc_text(fn, body_text, entries, stats, tem_text=None):
-    present = tem_text or CJK.search
+    present = tem_text or cjk_text
     line_list, sections, secao = [], Counter(), ''
     for txt_ln, line_text in misc_lines(body_text):
         ms = re.match(r'^\[(.*)\]\s*$', line_text)
@@ -233,7 +245,7 @@ wts_entries = object_names.wts_entries
 
 
 def extract_wts_text(t, entries, stats, tem_text=None, outside=None):
-    present = tem_text or CJK.search
+    present = tem_text or cjk_text
     for mo in wts_entries(t):
         if outside and outside(mo.group(1)):
             continue
@@ -254,7 +266,7 @@ def extract_wts_text(t, entries, stats, tem_text=None, outside=None):
 
 
 def extract_script_text(src, entries, stats, protected=(), tem_text=None):
-    present = tem_text or CJK.search
+    present = tem_text or cjk_text
     lines = line_break(src, jass=True)[0]
     seen = OrderedDict()
     inside = lines_protected(lines, protected)
