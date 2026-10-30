@@ -28,10 +28,10 @@ BLIZZARD_J = 'Scripts\\Blizzard.j'
 _BASE = {'w3i': 25, 'wtg': 7, 'wct': 1, 'objects': 2, 'w3s': 1, 'w3r': 5, 'w3c': 0, 'w3e': 11, 'imp': 1,
          'jasshelper': False, 'lua': False, 'save_prefix': None}
 PROFILES = {
-    '1.24': dict(_BASE, editor=6052, players=12, label='World Editor 1.24'),
-    '1.25': dict(_BASE, editor=6052, players=12, label='World Editor 1.25'),
-    '1.26': dict(_BASE, editor=6052, players=12, label='World Editor 1.26'),
-    '1.27': dict(_BASE, editor=6052, players=12, label='World Editor 1.27'),
+    '1.24': dict(_BASE, editor=6059, players=12, label='World Editor 1.24'),
+    '1.25': dict(_BASE, editor=6059, players=12, label='World Editor 1.25'),
+    '1.26': dict(_BASE, editor=6059, players=12, label='World Editor 1.26'),
+    '1.27': dict(_BASE, editor=6059, players=12, label='World Editor 1.27'),
     '1.28': dict(_BASE, editor=6059, players=12, label='World Editor 1.28'),
     '1.29': dict(_BASE, editor=6060, players=24, label='World Editor 1.29'),
     JN: dict(_BASE, editor=6052, players=12, label='JassNative Editor', jasshelper=True, save_prefix=JN_SAVE_PREFIX),
