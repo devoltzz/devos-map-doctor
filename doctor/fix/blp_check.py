@@ -285,6 +285,44 @@ def fix(data):
     return new, out
 
 
+def _nearest_power_of_two(n):
+    if n <= 1:
+        return 1
+    lo = 1 << (n.bit_length() - 1)
+    return lo if n - lo <= (lo << 1) - n else lo << 1
+
+
+def power_of_two(data, quality=90):
+    data = bytes(data)
+    info = inspect(data)
+    w, h = info['width'], info['height']
+    to = (_nearest_power_of_two(w), _nearest_power_of_two(h))
+    out = {'from': (w, h), 'to': to, 'size_before': len(data), 'size_after': len(data)}
+    if info['version'] != 1 or to == (w, h):
+        return None, out
+    from doctor.models import blpread
+    from doctor.models import blpwrite
+    from PIL import Image
+    try:
+        im = blpread.read_bytes(data, 0, None, '<bytes>')[0]
+    except Exception as e:
+        raise ValueError('the texture does not decode: %s' % e)
+    if im.size != (w, h):
+        raise ValueError('level 0 decodes as %dx%d, the header says %dx%d' % (im.size + (w, h)))
+    extra = struct.unpack_from('<I', data, 20)[0]
+    im = im.convert('RGBA')
+    alpha = 8 if info['alpha_bits'] and im.getextrema()[3][0] < 250 else 0
+    _n, new = blpwrite.blp_jpeg_bytes(im.resize(to, Image.LANCZOS), quality=quality, alpha_bits=alpha, extra=extra)
+    again = inspect(new)
+    if (again['width'], again['height']) != to or blpread.read_bytes(new, 0, None, '<bytes>')[0].size != to:
+        raise ValueError('the new texture is not %dx%d' % to)
+    left = [c['code'] for c in check(new) if c['level'] == 'warning' or c['code'] == 'blp_mip_size']
+    if left:
+        raise ValueError('the new texture still has: %s' % ', '.join(left))
+    out['size_after'] = len(new)
+    return new, out
+
+
 def summary(result, version=None):
     files = {}
     for f in result.get('files') or ():
