@@ -21,6 +21,8 @@ unit KK_fx_r_u=null
 integer KK_fx_r_i=0
 lightning KK_fx_r_l=null
 boolean KK_fx_r_b=false
+boolean array KK_fx_ctl_sabe
+boolean array KK_fx_ctl_user
 //@ENDGLOBALS
 
 function KK_fx_agora takes nothing returns real
@@ -30,12 +32,24 @@ function KK_fx_agora takes nothing returns real
     return TimerGetElapsed(KK_fx_relogio)
 endfunction
 
+function KK_fx_usuario takes player p returns boolean
+    local integer id=GetPlayerId(p)
+    if id<0 or id>=bj_MAX_PLAYER_SLOTS then
+        return false
+    endif
+    if not KK_fx_ctl_sabe[id] then
+        set KK_fx_ctl_user[id]=GetPlayerController(p)==MAP_CONTROL_USER
+        set KK_fx_ctl_sabe[id]=true
+    endif
+    return KK_fx_ctl_user[id]
+endfunction
+
 function KK_fx_some takes integer cat,player dono returns boolean
     local integer n
     if cat!=1 then
         return false
     endif
-    if dono!=null and GetPlayerController(dono)!=MAP_CONTROL_USER then
+    if dono!=null and not KK_fx_usuario(dono) then
         return false
     endif
     set n=KK_fx_nivel[GetPlayerId(GetLocalPlayer())]
