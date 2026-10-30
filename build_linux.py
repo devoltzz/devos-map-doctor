@@ -5,7 +5,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 IMAGE = 'devos-map-doctor-linux'
-PJASS_COMMIT = '378a1ca'
+PJASS_COMMIT = '654c3cf'
 OUT = 'DevosMapDoctor-linux-x86_64'
 
 STEPS = '''set -e
