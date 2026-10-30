@@ -61,7 +61,7 @@ UNITS = [
 
 
 def norm(p):
-    p = p.strip().strip('"').replace('/', B).lstrip(B)
+    p = p.strip(' \t\r\n\x0b\x0c').strip('"').replace('/', B).lstrip(B)
     while B + B in p:
         p = p.replace(B + B, B)
     return p
@@ -269,7 +269,7 @@ def model_warnings(d, fname):
 def audit(map_file_path, script=None, folders=None, sounds=False, with_game=True, game=None, copies=None, log=print,
           classic=None, others=None):
     rx = re.compile(
-        r'[^\x00-\x1f",=|;\r\n]{1,260}?\.(?:%s)(?![0-9A-Za-z])' % (RX_ART + ('|' + RX_SOUNDS if sounds else '')), re.I
+        r'[^\x00-\x1b",=|;\r\n]{1,260}?\.(?:%s)(?![0-9A-Za-z])' % (RX_ART + ('|' + RX_SOUNDS if sounds else '')), re.I
     )
     map_path = MapArchive(map_file_path)
     jg = GameArchives(game) if with_game else None
