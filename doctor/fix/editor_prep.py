@@ -692,6 +692,30 @@ def script_restore(entry, output, kind, log=print):
     return details
 
 
+def texts_back(entry, output, log=print):
+    from doctor.port import text_table
+    a = mpqread.Archive(entry)
+    j_name = 'war3map.j' if a.find('war3map.j') else 'scripts\\war3map.j'
+    raw_bytes = a.read(j_name) or b''
+    body_text = raw_bytes.decode('latin-1')
+    if not text_table.detect(body_text):
+        return None
+    try:
+        new, info = text_table.prepare(body_text, entry)
+    except text_table.TableError as e:
+        raise ScriptNotRestored('the texts the platform DLL fills in could not be read back: %s' % e)
+    new = new.encode('latin-1')
+    shutil.copyfile(entry, output)
+    no_slot = []
+    mpqadd.add_files(output, [(j_name, new)], log=log, no_slot=no_slot)
+    if no_slot or mpqread.Archive(output).read(j_name) != new:
+        raise ScriptNotRestored('the new %s could not be written into the map' % j_name)
+    log('texts back: %d text(s) and %d constant(s) from table %s' % (info['str_swaps'], info['int_swaps'],
+                                                                     info['hashtable']))
+    return {'hashtable': info['hashtable'], 'texts': info['str_swaps'], 'w3p_constants': info['int_swaps'],
+            'cut_texts': info['cut_texts'], 'bytes': len(new)}
+
+
 EDITOR_FILE_NAMES = ('war3map.w3i', 'war3map.w3r', 'war3map.w3c', 'war3map.w3s', 'war3mapUnits.doo', 'war3map.doo',
                      'war3map.w3e', 'war3map.w3u', 'war3mapSkin.w3u', 'war3map.w3t', 'war3mapSkin.w3t',
                      'war3map.w3a', 'war3mapSkin.w3a', 'war3map.w3b', 'war3mapSkin.w3b')
