@@ -3,6 +3,43 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 1.11.0 (2026-10-30)
+
+### Added
+
+- **Fix map, the graphics lock of the lobby ("the map author has restricted play to Reforged Mode only"):** the map
+  info can let only some graphics modes (Classic, Reforged, Definitive Edition) create or join the map's lobby, and a
+  player in another mode is turned away. Every mode loads the same data, so Fix map, Open in World Editor and the port
+  now let every graphics mode in. Only that setting of the map info changes.
+- **Fix map, model paths that name no file:** when a unit, item, ability or doodad of the object data names a model
+  that is neither in the map nor in the game, but the map has exactly one model with that name (or the path only
+  repeats the `war3mapImported` folder), Fix map points it at that model. Those units and effects were invisible, and
+  the game tried to load the missing file every time one was created. Script strings and empty placeholders are left
+  alone.
+- **Runs on Reforged?, a game that may stay locked:** a new check for a script that pauses the game, takes the control
+  away from the players, turns the cinematic mode on or pauses every unit, when no function the map can reach ever
+  undoes it. A freeze right before the victory or defeat screen is shown as info only.
+- **Runs on Reforged?, models with values that are not numbers:** the model check now also reports a texture coordinate
+  or an animation key that is not a number (or absurdly far), next to the vertices and normals it already checked.
+
+### Fixed
+
+- **Fix map, items locked in a shop on 3.0:** a custom item built on a game item now inherits a requirement that only
+  the 3.0 game data has (the Orb of Slow asks for a Castle), so a shop of a map without that building could not sell
+  it. The requirements fix now writes an empty requirement on those items too, as it already did for abilities.
+- **Runs on version X?:** the natives that came with Reforged 3.0 (the equipment and HUD natives and the new ability
+  fields) are now dated with the 3.0 patch they came in, from the community's annotated `common.j` (jassdoc), instead of
+  "1.30 or later".
+- **Port to Reforged, KK maps written in Lua (the YDWE Lua engine), since 1.9.4:** the downloaded program skipped the
+  step that runs the map's start to collect the interface files the map writes while it plays, so the ported map came
+  out without them (a custom interface could be missing) and without the fix for the textures the map's frames name
+  but no file has (Reforged paints those green). A file the step needs was looked up where only the source tree has
+  it. The step runs again.
+- **Port to Reforged, KK maps:** the effect filter of the port's layer asks each player slot's controller once and keeps
+  the answer, instead of asking again for every effect a player creates.
+- **The bundled pjass** is the 2026-10-13 release: a text longer than 1023 characters is no longer an error (it only
+  matters for maps that load an engine saved game, and the Doctor already ignored it).
+
 ## 1.10.3 (2026-10-30)
 
 ### Fixed
