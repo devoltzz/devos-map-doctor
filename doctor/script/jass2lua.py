@@ -1,6 +1,7 @@
 # Transpiles a JASS script into Lua for Warcraft III 3.0, keeping the JASS integer and string rules.
 import re
 import struct
+import sys
 
 
 KEYWORDS = {
@@ -13,7 +14,10 @@ LUA_KEYWORDS = {
     'nil', 'not', 'or', 'repeat', 'return', 'then', 'true', 'until', 'while',
 }
 PRIMITIVES = {'integer', 'real', 'string', 'boolean', 'code', 'nothing'}
+REAL_OR_INT = ('real', 'integer', 'null')
 LOCALS_IN_LUA = 180
+REQ_LUA = '__req = __req or function(a, b) return math.abs(a - b) < 0.001 end'
+_RECURSION = 20000
 
 
 class JassError(Exception):
@@ -584,6 +588,9 @@ class Transpiler(object):
         self.exs_literals = []
         self.map_natives = {}
         self.func_names = []
+        self.native_names = set()
+        self.uses_req = False
+        self._type_of_nodes = {}
 
     def load_reference(self, src):
         p = Parser(lex(src)).parse()
@@ -591,10 +598,21 @@ class Transpiler(object):
             self.gtypes[g.name] = (g.type, g.is_array)
         for name, f in p.natives.items():
             self.sigs[name] = ([t for t, _ in f.params], f.ret)
+            self.native_names.add(name)
         for f in p.functions:
             self.sigs[f.name] = ([t for t, _ in f.params], f.ret)
 
     def run(self):
+        old = sys.getrecursionlimit()
+        if old < _RECURSION:
+            sys.setrecursionlimit(_RECURSION)
+        try:
+            return self._run()
+        finally:
+            if old < _RECURSION:
+                sys.setrecursionlimit(old)
+
+    def _run(self):
         self.load_reference(self.common_src)
         self.load_reference(self.blizzard_src)
         p = Parser(lex(self.map_src)).parse()
@@ -602,6 +620,7 @@ class Transpiler(object):
         for name, f in p.natives.items():
             self.sigs[name] = ([t for t, _ in f.params], f.ret)
             self.map_natives[name] = f
+            self.native_names.add(name)
         for f in p.functions:
             self.sigs[f.name] = ([t for t, _ in f.params], f.ret)
         self.map_globals = {}
@@ -614,11 +633,16 @@ class Transpiler(object):
                 continue
             funcs_out.append(self.emit_function(f))
             self.func_names.append(f.name)
+        if self.uses_req:
+            funcs_out.insert(0, REQ_LUA)
+            self.uses_req = False
         missing_overrides = [n for n in self.overrides if n not in set(self.func_names)]
         self.missing_overrides = sorted(missing_overrides)
         if missing_overrides:
             self.warn('OVERRIDE without a matching function in the map: %s' % ', '.join(sorted(missing_overrides)))
         globals_out = self.emit_globals(p.globals)
+        if self.uses_req:
+            globals_out = REQ_LUA + '\n' + globals_out
         handle_globals = {}
         for g in p.globals:
             if g.type not in PRIMITIVES and not g.is_array:
@@ -650,6 +674,12 @@ class Transpiler(object):
         return ('unknown', False)
 
     def etype(self, e):
+        c = self._type_of_nodes.get(id(e))
+        if c is None or c[0] is not e:
+            c = self._type_of_nodes[id(e)] = (e, self._etype(e))
+        return c[1]
+
+    def _etype(self, e):
         k = e.k
         if k == 'INT':
             return 'integer'
@@ -734,6 +764,8 @@ class Transpiler(object):
     def expr(self, e):
         k = e.k
         if k == 'INT':
+            if e.a == -2147483648:
+                return '(-2147483647 - 1)'
             return str(e.a) if e.a >= 0 else '(%d)' % e.a
         if k == 'REAL':
             return real_literal(e.a)
@@ -792,6 +824,9 @@ class Transpiler(object):
                 tb = self.etype(e.c)
                 left = self.null_for(tb) if e.b.k == 'NULL' else self.expr(e.b)
                 right = self.null_for(ta) if e.c.k == 'NULL' else self.expr(e.c)
+                if op == '==' and 'real' in (ta, tb) and ta in REAL_OR_INT and tb in REAL_OR_INT:
+                    self.uses_req = True
+                    return '__req(%s, %s)' % (left, right)
                 return '(%s %s %s)' % (left, '==' if op == '==' else '~=', right)
             if op in ('<', '<=', '>', '>='):
                 return '(%s %s %s)' % (self.expr(e.b), op, self.expr(e.c))
@@ -826,6 +861,10 @@ class Transpiler(object):
     def expr_as(self, e, type_):
         if e.k == 'NULL':
             return self.null_for(type_)
+        if type_ == 'real' and self.etype(e) == 'integer':
+            if e.k == 'INT':
+                return '%d.0' % e.a if e.a >= 0 else '(%d.0)' % e.a
+            return '(%s + 0.0)' % self.expr(e)
         return self.expr(e)
 
     def call_expr(self, e):
@@ -839,6 +878,8 @@ class Transpiler(object):
         for i, a in enumerate(e.b):
             if a.k == 'NULL' and sig and i < len(sig[0]):
                 parts.append(self.null_for(sig[0][i]))
+            elif sig and i < len(sig[0]) and sig[0][i] == 'real' and name not in self.native_names:
+                parts.append(self.expr_as(a, 'real'))
             else:
                 parts.append(self.expr(a))
         return '%s(%s)' % (self.name(name), ', '.join(parts))
@@ -863,6 +904,7 @@ class Transpiler(object):
 
     def emit_globals(self, globs):
         self.scope = {}
+        self._type_of_nodes = {}
         out = []
         for g in globs:
             n = self.name(g.name)
@@ -879,6 +921,7 @@ class Transpiler(object):
 
     def emit_function(self, f):
         self.scope = {}
+        self._type_of_nodes = {}
         self.cur_func = f
         self.spill = set()
         for t, n in f.params:
@@ -908,6 +951,7 @@ class Transpiler(object):
                 type_, name = s.a, s.b
                 is_array, init = s.c
                 self.scope[name] = (type_, is_array)
+                self._type_of_nodes = {}
                 txt_ln = self.name(name)
                 decl = '' if name in self.spill else 'local '
                 if is_array:
