@@ -156,9 +156,9 @@ def lines_protected(line_list, protected):
     return inside
 
 
-def extract_txt_text(details, body_text, entries, stats, unknown, tem_text=None):
+def extract_txt_text(details, body_text, entries, stats, unknown, tem_text=None, outside=None):
     present = tem_text or cjk_text
-    outside = objects_out()
+    outside = objects_out() if outside is None else outside
     obj = None
     for txt_ln, line_text in enumerate(line_break(body_text)[0]):
         mo = re.match(r'^\[(.+)\]\s*$', line_text)
@@ -265,9 +265,9 @@ def extract_wts_text(t, entries, stats, tem_text=None, outside=None):
             stats['war3map.wts'] += 1
 
 
-def extract_script_text(src, entries, stats, protected=(), tem_text=None):
+def extract_script_text(src, entries, stats, protected=(), tem_text=None, multiline=None):
     present = tem_text or cjk_text
-    lines = line_break(src, jass=True)[0]
+    lines = line_break(src, jass=True, multiline=multiline)[0]
     seen = OrderedDict()
     inside = lines_protected(lines, protected)
     outside = set()
