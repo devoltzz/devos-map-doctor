@@ -172,6 +172,7 @@ def fix(path_in, path_out, progress=None, image=None):
     def stop(state, why):
         rep['state'] = state
         rep['lines'] = [('bad' if state == 'failed' else 'warn', why)]
+        rep['error' if state == 'failed' else 'reason'] = why
         return rep
 
     if os.path.abspath(path_in) == os.path.abspath(path_out):
