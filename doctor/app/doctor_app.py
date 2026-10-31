@@ -43,9 +43,10 @@ def settings_path():
 def load_settings():
     try:
         with open(settings_path(), encoding='utf-8') as f:
-            return json.load(f)
+            data = json.load(f)
     except (OSError, ValueError):
         return {}
+    return data if isinstance(data, dict) else {}
 
 
 _SETTINGS_LOCK = threading.Lock()
@@ -71,11 +72,19 @@ def worker_command():
     return [sys.executable, os.path.abspath(sys.argv[0]), '--worker']
 
 
+def cache_base():
+    if os.name == 'nt':
+        return os.path.join(tempfile.gettempdir(), 'devos_map_doctor_ui')
+    base = os.environ.get('XDG_CACHE_HOME') or os.path.join(os.path.expanduser('~'), '.cache')
+    return os.path.join(base, 'DevosMapDoctor', 'ui')
+
+
 def _cache_file(path):
     st = os.stat(path)
-    key = hashlib.sha1(('%s|%d|%d' % (os.path.abspath(path).lower(), st.st_size, int(st.st_mtime))).encode())
+    key = hashlib.sha1(('%s|%d|%d|%d' % (os.path.abspath(path).lower(), st.st_size, st.st_mtime_ns,
+                                         st.st_ctime_ns)).encode())
     key = key.hexdigest()
-    folder = os.environ.get('DOCTOR_CACHE') or os.path.join(tempfile.gettempdir(), 'devos_map_doctor_ui')
+    folder = os.environ.get('DOCTOR_CACHE') or cache_base()
     os.makedirs(folder, exist_ok=True)
     return os.path.join(folder, 'diag_%s.pickle' % key)
 
@@ -257,10 +266,34 @@ def page_package(pk):
 
 PACKAGE_ONLY = ('This is an art package, not a map: only its files can be seen and extracted (the Files tab, '
                 'Inspect).')
-MAP_ONLY = ('port', 'reforged', 'card', 'card_image', 'gradient', 'script', 'script_checks', 'triggers', 'cheatpacks',
-            'cheatpack_inject', 'qol', 'qol_apply', 'translation_export', 'translation_groups', 'translation_check',
-            'translation_machine', 'translation_images', 'translation_image_preview', 'translation_update',
-            'translation_override', 'rawcodes', 'recipes', 'diag_make', 'downgrade_w3i', 'port_targets')
+MAP_ONLY = (
+    'port',
+    'reforged',
+    'card',
+    'card_image',
+    'gradient',
+    'script',
+    'script_checks',
+    'script_export',
+    'triggers',
+    'cheatpacks',
+    'cheatpack_inject',
+    'qol',
+    'qol_apply',
+    'translation_export',
+    'translation_groups',
+    'translation_check',
+    'translation_machine',
+    'translation_images',
+    'translation_image_preview',
+    'translation_update',
+    'translation_override',
+    'rawcodes',
+    'recipes',
+    'diag_make',
+    'downgrade_w3i',
+    'port_targets',
+)
 NO_EDIT_TASKS = ('open', 'card', 'card_image', 'gradient', 'reforged', 'diag_logs', 'diag_read', 'crash_list',
                  'crash_read', 'replay_list', 'replay_read', 'replay_compare', 'desync_compare', 'save_read')
 NO_EDIT_REFUSED = 'Not allowed to edit'
@@ -326,7 +359,7 @@ def page_changes(r, kind, extras=None):
         for name in rep.get('new_ones') or []:
             files.append({'file': name, 'how': 'added', 'why': 'editor-only'})
     for extra, rep in ((extras or {}).get('reports') or {}).items():
-        if (rep or {}).get('state') == 'nothing_to_do':
+        if (rep or {}).get('state') in NOTHING_DONE:
             continue
         files.append({'file': EXTRA_NAME.get(extra, extra), 'how': 'applied', 'why': 'an extra'})
     return {'files': files, 'notes': notes}
@@ -339,6 +372,7 @@ EXTRA_DONE = {
     'data_pointers': 'Aligned the data pointers of the leveled fields.',
     'kk_textures': 'Decrypted the textures of the KK platform (BLX1).',
     'disabled_icons': 'Made the disabled art of the imported icons (no more green buttons).',
+    'console_sides': 'Made the console pieces beside the map\'s own console transparent.',
     'uabi': 'Moved the unit ability lists to the script (test the map before sharing it).',
     'preload': 'Preloaded the models and abilities of the first seconds.',
     'single_player': 'The map no longer ends the game in single player.',
@@ -365,6 +399,7 @@ EXTRA_NAME = {
     'data_pointers': 'the data pointers',
     'kk_textures': 'the KK textures',
     'disabled_icons': 'the disabled icons',
+    'console_sides': 'the console pieces',
     'uabi': 'the ability lists',
     'preload': 'the early preload',
     'single_player': 'single player',
@@ -387,17 +422,32 @@ EXTRA_NAME = {
 BEFORE_EDITOR = ('models', 'single_player', 'card', 'translation')
 
 
+NOTHING_DONE = ('nothing_to_do', 'nothing_to_apply')
+
+
+def _extra_line(line):
+    if isinstance(line, (tuple, list)) and len(line) == 2:
+        style, text = line
+        if style == 'title':
+            return None
+        return (style if style in ('bad', 'warn') else 'info', str(text))
+    return ('info', str(line))
+
+
 def extra_lines(x):
     out = []
     for extra, rep in (x or {}).get('reports', {}).items():
-        if (rep or {}).get('state') == 'nothing_to_do':
-            out.append(
-                ('info', '  - ' + ' '.join(str(s) for s in (rep.get('lines') or [EXTRA_DONE.get(extra, extra)])))
-            )
+        lines = [y for y in (_extra_line(s) for s in (rep or {}).get('lines') or []) if y]
+        if (rep or {}).get('state') in NOTHING_DONE:
+            text = ' '.join(t for _s, t in lines) or rep.get('reason') or \
+                'Nothing to change in %s.' % EXTRA_NAME.get(extra, extra)
+            out.append(('info', '  - ' + str(text)))
             continue
-        out.append(('ok', '  - ' + EXTRA_DONE.get(extra, extra)))
-        for line in (rep or {}).get('lines') or (rep or {}).get('summary_lines') or []:
-            out.append(('info', '      ' + str(line)))
+        out.append(('warning' if any(s == 'bad' for s, _t in lines) else 'ok', '  - ' + EXTRA_DONE.get(extra, extra)))
+        if not lines:
+            lines = [('info', str(s)) for s in (rep or {}).get('summary_lines') or []]
+        for style, text in lines:
+            out.append((style, '      ' + text))
     for extra, why in (x or {}).get('failures', {}).items():
         out.append(('warning', '  - Not applied, %s: %s' % (EXTRA_NAME.get(extra, extra), why)))
     return out
@@ -481,7 +531,7 @@ def run_action(D, G, job, path, task, progress, emit):
                 x = D.apply_extras(base, os.path.join(tmp, 'extras.w3x'), before, progress)
                 if x['output']:
                     base = x['output']
-                r = D.prepare_for_editor(base, out, progress, options=options, version_num=version)
+                r = D.prepare_for_editor(base, out, progress, None, True, None, (), options, version, base != path)
                 r['before'] = d
                 if r1 is not None:
                     r['unprotection'] = r1
@@ -698,6 +748,9 @@ def _run_job(job, emit, G, D, task, path, progress):
     tool = TOOLS.get(task)
     if tool is None:
         raise ValueError('unknown task %r' % task)
+    if task in ('extract', 'extract_all', 'script_export'):
+        from doctor.viewers import map_files
+        map_files.writing_hook = lambda p: emit({'type': 'writing', 'path': p})
     return tool(job, progress)
 
 
@@ -761,6 +814,8 @@ def _reforged(job, progress):
     r['kk_textures'] = {'fixable': (textures.get('data') or {}).get('count', 0) if textures and writable else 0}
     icons = items.get('disabled_icons')
     r['disabled_icons'] = {'fixable': (icons.get('data') or {}).get('count', 0) if icons and writable else 0}
+    sides = items.get('console_sides')
+    r['console_sides'] = {'fixable': (sides.get('data') or {}).get('count', 0) if sides and writable else 0}
     r['uabi'] = {'distinct': (uabi.get('data') or {}).get('distinct', 0) if uabi and uabi.get('fix') == 'doctor' and
                  runs else 0}
     def _n(code, key):
@@ -850,6 +905,12 @@ def _extract_all(job, progress):
 def _script(job, progress):
     from doctor.viewers import map_files
     return map_files.script(job['map'])
+
+
+def _script_export(job, progress):
+    from doctor.viewers import map_files
+    progress('Saving the script')
+    return map_files.save_script(job['map'], job['file'])
 
 
 def _script_checks(job, progress):
@@ -1074,7 +1135,12 @@ def _save_read(job, progress):
 
 def _replay_compare(job, progress):
     from doctor.fix import replay_read
-    return replay_read.compare(job['a'], job['b'])
+    a, b = replay_read.read(job['a']), replay_read.read(job['b'])
+    r = replay_read.compare(a, b)
+    bad = a.get('error') or b.get('error')
+    if bad:
+        r['error'] = bad
+    return r
 
 
 def _desync_compare(job, progress):
@@ -1093,6 +1159,7 @@ TOOLS = {
     'extract_all': _extract_all,
     'script': _script,
     'script_checks': _script_checks,
+    'script_export': _script_export,
     'triggers': _triggers,
     'cheatpacks': _cheatpacks,
     'cheatpack_inject': _cheatpack_inject,
@@ -1173,7 +1240,7 @@ def worker_main(window=None):
         out.flush()
 
 
-CACHE = os.path.join(tempfile.gettempdir(), 'devos_map_doctor_ui')
+CACHE = cache_base()
 
 
 def cache_folder(version):
@@ -1279,8 +1346,190 @@ def step_copy(out, step):
 LEFTOVER_STEPS = ('strip_indent', 'kk_textures', 'disabled_icons', 'small')
 
 
+def _leftovers_writing(target):
+    p = part_of(target)
+    return [p, p + '.v1', p + '.lossy.w3x', part_of(p + '.lossy.w3x'), target + '.attributes.part',
+            part_of(target + '.attributes.part')]
+
+
 def leftovers_of(output):
-    return [part_of(output)] + [step_copy(output, s) for s in LEFTOVER_STEPS]
+    out = _leftovers_writing(output) + _leftovers_writing(part_of(output))
+    for s in LEFTOVER_STEPS:
+        out += [step_copy(output, s)] + _leftovers_writing(step_copy(output, s))
+    return [p for k, p in enumerate(out) if p not in out[:k] and p != output]
+
+
+class _Tree:
+    def __init__(self, proc):
+        self.proc = proc
+        self.handle = None
+        self.lock = threading.Lock()
+        if os.name == 'nt':
+            try:
+                self.handle = _job_object(proc)
+            except (OSError, AttributeError, ValueError):
+                self.handle = None
+
+    def kill(self):
+        proc = self.proc
+        with self.lock:
+            if os.name == 'nt':
+                if self.handle:
+                    _k32().TerminateJobObject(self.handle, 1)
+                elif proc.returncode is None and proc.poll() is None:
+                    try:
+                        subprocess.run(['taskkill', '/T', '/F', '/PID', str(proc.pid)], stdout=subprocess.DEVNULL,
+                                       stderr=subprocess.DEVNULL, creationflags=NO_WINDOW, timeout=10)
+                    except (OSError, subprocess.SubprocessError):
+                        pass
+            elif proc.returncode is None:
+                try:
+                    import signal
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except (OSError, AttributeError):
+                    pass
+        try:
+            proc.kill()
+        except OSError:
+            pass
+
+    def wait(self, until):
+        while True:
+            with self.lock:
+                left = _job_processes(self.handle) if self.handle else 0
+            if not left:
+                return True
+            if time.time() >= until:
+                return False
+            time.sleep(0.05)
+
+    def close(self):
+        with self.lock:
+            if self.handle:
+                _k32().CloseHandle(self.handle)
+                self.handle = None
+
+
+def _k32():
+    import ctypes
+    from ctypes import wintypes
+    k32 = ctypes.WinDLL('kernel32', use_last_error=True)
+    k32.CreateJobObjectW.restype = wintypes.HANDLE
+    k32.CreateJobObjectW.argtypes = (ctypes.c_void_p, wintypes.LPCWSTR)
+    k32.SetInformationJobObject.argtypes = (wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD)
+    k32.QueryInformationJobObject.argtypes = (wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD,
+                                              ctypes.c_void_p)
+    k32.AssignProcessToJobObject.argtypes = (wintypes.HANDLE, wintypes.HANDLE)
+    k32.TerminateJobObject.argtypes = (wintypes.HANDLE, wintypes.UINT)
+    k32.CloseHandle.argtypes = (wintypes.HANDLE,)
+    return k32
+
+
+def _job_structs():
+    import ctypes
+    from ctypes import wintypes
+
+    class Basic(ctypes.Structure):
+        _fields_ = [('PerProcessUserTimeLimit', ctypes.c_int64), ('PerJobUserTimeLimit', ctypes.c_int64),
+                    ('LimitFlags', wintypes.DWORD), ('MinimumWorkingSetSize', ctypes.c_size_t),
+                    ('MaximumWorkingSetSize', ctypes.c_size_t), ('ActiveProcessLimit', wintypes.DWORD),
+                    ('Affinity', ctypes.c_size_t), ('PriorityClass', wintypes.DWORD),
+                    ('SchedulingClass', wintypes.DWORD)]
+
+    class Extended(ctypes.Structure):
+        _fields_ = [('BasicLimitInformation', Basic), ('IoInfo', ctypes.c_uint64 * 6),
+                    ('ProcessMemoryLimit', ctypes.c_size_t), ('JobMemoryLimit', ctypes.c_size_t),
+                    ('PeakProcessMemoryUsed', ctypes.c_size_t), ('PeakJobMemoryUsed', ctypes.c_size_t)]
+
+    class Accounting(ctypes.Structure):
+        _fields_ = [('Times', ctypes.c_int64 * 4), ('TotalPageFaultCount', wintypes.DWORD),
+                    ('TotalProcesses', wintypes.DWORD), ('ActiveProcesses', wintypes.DWORD),
+                    ('TotalTerminatedProcesses', wintypes.DWORD)]
+    return Extended, Accounting
+
+
+def _job_object(proc):
+    import ctypes
+    k32 = _k32()
+    job = k32.CreateJobObjectW(None, None)
+    if not job:
+        return None
+    Extended, _Accounting = _job_structs()
+    info = Extended()
+    info.BasicLimitInformation.LimitFlags = 0x2000
+    if not (k32.SetInformationJobObject(job, 9, ctypes.byref(info), ctypes.sizeof(info)) and
+            k32.AssignProcessToJobObject(job, int(proc._handle))):
+        k32.CloseHandle(job)
+        return None
+    return job
+
+
+def _job_processes(job):
+    import ctypes
+    _Extended, Accounting = _job_structs()
+    acc = Accounting()
+    if not _k32().QueryInformationJobObject(job, 1, ctypes.byref(acc), ctypes.sizeof(acc), None):
+        return 0
+    return acc.ActiveProcesses
+
+
+def _kill_tree(proc):
+    tree = getattr(proc, 'doctor_tree', None)
+    if tree is not None:
+        tree.kill()
+        return
+    try:
+        proc.kill()
+    except OSError:
+        pass
+
+
+def _wait_tree(proc, until):
+    tree = getattr(proc, 'doctor_tree', None)
+    return tree.wait(until) if tree is not None else True
+
+
+def _remove_folder(path, wait=2.0):
+    end = time.time() + wait
+    while True:
+        shutil.rmtree(path, ignore_errors=True)
+        if not os.path.isdir(path) or time.time() >= end:
+            return
+        time.sleep(0.05)
+
+
+def _close_tree(proc):
+    tree = getattr(proc, 'doctor_tree', None)
+    if tree is not None:
+        tree.close()
+
+
+READ_FILE_MAX = 32 << 20
+
+
+def write_atomic(path, text, newline):
+    part = path + '.part'
+    try:
+        with open(part, 'w', encoding='utf-8', newline=newline) as f:
+            f.write(text)
+        os.replace(part, path)
+    except BaseException:
+        if os.path.exists(part):
+            os.remove(part)
+        raise
+
+
+def fit_query(key, text, limit):
+    if len(urllib.parse.urlencode({key: text})) <= limit:
+        return text
+    lo, hi = 0, len(text)
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if len(urllib.parse.urlencode({key: text[:mid]})) <= limit:
+            lo = mid
+        else:
+            hi = mid - 1
+    return text[:lo]
 
 
 WARM = 2
@@ -1295,6 +1544,7 @@ class Job:
         self.cancelled = False
         self.started = time.time()
         self.log = None
+        self.writing = None
 
 
 class Api:
@@ -1311,6 +1561,8 @@ class Api:
         self._warm = []
         self._warm_lock = threading.Lock()
         self._closed = False
+        self._granted = set()
+        self._release = None
 
     def hello(self):
         repo = getattr(self._updater, 'REPOSITORY', None)
@@ -1325,7 +1577,14 @@ class Api:
         r = self._window.create_file_dialog(kind, **kw)
         if not r:
             return None
-        return os.path.normpath(r if isinstance(r, str) else r[0])
+        path = os.path.normpath(r if isinstance(r, str) else r[0])
+        self._granted.add(os.path.normcase(os.path.abspath(path)))
+        return path
+
+    def _picked(self, path):
+        if not isinstance(path, str) or os.path.normcase(os.path.abspath(path)) not in self._granted:
+            raise PermissionError('not a file picked in this window')
+        return path
 
     def pick_map(self):
         import webview
@@ -1362,12 +1621,14 @@ class Api:
         return self._dialog(webview.FileDialog.FOLDER)
 
     def read_file(self, path):
+        path = self._picked(path)
+        if os.path.getsize(path) > READ_FILE_MAX:
+            raise ValueError('the file is larger than %d MB' % (READ_FILE_MAX >> 20))
         with open(path, 'rb') as f:
-            return base64.b64encode(f.read(32 << 20)).decode('ascii')
+            return base64.b64encode(f.read()).decode('ascii')
 
     def write_text(self, path, text):
-        with open(path, 'w', encoding='utf-8', newline='') as f:
-            f.write(text)
+        write_atomic(self._picked(path), text, '')
         return True
 
     def open_folder(self, path):
@@ -1393,9 +1654,13 @@ class Api:
         repo = self.hello()['repository']
         if not repo:
             return False
-        query = urllib.parse.urlencode({'title': title[:200], 'body': body[:6000]})
+        from doctor.mpq import new_names
+        title = fit_query('title', str(title)[:200], 1000)
+        body = str(body)
+        short = fit_query('body', body, new_names.URL_CAP - len(urllib.parse.urlencode({'title': title})))
+        query = urllib.parse.urlencode({'title': title, 'body': short})
         webbrowser.open('https://github.com/%s/issues/new?%s' % (repo, query))
-        return True
+        return {'opened': True, 'cut': len(short) < len(body)}
 
     def report_names(self, names, map_path=None):
         from doctor.mpq import new_names
@@ -1407,12 +1672,12 @@ class Api:
         body = new_names.body(names, self._version)
         list_file = None
         if len(urllib.parse.urlencode({'body': body})) > new_names.URL_CAP:
-            base = (
-                os.path.splitext(map_path)[0] if map_path else os.path.join(tempfile.gettempdir(), 'devos_map_doctor')
-            )
-            list_file = base + '_new_names.txt'
-            with open(list_file, 'w', encoding='utf-8', newline='\n') as f:
-                f.write('\n'.join(names) + '\n')
+            if map_path:
+                list_file = os.path.splitext(map_path)[0] + '_new_names.txt'
+            else:
+                fd, list_file = tempfile.mkstemp(prefix='devos_map_doctor_', suffix='_new_names.txt')
+                os.close(fd)
+            write_atomic(list_file, '\n'.join(names) + '\n', '\n')
             body = new_names.body(names, self._version, os.path.basename(list_file))
         query = urllib.parse.urlencode({'title': title, 'body': body, 'labels': 'names'})
         webbrowser.open('https://github.com/%s/issues/new?%s' % (repo, query))
@@ -1451,10 +1716,12 @@ class Api:
         log = open(os.path.join(tmp, 'worker.log'), 'wb')
         try:
             proc = subprocess.Popen(worker_command(), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log,
-                                    env=env, creationflags=NO_WINDOW if os.name == 'nt' else 0)
+                                    env=env, creationflags=NO_WINDOW if os.name == 'nt' else 0,
+                                    start_new_session=os.name != 'nt')
         except BaseException:
             log.close()
             raise
+        proc.doctor_tree = _Tree(proc)
         return proc, log
 
     def _take_warm(self):
@@ -1463,8 +1730,10 @@ class Api:
                 proc, log, tmp = self._warm.pop(0)
                 if proc.poll() is None:
                     return proc, log, tmp
+                _kill_tree(proc)
+                _close_tree(proc)
                 log.close()
-                shutil.rmtree(tmp, ignore_errors=True)
+                _remove_folder(tmp)
         return None
 
     def _refill(self):
@@ -1484,13 +1753,15 @@ class Api:
         self._closed = True
         with self._warm_lock:
             for proc, log, tmp in self._warm:
+                _kill_tree(proc)
                 try:
-                    proc.kill()
                     proc.wait(5)
                 except (OSError, subprocess.TimeoutExpired):
                     pass
+                _wait_tree(proc, time.time() + 5)
+                _close_tree(proc)
                 log.close()
-                shutil.rmtree(tmp, ignore_errors=True)
+                _remove_folder(tmp)
             del self._warm[:]
 
     def _read(self, job, log):
@@ -1506,12 +1777,16 @@ class Api:
                 if ev.get('type') == 'output':
                     job.output = ev.get('path')
                     continue
+                if ev.get('type') == 'writing':
+                    job.writing = ev.get('path')
+                    continue
                 ev['job'] = job.ident
                 if ev.get('type') in ('result', 'error'):
                     final = ev
                 else:
                     self._push(ev)
             code = job.proc.wait()
+            _wait_tree(job.proc, time.time() + 5)
             log.close()
             if job.cancelled and final is None:
                 final = {'type': 'cancelled', 'job': job.ident}
@@ -1519,6 +1794,7 @@ class Api:
                     self._drop_part(job)
                     final['kept'] = os.path.isfile(job.output)
                     final['output'] = job.output
+                self._drop_writing(job)
             elif final is None:
                 try:
                     with open(os.path.join(job.tmp, 'worker.log'), 'rb') as f:
@@ -1529,18 +1805,21 @@ class Api:
                          'trace': tail}
                 if job.output:
                     self._drop_part(job)
+                self._drop_writing(job)
                 if job.task == 'port' and job.output:
                     write_port_failure(os.path.splitext(job.output)[0] + '.report.txt', final['message'], tail)
             elif final.get('type') == 'error' and job.output:
                 self._drop_part(job)
         except Exception as e:
+            _kill_tree(job.proc)
             try:
-                job.proc.kill()
                 job.proc.wait(5)
             except (OSError, subprocess.TimeoutExpired):
                 pass
+            _wait_tree(job.proc, time.time() + 5)
             if job.output:
                 self._drop_part(job)
+            self._drop_writing(job)
             final = {'type': 'error', 'job': job.ident, 'trace': traceback.format_exc(limit=8),
                      'message': 'The window could not read the worker (%s: %s).' % (type(e).__name__, e)}
         finally:
@@ -1551,7 +1830,8 @@ class Api:
             if final is None:
                 final = {'type': 'error', 'job': job.ident, 'message': 'The worker stopped without a result.'}
             final['elapsed'] = round(time.time() - job.started, 1)
-            shutil.rmtree(job.tmp, ignore_errors=True)
+            _close_tree(job.proc)
+            _remove_folder(job.tmp)
             self._jobs.pop(job.ident, None)
             self._push(final)
 
@@ -1560,6 +1840,14 @@ class Api:
         for p in leftovers_of(job.output):
             try:
                 os.remove(p)
+            except OSError:
+                pass
+
+    @staticmethod
+    def _drop_writing(job):
+        if job.writing and job.writing.endswith('.part'):
+            try:
+                os.remove(job.writing)
             except OSError:
                 pass
 
@@ -1583,10 +1871,7 @@ class Api:
         if job is None or job.proc is None:
             return False
         job.cancelled = True
-        try:
-            job.proc.kill()
-        except OSError:
-            pass
+        _kill_tree(job.proc)
         return True
 
     def busy(self):
@@ -1603,21 +1888,38 @@ class Api:
                 job.proc.wait(max(0.05, end - time.time()))
             except (OSError, subprocess.TimeoutExpired):
                 continue
+            if not _wait_tree(job.proc, end):
+                continue
             if job.log is not None:
                 job.log.close()
             if job.output:
                 self._drop_part(job)
-            shutil.rmtree(job.tmp, ignore_errors=True)
+            self._drop_writing(job)
+            _remove_folder(job.tmp)
 
     def check_update(self):
         u = self._updater
         if u is None or not u.enabled(sys.argv):
             return False
-        u.check(self._version, lambda r: self._push({'type': 'update', 'release': r}),
-                lambda r: self._push({'type': 'index', 'release': r, 'missing': not os.path.isfile(u.index_path())}))
+
+        def found(r, event):
+            self._release = r
+            self._push(event)
+        u.check(self._version, lambda r: found(r, {'type': 'update', 'release': r}),
+                lambda r: found(r, {'type': 'index', 'release': r, 'missing': not os.path.isfile(u.index_path())}))
         return True
 
+    def _found_release(self, release):
+        r = self._release
+        if r is None or (isinstance(release, dict) and release.get('version') not in (None, r.get('version'))):
+            raise ValueError('no release found by this window')
+        return r
+
     def install_update(self, release):
+        try:
+            release = self._found_release(release)
+        except ValueError as e:
+            return str(e)
         try:
             if self._updater.install(release):
                 self._window.destroy()
@@ -1627,6 +1929,12 @@ class Api:
             return str(e)
 
     def download_index(self, release):
+        try:
+            release = self._found_release(release)
+        except ValueError as e:
+            self._push({'type': 'index_failed', 'message': str(e)})
+            return False
+
         def work():
             try:
                 self._updater.download_index(release)
