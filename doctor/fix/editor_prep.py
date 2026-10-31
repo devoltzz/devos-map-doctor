@@ -815,25 +815,44 @@ def typecast_for_jasshelper(body_text, kept):
     vectors = sorted(set(n for _f, n in kept))
     declare = dict((n, set(f for f, v in kept if v == n)) for n in vectors)
     after_diag, before = {}, {}
+    accepted, rejected_arrays = [], []
     for fname in vectors:
         isca = fname[3:] if fname.startswith('l__') else None
+        owners = [s for s in specs if s[0] in declare[fname]]
+        if (
+            not isca
+            or isca not in plain_globals
+            or not owners
+            or any(
+                isca in local_vars or isca in parameters or fname in parameters
+                for _f, _i, _e, parameters, local_vars in owners
+            )
+        ):
+            rejected_arrays.append(fname)
+        else:
+            accepted.append(fname)
+    blocked_readers = set()
+    for fname in rejected_arrays:
+        rx = _without_text(fname)
+        for f_name, f_start, f_end, parameters, local_vars in specs:
+            if f_name in declare[fname] or fname in parameters or fname in local_vars:
+                continue
+            if any(m.group(0) == fname and not line_list[i][m.end():].lstrip().startswith('[')
+                   for i in range(f_start - 1, min(f_end, len(line_list))) for m in rx.finditer(line_list[i])):
+                blocked_readers.add(f_name)
+    for fname in accepted:
+        isca = fname[3:]
         rx = _without_text(fname)
         for f_name, f_start, f_end, parameters, local_vars in specs:
             body = range(f_start - 1, min(f_end, len(line_list)))
             if f_name in declare[fname]:
-                if not isca or isca not in plain_globals or isca in local_vars or isca in parameters:
-                    continue
                 for i in body:
-                    m = re.match(r'^([ \t]*)local[ \t]+(\w+)[ \t]+%s\b' % re.escape(fname), line_list[i])
-                    if m:
-                        cr = '\r' if line_list[i].endswith('\r') else ''
-                        after_diag.setdefault(i, []).append('%slocal %s %s%s' % (m.group(1), m.group(2), isca, cr))
-                        done['decoys'].append((f_name, isca))
-                        break
+                    line_list[i] = rx.sub(lambda m: isca if m.group(0) == fname else m.group(0), line_list[i])
+                done['decoys'].append((f_name, isca))
             elif fname not in parameters and fname not in local_vars:
                 reads_without_index = any(m.group(0) == fname and not line_list[i][m.end():].lstrip().startswith('[')
                                           for i in body for m in rx.finditer(line_list[i]))
-                if not reads_without_index or f_name in done['marked']:
+                if not reads_without_index or f_name in done['marked'] or f_name in blocked_readers:
                     continue
                 begin, end_pos = f_start - 1, min(f_end, len(line_list)) - 1
                 if begin > 0 and line_list[begin - 1].strip() == PRAGMA_ON:
@@ -844,7 +863,7 @@ def typecast_for_jasshelper(body_text, kept):
                     PRAGMA_OFF + ('\r' if line_list[end_pos].endswith('\r') else '')
                 )
                 done['marked'].append(f_name)
-    if not after_diag and not before:
+    if not after_diag and not before and not done['decoys']:
         return body_text, done
     out = []
     for i, ln in enumerate(line_list):
@@ -1198,6 +1217,7 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
             j_source,
             len(raw_bytes),
         )
+        details.pop('typecast_jasshelper', None)
     details['replaced'] = []
     if trigger_list:
         if restored:
@@ -1271,12 +1291,9 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
         if without_mark is not None:
             final_script = without_mark
     if (details.get('renamed_locals') or details.get('kept_locals')) and not is_lua:
-        kept_j = []
-        new_j, renamed_done = locals_without_clash(final_script.decode('latin-1'), log, kept=kept_j)
-        new_j, tc = typecast_for_jasshelper(new_j, kept_j)
-        if renamed_done or tc['decoys'] or tc['marked']:
-            final_script = new_j.encode('latin-1')
+        new_j, renamed_done = locals_without_clash(final_script.decode('latin-1'), log, kept=[])
         if renamed_done:
+            final_script = new_j.encode('latin-1')
             details['locals_in_script'] = len(renamed_done)
     if output_script != j_source or final_script != map_raw:
         (replacements if a.find(output_script) else new_ones)[output_script] = final_script
