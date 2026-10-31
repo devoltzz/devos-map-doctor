@@ -16,6 +16,6 @@ RUN curl -sL https://github.com/zlib-ng/zlib-ng/archive/refs/tags/2.2.4.tar.gz |
  && rm -rf /tmp/zlib-ng-2.2.4 /tmp/zng
 RUN python3.14 -m venv /venv \
  && /venv/bin/pip install -q --upgrade pip \
- && /venv/bin/pip install -q "numpy>=1.24" "pillow>=10.0" "pywebview>=6.2" "pyinstaller>=6.0" "PyGObject<3.51" \
+ && /venv/bin/pip install -q numpy==2.5.2 pillow==12.3.0 pywebview==6.2.1 pyinstaller==6.22.3 "PyGObject<3.51" \
     pycairo ziglang==0.16.0 zopfli==0.4.3 lupa==2.8 ctranslate2==4.8.2 sentencepiece==0.2.2 onnxruntime==1.31.0
 ENV PATH=/venv/bin:$PATH
