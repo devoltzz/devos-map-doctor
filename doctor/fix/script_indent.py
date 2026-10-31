@@ -23,6 +23,8 @@ def _jass_spans(text):
             return None
         end = m.end()
         tok = m.group(1)
+        if tok in ('"', "'"):
+            return None
         if tok[:1] in ('"', "'") and len(tok) > 1 and ('\n' in tok or '\r' in tok):
             spans.append((m.start(1), m.end(1)))
     if text[end:].strip(' \t﻿'):
