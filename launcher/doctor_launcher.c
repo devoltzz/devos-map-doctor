@@ -3,10 +3,28 @@
 #include <wchar.h>
 
 static PROCESS_INFORMATION child;
+static HANDLE job;
 
 static BOOL WINAPI on_ctrl(DWORD kind) {
     (void)kind;
-    if (child.hProcess) TerminateProcess(child.hProcess, 130);
+    if (job) {
+        struct { JOBOBJECT_BASIC_PROCESS_ID_LIST head; ULONG_PTR more[255]; } list;
+        ZeroMemory(&list, sizeof list);
+        if (QueryInformationJobObject(job, JobObjectBasicProcessIdList, &list, sizeof list, NULL)) {
+            for (DWORD i = 0; i < list.head.NumberOfProcessIdsInList; i++) {
+                DWORD pid = (DWORD)list.head.ProcessIdList[i];
+                if (pid == child.dwProcessId) continue;
+                HANDLE h = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
+                if (h) {
+                    TerminateProcess(h, 130);
+                    CloseHandle(h);
+                }
+            }
+        }
+        if (WaitForSingleObject(child.hProcess, 5000) != WAIT_OBJECT_0) TerminateJobObject(job, 130);
+    } else if (child.hProcess) {
+        TerminateProcess(child.hProcess, 130);
+    }
     return TRUE;
 }
 
@@ -53,10 +71,27 @@ int wmain(void) {
     si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
     si.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
     si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+    job = CreateJobObjectW(NULL, NULL);
+    if (job) {
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits;
+        ZeroMemory(&limits, sizeof limits);
+        limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limits, sizeof limits)) {
+            CloseHandle(job);
+            job = NULL;
+        }
+    }
     SetConsoleCtrlHandler(on_ctrl, TRUE);
-    if (!CreateProcessW(exe, line, NULL, NULL, TRUE, 0, NULL, NULL, &si, &child)) {
+    if (!CreateProcessW(exe, line, NULL, NULL, TRUE, job ? CREATE_SUSPENDED : 0, NULL, NULL, &si, &child)) {
         say(L"doctor: DevosMapDoctor.exe did not start\n");
         return 2;
+    }
+    if (job && !AssignProcessToJobObject(job, child.hProcess)) {
+        CloseHandle(job);
+        job = NULL;
+        ResumeThread(child.hThread);
+    } else if (job) {
+        ResumeThread(child.hThread);
     }
     WaitForSingleObject(child.hProcess, INFINITE);
     DWORD code = 1;
