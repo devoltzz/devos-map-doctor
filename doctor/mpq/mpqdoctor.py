@@ -646,7 +646,9 @@ def fix(path, out, name_list=(), clean_alias=False, prefix_hm3w=False, hide_junk
     h2, _p = M.find_header(bytes(d), out)
     print('  revalidated: MALFORMED = %s; the header the game opens: 0x%X' % (' | '.join(issues) if issues else 'NO',
                                                                         h2.offset if h2 else -1))
-    if chosen is not None:
+    if chosen is not None and details.get('hm3w') == 'prefixed':
+        print('  bytes of the original: shifted 0x200 by the prefixed HM3W; the file grew %d B' % (len(d) - orig_size))
+    elif chosen is not None:
         old = open(path, 'rb').read()
         diff = [i for i in range(0, orig_size, 1 << 20) if old[i:i + (1 << 20)] != bytes(d[i:i + (1 << 20)])]
         outside = 0
