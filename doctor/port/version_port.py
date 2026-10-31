@@ -214,6 +214,7 @@ def map_port(map_path, tgt, output, stats=None, log=print):
         'changes': {},
         'pjass': None,
     }
+    part = None
     try:
         target_v = wc3_versions.normalize(tgt)
         if target_v is None:
@@ -245,12 +246,17 @@ def map_port(map_path, tgt, output, stats=None, log=print):
         import shutil
         if os.path.abspath(output) == os.path.abspath(map_path):
             raise Refusal('the output is the map itself')
+        base, ext = os.path.splitext(output)
+        part = base + '.part' + (ext or '.w3x')
+        if os.path.normcase(os.path.abspath(part)) == os.path.normcase(os.path.abspath(map_path)):
+            part = None
+            raise Refusal('the output name would overwrite the map itself (it is the .part of the output)')
         if is_downport(an['floor_version'], target_v):
             from doctor.port import version_downport
             log('port to %s (older than the map): %s (made for %s)' % (target_v, os.path.basename(map_path),
                                                                       an['origin'].get('label')))
             try:
-                d = version_downport.port_down(map_path, target_v, output, an, log=log)
+                d = version_downport.port_down(map_path, target_v, part, an, log=log)
             except version_downport.Refusal as e:
                 raise Refusal(str(e))
             details['downport'] = d
@@ -260,13 +266,11 @@ def map_port(map_path, tgt, output, stats=None, log=print):
                 details.setdefault('warnings', []).extend(d['warnings'])
             details['resultado'] = 'already runs' if target_v in wc3_versions.REFORGED_OLD and not d['file_set'] and \
                 not d['deleted_slots'] else 'ported'
-            details['bytes'] = os.path.getsize(output)
             raise _Done()
         if within_range(an['origin'], target_v):
-            shutil.copyfile(map_path, output)
+            shutil.copyfile(map_path, part)
             details['resultado'] = 'already runs'
             details['inside'] = True
-            details['bytes'] = os.path.getsize(output)
             raise _Done()
         a = _open(map_path)
         j_name, j = _read(a, SCRIPT_NAMES)
@@ -298,20 +302,33 @@ def map_port(map_path, tgt, output, stats=None, log=print):
             )
         from doctor.port import map_path as _map_mod
         if new_b == j:
-            shutil.copyfile(map_path, output)
+            shutil.copyfile(map_path, part)
             details['resultado'] = 'already runs'
         else:
-            _map_mod.attach(map_path, output, [(j_name, new_b)], log=lambda s: None)
+            _map_mod.attach(map_path, part, [(j_name, new_b)], log=lambda s: None)
             details['resultado'] = 'ported'
-        details['bytes'] = os.path.getsize(output)
     except _Done:
         pass
     except Refusal as e:
         details['resultado'] = 'refused'
         details['refusal'] = str(e)
+    except SystemExit as e:
+        details['resultado'] = 'failed'
+        details['refusal'] = ('the map file could not be written (%s): unprotect it first with Fix map, then port'
+                              % str(e.code)[:200])
     except Exception as e:
         details['resultado'] = 'failed'
         details['refusal'] = '%s: %s' % (type(e).__name__, e)
+    if part and os.path.exists(part):
+        if details['resultado'] in ('ported', 'already runs'):
+            try:
+                os.replace(part, output)
+                details['bytes'] = os.path.getsize(output)
+            except OSError as e:
+                details['resultado'] = 'failed'
+                details['refusal'] = 'the output could not be written (%s)' % e
+        if details['resultado'] not in ('ported', 'already runs'):
+            os.remove(part)
     details['seconds'] = round(time.time() - t0, 1)
     if stats:
         with open(stats, 'w', encoding='utf-8') as f:
