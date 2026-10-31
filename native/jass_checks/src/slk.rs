@@ -689,7 +689,11 @@ fn op_acrescenta(text_len: usize, lines: &[&[u8]], arg: &mut Rd, w: &mut W) -> R
             }
         }
     }
-    let novas = |y: i64, out: &mut Out| -> R<usize> {
+    let mut emitidas: HashSet<i64> = HashSet::default();
+    let mut novas = |y: i64, out: &mut Out| -> R<usize> {
+        if !emitidas.insert(y) {
+            return Ok(0);
+        }
         let mut n = 0;
         for (x4, novos) in &plano {
             for (xn, nome) in novos {
