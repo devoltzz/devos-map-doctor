@@ -9,6 +9,8 @@ JASS_TAB = {'unit': 'DB_TAB_UNIT', 'ability': 'DB_TAB_ABILITY', 'item': 'DB_TAB_
 RX_PREFIX_MATCH = re.compile(
     r'^"\(require\s*\(?\s*(?:\'|\\")jass\.slk(?:\'|\\")\s*\)?\s*\)\.(unit|ability|item)\[\s*"$'
 )
+RX_PREFIX_ONLY = re.compile(r'^"\(require\s*\(?\s*(?:\'|\\")jass\.slk(?:\'|\\")\s*\)?\s*\)\.\s*"$')
+RX_OPENS = re.compile(r'^"\s*\[\s*"$')
 RX_FUNC = re.compile(r'(?m)^[ \t]*(?:constant[ \t]+)?function[ \t]+(\w+)[ \t]+takes[ \t]+(.*?)[ \t]+returns')
 RX_FIELD = re.compile(r'^\s*"([A-Za-z][A-Za-z0-9]*)"\s*$')
 
@@ -50,21 +52,28 @@ def embrulhos(body_text):
         for _a, _b, arg in class1.find_calls(line) or []:
             if 'jass.slk' not in arg or class1.site_parts(arg)[0] is not None:
                 continue
-            pieces = class1.split_more(arg)
-            m = RX_PREFIX_MATCH.match(pieces[0].strip()) if pieces else None
-            if not m or len(pieces) != 4:
-                continue
-            field_id = pieces[3].strip()
+            pieces = [p.strip() for p in class1.split_more(arg)]
             owner = [d for d in defs if d[0] <= begin]
-            if owner and field_id in owner[-1][2]:
-                out[owner[-1][1]] = (m.group(1), owner[-1][2].index(field_id))
+            if not owner:
+                continue
+            fname, params = owner[-1][1], owner[-1][2]
+            m = RX_PREFIX_MATCH.match(pieces[0]) if pieces else None
+            if m and len(pieces) == 4 and pieces[3] in params:
+                out[fname] = (m.group(1), params.index(pieces[3]), None)
+            elif (len(pieces) == 6 and RX_PREFIX_ONLY.match(pieces[0]) and RX_OPENS.match(pieces[2])
+                  and pieces[1] in params and pieces[5] in params):
+                out[fname] = (None, params.index(pieces[5]), params.index(pieces[1]))
+    for fname, (tab, k, kt) in list(out.items()):
+        for m in re.finditer(r'(?m)^[ \t]*function[ \t]+sa___prototype(\d+)_%s\b' % re.escape(fname), body_text):
+            out['sc___prototype%s_evaluate' % m.group(1)] = (tab, k + 1, None if kt is None else kt + 1)
+            out['sc___prototype%s_execute' % m.group(1)] = (tab, k + 1, None if kt is None else kt + 1)
     return out
 
 
 def dynamic_fields(body_text):
     out = dict((t, set()) for t in TABLE_NAMES)
     scrambled = embrulhos(body_text)
-    for fname, (tab, k) in scrambled.items():
+    for fname, (fixed_table, k, kt) in scrambled.items():
         for m in re.finditer(r'\b%s\s*\(' % re.escape(fname), body_text):
             start_line = body_text.rfind('\n', 0, m.start()) + 1
             if re.match(r'[ \t]*(?:constant[ \t]+)?function\b', body_text[start_line:m.start()]):
@@ -77,7 +86,11 @@ def dynamic_fields(body_text):
             if end_pos < 0:
                 continue
             args = split_comma(body_text[m.end():end_pos])
-            if len(args) > k:
+            tab = fixed_table
+            if kt is not None:
+                lt = RX_FIELD.match(args[kt]) if len(args) > kt else None
+                tab = lt.group(1).lower() if lt and lt.group(1).lower() in TABLE_NAMES else None
+            if tab and len(args) > k:
                 lit = RX_FIELD.match(args[k])
                 if lit:
                     out[tab].add(lit.group(1).lower())
