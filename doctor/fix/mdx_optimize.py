@@ -15,6 +15,29 @@ OTHER = ('KGAO', 'KGAC', 'KMTA', 'KMTE', 'KFC3', 'KFCA', 'KFTC', 'KLAS', 'KLAE',
 DEFAULT_TOLERANCE = {'translation': 0.05, 'rotation': 0.002, 'scale': 0.002, 'other': 0.002}
 MIN_GAIN = 64
 
+def _top_chunks(data):
+    if data[:4] != b'MDLX':
+        return None
+    tags, pos = set(), 4
+    while pos + 8 <= len(data):
+        tag, size = data[pos:pos + 4], struct.unpack_from('<I', data, pos + 4)[0]
+        if pos + 8 + size > len(data):
+            return None
+        tags.add(tag)
+        pos += 8 + size
+    return tags if pos == len(data) else None
+
+
+def is_day_night(name, data=None, dnc_names=()):
+    low = name.replace('/', '\\').lower()
+    base = low.rsplit('\\', 1)[-1]
+    if '\\dnc\\' in '\\' + low or base.startswith('dnc') or low in dnc_names or \
+            any(low.endswith('\\' + x) or x.endswith('\\' + low) for x in dnc_names):
+        return True
+    tags = _top_chunks(data) if data else None
+    return bool(tags) and b'LITE' in tags and not tags & {b'GEOS', b'PREM', b'PRE2', b'RIBB', b'CORN'}
+
+
 def _class(tag):
     if tag in TRANSLATION:
         return 'translation'
@@ -561,7 +584,12 @@ def optimize_map(path_in, path_out, options=None, progress=None):
             'checked': 0,
         }
 
+    dia_noite = []
+
     def transform(name, data):
+        if is_day_night(name, data):
+            dia_noite.append(name)
+            return None, {'problems': [], 'fixed': []}
         try:
             new, rep = optimize(data, bool(opts.get('lossy')), float(opts.get('tolerance') or 1.0),
                                 bool(opts.get('floats')))
@@ -581,6 +609,11 @@ def optimize_map(path_in, path_out, options=None, progress=None):
 
     pre = path_out + '.pre.w3x' if opts.get('compact', True) else path_out
     rep = model_check.fix(path_in, pre, None, progress, ('optimize',), transform=transform)
+    if dia_noite:
+        rep['day_night'] = sorted(dia_noite)
+        rep['lines'] = list(rep.get('lines') or []) + [
+            ('info', '%d day/night cycle model(s) left as they are: the game lights the time of day with them.'
+             % len(dia_noite))]
     if pre != path_out and os.path.exists(pre):
         if rep['state'] != 'done':
             os.remove(pre)
