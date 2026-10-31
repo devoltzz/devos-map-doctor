@@ -605,25 +605,24 @@ def verify(body_text, common_module=None):
 
 
 EVAL_GENERATED = r'''
-local dir = %s
-local n = 0
-for k, h in pairs(__ydwe_salvos_hist or {}) do
-  n = n + 1
-  local f = io.open(dir .. "/" .. n .. ".nome", "wb") f:write(k) f:close()
-  for i = 1, #h do
-    local g = io.open(dir .. "/" .. n .. "." .. i .. ".v", "wb") g:write(h[i]) g:close()
+local function hx(s)
+  local t = {}
+  for i = 1, #s, 4000 do
+    local c = string.sub(s, i, i + 3999)
+    t[#t + 1] = string.format(string.rep("%02x", #c), string.byte(c, 1, -1))
   end
+  return table.concat(t)
 end
-local m = io.open(dir .. "/modelos.txt", "wb")
-for k in pairs(__ydwe_modelos_usados or {}) do m:write(k, "\n") end
-m:close()
-local t = io.open(dir .. "/texturas.txt", "wb")
-for k in pairs(__ydwe_texturas_usadas or {}) do t:write(k, "\n") end
-t:close()
-local q = io.open(dir .. "/modelos_quadro.txt", "wb")
-for k in pairs(__ydwe_modelos_quadro or {}) do q:write(k, "\n") end
-q:close()
-return n
+local out = {}
+for k, h in pairs(__ydwe_salvos_hist or {}) do
+  local r = { "S", hx(k) }
+  for i = 1, #h do r[#r + 1] = hx(h[i]) end
+  out[#out + 1] = table.concat(r, " ")
+end
+for k in pairs(__ydwe_modelos_usados or {}) do out[#out + 1] = "M " .. hx(k) end
+for k in pairs(__ydwe_texturas_usadas or {}) do out[#out + 1] = "T " .. hx(k) end
+for k in pairs(__ydwe_modelos_quadro or {}) do out[#out + 1] = "Q " .. hx(k) end
+return "=" .. table.concat(out, "\n")
 '''
 
 RX_GAME_TEMPLATE = re.compile(r'(?i)template|^(?:esc|script|glue|battlenet|standard|options|upkeep|resource|console|'
@@ -666,60 +665,52 @@ def join_versions(versions):
 
 
 def generated_files(lua_p, seconds=15.0, log=None, extract=None, textures=None, frame_model_names=None):
-    import shutil
-    import tempfile
     from doctor.port import simulate
-    folder = tempfile.mkdtemp(prefix='ydwe_generated_')
-    try:
-        details = simulate.simulate(lua_p, seconds, 1, log=lambda *a: None,
-                                    eval_code=EVAL_GENERATED % _lua_str(folder.replace('\\', '/')))
-        out = {}
-        for file_ in os.listdir(folder):
-            if not file_.endswith('.nome'):
-                continue
-            n = file_[:-5]
-            fname = open(os.path.join(folder, file_), 'rb').read().decode('utf-8', 'surrogateescape')
-            versions, i = [], 1
-            while os.path.isfile(os.path.join(folder, '%s.%d.v' % (n, i))):
-                versions.append(open(os.path.join(folder, '%s.%d.v' % (n, i)), 'rb').read())
-                i += 1
+    details = simulate.simulate(lua_p, seconds, 1, log=lambda *a: None, eval_code=EVAL_GENERATED)
+    if details.get('err'):
+        raise RuntimeError('the simulation could not load the map: %s' % str(details['err'])[:300])
+    res = str(details.get('_eval'))
+    if not res.startswith('true | ='):
+        raise RuntimeError('the simulation did not return what the map wrote: %s' % res[:300])
+    out, in_use, tex, quadro = {}, [], [], []
+    for ln in res[len('true | ='):].split('\n'):
+        p = ln.split(' ')
+        if len(p) < 2:
+            continue
+        fname = bytes.fromhex(p[1])
+        if p[0] == 'S':
+            versions = [bytes.fromhex(v) for v in p[2:]]
             if versions:
+                fname = fname.decode('utf-8', 'surrogateescape')
                 body_text = fname.lower().endswith(('.fdf', '.toc'))
                 out[fname] = join_versions(versions) if body_text else versions[-1]
-        in_use = []
-        if os.path.isfile(os.path.join(folder, 'modelos.txt')):
-            in_use = [
-                line
-                for line in open(os.path.join(folder, 'modelos.txt'), encoding='utf-8', errors='replace')
-                .read()
-                .splitlines()
-                if line
-            ]
-        if textures is not None and os.path.isfile(os.path.join(folder, 'texturas.txt')):
-            textures.extend(line for line in open(os.path.join(folder, 'texturas.txt'), 'rb').read()
-                            .decode('utf-8', 'surrogateescape').splitlines() if line)
-        if frame_model_names is not None and os.path.isfile(os.path.join(folder, 'modelos_quadro.txt')):
-            frame_model_names.extend(line for line in open(os.path.join(folder, 'modelos_quadro.txt'), 'rb').read()
-                                     .decode('utf-8', 'surrogateescape').splitlines() if line)
-        fdfs = [v.decode('utf-8', 'replace') for k, v in out.items() if k.lower().endswith('.fdf')]
-        if extract and os.path.isdir(extract):
-            for root, _d, files_ in os.walk(extract):
-                for a in files_:
-                    if a.lower().endswith('.fdf'):
-                        fdfs.append(open(os.path.join(root, a), 'rb').read().decode('utf-8', 'replace'))
-        fallback_fdf = fallback_templates(in_use, fdfs)
-        if fallback_fdf:
-            out[FDF_FALLBACK] = fallback_fdf.encode('utf-8')
-            out[TOC_FALLBACK] = (FDF_FALLBACK + '\r\n').encode('utf-8')
-            if log:
-                log('   %d frame template(s) the map asks for and no FDF of it defines: defined in %s'
-                    % (fallback_fdf.count('Frame "'), FDF_FALLBACK))
-        if log and (details.get('err') or details.get('main_error')):
-            log('   the simulation that collects the generated files stopped: %s'
-                % str(details.get('err') or details.get('main_error'))[:300])
-        return out
-    finally:
-        shutil.rmtree(folder, ignore_errors=True)
+        elif p[0] == 'M':
+            in_use.append(fname.decode('utf-8', 'replace'))
+        elif p[0] == 'T':
+            tex.append(fname.decode('utf-8', 'surrogateescape'))
+        elif p[0] == 'Q':
+            quadro.append(fname.decode('utf-8', 'surrogateescape'))
+    in_use = [line for u in in_use for line in u.splitlines() if line]
+    if textures is not None:
+        textures.extend(line for t in tex for line in t.splitlines() if line)
+    if frame_model_names is not None:
+        frame_model_names.extend(line for q in quadro for line in q.splitlines() if line)
+    fdfs = [v.decode('utf-8', 'replace') for k, v in out.items() if k.lower().endswith('.fdf')]
+    if extract and os.path.isdir(extract):
+        for root, _d, files_ in os.walk(extract):
+            for a in files_:
+                if a.lower().endswith('.fdf'):
+                    fdfs.append(open(os.path.join(root, a), 'rb').read().decode('utf-8', 'replace'))
+    fallback_fdf = fallback_templates(in_use, fdfs)
+    if fallback_fdf:
+        out[FDF_FALLBACK] = fallback_fdf.encode('utf-8')
+        out[TOC_FALLBACK] = (FDF_FALLBACK + '\r\n').encode('utf-8')
+        if log:
+            log('   %d frame template(s) the map asks for and no FDF of it defines: defined in %s'
+                % (fallback_fdf.count('Frame "'), FDF_FALLBACK))
+    if log and details.get('main_error'):
+        log('   the simulation that collects the generated files stopped: %s' % str(details.get('main_error'))[:300])
+    return out
 
 
 TRANSPARENT = 'devos\\transparente.tga'
