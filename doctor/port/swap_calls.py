@@ -35,7 +35,7 @@ def sitios(ln, replacements, _matches=_RX_SITE.finditer):
 
 def pluralize(body_text, replacements):
     r = dict((k, 0) for k in replacements)
-    for line in body_text.split('\n'):
+    for line in class1.masked_lines(body_text):
         if RX_NATIVE.match(line):
             continue
         if not any(k in line for k in replacements):
@@ -47,14 +47,15 @@ def pluralize(body_text, replacements):
 
 def applies(body_text, replacements, expected_count=None, to_report=False, label='call swap'):
     line_list = body_text.split('\n')
+    masked_text_lines = class1.masked_lines(body_text)
     by = dict((k, 0) for k in replacements)
     failures = []
     for idx, line in enumerate(line_list):
         if RX_NATIVE.match(line):
             continue
-        if not any(k in line for k in replacements):
+        if not any(k in masked_text_lines[idx] for k in replacements):
             continue
-        ss = sitios(line, replacements)
+        ss = sitios(masked_text_lines[idx], replacements)
         if not ss:
             continue
         for begin, end_pos, fname in sorted(ss, reverse=True):
