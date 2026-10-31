@@ -538,7 +538,7 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True, doodad
     p = progress or _nothing
     r = {'file_name': os.path.abspath(file_path), 'byte_size': os.path.getsize(file_path), 'mpq': None, 'fname': None,
          'protections': [], 'warnings': [], 'script': None, 'listfile': None, 'editor': {}, 'err': None,
-         'fixable': None, 'no_edit': None, 'jassnative': None, 'repacker': None}
+         'fixable': None, 'no_edit': None, 'jassnative': None, 'repacker': None, 'without_jasshelper': False}
 
     def prot(code, **info):
         info['code'] = code
@@ -658,6 +658,7 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True, doodad
         r['script'] = 'jass'
         from doctor.fix import editor_version
         r['jassnative'] = editor_version.jassnative_mark(j)
+        r['without_jasshelper'] = editor_version.uncompiled_custom_script(j)
     r['repacker'] = repacker_seal(
         j if r['script'] == 'jass' else _read(a, 'war3map.lua') if r['script'] == 'lua' else None
     )
