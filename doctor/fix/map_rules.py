@@ -18,23 +18,48 @@ def _num(t):
     return int(t)
 
 
-def _body(text, name, lua):
+def _lua_functions(text):
+    try:
+        from doctor.script import lua_ast
+        tree = lua_ast.parse(text)
+    except Exception:
+        return None
+    out = {}
+    for st in tree.body:
+        if isinstance(st, lua_ast.FunctionStmt) and not st.params and not st.is_vararg and st.span:
+            nm = st.name if isinstance(st.name, str) else getattr(st.name, 'name', None)
+            if nm:
+                out.setdefault(nm, st.span)
+    return out
+
+
+RX_LUA_BLOCK = re.compile(r'\b(?:then|do|function|repeat)\b')
+
+
+def _body(text, name, lua, funcs=None):
     if lua:
         m = re.search(r'\bfunction\s+' + name + r'\s*\(\s*\)(.*?)\n[ \t]*end\b', text, re.S)
+        if funcs is not None and (RX_LUA_BLOCK.search(m.group(1)) if m else
+                                  re.search(r'\bfunction\s+' + name + r'\s*\(', text)):
+            if not funcs:
+                funcs.append(_lua_functions(text))
+            if funcs[0] is not None:
+                span = funcs[0].get(name)
+                return text[span[0]:span[1]] if span else ''
     else:
         m = re.search(r'\bfunction\s+' + name + r'\s+takes\s+nothing\s+returns\s+nothing(.*?)\bendfunction', text, re.S)
     return m.group(1) if m else ''
 
 
-def _expanded(text, body, lua, depth=3):
+def _expanded(text, body, lua, depth=3, funcs=None):
     out = [body]
     if depth:
         for name in sorted(set(re.findall(r'(?:\bcall\s+|^\s*)([A-Za-z_]\w*)\s*\(\s*\)', body, re.M))):
             if name in ('config', 'main'):
                 continue
-            sub = _body(text, name, lua)
+            sub = _body(text, name, lua, funcs)
             if sub:
-                out.append(_expanded(text, sub, lua, depth - 1))
+                out.append(_expanded(text, sub, lua, depth - 1, funcs))
     return '\n'.join(out)
 
 
@@ -42,10 +67,11 @@ def check_players(w3i_bytes, text, lua=False):
     from doctor.data import w3i
     m = w3i.parse_or_tolerant(w3i_bytes)
     out = {'players': {'w3i': len(m['players']), 'script': None}, 'controller': [], 'team': [], 'compared': False}
-    config = _body(text, 'config', lua)
+    funcs = [] if lua else None
+    config = _body(text, 'config', lua, funcs)
     if not config:
         return out
-    config = _expanded(text, config, lua)
+    config = _expanded(text, config, lua, funcs=funcs)
     sp = RX_PLAYERS.search(config)
     if sp is None:
         return out
