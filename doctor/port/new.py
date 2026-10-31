@@ -1,4 +1,5 @@
 # The port rules: the diagnosis of a platform map and the parts of the layer it needs.
+import math
 import os
 import re
 import subprocess
@@ -6,9 +7,8 @@ import sys
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ARCHIVE_ROOT = os.path.normpath(os.path.join(HERE, '..', '..'))
 TEMPLATE = os.path.join(HERE, 'model')
-REF = os.path.join(ARCHIVE_ROOT, 'common', 'ref', '3.0')
+REF = os.path.normpath(os.path.join(HERE, '..', 'ref', '3.0'))
 
 LAYER_FIELDS = ['unit.file', 'unit.rangeN1', 'item.Art', 'item.Name', 'item.Ubertip']
 EMPTY_EXPECTED = {
@@ -64,7 +64,7 @@ def model(fname, value_list):
 
 def save(file_path, body_text):
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    with open(file_path, 'w', encoding='utf-8', newline='\n') as f:
+    with open(file_path, 'w', encoding='utf-8', errors='surrogateescape', newline='\n') as f:
         f.write(body_text)
 
 
@@ -141,7 +141,14 @@ def free_daily(body_text, literal):
     if not literal:
         return 'false'
     line_list = body_text.replace('\r\n', '\n').split('\n')
-    rx_if = re.compile(r'^\s*(?:if|elseif)\b.*==\s*"%s"\s*then\s*$' % re.escape(literal))
+    forms = [re.escape(literal)]
+    try:
+        raw_bytes = literal.encode('utf-8').decode('latin-1')
+    except UnicodeError:
+        raw_bytes = literal
+    if raw_bytes != literal:
+        forms.append(re.escape(raw_bytes))
+    rx_if = re.compile(r'^\s*(?:if|elseif)\b.*==\s*"(?:%s)"\s*then\s*$' % '|'.join(forms))
     for i, line in enumerate(line_list):
         if not rx_if.match(line):
             continue
@@ -431,7 +438,7 @@ def ui_borders(body_text):
             elif level:
                 args[-1] += c
             k += 1
-        if len(args) == 2 and re.fullmatch(r'[\d \t.()*/+\-]+', args[1]):
+        if len(args) == 2 and re.fullmatch(r'[\d \t.()*/+\-]+', args[1]) and '**' not in args[1]:
             try:
                 if eval(args[1], {'__builtins__': {}}) == 0:
                     return 'true'
@@ -603,11 +610,9 @@ def hero_xp(extract, body_text):
             vals[s.split('=', 1)[0].strip()] = s.split('=', 1)[1].strip()
 
     def real(x, default_value):
-        try:
-            return repr(float(x))
-        except ValueError:
-            return default_value
-    table = ','.join(str(int(float(v))) for v in re.findall(r'-?\d+(?:\.\d+)?', vals['NeedHeroXP'])) or '200'
+        return real_jass(x, default_value)
+    table = ','.join(str(int(float(v))) for v in re.findall(r'-?\d+(?:\.\d+)?', vals['NeedHeroXP'])
+                     if math.isfinite(float(v))) or '200'
     return {'KK_XP': 'true', 'KK_XP_TABELA': table, 'KK_XP_A': real(vals['NeedHeroXPFormulaA'], '1.0'),
             'KK_XP_B': real(vals['NeedHeroXPFormulaB'], '100.0'), 'KK_XP_C': real(vals['NeedHeroXPFormulaC'], '0.0')}
 
@@ -624,11 +629,22 @@ def primary_bonus(extract):
         if m:
             sec = m.group(1).strip().lower()
         elif sec == 'misc' and s.split('=', 1)[0].strip() == 'StrAttackBonus' and '=' in s:
-            try:
-                return repr(float(s.split('=', 1)[1].strip()))
-            except ValueError:
-                break
+            return real_jass(s.split('=', 1)[1].strip(), '1.0')
     return '1.0'
+
+
+def real_jass(x, default_value):
+    try:
+        f = float(x)
+    except ValueError:
+        return default_value
+    if not math.isfinite(f):
+        return default_value
+    r = repr(f)
+    if 'e' not in r and 'E' not in r:
+        return r
+    r = ('%.10f' % f).rstrip('0')
+    return r + '0' if r.endswith('.') else r
 
 
 def reads_state_14(body_text):
