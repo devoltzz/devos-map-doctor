@@ -12,8 +12,9 @@ from doctor.fix import single_player
 
 REF_30 = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'ref', '3.0'))
 MAX_MAP = 512 * 1024 * 1024
-PLATFORM_FAMILIES = frozenset(lbl for lbl, _rx in missing_natives.FAMILIES
-                              if not lbl.startswith(('Blizzard', 'jass do acervo')))
+PORT_FAMILY = getattr(missing_natives, 'PORT_FAMILY', 'JASS of the archive / of the port')
+PLATFORM_FAMILIES = frozenset(lbl for lbl, rx in missing_natives.FAMILIES
+                              if lbl != PORT_FAMILY and not rx.startswith('^Blz'))
 KK_FAMILY = 'KK platform (KK*)'
 RX_KK = re.compile(r'KK[A-Z]\w*\Z')
 HIDDEN_NATIVES = frozenset((
@@ -656,6 +657,20 @@ def icon_items(path):
                   icons=[x['icon'] for x in r['missing'][:30]], count=len(r['missing']))]
 
 
+def console_items(path):
+    from doctor.models import reforged_texture
+    try:
+        pieces = reforged_texture.console_of_file(path)
+    except Exception:
+        return []
+    if not pieces:
+        return []
+    return [_item('console_sides', 'info', '%d console pieces that the game draws since 1.29 (beside the command card '
+                  'and at the top) are missing from the map, which replaces the rest of the console: they show the '
+                  'default stone over its interface. The Doctor makes them transparent.' % len(pieces), 'doctor',
+                  files=pieces, count=len(pieces))]
+
+
 def import_items(path):
     from doctor.mpq import import_lint
     r = import_lint.lint(path)
@@ -1001,4 +1016,6 @@ def check(path, progress=None, diag=None, version=None):
         if not version:
             p('Checking the icons')
             items += icon_items(src)
+            p('Checking the console')
+            items += console_items(src)
     return _finish(res, unknown)
