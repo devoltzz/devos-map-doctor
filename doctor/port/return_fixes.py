@@ -78,6 +78,15 @@ def _code_only(rx, ln, repl):
     return ''.join(out)
 
 
+def _free_local_name(fname, suffix, script_words, in_use):
+    new, k = fname + suffix, 1
+    while new in script_words or new in in_use:
+        k += 1
+        new = '%s%s_%d' % (fname, suffix, k)
+    in_use.add(new)
+    return new
+
+
 def shadow_local(body_text):
     m_globals = re.search(r'(?m)^[ \t]*globals\b', body_text)
     m_e = re.search(r'(?m)^[ \t]*endglobals\b', body_text)
@@ -87,6 +96,7 @@ def shadow_local(body_text):
     if not arrays:
         return body_text, 0
     line_list = body_text.split('\n')
+    script_words = None
     n = 0
     i = 0
     while i < len(line_list):
@@ -101,9 +111,12 @@ def shadow_local(body_text):
                 if m and m.group(1) in arrays:
                     shadows.add(m.group(1))
             if shadows:
+                script_words = set(re.findall(r'\w+', body_text)) if script_words is None else script_words
+                in_use = set()
+                new = dict((x, _free_local_name(x, '_kkl', script_words, in_use)) for x in sorted(shadows))
                 rx = re.compile(r'\b(%s)\b' % '|'.join(map(re.escape, sorted(shadows))))
                 for k in range(i + 1, j):
-                    line_list[k] = _code_only(rx, line_list[k], r'\1_kkl')
+                    line_list[k] = _code_only(rx, line_list[k], lambda m: new[m.group(1)])
                 n += len(shadows)
             i = j
         i += 1
@@ -115,6 +128,7 @@ RX_FUNC_PARAMS = re.compile(r'^\s*(?:constant\s+)?function\s+\w+\s+takes\s+(.*?)
 
 def local_param_clash(body_text):
     line_list = body_text.split('\n')
+    script_words = None
     n = 0
     i = 0
     while i < len(line_list):
@@ -132,18 +146,21 @@ def local_param_clash(body_text):
             if mm and mm.group(1) in params:
                 dup.add(mm.group(1))
         if dup:
+            script_words = set(re.findall(r'\w+', body_text)) if script_words is None else script_words
+            in_use = set()
+            new = dict((x, _free_local_name(x, '_kkl', script_words, in_use)) for x in sorted(dup))
             rx = re.compile(r'\b(%s)\b' % '|'.join(map(re.escape, sorted(dup))))
             seen = set()
             for k in range(i + 1, j):
                 line = line_list[k]
                 mm = RX_LOCAL.match(line)
                 if not mm:
-                    line_list[k] = _code_only(rx, line, r'\1_kkl')
+                    line_list[k] = _code_only(rx, line, lambda m: new[m.group(1)])
                     continue
-                rest = _code_only(rx, line[mm.end(1):], lambda m: m.group(1) + ('_kkl' if m.group(1) in seen else ''))
+                rest = _code_only(rx, line[mm.end(1):], lambda m: new[m.group(1)] if m.group(1) in seen else m.group(1))
                 if mm.group(1) in dup:
                     seen.add(mm.group(1))
-                    line_list[k] = line[:mm.end(1)] + '_kkl' + rest
+                    line_list[k] = line[:mm.start(1)] + new[mm.group(1)] + rest
                 else:
                     line_list[k] = line[:mm.end(1)] + rest
             n += len(dup)
@@ -156,6 +173,7 @@ RX_LOCAL_NAME = re.compile(r'^[ \t]*local[ \t]+\w+[ \t]+(?:array[ \t]+)?(\w+)')
 
 def repeated_local(body_text):
     line_list = body_text.split('\n')
+    script_words = None
     n = 0
     i = 0
     while i < len(line_list):
@@ -172,6 +190,8 @@ def repeated_local(body_text):
                 seen[mm.group(1)] = seen.get(mm.group(1), 0) + 1
         repeated = set(fname for fname, q in seen.items() if q > 1)
         if repeated:
+            script_words = set(re.findall(r'\w+', body_text)) if script_words is None else script_words
+            in_use = set()
             rx = re.compile(r'\b(%s)\b' % '|'.join(map(re.escape, sorted(repeated))))
             current = {}
             count = {}
@@ -183,7 +203,9 @@ def repeated_local(body_text):
                     count[fname] = count.get(fname, 0) + 1
                     rest = _code_only(rx, line[mm.end(1):], lambda m: m.group(1) + current.get(m.group(1), ''))
                     if count[fname] > 1:
-                        current[fname] = '_kkl%d' % count[fname]
+                        current[fname] = _free_local_name(fname, '_kkl%d' % count[fname], script_words, in_use)[
+                            len(fname) :
+                        ]
                         n += 1
                     line_list[k] = line[:mm.start(1)] + fname + current.get(fname, '') + rest
                 elif current:
