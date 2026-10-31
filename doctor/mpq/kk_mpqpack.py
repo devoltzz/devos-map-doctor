@@ -1,6 +1,8 @@
 # The files the KK platform hides after the MPQ archive: found, decrypted, named, listed and extracted.
 import lzma
 import os
+import re
+import shutil
 import struct
 
 from doctor.mpq import mpqlib as M
@@ -10,6 +12,8 @@ MPQ_MAGIC = b'MPQ\x1a'
 KEY_LEN = 511
 KEY_BLOCK = 512
 PROBE_BYTES = 4 << 20
+PROBE_CAP = 64 << 20
+RECORD_CAP = 512 << 20
 STANDARD_NAMES = (
     'war3map.j', 'scripts\\war3map.j', 'war3map.lua', 'war3map.w3i', 'war3map.w3e', 'war3map.wts', 'war3map.wtg',
     'war3map.wct', 'war3map.w3r', 'war3map.w3c', 'war3map.w3s', 'war3map.doo', 'war3mapUnits.doo', 'war3map.w3u',
@@ -65,11 +69,18 @@ def _decompressor(fmt, head):
     return lzma.LZMADecompressor(lzma.FORMAT_RAW, filters=f), 5
 
 
-def _decode(plain, fmt):
+def _decode(plain, fmt, cap=None):
+    cap = RECORD_CAP if cap is None else cap
     try:
         dec, skip = _decompressor(fmt, plain[:13])
-        out = dec.decompress(plain[skip:])
+        if fmt == 'alone' and len(plain) >= 13:
+            n = struct.unpack_from('<Q', plain, 5)[0]
+            if n != 0xFFFFFFFFFFFFFFFF:
+                cap = min(cap, n)
+        out = dec.decompress(plain[skip:], cap + 1)
     except (lzma.LZMAError, ValueError, MemoryError):
+        return None, None
+    if len(out) > cap:
         return None, None
     if dec.eof:
         return out, len(plain) - len(dec.unused_data)
@@ -105,7 +116,7 @@ def _phase(mode, payload_pos, stream):
     return 0 if mode == 'record' else (payload_pos - stream if mode == 'stream' else payload_pos)
 
 
-def _record(c, pos, lay):
+def _record(c, pos, lay, cap=None):
     if pos + 12 > len(c):
         return None
     e0, e1, es = struct.unpack_from('<III', c, pos)
@@ -115,11 +126,11 @@ def _record(c, pos, lay):
         size = es ^ lay.k2
         if size == 0 or p + size > len(c):
             return None
-        out, used = _decode(_xor(c[p:p + size], lay.key, ph), lay.fmt)
+        out, used = _decode(_xor(c[p:p + size], lay.key, ph), lay.fmt, cap)
         if out is None or (used is not None and used > size):
             return None
         return e0, e1, size, out, p + size
-    out, used = _decode(_xor(c[p:p + PROBE_BYTES], lay.key, ph), lay.fmt)
+    out, used = _decode(_xor(c[p:p + PROBE_BYTES], lay.key, ph), lay.fmt, PROBE_CAP if cap is None else cap)
     if out is None or used is None:
         return None
     return e0, e1, used, out, p + used, es ^ used
@@ -138,7 +149,7 @@ def _header(c, pos, lay):
 def _chain(c, lay, limit=3):
     n, pos = 0, lay.stream
     while n < limit:
-        r = _record(c, pos, lay)
+        r = _record(c, pos, lay, PROBE_CAP)
         if r is None or not r[3]:
             break
         n += 1
@@ -343,6 +354,46 @@ def _fallback_name(i, h):
     return 'File%08d_%08X_%08X.xxx' % (i, h[0], h[1])
 
 
+_BAD_CHARS = re.compile(r'[<>:"|?*\x00-\x1f]')
+_RESERVED = frozenset(['CON', 'PRN', 'AUX', 'NUL'] + ['COM%d' % i for i in range(1, 10)] +
+                      ['LPT%d' % i for i in range(1, 10)])
+
+
+def _safe_rel(name):
+    parts = []
+    for part in re.split(r'[\\/]+', name):
+        part = _BAD_CHARS.sub('_', part).rstrip(' .')
+        if not part or part in ('.', '..'):
+            continue
+        if part.split('.')[0].upper() in _RESERVED:
+            part = '_' + part
+        parts.append(part)
+    return os.path.join(*parts) if parts else ''
+
+
+def _inside(folder, path):
+    try:
+        return os.path.commonpath([folder, path]) == folder
+    except ValueError:
+        return False
+
+
+def _destination(root, tmp, name, written):
+    details = _safe_rel(name)
+    dst = os.path.abspath(os.path.join(root, details)) if details else ''
+    if not details or not _inside(root, dst) or _inside(tmp, dst) or dst == root:
+        dst = os.path.join(root, _safe_rel(name.replace('\\', '/').rsplit('/', 1)[-1]) or '_')
+        if _inside(tmp, dst):
+            dst = os.path.join(root, '_' + os.path.basename(dst))
+    base, ext = os.path.splitext(dst)
+    k = 1
+    while os.path.normcase(dst).casefold() in written:
+        k += 1
+        dst = '%s~%d%s' % (base, k, ext)
+    written.add(os.path.normcase(dst).casefold())
+    return dst
+
+
 def unpack(path_or_bytes, names=(), index=True, layout=None, deep=False):
     d = open(path_or_bytes, 'rb').read() if isinstance(path_or_bytes, str) else bytes(path_or_bytes)
     if isinstance(path_or_bytes, str):
@@ -388,45 +439,51 @@ def extract(path, out_dir, names=(), index=True, progress=None, deep=False):
     heads = [(e0, e1) for e0, e1, *_ in records(d, lay, decode=False)]
     pairs = [(e0 ^ lay.k0, e1 ^ lay.k1) if lay.k0 is not None else (e0, e1) for e0, e1 in heads]
     named = name_records(pairs, names, index)
-    tmp = os.path.join(out_dir, '_kk_mpqpack_raw')
+    root = os.path.abspath(out_dir)
+    tmp = os.path.join(root, '_kk_mpqpack_raw')
     os.makedirs(tmp, exist_ok=True)
     keep, total = [], 0
-    for i, (_e0, _e1, _s, data, _n) in enumerate(records(d, lay)):
-        h = pairs[i]
-        total += len(data)
-        with open(os.path.join(tmp, '%08d' % i), 'wb') as f:
-            f.write(data)
-        n = named.get(h)
-        if n is None or os.path.splitext(n)[1].lower() in _MINE_EXT:
-            keep.append(i)
-        if progress and i % 500 == 0:
-            progress('record %d/%d' % (i, len(pairs)))
-    mined_from, mined = set(), set()
-    while True:
-        new = set()
-        for i in keep:
-            n = named.get(pairs[i])
-            if n and i not in mined_from and os.path.splitext(n)[1].lower() in _MINE_EXT:
-                mined_from.add(i)
-                new |= _mine(n, open(os.path.join(tmp, '%08d' % i), 'rb').read())
-        new -= mined
-        if not new:
-            break
-        mined |= new
-        more = name_records([h for h in pairs if h not in named], (), False, new)
-        if not more:
-            break
-        named.update(more)
     files = []
-    for i, h in enumerate(pairs):
-        n = named.get(h) or _fallback_name(i, h)
-        dst = os.path.join(out_dir, *n.replace('/', '\\').split('\\'))
-        os.makedirs(os.path.dirname(dst) or out_dir, exist_ok=True)
-        if os.path.exists(dst):
-            os.remove(dst)
-        os.rename(os.path.join(tmp, '%08d' % i), dst)
-        files.append((n, os.path.getsize(dst)))
-    os.rmdir(tmp)
+    try:
+        for i, (_e0, _e1, _s, data, _n) in enumerate(records(d, lay)):
+            h = pairs[i]
+            total += len(data)
+            with open(os.path.join(tmp, '%08d' % i), 'wb') as f:
+                f.write(data)
+            n = named.get(h)
+            if n is None or os.path.splitext(n)[1].lower() in _MINE_EXT:
+                keep.append(i)
+            if progress and i % 500 == 0:
+                progress('record %d/%d' % (i, len(pairs)))
+        mined_from, mined = set(), set()
+        while True:
+            new = set()
+            for i in keep:
+                n = named.get(pairs[i])
+                if n and i not in mined_from and os.path.splitext(n)[1].lower() in _MINE_EXT:
+                    mined_from.add(i)
+                    new |= _mine(n, open(os.path.join(tmp, '%08d' % i), 'rb').read())
+            new -= mined
+            if not new:
+                break
+            mined |= new
+            more = name_records([h for h in pairs if h not in named], (), False, new)
+            if not more:
+                break
+            named.update(more)
+        written = set()
+        for i, h in enumerate(pairs):
+            src = os.path.join(tmp, '%08d' % i)
+            dst = _destination(root, tmp, named.get(h) or _fallback_name(i, h), written)
+            try:
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                os.replace(src, dst)
+            except OSError:
+                dst = _destination(root, tmp, _fallback_name(i, h), written)
+                os.replace(src, dst)
+            files.append((os.path.relpath(dst, root).replace(os.sep, '\\'), os.path.getsize(dst)))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
     return {'records': len(pairs), 'named': sum(1 for h in pairs if h in named), 'bytes': total, 'layout': lay,
             'files': files}
 
