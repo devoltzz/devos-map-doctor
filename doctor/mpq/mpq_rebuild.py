@@ -69,7 +69,8 @@ def rebuild(
         known.setdefault(pair(n), n)
     ht = [tuple(a.ht[i * 4:i * 4 + 4]) for i in range(hn_read)]
     live = [i for i in range(hn_read) if a.exists(ht[i][3] & mpqread.BLOCK_MASK)]
-    dead = sum(1 for i in range(hn_read) if ht[i][3] not in (0xFFFFFFFF, 0xFFFFFFFE) and i not in set(live))
+    live_set = set(live)
+    dead = sum(1 for i in range(hn_read) if ht[i][3] not in (0xFFFFFFFF, 0xFFFFFFFE) and i not in live_set)
     if dead:
         log('warning: %d hash entries point to a block that does not exist (the game does not read them): out' % dead)
     clusters = {}
@@ -87,7 +88,7 @@ def rebuild(
             keep[slots[0]] = fname
             continue
         if fname is not None:
-            r = a.find(fname)
+            r = a.find_locale(fname)
             if r is None:
                 live_ones = [s for s in slots if a.exists(ht[s][3] & mpqread.BLOCK_MASK)]
                 neutrals = [s for s in live_ones if (ht[s][2] & 0xFFFFFF) == 0]
@@ -141,7 +142,10 @@ def rebuild(
                         'slot %d: block %d is ENCRYPTED and has no known name (the key is the hash of the name)'
                         % (slot, bi)
                     )
-            d = a.read(fname if fname is not None else '__unnamed__', bi=bi, hash_key=hash_key)
+            try:
+                d = a.read(fname if fname is not None else '__unnamed__', bi=bi, hash_key=hash_key)
+            except (ValueError, struct.error) as e:
+                raise RebuildError('slot %d (%s): block %d did not read (%s)' % (slot, fname, bi, e))
             if d is None:
                 raise RebuildError('slot %d (%s): block %d could not be read' % (slot, fname, bi))
             content[slot] = d
