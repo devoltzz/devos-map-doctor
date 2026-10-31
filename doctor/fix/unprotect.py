@@ -39,6 +39,8 @@ EDITOR_BLOCKERS = ('read_only', 'fake_header', 'missing_hm3w', 'virtual_tables',
                    'script_kkwe', 'script_j2b')
 BUTTON3_ONLY = ('inflated_counts', 'invalid_doodad', 'script_kkwe', 'script_j2b', 'lua_wc3fuscator', 'lua_layers')
 EDITOR_SCRIPTS = ('jass', 'lua', 'kkwe', 'j2b')
+TEXTS_NOT_BACK = ('the texts the platform DLL fills in at startup did not come back into the script, so the '
+                  'triggers show the table reads instead')
 DATA_ONLY = ('slk_file_column', 'slk_levels', 'slk_buttonpos', 'fdf_stray_comment', 'slk_id_list', 'slk_quoted_numbers',
              'w3i_graphics_mode')
 SLK_CODE = {'file_column': 'slk_file_column', 'levels': 'slk_levels', 'buttonpos': 'slk_buttonpos',
@@ -117,6 +119,7 @@ EXTRAS = (
     'data_pointers',
     'kk_textures',
     'disabled_icons',
+    'console_sides',
     'uabi',
     'preload',
     'single_player',
@@ -206,6 +209,9 @@ def apply_extras(entry, output, extras, progress=None):
                     elif extra == 'disabled_icons':
                         from doctor.fix import disabled_icons
                         details = disabled_icons.fix(src, t, p)
+                    elif extra == 'console_sides':
+                        from doctor.models import reforged_texture
+                        details = reforged_texture.console_fix(src, t, p)
                     elif extra == 'uabi':
                         from doctor.fix import uabi_runtime
                         details = uabi_runtime.fix(src, t)
@@ -227,12 +233,17 @@ def apply_extras(entry, output, extras, progress=None):
                     else:
                         from doctor.fix import shrink
                         details = shrink.shrink(src, t, param if isinstance(param, dict) else None, p)
+                if (details or {}).get('state') == 'nothing' and not os.path.isfile(t):
+                    details = dict(details, state='nothing_to_do', lines=[details.get('reason')])
                 if (details or {}).get('state') in ('nothing_to_do', 'nothing_to_apply') and not os.path.isfile(t):
                     out['reports'][extra] = details
                     continue
                 if (details or {}).get('state') in ('failed', 'refused') or not os.path.isfile(t):
                     raise RuntimeError(
-                        (details or {}).get('error') or (details or {}).get('reason') or 'nothing was written'
+                        (details or {}).get('message')
+                        or (details or {}).get('error')
+                        or (details or {}).get('reason')
+                        or 'nothing was written'
                     )
                 out['reports'][extra] = details
                 src = t
@@ -523,7 +534,7 @@ def repacker_seal(script):
     return None
 
 
-def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
+def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True, doodads_version=None):
     p = progress or _nothing
     r = {'file_name': os.path.abspath(file_path), 'byte_size': os.path.getsize(file_path), 'mpq': None, 'fname': None,
          'protections': [], 'warnings': [], 'script': None, 'listfile': None, 'editor': {}, 'err': None,
@@ -692,7 +703,8 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
         prot('inflated_counts', **x)
     try:
         _bd = _read(a, 'war3map.doo')
-        _game = doodads.game_ids() if _bd else set()
+        _game = (doodads.game_ids(version_num=doodads_version) if doodads_version else doodads.game_ids()) \
+            if _bd else set()
         if _bd and _game:
             _valid = _game | doodads.map_ids(a) | set(extra_ids)
             _valid = doodads.drop_legacy(_valid, _game | doodads.defined_ids(a) | set(extra_ids))
@@ -755,6 +767,9 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True):
             r['campaign_info'] = diagnose_campaign_maps(a, depth=depth)
         except Exception as e:
             r['campaign_info'] = {'err': _error(e), 'map_list': []}
+        if not r['no_edit']:
+            r['no_edit'] = next((dict(m['no_edit'], map=m['fname']) for m in r['campaign_info'].get('map_list') or []
+                                 if m.get('no_edit')), None)
     codes = [x['code'] for x in r['protections']]
     carvable = is_carvable(r)
     if 'kk_encrypted' in codes:
@@ -856,7 +871,8 @@ def diagnose_campaign_maps(a, depth=0):
             try:
                 d = diagnose(t, depth=depth + 1, extra_ids=campaign_ids)
                 item.update(fixable=d.get('fixable'), editor=(d.get('editor') or {}).get('status'),
-                            protections=sorted(set(x['code'] for x in d.get('protections') or [])))
+                            protections=sorted(set(x['code'] for x in d.get('protections') or [])),
+                            no_edit=d.get('no_edit'))
             except Exception as e:
                 item.update(editor='err', err=_error(e))
             os.remove(t)
@@ -1102,12 +1118,12 @@ def check_untouched(a, b, name_list, done=()):
     return n
 
 
-def check_content(original, output, exclude=()):
+def check_content(original, output, exclude=(), extra_names=()):
     a = _open(original)
     b = _open(output)
     lf = _read(b, '(listfile)') or b''
     name_list = [line.strip() for line in lf.decode('utf-8', 'surrogateescape').splitlines() if line.strip()]
-    name_list += list(mpqdoctor.PROBES) + list(mpqnames.BASE_NAMES)
+    name_list += list(mpqdoctor.PROBES) + list(mpqnames.BASE_NAMES) + list(extra_names)
 
     def _key(n):
         return n.replace('/', '\\').lower()
@@ -1271,7 +1287,7 @@ def unprotect(file_path, output, progress=None, diag=None, options=None):
                 raise RuntimeError('sprotect_fix: %s' % ''.join(reg.body_text().strip().splitlines()[-1:]))
             src = t
             res['steps']['sprotect'] = True
-        modified = []
+        modified, name_list, virtual = [], [], False
         if remove_mpq or do_ids:
             a = _open(src)
             virtual = mpqdoctor.virtual_tables(a)
@@ -1334,13 +1350,15 @@ def unprotect(file_path, output, progress=None, diag=None, options=None):
         shutil.copyfile(src, part)
         p('verify')
         res['after_diag'] = diagnose(part)
-        res['content'] = c = check_content(file_path, part, exclude=modified)
+        res['content'] = c = check_content(file_path, part, exclude=modified, extra_names=name_list)
         if c['different'] or c['missing_items']:
             raise RuntimeError('check: %d different file(s), %d missing'
                                % (len(c['different']), len(c['missing_items'])))
         os.replace(part, output)
         res['output'] = res['after_diag']['file_name'] = os.path.abspath(output)
         left_out = left_out_on_purpose(codes, options)
+        if remove_mpq and not virtual and not step_on(options, 'listing'):
+            left_out |= {'fake_entries', 'full_hash_table'}
         res['left_out'] = sorted(set(x['code'] for x in res['after_diag']['protections']) & left_out)
         res['status'] = 'partial' if [x for x in res['after_diag']['protections'] if x['code'] not in BUTTON3_ONLY and
                                       x['code'] not in left_out] else 'done'
@@ -1491,7 +1509,7 @@ def version_block(file_path, version_num):
 
 
 def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=True, unprotection=None, extra_ids=(),
-                       options=None, version_num=None):
+                       options=None, version_num=None, write_ready=False):
     p = progress or _nothing
     diag = diag or diagnose(file_path, p, extra_ids=extra_ids)
     if options is not None and 'safe_units' in options:
@@ -1549,6 +1567,8 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
         if block_reason:
             res['status'], res['err'] = 'wrong_editor_version', block_reason
             return res
+    if status == 'ready' and not data_bytes and write_ready:
+        return _write_ready(file_path, output, p, res, extra_ids, version_num)
     if status != 'needs_work' and not (status == 'ready' and data_bytes):
         res['status'] = 'nothing_to_do' if status == 'ready' else status
         return res
@@ -1588,9 +1608,9 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
         try:
             with quiet():
                 r_texts = editor_prep.texts_back(src, t, log=_nothing)
-        except editor_prep.ScriptNotRestored as e:
+        except (Exception, SystemExit) as e:
             r_texts = None
-            res['texts_back'] = {'err': str(e)}
+            res['texts_back'] = {'err': _error(e)}
         if r_texts:
             res['texts_back'] = r_texts
             src = t
@@ -1625,16 +1645,18 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
             details, _assembled = editor_prep.prepare(src, part, name_list, log=lambda s: _warnings.append(str(s)),
                                                    safe_units=safe_units, extra_ids=extra_ids,
                                                    options=options, version_num=version_num)
-        details['warnings'] = [
-            x for x in _warnings if ': ' in x and ('Error' in x or 'error' in x or 'failed' in x or 'not ' in x)
-        ][:12]
+        details['warnings'] = list(dict.fromkeys(([TEXTS_NOT_BACK] if (res.get('texts_back') or {}).get('err')
+                                                   else []) + list(details.get('warnings') or []) + [
+            x for x in _warnings if ': ' in x and ('Error' in x or 'error' in x or 'failed' in x or 'not ' in x)]))[:12]
         if res.get('script'):
             details['script_restore'] = res['script']
         res['editor'] = details
         if details['failures']:
             raise RuntimeError('editor_prep: %s' % '; '.join(details['failures']))
         p('verify')
-        res['after_diag'] = after_diag = diagnose(part, extra_ids=extra_ids)
+        res['after_diag'] = after_diag = diagnose(
+            part, extra_ids=extra_ids, doodads_version=editor_version.base_version(version_num) if version_num else None
+        )
         os.replace(part, output)
         res['output'] = after_diag['file_name'] = os.path.abspath(output)
         res['status'] = 'done' if opens_in_editor(after_diag, version_num) else 'partial'
@@ -1649,6 +1671,31 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
             _remove_quietly(res['output'])
             res['output'] = None
         shutil.rmtree(tmp, ignore_errors=True)
+    return res
+
+
+def _write_ready(file_path, output, p, res, extra_ids, version_num):
+    try:
+        p('save')
+        part = _part(output)
+        res['output'] = part
+        shutil.copyfile(file_path, part)
+        p('verify')
+        if version_num:
+            from doctor.fix import editor_version
+        res['after_diag'] = after_diag = diagnose(
+            part, extra_ids=extra_ids, doodads_version=editor_version.base_version(version_num) if version_num else None
+        )
+        os.replace(part, output)
+        res['output'] = after_diag['file_name'] = os.path.abspath(output)
+        res['status'] = 'done' if opens_in_editor(after_diag, version_num) else 'partial'
+    except (Exception, SystemExit) as e:
+        res['status'] = 'failed'
+        res['err'] = _error(e)
+    finally:
+        if res['err'] is not None:
+            _remove_quietly(res['output'])
+            res['output'] = None
     return res
 
 
