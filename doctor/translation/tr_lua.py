@@ -363,7 +363,7 @@ def quote(value, raw, bracket=False):
     out = []
     for c in value:
         if c == ']' and bracket:
-            out.append('\\93')
+            out.append('\\093')
         elif c == q:
             out.append('\\' + q)
         elif c in _ESCAPES:
