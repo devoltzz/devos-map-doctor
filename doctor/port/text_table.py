@@ -20,10 +20,18 @@ class TableError(ValueError):
     pass
 
 
+class NoBytecode(TableError):
+    pass
+
+
 def detect(body_text):
     for m in RX_DECL_LINE.finditer(body_text):
         ht = m.group(1)
-        if ('LoadStr(%s,LoadInteger(%s,0,' % (ht, ht)) in body_text and ('SaveStr(%s,' % ht) not in body_text:
+        if ('LoadStr(%s,LoadInteger(%s,0,' % (ht, ht)) not in body_text:
+            continue
+        all_entries = len(re.findall(r'\b%s\b' % ht, body_text))
+        read_back = len(re.findall(r'\b(?:LoadStr|LoadInteger|HaveSaved\w+)[ \t]*\([ \t]*%s[ \t]*,' % ht, body_text))
+        if all_entries == 1 + read_back:
             return ht
     return None
 
@@ -87,13 +95,58 @@ def _simulate(main, ht):
                     reg.pop(r, None)
             elif op in (lt.JMP, lt.EQ, lt.LT, lt.LE, lt.TEST, lt.FORLOOP, lt.FORPREP, lt.TFORLOOP):
                 reg.clear()
+            elif op in (lt.LOADNIL, lt.SELF, lt.VARARG, lt.TFORCALL):
+                for r in range(a, a + 256):
+                    reg.pop(r, None)
             elif op not in (lt.SETTABUP, lt.SETTABLE, lt.SETLIST, lt.RETURN, lt.EXTRAARG):
                 reg[a] = None
     return strs, ints
 
 
+NAMES_OF_THE_MAP = ('war3map.j', 'scripts\\war3map.j', 'war3map.lua', 'war3map.w3i', 'war3map.wts', 'war3map.wtg',
+                    'war3map.wct', 'war3map.w3e', 'war3map.doo', 'war3mapUnits.doo', 'war3map.w3r', 'war3map.w3c',
+                    'war3map.w3s', 'war3map.shd', 'war3map.mmp', 'war3map.imp', 'war3mapMisc.txt', 'war3mapSkin.txt',
+                    'war3mapExtra.txt', 'war3map.w3u', 'war3map.w3t', 'war3map.w3b', 'war3map.w3d', 'war3map.w3a',
+                    'war3map.w3h', 'war3map.w3q', '(listfile)', '(attributes)')
+
+
+def named_blocks(file_):
+    from doctor.mpq import mpqread
+    try:
+        name_list = list(mpqread.listfile_names(file_))
+    except Exception:
+        name_list = []
+    out = set()
+    for n in name_list + list(NAMES_OF_THE_MAP):
+        try:
+            e = file_.find(n)
+        except Exception:
+            return set()
+        if e:
+            out.add(e[1])
+    return out
+
+
 def chunk(file_, ht):
     ps = chunks(file_)
+    if not any(d.startswith(LUA_B64) for d in ps.values()):
+        raise NoBytecode('no base64 chunk starts with the Lua 5.3 header')
+    with_name = named_blocks(file_)
+    unnamed = dict((bi, d) for bi, d in ps.items() if bi not in with_name)
+    if len(unnamed) < len(ps) and sum(1 for d in unnamed.values() if d.startswith(LUA_B64)) == 1:
+        proven = _arrangements(unnamed, ht)
+        if proven:
+            if len(proven) != 1:
+                raise TableError('%d arrangement(s) of the %d base64 pieces prove out (1 expected)'
+                                 % (len(proven), len(unnamed)))
+            return proven[0]
+    proven = _arrangements(ps, ht)
+    if len(proven) != 1:
+        raise TableError('%d arrangement(s) of the %d base64 pieces prove out (1 expected)' % (len(proven), len(ps)))
+    return proven[0]
+
+
+def _arrangements(ps, ht):
     first_pieces = [bi for bi, d in ps.items() if d.startswith(LUA_B64)]
     if len(first_pieces) != 1:
         raise TableError('%d base64 piece(s) start with the Lua 5.3 header (1 expected)' % len(first_pieces))
@@ -133,9 +186,7 @@ def chunk(file_, ht):
         if not strs or children != sorted(children):
             continue
         proven.append((data_bytes, order, strs, ints))
-    if len(proven) != 1:
-        raise TableError('%d arrangement(s) of the %d base64 pieces prove out (1 expected)' % (len(proven), len(ps)))
-    return proven[0]
+    return proven
 
 
 ESCAPES = {0x5C: b'\\\\', 0x22: b'\\"', 0x0A: b'\\n', 0x0D: b'\\r', 0x09: b'\\t'}
@@ -209,7 +260,11 @@ def prepare(body_text, map_path):
     if not ht:
         return body_text, None
     from doctor.mpq import mpqread
-    _, order, strs, ints = chunk(mpqread.Archive(map_path), ht)
+    try:
+        _, order, strs, ints = chunk(mpqread.Archive(map_path), ht)
+    except NoBytecode as e:
+        print('WARNING text_table: the script only reads the hashtable %s, but %s: it stays as it is' % (ht, e))
+        return body_text, None
     t, info = recover(body_text, ht, strs, ints)
     info['chunks'] = order
     return t, info
