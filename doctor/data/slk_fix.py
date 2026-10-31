@@ -77,9 +77,7 @@ def strip_id_lists(line_list):
 
 def fixable(origin, dest=None):
     raw_bytes = io.open(origin, 'rb').read()
-    txt = raw_bytes.decode('utf-8', 'surrogateescape')
-    crlf = '\r\n' in txt
-    line_list = txt.replace('\r\n', '\n').split('\n')
+    line_list, crlf = slk_cols.lines_of(raw_bytes)
     replacements, numeric_columns = fix_numbers(line_list)
     replacements += strip_id_lists(line_list)
 
