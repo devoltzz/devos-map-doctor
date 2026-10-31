@@ -270,7 +270,8 @@ def fix(path_in, path_out, progress=None):
     p('Making %d disabled icons' % len(missing))
     repl, res['failed'] = _make(missing)
     if not repl:
-        res['state'] = 'nothing_to_do'
+        res['error'] = 'None of the %d icons without disabled art could be read (%s: %s).' % (
+            len(res['failed']), res['failed'][0][0], res['failed'][0][1])
         return res
     new_names = [n for n, _d in repl]
     extra = []
