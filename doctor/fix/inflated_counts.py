@@ -1424,8 +1424,8 @@ def _var_name(fname, prefix=''):
     return fname.replace('_', ' ')
 
 
-RX_RECT = re.compile(r'gg_rct_([A-Za-z0-9_]+)\s*=\s*Rect\(\s*([^)]*)\)')
-RX_RECT_JASS = re.compile(r'set\s+gg_rct_([A-Za-z0-9_]+)\s*=\s*Rect\(\s*([^)]*)\)')
+RX_RECT = re.compile(r'gg_rct_([A-Za-z0-9_]+)\s*=\s*Rect\(([^)]*)\)')
+RX_RECT_JASS = re.compile(r'set\s+gg_rct_([A-Za-z0-9_]+)\s*=\s*Rect\(([^)]*)\)')
 RX_WEATHER = re.compile(r'AddWeatherEffect\(\s*gg_rct_([A-Za-z0-9_]+)\s*,\s*'
                         r'(?:FourCC\(\s*[\'"](.{1,4})[\'"]\s*\)|\'(.{1,4})\')')
 RX_SOUND_POS = re.compile(r'SetSoundPosition\(\s*(gg_snd_[A-Za-z0-9_]+)\s*,\s*'
@@ -1484,7 +1484,7 @@ def _bodies_of_role(body_text, role):
     return ''.join(bodies[n] for n in name_list if n in bodies)
 
 
-RX_ANY_RECT = re.compile(r'set\s+(\w+)\s*=\s*Rect\(\s*([^)]*)\)')
+RX_ANY_RECT = re.compile(r'set\s+(\w+)\s*=\s*Rect\(([^)]*)\)')
 RX_ANY_WEATHER = re.compile(r'AddWeatherEffect\(\s*(\w+)\s*,\s*(?:FourCC\(\s*[\'"](.{1,4})[\'"]\s*\)|\'(.{1,4})\')')
 
 
@@ -1572,14 +1572,14 @@ CAMERA_FIELDS = {'CAMERA_FIELD_ZOFFSET': 'z', 'CAMERA_FIELD_ROTATION': 'rotation
                  'CAMERA_FIELD_DEPTH_OF_FIELD_DISTANCE': 'dof0', 'CAMERA_FIELD_DEPTH_OF_FIELD_SCALE': 'dof1',
                  'CAMERA_FIELD_ZABSOLUTE': 'dof2'}
 RX_CAM = re.compile(r'(gg_cam_[A-Za-z0-9_]+)\s*=\s*CreateCameraSetup\(')
-RX_CAM_FIELD = re.compile(r'CameraSetupSetField\(\s*(gg_cam_[A-Za-z0-9_]+)\s*,\s*(CAMERA_FIELD_[A-Z_]+)\s*,\s*([^,]+),')
-RX_CAM_POS = re.compile(r'CameraSetupSetDestPosition\(\s*(gg_cam_[A-Za-z0-9_]+)\s*,\s*([^,]+),\s*([^,]+),')
-RX_CAM_TYPE = re.compile(r'BlzCameraSetupSetCameraType\(\s*(\w+)\s*,\s*([^)]+?)\s*\)')
+RX_CAM_FIELD = re.compile(r'CameraSetupSetField\(\s*(gg_cam_[A-Za-z0-9_]+)\s*,\s*(CAMERA_FIELD_[A-Z_]+)\s*,([^,]+),')
+RX_CAM_POS = re.compile(r'CameraSetupSetDestPosition\(\s*(gg_cam_[A-Za-z0-9_]+)\s*,([^,]+),([^,]+),')
+RX_CAM_TYPE = re.compile(r'BlzCameraSetupSetCameraType\(\s*(\w+)\s*,([^)]*)\)')
 
 
 RX_ANY_CAM = re.compile(r'set\s+(\w+)\s*=\s*CreateCameraSetup\(')
-RX_ANY_CAM_FIELD = re.compile(r'CameraSetupSetField\(\s*(\w+)\s*,\s*(CAMERA_FIELD_[A-Z_]+)\s*,\s*([^,]+),')
-RX_ANY_CAM_POS = re.compile(r'CameraSetupSetDestPosition\(\s*(\w+)\s*,\s*([^,]+),\s*([^,]+),')
+RX_ANY_CAM_FIELD = re.compile(r'CameraSetupSetField\(\s*(\w+)\s*,\s*(CAMERA_FIELD_[A-Z_]+)\s*,([^,]+),')
+RX_ANY_CAM_POS = re.compile(r'CameraSetupSetDestPosition\(\s*(\w+)\s*,([^,]+),([^,]+),')
 
 
 def cameras_from_script(body_text):
