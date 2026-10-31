@@ -438,7 +438,9 @@ def map_native_declarations(origin):
     map_path = re.sub(r'\r(?!\n)', '\n', map_path)
     decl = {}
     order = []
-    for m in re.finditer(r'(?m)^\s*native\s+([A-Za-z_]\w*)\s+takes\s+(.*?)\s+returns\s+(\w+)', map_path):
+    for m in re.finditer(
+        r'(?m)^\s*(?:constant\s+)?native\s+([A-Za-z_]\w*)\s+takes\s+(.*?)\s+returns\s+(\w+)', map_path
+    ):
         decl[m.group(1)] = {'takes': m.group(2).strip(), 'ret': m.group(3)}
         order.append(m.group(1))
     return decl, order
@@ -570,7 +572,7 @@ def natives_of_map():
     if not os.path.isfile(MAP_NATIVES):
         return set()
     t = open(MAP_NATIVES, 'rb').read().decode('latin-1')
-    return set(re.findall(r'(?m)^\s*native\s+([A-Za-z_]\w*)\s+takes\s', t))
+    return set(re.findall(r'(?m)^\s*(?:constant\s+)?native\s+([A-Za-z_]\w*)\s+takes\s', t))
 
 
 def main(argv=None):
