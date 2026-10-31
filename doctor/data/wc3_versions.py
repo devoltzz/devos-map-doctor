@@ -171,7 +171,13 @@ def download(progress=None):
         if not os.environ.get('WC3_VERSOES_URL') and (got != DATA_ZIP['size'] or h.hexdigest() != DATA_ZIP['sha256']):
             raise OSError('the download of %s is incomplete or damaged' % PACK_ZIP)
         if os.path.isdir(d):
-            shutil.rmtree(d, ignore_errors=True)
+            old = d + '.old'
+            shutil.rmtree(old, ignore_errors=True)
+            try:
+                os.rename(d, old)
+            except OSError:
+                old = d
+            shutil.rmtree(old, ignore_errors=True)
         unpack(part, d)
     finally:
         if os.path.exists(part):
@@ -184,7 +190,7 @@ def _pack_velho(d):
     for v in CLASSIC:
         m = os.path.join(d, v, PACK_MANIFEST)
         if not os.path.isfile(m):
-            continue
+            return True
         try:
             with open(m, encoding='utf-8') as f:
                 pat = json.load(f).get('patterns') or []
@@ -203,8 +209,11 @@ def ensure(progress=None):
             return True
     if 'failed' in _DOWNLOAD or os.environ.get('WC3_VERSOES_DADOS'):
         return False
+    if 'done' in _DOWNLOAD:
+        return True
     try:
         download(progress)
+        _DOWNLOAD['done'] = True
         return True
     except Exception as e:
         _DOWNLOAD['failed'] = str(e)
