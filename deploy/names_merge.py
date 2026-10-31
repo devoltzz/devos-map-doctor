@@ -8,6 +8,8 @@ RX_BLOCK = re.compile(r'```[^\n]*\n(.*?)```', re.S)
 RX_ATTACH = re.compile(r'https://github\.com/[^\s()<>\]]+\.txt')
 SPECIAL = ('(listfile)', '(attributes)', '(signature)')
 NAME_MAX = 300
+NAMES_MAX = 50000
+ATTACH_MAX = 5
 
 
 def crypt_table():
@@ -46,7 +48,7 @@ def clean(line):
 def names_of(text):
     blocks = RX_BLOCK.findall(text)
     lines = '\n'.join(blocks).splitlines() if blocks else text.splitlines()
-    for url in RX_ATTACH.findall(text):
+    for url in RX_ATTACH.findall(text)[:ATTACH_MAX]:
         try:
             with urllib.request.urlopen(url, timeout=60) as r:
                 lines += r.read(4 << 20).decode('utf-8', 'replace').splitlines()
@@ -70,7 +72,8 @@ def in_index(path, names):
         return set()
     try:
         import numpy as np
-        key = np.load(path)['chave']
+        z = np.load(path)
+        key = z['hash_key'] if 'hash_key' in z.files else z['chave']
     except Exception as e:
         print('(names.npz not read: %s)' % e, file=sys.stderr)
         return set()
@@ -88,6 +91,12 @@ def main(argv):
     index = argv[3] if len(argv) > 3 else None
     with open(body, encoding='utf-8', errors='replace') as f:
         names, bad = names_of(f.read())
+    if len(names) > NAMES_MAX:
+        print(
+            'This issue has %d file names, more than the %d one map can have: nothing was added. Please send the list '
+            'of one map per issue.' % (len(names), NAMES_MAX)
+        )
+        return 0
     old = []
     if os.path.isfile(learned):
         with open(learned, encoding='utf-8', errors='replace') as f:
