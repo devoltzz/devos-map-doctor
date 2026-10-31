@@ -412,6 +412,16 @@ def fix_text(text, types_=None, common_text=None):
                 if f.return_type in ('nothing',):
                     rep['skipped'] += len(xs)
                     continue
+                if (
+                    stmt is not None
+                    and stmt.value is not None
+                    and any(
+                        type(n) is jass_ast.Literal and ('\n' in n.text or '\r' in n.text)
+                        for n in jass_ast.walk(stmt.value)
+                    )
+                ):
+                    rep['skipped'] += len(xs)
+                    continue
                 g = temp(f.return_type)
                 comment = ('' if not stmt.comment else ' ' + stmt.comment)
                 after[line] = ([ind + 'set ' + g + ' = ' + jass_ast._ue(stmt.value)] + nulls +
