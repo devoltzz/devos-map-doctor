@@ -59,7 +59,7 @@ def record_error(ko, en):
         return None
     pe = kv_record(en)
     if pe is None or [k for k, _v in pk] != [k for k, _v in pe]:
-        return 'broken key:value record (keys %s; never a `,` or a `:` inside a value)' % ','.join(
+        return 'key:value record broken (keys %s; never a `,` or a `:` inside a value)' % ','.join(
             k for k, _v in pk)[:80]
     if en.count(':') != ko.count(':'):
         return 'key:value record with %d `:`, expected %d (a `:` inside a value cuts it)' % (en.count(':'),
