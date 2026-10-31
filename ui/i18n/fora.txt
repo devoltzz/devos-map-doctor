@@ -186,3 +186,10 @@ JassNative Editor
 Escape
 a, button, input, select, textarea, summary, label
 dados:{0}
+Affinity
+Times
+DHT parte no cabecalho, parte no mipmap
+^local no main:
+os blocos if/loop do main nao fecham
+registro chave:valor
+muito longo ({0} chars vs {1})
