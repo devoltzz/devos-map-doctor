@@ -11,6 +11,8 @@ BURST_MS = 3000
 BURST_MIN = 3
 FRAME_NEAR_MS = 6000
 EVENT_MAX = 20000
+BLOCK = 8192
+STREAM_MAX = 128 << 20
 CHAT_MODES = {0: 'all', 1: 'allies', 2: 'observers'}
 LEAVE_REASONS = {0x01: 'connection closed by the remote game', 0x0C: 'connection closed by the local game',
                  0x0E: 'unknown (like 0x01)'}
@@ -119,28 +121,30 @@ def _container(data):
     out = []
     n = 0
     truncated = False
+    cap = min(decompressed + BLOCK if decompressed else STREAM_MAX, STREAM_MAX)
+    total = 0
     while pos < len(data):
         step = 12 if head['reforged'] else 8
         if pos + step > len(data):
             truncated = True
             break
         if head['reforged']:
-            size, usize, _ck = struct.unpack_from('<3I', data, pos)
+            size, _usize, _ck = struct.unpack_from('<3I', data, pos)
         else:
-            size, usize = struct.unpack_from('<HH', data, pos)
+            size, _usize = struct.unpack_from('<HH', data, pos)
         blk = data[pos + step:pos + step + size]
         if len(blk) < size:
             truncated = True
-        teto = max(usize, 8192)
         try:
             d = zlib.decompressobj()
-            pedaco = d.decompress(blk, teto + 1)
+            pedaco = d.decompress(blk, min(BLOCK, cap - total) + 1)
         except zlib.error:
             truncated = True
             break
-        if len(pedaco) > teto or (decompressed and sum(map(len, out)) > decompressed + teto):
+        if len(pedaco) > BLOCK or total + len(pedaco) > cap:
             truncated = True
             break
+        total += len(pedaco)
         out.append(pedaco)
         n += 1
         pos += step + size
