@@ -1532,12 +1532,12 @@ def canonical_function(text, functions=None):
     return gui_render.canonical(inline_one_liners(text, functions or {}), 'jass', True)
 
 
-def same_function(rendered, original, rendered_all=None, original_all=None, name=None):
+def same_function(rendered, original, rendered_all=None, original_all=None, name=None, jasshelper=True):
     a = canonical_function(rendered, rendered_all)
     b = canonical_function(original, original_all)
     if a == b:
         return True
-    if name == 'main':
+    if name == 'main' and jasshelper:
         sem = RX_MAIN_JASSHELPER.sub('', original)
         if sem != original and canonical_function(sem, original_all) == a:
             return True
@@ -1824,7 +1824,7 @@ RX_FACING = re.compile(
 FACING_TOLERANCE = 0.0015
 
 
-def same_but_facing(rendered, original, rendered_all=None, original_all=None, name=None):
+def same_but_facing(rendered, original, rendered_all=None, original_all=None, name=None, jasshelper=True):
     fa = [float(m.group(2)) for m in RX_FACING.finditer(rendered)]
     fb = [float(m.group(2)) for m in RX_FACING.finditer(original)]
     if len(fa) != len(fb) or any(abs(x - y) > FACING_TOLERANCE for x, y in zip(fa, fb)):
@@ -1832,7 +1832,7 @@ def same_but_facing(rendered, original, rendered_all=None, original_all=None, na
 
     def flat(text):
         return RX_FACING.sub(lambda m: m.group(1) + '0' + m.group(3), text)
-    return same_function(flat(rendered), flat(original), rendered_all, original_all, name)
+    return same_function(flat(rendered), flat(original), rendered_all, original_all, name, jasshelper)
 
 
 def _twins(rendering, header, reference, never=NEVER_TWIN, facing=False):
@@ -1847,7 +1847,7 @@ def _twins(rendering, header, reference, never=NEVER_TWIN, facing=False):
                 facing and same_but_facing(text, theirs.get(x, ''), rendering.functions, theirs, x))
     for x in ('main', 'config'):
         if x in rendering.functions and x in theirs:
-            out[x] = same_function(rendering.functions[x], theirs[x], rendering.functions, theirs, x)
+            out[x] = same_function(rendering.functions[x], theirs[x], rendering.functions, theirs, x, not facing)
     return out
 
 
@@ -1912,8 +1912,8 @@ def runs_original(script, reference, replaced=(), facing=False):
             if n in ORDER_BY_FOLDER and _same_calls(mine[n], theirs[n]):
                 pass
             elif canonical_function(mine[n], mine) != canonical_function(theirs[n], theirs) and not (
-                    facing and (same_function(mine[n], theirs[n], mine, theirs, n.replace(DEVO, '', 1)) or
-                                same_but_facing(mine[n], theirs[n], mine, theirs, n.replace(DEVO, '', 1)))):
+                    facing and (same_function(mine[n], theirs[n], mine, theirs, n.replace(DEVO, '', 1), False) or
+                                same_but_facing(mine[n], theirs[n], mine, theirs, n.replace(DEVO, '', 1), False))):
                 problems.append('%s differs' % n)
         stack.extend(sorted(function_refs(mine[n], names) - seen))
     detail = '%d functions reached from main and config, %d compared as code' % (len(seen), compared)
