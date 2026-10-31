@@ -1092,6 +1092,7 @@ def scan(path):
         if isinstance(e, KeyboardInterrupt):
             raise
         out['reason'] = 'The map cannot be read (%s).' % unprotect._error(e)
+        out['unreadable'] = True
         return out
     out['language'], out['script'] = sc['language'], sc['file']
     if sc['language'] == 'lua' and sc['bytes'] is not None:
