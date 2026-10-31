@@ -5,6 +5,8 @@ import re
 import struct
 
 from doctor.port import swap_calls
+from doctor.port import class1
+from doctor.port import ui_local
 
 
 SWAP_Z = {'GetLocationZ': 'KK_zl'}
@@ -260,6 +262,7 @@ def map_functions(raw_data):
 def swap_reads(body_text, raw_data):
     autora = map_functions(raw_data)
     line_list = body_text.split('\n')
+    masked_text_lines = class1.masked_lines(body_text)
     fn = None
     replacements = voo = 0
     by_function = {}
@@ -270,22 +273,35 @@ def swap_reads(body_text, raw_data):
             fn = m.group(1)
         if 'GetLocationZ' not in line:
             continue
-        ss = swap_calls.sitios(line, SWAP_Z)
+        ss = swap_calls.sitios(masked_text_lines[k], SWAP_Z)
         n = len(ss)
         if not n:
             continue
         if fn not in autora:
             outside[fn] = outside.get(fn, 0) + n
             continue
-        if 'SetUnitFlyHeight(' in line:
-            voo += n
+        exempt_sites = _flight_exempt(masked_text_lines[k], ss) if 'SetUnitFlyHeight' in masked_text_lines[k] else set()
+        voo += len(exempt_sites)
+        ss = [s for s in ss if s[0] not in exempt_sites]
+        if not ss:
             continue
         for begin, end_pos, fname in sorted(ss, reverse=True):
             line = line[:begin] + SWAP_Z[fname] + line[end_pos:]
         line_list[k] = line
-        replacements += n
-        by_function[fn] = by_function.get(fn, 0) + n
+        replacements += len(ss)
+        by_function[fn] = by_function.get(fn, 0) + len(ss)
     return '\n'.join(line_list), replacements, voo, by_function, outside
+
+
+def _flight_exempt(ln, ss):
+    exempt_sites = set()
+    for begin, end_pos, _n in swap_calls.sitios(ln, {'SetUnitFlyHeight': 1}):
+        opens = ln.index('(', end_pos)
+        on_close = ui_local.on_close(ln, opens)
+        if on_close < 0:
+            return set(s[0] for s in ss)
+        exempt_sites.update(s[0] for s in ss if opens < s[0] < on_close and ln[:s[0]].rstrip().endswith('-'))
+    return exempt_sites
 
 
 def applies(body_text, cfg, to_report=False):
