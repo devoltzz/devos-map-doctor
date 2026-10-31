@@ -24,6 +24,7 @@ RX_RUN = re.compile(
 )
 RX_TABLE = r'local\s+%s\s*=\s*\{\s*(\d+(?:\s*,\s*\d+)*)\s*,?\s*\}'
 RX_COMMENTS = re.compile(r'\A(?:\s|--(?!\[=*\[)[^\n]*\n?)*')
+RX_LONG_COMMENT = re.compile(r'--\[(=*)\[.*?\]\1\]|--[^\r\n]*', re.S)
 RX_RENAMED = re.compile(r'(?<![\w.:])__L(\d+)\b')
 
 
@@ -73,9 +74,11 @@ def detect(body_text):
         if not hash_key or any(not 0 <= x <= 255 for x in hash_key):
             return None
         jpeg_seed, n, origin = None, len(hash_key), 'literal (not checked on a real map)'
+    starts = [pay.start()] + [m.start() for m in (m_l, xor, re.compile(r'local\s+%s\s*=\s*\{' % re.escape(k_name))
+                                                    .search(t, body_start, m_run.start())) if m]
     return {'family': family, 'op': op, 'key': origin, 'seed': jpeg_seed, 'key_len': n, 'key_bytes': hash_key,
             'payload': pay.group(2), 'marker': MARKER in t[:body_start + len(MARKER) + 2],
-            'start': body_start, 'end': m_run.end()}
+            'start': body_start, 'loader_start': min(starts), 'end': m_run.end()}
 
 
 def _open(d):
@@ -114,9 +117,11 @@ def peel(body_text, check_parse=True):
         if d is None:
             break
         after_diag = len(t[d['end']:].strip())
-        if after_diag or (d['end'] - d['start']) - len(d['payload']) > LOADER_MAX:
+        before = len(RX_LONG_COMMENT.sub('', t[d['start']:d['loader_start']]).strip().lstrip('\xef\xbb\xbf﻿')
+                     .strip())
+        if after_diag or before or (d['end'] - d['start']) - len(d['payload']) > LOADER_MAX:
             details['error'] = 'layer %d: other code around the loader (%d bytes); not peeled' % (
-                len(details['layers']) + 1, after_diag or (d['end'] - d['start']) - len(d['payload']))
+                len(details['layers']) + 1, after_diag or before or (d['end'] - d['start']) - len(d['payload']))
             break
         plaintext = _open(d)
         if check_parse:
