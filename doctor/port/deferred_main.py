@@ -110,20 +110,25 @@ def applies(body_text, sector_slice=SLICE, local_vars=False):
     header, begin, end_pos = pos
     keep = []
     frames = [[]]
+    max_depth = 0
     for brute in _lines(body_text[begin:end_pos]):
         line = _remove(brute)
         if not line:
             continue
-        if line.startswith('local '):
+        if re.match(r'local\b', line):
             info['failures'].append('a local in main: %s' % line)
             return body_text, info
+        if re.match(r'(?:endif|endloop)\b', line):
+            max_depth -= 1
         m = RX_CALL.match(line)
-        if m and m.group(1) in KEEPS:
+        if max_depth == 0 and m and m.group(1) in KEEPS:
             keep.append('    ' + line)
             continue
         m0 = RX_CALL0.match(line)
-        if m0 and m0.group(1) in CUTS and frames[-1]:
+        if max_depth == 0 and m0 and m0.group(1) in CUTS and frames[-1]:
             frames.append([])
+        if re.match(r'(?:if|loop)\b', line):
+            max_depth += 1
         if m0:
             frames[-1].append(
                 '    call ExecuteFunc("%s")%s' % (m0.group(1), (' ' + m0.group(2)) if m0.group(2) else '')
@@ -132,6 +137,9 @@ def applies(body_text, sector_slice=SLICE, local_vars=False):
             frames[-1].append('    ' + line)
         if not line.startswith('//'):
             info['deferred_ones'] += 1
+    if max_depth != 0:
+        info['failures'].append('the if/loop blocks of main do not close')
+        return body_text, info
     frames = [q for q in frames if q]
     if len(frames) == 1:
         frames.append(['    // ' + MARK[3:] + ': the end (the clock)'])
