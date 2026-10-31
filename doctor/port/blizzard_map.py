@@ -4,11 +4,8 @@ import re
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ARCHIVE_ROOT = os.path.normpath(os.path.join(HERE, '..', '..'))
-VANILLA = os.path.join(
-    ARCHIVE_ROOT, 'terceiros', 'w3x2lni-2.7.3', 'data', 'enUS-1.27.1', 'mpq', 'Scripts', 'Blizzard.j'
-)
-REF_30 = os.path.join(ARCHIVE_ROOT, 'common', 'ref', '3.0')
+VANILLA = os.path.normpath(os.path.join(HERE, '..', 'ref', '1.24', 'blizzard.j'))
+REF_30 = os.path.normpath(os.path.join(HERE, '..', 'ref', '3.0'))
 
 RX_FUNC = re.compile(
     r'^[ \t]*(constant[ \t]+)?function[ \t]+(\w+)[ \t]+takes\b.*?^[ \t]*endfunction[ \t]*(?://[^\n]*)?$', re.M | re.S
