@@ -263,6 +263,8 @@ def entry_from_id(ident, text, read):
     m = RX_ID.match(ident or '')
     if not m:
         raise ValueError('not an image entry')
+    if not isinstance(text, str):
+        raise ValueError('the entry has no original text')
     members = m.group(2).split('|')
     datas = []
     for n in members:
