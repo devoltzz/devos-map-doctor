@@ -144,7 +144,7 @@ def control_rawcodes(body_text):
             return m.group(0)
         n[0] += 1
         return str(int.from_bytes(s.encode('latin-1'), 'big'))
-    new = re.sub(r"'([^']{4})'", swap, body_text)
+    new = re.sub(r'"(?:\\.|[^"\\])*"|//[^\n]*|' + r"'([^']{4})'", swap, body_text, flags=re.S)
     return new, n[0]
 
 
