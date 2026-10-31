@@ -86,7 +86,9 @@ def compiles(paths, pjass=None, tmp=None):
         raise TimeoutError('pjass: no answer in %d s' % MAX_TIME)
     out = (r.stdout or '') + (r.stderr or '')
     line_list = [line for line in out.splitlines() if line.strip()]
-    warnings = [line for line in line_list if 'warning' in line.lower()]
+    warnings = [
+        line for line in line_list if 'warning' in line.lower() and not (RX_WHERE.match(line) or RX_TOTAL.search(line))
+    ]
     seen_warnings = set(warnings)
     error_list = [line for line in line_list if line not in seen_warnings and
                   (RX_WHERE.match(line) or RX_TOTAL.search(line) or re.search(r'\b(error|Error)\b', line))]
