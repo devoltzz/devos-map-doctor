@@ -317,6 +317,9 @@ def _tga_colors(raw, bits, alpha_bits):
     return out
 
 
+TGA_MAX_PIXELS = 8192 * 8192
+
+
 def _tga_rle(d, p, need, size):
     out = bytearray()
     end = len(d)
@@ -330,7 +333,8 @@ def _tga_rle(d, p, need, size):
         else:
             out += d[p:p + k * size]
             p += k * size
-    return bytes(out[:need])
+    del out[need:]
+    return out
 
 
 def tga_decode(d):
@@ -339,6 +343,8 @@ def tga_decode(d):
     idlen, cmtype, itype, cmfirst, cmlen, cmbits, _x, _y, w, h, bpp, desc = struct.unpack_from('<BBBHHBHHHHBB', d, 0)
     if itype not in (1, 2, 3, 9, 10, 11) or not w or not h or bpp not in (8, 15, 16, 24, 32):
         raise ValueError('TGA type %d, %d bits: not an image the Doctor reads' % (itype, bpp))
+    if w * h > TGA_MAX_PIXELS:
+        raise ValueError('TGA of %dx%d: larger than any image the Doctor reads' % (w, h))
     p = 18 + idlen
     cmap = None
     if cmtype:
@@ -347,6 +353,8 @@ def tga_decode(d):
         p += cmlen * esize
     size = (bpp + 7) // 8
     need = w * h * size
+    if itype >= 9 and (len(d) - p) * 128 * size < need * (1 + size):
+        raise ValueError('TGA cut short')
     data = _tga_rle(d, p, need, size) if itype >= 9 else d[p:p + need]
     if len(data) < need:
         raise ValueError('TGA cut short')
