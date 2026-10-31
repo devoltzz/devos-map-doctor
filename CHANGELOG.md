@@ -3,6 +3,52 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 2.0.1 (2026-10-31)
+
+### Fixed
+
+- **Port to Reforged, a map saved by the World Editor while JassHelper did not compile it ("the script chain stopped
+  at 12 (injection)"):** when JassHelper fails, is off, or does not compile the map you saved, the map keeps the
+  script the World Editor writes before JassHelper: the custom script as it was written, with the `//! inject main`
+  block as a comment and its code outside any function (or with its own globals block after the editor's functions),
+  so the game cannot load the map either. The port now compiles that script the way JassHelper compiles the Doctor's
+  editor copies (the `//! inject` blocks become main and config, the globals blocks join) and goes on. A custom script
+  with other vJass still needs JassHelper.
+- **Port to Reforged, KK and M16 maps that put the command buttons in a layout of their own:** the buttons now stay
+  where the map put them. Reforged puts the command buttons back in their own places at every selection, so they came
+  back mixed.
+- **Port to Reforged, KK and M16 maps that read the object tables while the game runs (`EXExecuteScript` with
+  `jass.slk`) through a helper function that also takes the table as a parameter:** those reads came back empty,
+  because the port did not find the fields they ask for; it now does.
+
+### Changed
+
+- **Open in World Editor for the older editors (1.24 to 1.29 and the JassNative Editor), the memory-library typecast
+  (the fix of 1.10.3):** the custom script now declares only the local variable the map was written with (the one
+  1.10.3 added), which JassHelper renames onto the array as it did when the map was first compiled, and keeps the two
+  pjass marks; `war3map.j` keeps the compiled code the game runs. 1.10.3 had declared both that local and the map's
+  compiled one. A save of such a copy stopped with "JASSHelper Error: Out of memory"; the added local and the two pjass
+  marks of 1.10.3 were the only lines that differed from a copy that JassHelper had processed the day before, so
+  declaring both locals is the likely cause; this is not tested in that editor. Save such a copy with Save: saved with
+  Save Map As, it can stop again with "Index missing for array variable" (the error 1.10.3 fixed), most likely because
+  JassHelper then compiles the file you opened, whose `war3map.j` keeps the compiled code. When a typecast has no form
+  that JassHelper can rebuild, or the map keeps its own trigger files, nothing in it is changed and the report warns
+  (2.0.0 called the second case done).
+- **Diagnosis:** says when the map script was saved without JassHelper compiling its custom script, and what to do.
+- **Port to Reforged, the warning "the map has no Units\AbilityData.slk":** it now shows only when the map changes
+  unit types through the KK platform (`DzSetUnitID`): the port adds the Chaos abilities those changes need to that
+  table, so without it they are missing. Without that table there is nothing to fix for ability levels 5 and 6 (a map
+  saved by the World Editor keeps its abilities in war3map.w3a), so the warning only made a working map look broken.
+- **Open in World Editor for the JassNative Editor:** the report now says to save with Save (Ctrl+S), not Save Map
+  As. A copy saved with Save Map As can be left uncompiled by the JassHelper of that editor, sometimes with no error
+  shown, and the game cannot load it (the likely cause in issue 59, not confirmed in that editor). After saving,
+  Diagnosis says whether the script was compiled.
+
+### Note
+
+- **Updating from 1.11.0 or older:** the new program restarts itself once after the update. If it does not open,
+  start it again.
+
 ## 2.0.0 (2026-10-31)
 
 Version 2.0 is a full review of the program. Twelve AI review agents read every module of it, from the MPQ reader to
