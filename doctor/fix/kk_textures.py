@@ -65,7 +65,8 @@ def fix(path_in, path_out, progress=None):
         except Exception as e:
             res['failed'].append([name, (str(e) or type(e).__name__)[:80]])
     if not repl:
-        res['state'] = 'nothing_to_do'
+        res['error'] = 'None of the %d encrypted textures decrypted (%s: %s).' % (
+            len(res['failed']), res['failed'][0][0], res['failed'][0][1])
         return res
     part = model_check._part(path_out)
     try:
