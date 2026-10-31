@@ -1,4 +1,4 @@
-# The three "not allowed to edit" marks of a map: written into the map when its author asks, read by the tools that respect them.
+# The "not allowed to edit" marks of a map: a file inside the archive and a comment in the script (an old MPQ header signature is still read), read by the tools that respect them.
 import contextlib
 import io
 import json
