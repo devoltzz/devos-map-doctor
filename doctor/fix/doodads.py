@@ -134,13 +134,17 @@ def game_ids(game=None, hd=False, version_num=None):
             from doctor.data import wc3_versions
             for fname in ('doodads\\doodads.slk', 'units\\destructabledata.slk'):
                 b = wc3_versions.read(version_num, fname)
-                for m in re.finditer(rb'K"([A-Za-z][A-Za-z0-9_]{3})"', b or b''):
+                if not b:
+                    matches = set()
+                    break
+                for m in re.finditer(rb'K"([A-Za-z][A-Za-z0-9_]{3})"', b):
                     matches.add(m.group(1))
-                for m in re.finditer(rb'(?m)^([A-Za-z][A-Za-z0-9_]{3});', b or b''):
+                for m in re.finditer(rb'(?m)^([A-Za-z][A-Za-z0-9_]{3});', b):
                     matches.add(m.group(1))
         except Exception:
             matches = set()
-        _GAME_CACHE[hash_key] = matches
+        if matches:
+            _GAME_CACHE[hash_key] = matches
         return matches
     disk_path = _ids_file(game, hd)
     if disk_path and os.path.isfile(disk_path):
@@ -161,14 +165,16 @@ def game_ids(game=None, hd=False, version_num=None):
             except Exception:
                 b = None
             if not b:
-                continue
+                matches = set()
+                break
             for m in re.finditer(rb'K"([A-Za-z][A-Za-z0-9_]{3})"', b):
                 matches.add(m.group(1))
             for m in re.finditer(rb'(?m)^([A-Za-z][A-Za-z0-9_]{3});', b):
                 matches.add(m.group(1))
     except Exception:
         matches = set()
-    _GAME_CACHE[hash_key] = matches
+    if matches:
+        _GAME_CACHE[hash_key] = matches
     if disk_path and matches:
         try:
             os.makedirs(os.path.dirname(disk_path), exist_ok=True)
@@ -191,7 +197,7 @@ def _ids_file(game, hd):
     except Exception:
         return None
     base = os.environ.get('DOCTOR_CACHE') or os.path.join(tempfile.gettempdir(), 'devos_map_doctor_ui')
-    return os.path.join(base, 'doodad_ids_%s%s.txt' % (build, '_hd' if hd else ''))
+    return os.path.join(base, 'doodad_ids_%s%s.txt' % (build + '_v2', '_hd' if hd else ''))
 
 
 def invalid_ids(b, valid_ids, d=None):
