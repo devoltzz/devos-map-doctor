@@ -385,6 +385,22 @@ def map_script(a, extract, scripts_dir, log):
     kkmap = os.path.join(extract, 'kkmap.jc')
     kkwe = not j2b and len(raw_bytes) < 4096 and (b'KKWE' in raw_bytes or os.path.isfile(kkmap))
     if not j2b and not kkwe:
+        from doctor.fix import editor_version
+        if editor_version.uncompiled_custom_script(raw_bytes):
+            from doctor.triggers import editor_render
+            body_text, info = editor_render.compile_custom_script(raw_bytes.decode('utf-8', 'surrogateescape'))
+            if body_text is None:
+                raise Aborts('war3map.j was saved by the World Editor without JassHelper compiling its custom script, '
+                             'and the port cannot compile it: %s. Open the map in the editor that saved it and save it '
+                             'again with JassHelper on' % info)
+            raw_data = os.path.join(scripts_dir, 'war3map.j')
+            _writes(raw_data, body_text.encode('utf-8', 'surrogateescape'))
+            WARNINGS.append(
+                'war3map.j was saved by the World Editor without JassHelper compiling its custom script (the '
+                'game cannot load a script like that): the port compiled it as JassHelper does'
+            )
+            log('2. script: the custom script JassHelper did not compile, compiled')
+            return raw_data, 'jass'
         return ext_j, 'jass'
     from doctor.script import kkwe as _kkwe
     from doctor.script import kkwe_decompile
