@@ -21,14 +21,31 @@ def _is_mp3(d):
 
 
 def converte(entry, output, log=print, types=TYPES, ffmpeg=None):
+    entry, output = os.path.abspath(entry), os.path.abspath(output)
+    if entry == output:
+        raise SystemExit('the output must be another file (the input never changes)')
+    root, ext = os.path.splitext(output)
+    part = root + '.part' + (ext or '.w3x')
+    if os.path.normcase(part) == os.path.normcase(entry):
+        raise SystemExit('the input is the .part of the output: pick another output name')
+    try:
+        details = _convert_to_part(entry, part, log, types, ffmpeg)
+        os.replace(part, output)
+    except BaseException:
+        try:
+            os.remove(part)
+        except OSError:
+            pass
+        raise
+    return details
+
+
+def _convert_to_part(entry, output, log, types, ffmpeg):
     from doctor.models import audio_shrink
     from doctor.fix import editor_lock
     from doctor.models import dds_to_blp
     from doctor.mpq import mpqadd
     from doctor.mpq import mpqread
-    entry, output = os.path.abspath(entry), os.path.abspath(output)
-    if entry == output:
-        raise SystemExit('the output must be another file (the input never changes)')
     types = tuple(t for t in TYPES if t in set(types))
     a = mpqread.Archive(entry)
     name_list, low = [], set()
