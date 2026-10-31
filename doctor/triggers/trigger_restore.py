@@ -42,7 +42,8 @@ OBJECT_PREFIXES = ('gg_unit_', 'gg_rct_', 'gg_cam_', 'gg_snd_', 'gg_dest_', 'gg_
 RX_WORD = re.compile(r'[A-Za-z_]\w*')
 RX_STRING_OR_COMMENT = re.compile(r'("(?:[^"\\]|\\.)*")|//[^\n]*')
 RX_BANNER = re.compile(r'^//\s?Trigger:\s?(.*)$')
-RX_BANNER_BLOCK = {JASS: re.compile(r'//=+[ \t]*\n//[ \t]?Trigger:[^\n]*\n(?://=+[ \t]*\n)?'),
+RX_BANNER_BLOCK = {JASS: re.compile(r'//=+[ \t]*\n//[ \t]?Trigger:[^\n]*\n(?://[ \t]*\n(?://[^\n]*\n)*?//=+[ \t]*\n|'
+                                    r'//=+[ \t]*\n)?'),
                    LUA: re.compile(r'--=+[ \t]*\n--[ \t]?Trigger:[^\n]*\n(?:--=+[ \t]*\n)?')}
 REGISTRATION_CALLS = re.compile(r'^(?:TriggerRegister\w+|TriggerAddCondition|TriggerAddAction|DisableTrigger)$')
 
@@ -269,6 +270,14 @@ class _Source(object):
 RX_JASS_NOISE = re.compile(r'//[^\n]*|"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'', re.S)
 RX_LUA_NOISE = re.compile(r'--\[(=*)\[.*?\]\1\]|--[^\n]*|\[(=*)\[.*?\]\2\]|"(?:[^"\\\n]|\\.)*"|\'(?:[^\'\\\n]|\\.)*\'',
                           re.S)
+
+
+def _multiline_literals(raw, text, lang):
+    rest = raw.replace('\r\n', '')
+    if '\n' not in rest and '\r' not in rest:
+        return 0
+    return sum(1 for m in (RX_LUA_NOISE if lang == LUA else RX_JASS_NOISE).finditer(text)
+               if '\n' in m.group(0) and not m.group(0).startswith(('//', '--')))
 
 
 def _code_only(text, lang):
@@ -2041,7 +2050,12 @@ def _restore(res, text, td, init_per_trigger, say, matcher, editor_files=None, o
     t0 = time.time()
     if td is None:
         from doctor.triggers import triggerdata
-        td = triggerdata.load()
+        try:
+            td = triggerdata.load()
+        except FileNotFoundError as e:
+            why = str(e)[:240]
+            res.reason = why if 'the game files cannot be read' in why else 'the game files cannot be read: ' + why
+            return res
     try:
         src = _Source(text, lang)
     except (jass_ast.JassSyntaxError, lua_ast.LuaSyntaxError) as e:
@@ -2620,6 +2634,9 @@ def _assemble(res, src, td, mt, texts, header_text, decisions, editor_files=None
     res.wct = wtg.write_wct(ct)
     rep['percent_lines'] = 0 if lang != JASS else sum(
         1 for line in RX_STRING_OR_COMMENT.sub(lambda m: m.group(1) or '', res.header).split('\n') if '%' in line)
+    rep['percent_lines_text'] = 0 if lang != JASS else sum(
+        1 for t in texts if t is not None
+        for line in RX_STRING_OR_COMMENT.sub(lambda m: m.group(1) or '', t).split('\n') if '%' in line)
     rep['header_functions'] = len(header_names)
     conflicts = sorted(n for n in header_names if EDITOR_GENERATED.match(n) and n not in ('main', 'config'))
     rep['editor_name_conflicts'] = conflicts
@@ -2694,6 +2711,9 @@ def restore(script_text, lang=JASS, td=None, init_per_trigger=True, log=None, ma
     TARGET.update(ref_dir=ref_dir, editor=editor, jasshelper=jasshelper, sound_labels=sound_labels)
     try:
         text = _normalize(script_text)
+        res.report['multiline_literals'] = _multiline_literals(
+            bytes(script_text).decode('utf-8', 'surrogateescape') if isinstance(script_text, (bytes, bytearray))
+            else script_text, text, lang)
         if lang == JASS:
             if standard is None:
                 text, standard = standard_script(text, players, say, ref_dir=ref_dir)
@@ -2804,6 +2824,14 @@ def summary(res):
         lines.append('%d line(s) of the custom script have a %% inside a text: in the one map saved by the World '
                      'Editor 3.0 that was measured, those %% were gone from the saved script (a text "50%%" became '
                      '"50"). After you save, check one of them.' % r['percent_lines'])
+    if r.get('percent_lines_text'):
+        lines.append('%d line(s) of the text triggers have a %% inside a text: the World Editor may drop it when it '
+                     'saves, as it did in the custom script of the one map measured (text triggers were not measured). '
+                     'After you save, check one of them.' % r['percent_lines_text'])
+    if r.get('multiline_literals'):
+        lines.append('%d text(s) of the script run across a line break and the script does not use CR LF line breaks: '
+                     'in the custom script and the text triggers their line breaks are now CR LF, as the World Editor '
+                     'writes them.' % r['multiline_literals'])
     fit = r.get('editor_save')
     if fit and fit.get('ok'):
         lines.append('Saving from the World Editor proven: the script it writes compiles and runs the map\'s own code; '
