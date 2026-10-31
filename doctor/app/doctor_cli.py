@@ -98,9 +98,9 @@ Steps of fix / editor (none given: the defaults the window ticks for this map; -
   --unprotect --fake-files --listfile --ids --data --script-back --editor-files --counts --doodads
   --gui-triggers --script-objects --safe-units
 Extras of fix / editor (fix turns on by itself the ones the window ticks when its check finds them: --models
-  --model-names --data-pointers --kk-textures --green-icons --fix-attributes --fix-graphics-modes --fix-requirements
-  --fix-model-paths --fix-fdf; --no-<extra> leaves one out; the others are off unless given):
-  --models --model-names --portraits --data-pointers --kk-textures --green-icons --uabi --preload
+  --model-names --data-pointers --kk-textures --green-icons --console-sides --fix-attributes --fix-graphics-modes
+  --fix-requirements --fix-model-paths --fix-fdf; --no-<extra> leaves one out; the others are off unless given):
+  --models --model-names --portraits --data-pointers --kk-textures --green-icons --console-sides --uabi --preload
   --single-player --shrink --shrink-lossy --translation=<file> --strip-indent
   --fix-attributes --remove-game-files --remove-game-copies --fix-requirements --fix-model-paths --fix-fdf
   --null-handles --minify
@@ -145,6 +145,7 @@ EXTRA_FLAGS = {
     'data-pointers': 'data_pointers',
     'kk-textures': 'kk_textures',
     'green-icons': 'disabled_icons',
+    'console-sides': 'console_sides',
     'uabi': 'uabi',
     'preload': 'preload',
     'single-player': 'single_player',
@@ -242,6 +243,7 @@ DEFAULT_EXTRAS = (
     ('kk-textures', 'kk_textures', 'kk_textures'),
     ('green-icons', 'disabled_icons', 'disabled_icons'),
     ('fix-attributes', 'attributes', 'attributes'),
+    ('console-sides', 'console_sides', 'console_sides'),
     ('fix-graphics-modes', 'graphics_modes', 'graphics_modes'),
     ('fix-requirements', 'requirements', 'requirements'),
     ('fix-model-paths', 'model_paths', 'model_paths'),
@@ -776,6 +778,43 @@ def build_job(command, pos, opts, run):
     raise UsageError('unknown command %r' % command)
 
 
+COMMANDS = ('diag', 'fix', 'editor', 'port', 'check', 'cheatpacks', 'cheat', 'qol', 'translation', 'files', 'extract',
+            'script', 'rawcodes', 'recipes', 'card', 'compare', 'diagnose', 'log', 'crash', 'replay',
+            'replay-compare', 'save', 'schema')
+
+
+def cli_command(argv):
+    skip = False
+    for a in argv:
+        if skip:
+            skip = False
+        elif a == '--set':
+            skip = True
+        elif not a.startswith('-'):
+            return a if a in COMMANDS else None
+    return None
+
+
+class _PlainTerminal:
+    TABLE = dict((c, '?') for c in list(range(0x20)) + list(range(0x7f, 0xa0)) if c not in (9, 10, 13))
+
+    def __init__(self, stream):
+        self._stream = stream
+
+    def write(self, text):
+        return self._stream.write(text.translate(self.TABLE) if isinstance(text, str) else text)
+
+    def __getattr__(self, name):
+        return getattr(self._stream, name)
+
+
+def plain_terminal(stream):
+    try:
+        tty = stream.isatty()
+    except (AttributeError, ValueError):
+        tty = False
+    return _PlainTerminal(stream) if tty else stream
+
 JSON_SCHEMA = 1
 GLOBAL_OPTIONS = {'json': {'kind': 'flag', 'about': 'print the result as one JSON object on stdout'},
                   'quiet': {'kind': 'flag', 'about': 'no progress on stderr'},
@@ -952,6 +991,13 @@ def outcome_code(command, r):
         return 1
     if command == 'check' and (r or {}).get('verdict') == 'no':
         return 1
+    r = r or {}
+    if command == 'check' and any((it or {}).get('code') in ('not_a_map', 'unreadable') for it in r.get('items') or []):
+        return 1
+    if command == 'qol' and r.get('unreadable'):
+        return 1
+    if command in ('extract', 'extract all') and r.get('failed'):
+        return 3 if r.get('written') or r.get('same') or r.get('exists') else 1
     return 0
 
 
@@ -1083,6 +1129,20 @@ def main(argv, window, version=''):
         return 1
     if command == 'script' and not as_json and not refused:
         script_notes(r, saved)
+    real = sys.stdout
+    if not as_json:
+        sys.stdout = plain_terminal(real)
+    try:
+        _print_result(command, r, opts, refused, saved, as_json, version)
+    finally:
+        sys.stdout = real
+    sys.stdout.flush()
+    if not opts.get('quiet') and not opts.get('json'):
+        sys.stderr.write('(%.1f s)\n' % (time.time() - t0))
+    return outcome_code(command, r)
+
+
+def _print_result(command, r, opts, refused, saved, as_json, version):
     if as_json:
         result = envelope(r, version, command, outcome_code(command, r))
         if saved:
@@ -1101,10 +1161,6 @@ def main(argv, window, version=''):
             print(r['error'])
     else:
         show(command, r)
-    sys.stdout.flush()
-    if not opts.get('quiet') and not opts.get('json'):
-        sys.stderr.write('(%.1f s)\n' % (time.time() - t0))
-    return outcome_code(command, r)
 
 
 def install_launcher():
@@ -1127,3 +1183,8 @@ def install_launcher():
             os.remove(dst + '.new')
         except OSError:
             pass
+
+
+if __name__ == '__main__':
+    sys.stderr.write('doctor_cli is not run by itself: give the command to the Doctor (doctor --help lists them)\n')
+    sys.exit(2)
