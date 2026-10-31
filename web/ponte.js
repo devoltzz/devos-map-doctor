@@ -15,12 +15,22 @@
   const GONE = 'This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). ' +
     'Run the action again.';
   let next = 0;
+  const NEW_VERSION = 'A new version of the Doctor is ready: reload the page to use it.';
 
   const emit = ev => window.doctor && window.doctor.onEvent(ev);
   const say = (text, opts) => (typeof window.toast === 'function' ? window.toast(text, opts) : window.alert(text));
   const mb = n => Math.round(n / 1048576) + ' MB';
 
+  function stale() {
+    const rec = { stale: true, ready: Promise.reject(new Error(NEW_VERSION)),
+      w: { postMessage: m => { if (m && m.type === 'index') emit({ type: 'index_failed', message: NEW_VERSION }); },
+        terminate: () => {} } };
+    rec.ready.catch(() => {});
+    return rec;
+  }
+
   function spawn(key) {
+    if (newVersion) return stale();
     const w = new Worker('worker.js', { type: 'module' });
     let ok, bad;
     const rec = { w, ready: new Promise((a, b) => { ok = a; bad = b; }) };
@@ -71,9 +81,11 @@
 
   function request(key, msg) {
     const rid = 'r' + (++next);
+    const rec = worker(key);
+    if (rec.stale) return Promise.reject(new Error(NEW_VERSION));
     return new Promise((resolve, reject) => {
       reads.set(rid, { key, resolve, reject });
-      worker(key).w.postMessage(Object.assign({ rid }, msg));
+      rec.w.postMessage(Object.assign({ rid }, msg));
     });
   }
 
@@ -167,7 +179,8 @@
     const rec = worker(key);
     rec.ready.catch(e => {
       if (!jobs.has(id)) return;
-      const ev = { type: 'error', job: id, message: 'The engine could not start in this browser: ' + e.message };
+      const ev = { type: 'error', job: id,
+        message: rec.stale ? NEW_VERSION : 'The engine could not start in this browser: ' + e.message };
       jobs.delete(id);
       if (silent) silent.resolve(ev); else emit(ev);
     });
@@ -216,16 +229,21 @@
     busy: async () => jobs.size > 0,
     check_update: async () => {
       try {
-        if (!('caches' in window) || await caches.match('names.npz')) return false;
+        if (!('caches' in window)) return false;
+        const kept = await caches.match('names.npz');
         const r = await fetch('names.npz', { method: 'HEAD' });
         if (!r.ok) return false;
-        emit({ type: 'index', release: { index_size: Number(r.headers.get('content-length')) || 0 }, missing: true });
+        const size = Number(r.headers.get('content-length')) || 0;
+        if (kept && (!size || (Number(kept.headers.get('content-length')) || size) === size)) return false;
+        emit({ type: 'index', release: { index_size: size }, missing: !kept });
       } catch (e) { }
       return true;
     },
     install_update: async () => false,
     download_index: async () => {
-      for (const rec of [worker('main'), worker('quiet')]) rec.w.postMessage({ type: 'index', url: 'names.npz' });
+      const recs = [worker('main'), worker('quiet')];
+      const live = recs.filter(rec => !rec.stale);
+      for (const rec of live.length ? live : recs.slice(0, 1)) rec.w.postMessage({ type: 'index', url: 'names.npz' });
       return true;
     },
   };
@@ -290,8 +308,7 @@
         location.reload();
         return;
       }
-      say('A new version of the Doctor is ready: reload the page to use it.',
-        { sticky: true, actions: [['Reload', () => location.reload()]] });
+      say(NEW_VERSION, { sticky: true, actions: [['Reload', () => location.reload()]] });
     });
     navigator.serviceWorker.register('sw.js').then(r => r.update()).catch(() => null);
   }
