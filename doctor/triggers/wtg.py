@@ -597,7 +597,7 @@ class Arities(object):
 
 def load_td(path=None):
     path = path or (TRIGGERDATA_TXT if os.path.exists(TRIGGERDATA_TXT) else None)
-    note = ''
+    note = why = ''
     try:
         from doctor.triggers import triggerdata
         return triggerdata.load(path), 'triggerdata.load(%s)' % (path or '')
@@ -605,13 +605,14 @@ def load_td(path=None):
         pass
     except Exception as e:
         note = ' (triggerdata.load failed: %s)' % str(e)[:80]
+        why = str(e)[:300]
     from doctor.triggers import wtg_triggers
     if path:
         with open(path, 'rb') as f:
             return Arities(wtg_triggers.arities(f.read().decode('utf-8', 'replace'))), 'arities of %s%s' % (path, note)
     table = wtg_triggers.game_arities()
     if not table:
-        raise SystemExit('no TriggerData: pass the path of a TriggerData.txt')
+        raise FileNotFoundError(why or 'no TriggerData: pass the path of a TriggerData.txt')
     return Arities(table), 'arities of the game TriggerData (CASC)%s' % note
 
 
@@ -699,4 +700,9 @@ def info(path, td_path=None):
             print('wct/wtg: %s' % e)
             status = 1
     return status
+
+
+def _load(path):
+    with open(path, 'rb') as f:
+        return f.read()
 
