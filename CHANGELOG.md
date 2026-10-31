@@ -3,6 +3,81 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 2.0.0 (2026-10-31)
+
+Version 2.0 is a full review of the program. Twelve AI review agents read every module of it, from the MPQ reader to
+the updater; every problem they reported was then checked by other agents that tried to prove it wrong, and only what
+held was fixed. Around 140 problems were fixed this way, most of them in rare maps or in what the program reported,
+and a few in common flows. Maps that already came out right come out byte for byte the same, except the ports of KK
+maps written in Lua: their converted code changes (see "Port to Reforged, KK maps written in Lua" below).
+
+### Added
+
+- **Fix map and Port to Reforged, the console pieces beside the map's own console (a suggestion from the Discord):**
+  since 1.29 the game console has two more pieces, beside the command card and at the top. A map made for an older
+  game that replaces the console with its own art does not cover them, so Reforged draws the default stone over the
+  map's interface. The port now makes those two pieces transparent, and Fix map does it as a new extra, ticked when
+  the check finds them. Maps saved by the World Editor of 1.29 or later are left alone: their authors saw those pieces.
+- **Runs on Reforged?:** reports those console pieces.
+
+### Fixed
+
+- **Extract all, KK maps with hidden files:** a hidden file whose name has `..` could be written outside the folder
+  you picked, replacing a file that was there. Every name is now cleaned and kept inside the folder.
+- **Cancel and closing the window, the downloaded program:** the job kept running after Cancel (and after the window
+  closed), so it could still write the output it was asked to drop. Cancel now stops the whole job, with the tools it
+  started. The `doctor.exe` command line also stops the whole job on Ctrl+C.
+- **The update check:** the downloaded program is now checked against the SHA-256 that GitHub publishes for it before
+  it replaces the old one, and the download only follows GitHub addresses. A download cut in the middle no longer
+  damages the file name index, and if the program cannot be replaced the old one is put back.
+- **After an update from 1.11.0 or older:** the old updater started the new program inside the old version's unpacked
+  files, which the old version deletes when it closes: the first session could show the old window, lose files while it
+  ran, or not open at all. The new program now restarts itself once when that happens. If it still does not open, start
+  it again.
+- **Without Warcraft III installed (the Linux program, or a PC without the game):** every Port to Reforged stopped with
+  "common.ai could not be read", and Runs on Reforged? said "yes" for maps that call natives of a platform client. The
+  program now carries the files of the game it needs (the 3.0 `common.ai` and `TriggerData.txt`): without the game,
+  Port to Reforged and Runs on Reforged? work, Open in World Editor brings the triggers back as GUI (it put them all in
+  the custom script, "Because: internal error"), and Port to an older game no longer fails on the triggers.
+- **Port to Reforged, M16 maps:** the daily reward, the daily gachas and the tower never paid in maps that check the
+  daily answer against a Korean text (the IS9 pattern).
+- **Port to Reforged, KK maps written in Lua:** on Windows with a user name that has accents or Chinese letters, the
+  port silently lost the interface files the map writes while it plays. And the map's JASS code, as the port converts
+  it to Lua, now behaves as in JASS when an integer goes into a real, when two reals are compared with `==` (the game's
+  0.001 tolerance) and with the smallest integer.
+- **Port to Reforged, "Classic look of the game effects":** it undid the other changes to the object data (the
+  balanced numbers, the fixes for the classic data, the translation of the abilities and items).
+- **Port to Reforged:** maps whose own `Blizzard.j` is not in UTF-8, frame and font names that are not English, and
+  platform natives declared as `constant native` no longer stop the port or come out wrong. The report now says when
+  the map's start-up still has to run during the loading screen.
+- **Port to an older game:** the output gets its name only after it is checked, and an archive the writer cannot handle
+  ends with a report instead of an internal error.
+- **Open in World Editor with an extra ticked (map card, translation, single player):** a map that already opened in the
+  editor lost the extra, and a protected one also lost its unprotection. The copy is now written.
+- **Open in World Editor:** maps whose object data ends in a few zero bytes came out without the skin files that keep the
+  3.0 editor from closing on them.
+- **Open in World Editor for the older editors (1.24 to 1.29):** a script whose start runs the initializers of a vJass
+  library (or an `ExecuteFunc` of the author) was taken as the editor's own, and the map saved in the editor no longer
+  called them. Those maps now keep their start.
+- **Open in World Editor, Lua maps with an obfuscation loader:** code the author put before the loader was dropped.
+- **Maps marked "not allowed to edit" inside a campaign** were edited; they are now refused like the map alone.
+- **Open in World Editor for the older editors:** a texture resized to a power of two keeps much more of the picture.
+- **Cheat packs:** injecting a cheat pack failed on maps that carry a copy of the script in the `scripts` folder.
+- **Fix map:** the check after Fix now notices a file lost on the way; an unreadable object file no longer stops the
+  model path fix; Shrink models leaves the day and night models alone.
+- **Fix map and the window:** an extra with nothing to do no longer shows the sentence of a done change, a failure shows
+  its real reason, and a step that was skipped is shown instead of hidden.
+- **Translation:** the reasons a translation is refused came out partly in Portuguese or twice in the downloaded program;
+  an export of the texts (JSON or for Google Translate / DeepL) or a local machine translation saved over the map itself
+  is now refused (it replaced the map); a name the script reads as data is left out of the translation also when the
+  map keeps it in `war3map.wts`.
+- **The command line:** a command that fails exits 1 (and `extract` 3 when it wrote only part), and options given before
+  the command work.
+- **Export of the script:** it saves the script as the map has it, byte for byte (it changed the line breaks and some
+  characters).
+- **Reading damaged or hostile files:** maps, replays, crash reports and images built to use huge amounts of memory or
+  time are now refused early, and a few rare archives the game reads are now read the same way.
+
 ## 1.11.0 (2026-10-30)
 
 ### Added
