@@ -838,7 +838,7 @@ def _injeta(p, pack, text, name, bruto, opcoes, mapa, out_path, out, durable=Fal
         missing = conf.get('faltam') or conf.get('missing') or []
         if dif or missing:
             raise RuntimeError('the check: %d file(s) different, %d missing' % (len(dif), len(missing)))
-        if len(files) > 1:
+        if durable_code is not None and any(n == WCT for n, _d in files):
             _durable_check(_read_file(b, WCT), pack, durable_code)
         del b
         os.replace(parte, out_path)
