@@ -137,7 +137,8 @@ impl Op {
         match self {
             Op::And => 1,
             Op::Or => 2,
-            Op::Eq | Op::Ne | Op::Lt | Op::Le | Op::Gt | Op::Ge => 3,
+            Op::Eq | Op::Ne => 3,
+            Op::Lt | Op::Le | Op::Gt | Op::Ge => 4,
             Op::Add | Op::Sub => 5,
             Op::Mul | Op::Div => 6,
             Op::Not => 0,
