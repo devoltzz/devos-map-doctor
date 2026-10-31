@@ -804,8 +804,33 @@ function DB_item_nome takes integer index returns integer
 endfunction
 
 //{{KK_FIMSE:KK_UI_PAI}}
+function DB_comando_nome takes integer index returns integer
+    local integer i=0
+    local integer chave=-2000-index
+    local framehandle f
+    loop
+        exitwhen i>=DB_origem_n
+        if DB_origem_chave[i]==chave then
+            return DB_origem[i]
+        endif
+        set i=i+1
+    endloop
+    set f=BlzGetFrameByName("CommandButton_"+I2S(index), 0)
+    if f==null then
+        return DB_origin(ORIGIN_FRAME_COMMAND_BUTTON, index)
+    endif
+    set i=DB_fid(f)
+    set f=null
+    if i!=0 and DB_origem_n<DB_MAX then
+        set DB_origem[DB_origem_n]=i
+        set DB_origem_chave[DB_origem_n]=chave
+        set DB_origem_n=DB_origem_n+1
+    endif
+    return i
+endfunction
+
 function DzFrameGetCommandBarButton takes integer row,integer column returns integer
-    return DB_origin(ORIGIN_FRAME_COMMAND_BUTTON, row*4+column)
+    return DB_comando_nome(row*4+column)
 endfunction
 
 function DzFrameGetHeroBarButton takes integer buttonId returns integer
@@ -1688,6 +1713,9 @@ function DzCreateFrameByTagName takes string frameType,string name,integer paren
     if p==null then
         return 0
     endif
+    //{{KK_SE:KK_UI_NOMES}}
+    call DB_nomes_arma()
+    //{{KK_FIMSE:KK_UI_NOMES}}
     //{{KK_SE:KK_UI_LARGA}}
     set p=DB_larga_pai(parent, p)
     //{{KK_FIMSE:KK_UI_LARGA}}
@@ -2278,6 +2306,46 @@ function DB_bordas_aplica takes nothing returns nothing
 endfunction
 
 //{{KK_FIMSE:KK_UI_BORDAS}}
+//{{KK_SE:KK_UI_NOMES}}
+string array DB_nm_nome
+integer array DB_nm_id
+integer DB_nm_n=0
+timer DB_nm_t=null
+boolean DB_nm_armado=false
+
+function DB_nomes_resolve takes nothing returns nothing
+    local integer i=0
+    local framehandle f
+    set DB_nm_armado=false
+    loop
+        exitwhen i>=DB_nm_n
+        set f=BlzGetFrameByName(DB_nm_nome[i], DB_nm_id[i])
+        if f!=null then
+            call DB_fid(f)
+        endif
+        set i=i+1
+    endloop
+    set f=null
+endfunction
+
+function DB_nomes_arma takes nothing returns nothing
+    if DB_nm_armado or DB_nm_t==null or DB_nm_n==0 then
+        return
+    endif
+    set DB_nm_armado=true
+    call TimerStart(DB_nm_t, 0.00, false, function DB_nomes_resolve)
+endfunction
+
+function DB_nome_pendente takes string nome,integer id returns nothing
+    if DB_nm_n<8190 then
+        set DB_nm_nome[DB_nm_n]=nome
+        set DB_nm_id[DB_nm_n]=id
+        set DB_nm_n=DB_nm_n+1
+    endif
+    call DB_nomes_arma()
+endfunction
+
+//{{KK_FIMSE:KK_UI_NOMES}}
 function DB_ui_pos_init takes nothing returns nothing
     local integer i=0
     set DB_pos_init=true
@@ -2338,6 +2406,9 @@ function DB_ui_boot takes nothing returns nothing
     call TimerStart(CreateTimer(), 0.00, false, function DB_ui_pos_init)
     set DB_cova_relogio=CreateTimer()
     call TimerStart(DB_cova_relogio, 0.25, true, function DB_cova_passa)
+    //{{KK_SE:KK_UI_NOMES}}
+    set DB_nm_t=CreateTimer()
+    //{{KK_FIMSE:KK_UI_NOMES}}
     //{{KK_SE:KK_UI_LARGA}}
     call DB_larga_boot()
     //{{KK_FIMSE:KK_UI_LARGA}}
