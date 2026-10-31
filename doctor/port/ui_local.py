@@ -453,6 +453,26 @@ def by_name(body_text, info):
     return body_text
 
 
+RX_NAME_LIT = re.compile(r'\b(?:Dz(?:Simple)?(?:Frame|FontString|Texture)FindByName|BlzGetFrameByName)[ \t]*\(\s*'
+                         r'"((?:[^"\\\r\n]|\\.)+)"\s*,\s*(\d+)\s*\)')
+
+
+def name_list(body_text):
+    if 'call DB_nome_pendente(' in body_text:
+        return body_text, 0
+    m = re.search(r'(?m)^[ \t]*call DB_ui_boot\(\)[ \t]*(\r\n|\r|\n)', body_text)
+    if not m:
+        return body_text, 0
+    seen = []
+    for a in RX_NAME_LIT.finditer(body_text):
+        pair = (a.group(1), int(a.group(2)))
+        if pair not in seen:
+            seen.append(pair)
+    nl = m.group(1)
+    body = ''.join('\tcall DB_nome_pendente("%s", %d)%s' % (n, i, nl) for n, i in seen)
+    return body_text[:m.end()] + body + body_text[m.end():], len(seen)
+
+
 def report_data(info):
     print('interface bridge: %d local record(s) wrapped (%d KK_loc_ functions), %d synchronous '
           'untouched, %d per-frame callback(s) by reference, %s'
