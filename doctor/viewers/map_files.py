@@ -643,6 +643,17 @@ def safe_path(name, ext='.bin'):
     return os.path.join(*parts) if parts else '_'
 
 
+writing_hook = None
+
+
+def _writing(path):
+    if writing_hook is not None:
+        try:
+            writing_hook(path)
+        except Exception:
+            pass
+
+
 def _write(root, name, rel, data, overwrite, out, folders):
     target = os.path.abspath(os.path.join(root, rel))
     if os.path.commonpath([root, target]) != root:
@@ -654,9 +665,17 @@ def _write(root, name, rel, data, overwrite, out, folders):
         return
     os.makedirs(os.path.dirname(target), exist_ok=True)
     part = target + '.part'
-    with open(part, 'wb') as f:
-        f.write(data)
-    os.replace(part, target)
+    _writing(part)
+    try:
+        with open(part, 'wb') as f:
+            f.write(data)
+        os.replace(part, target)
+    except BaseException:
+        if os.path.exists(part):
+            os.remove(part)
+        raise
+    finally:
+        _writing(None)
     with open(target, 'rb') as f:
         if f.read() != data:
             raise IOError('the file on disk does not read back the same')
@@ -870,6 +889,33 @@ def script(path, max_bytes=SCRIPT_MAX):
                        truncated=t['truncated'], invalid=t['invalid'])
         if notes:
             out['note'] = ' '.join(notes + [out['note']]).strip()
+    except (Exception, SystemExit) as e:
+        out['error'] = _error(e)
+    return out
+
+
+def save_script(path, out_file):
+    out = {'file': None, 'name': None, 'size': 0, 'language': 'none', 'error': None}
+    part = out_file + '.part'
+    try:
+        a, _notes = _open(path)
+        out['language'], out['name'], data, note, _compiled = _script_file(a)
+        if data is None:
+            out['error'] = note or 'The map has no script.'
+            return out
+        _writing(part)
+        try:
+            with open(part, 'wb') as f:
+                f.write(data)
+            with open(part, 'rb') as f:
+                if f.read() != data:
+                    raise IOError('the file on disk does not read back the same')
+            os.replace(part, out_file)
+        finally:
+            if os.path.exists(part):
+                os.remove(part)
+            _writing(None)
+        out.update(file=os.path.abspath(out_file), size=len(data))
     except (Exception, SystemExit) as e:
         out['error'] = _error(e)
     return out
