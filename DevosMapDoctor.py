@@ -20,7 +20,7 @@ if _restart:
     sys.exit(0)
 from doctor.fix import unprotect as D
 
-VERSION = '2.0.0'
+VERSION = '2.0.1'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -366,6 +366,17 @@ def diagnosis_text(d):
         out.append(('info', 'SLK mode: %s data table files.' % num(len(d['slk']))))
     if d.get('jassnative'):
         out.append(('info', 'Compiled in the JassNative Editor.'))
+    if d.get('without_jasshelper'):
+        out.append(
+            (
+                'warning',
+                'The map script was saved without JassHelper compiling its custom script, so the game '
+                'cannot load the map. Open the map in the editor that saved it and save it again with '
+                'JassHelper on (in the JassNative Editor, use Save: a copy saved with Save Map As can be '
+                'left uncompiled); Port to Reforged compiles it by itself when the custom script has no '
+                'other vJass.',
+            )
+        )
     if d.get('repacker'):
         out.append(
             ('info', 'Repacked by %s: the script and the editor files may have been regenerated.' % d['repacker'])
@@ -762,21 +773,15 @@ def editor_text(r):
     kept = (r.get('editor') or {}).get('kept_locals') or []
     if kept:
         tc = (r.get('editor') or {}).get('typecast_jasshelper') or {}
-        if tc.get('decoys') or tc.get('marked'):
-            out.append(
-                (
-                    'info',
-                    '  - %s kept the name of a global array (%s): that is how a memory library reads the '
-                    "array's address in the game. For JassHelper, which compiles the script again on every "
-                    'save, it is written the way the map was compiled: the function that reads the array '
-                    'without an index is marked for pjass (//# +nosemanticerror), and the typecast also has '
-                    'the local that JassHelper renames into the array. The game runs the same code.'
-                    % (
-                        pluralize(len(kept), 'local variable', 'local variables'),
-                        ', '.join(sorted(set(x[1] for x in kept))[:3]),
-                    ),
-                )
-            )
+        if all((f, n) in set((g, 'l__' + x) for g, x in tc.get('decoys') or []) for f, n in kept):
+            out.append(('info', '  - %s kept the name of a global array (%s): that is how a memory library reads the '
+                                "array's address in the game. In the custom script, which JassHelper compiles again on "
+                                'every save, it is written the way the map was before it was compiled: the typecast '
+                                'declares the local by the name JassHelper renames into the array, and the function '
+                                'that reads the array without an index is marked for pjass (//# +nosemanticerror). '
+                                'war3map.j keeps the compiled code the game runs.'
+                                % (pluralize(len(kept), 'local variable', 'local variables'),
+                                   ', '.join(sorted(set(x[1] for x in kept))[:3]))))
         else:
             out.append(
                 (
@@ -994,6 +999,15 @@ def editor_text(r):
                 'info',
                 '  - Save it with JassHelper on and the Reforged mode off (the defaults); if the map will go '
                 'to Reforged later, turn off "StringHash 미리 계산" (StringHash precalculation) first.',
+            )
+        )
+        out.append(
+            (
+                'info',
+                '  - Save with Save (Ctrl+S), not Save Map As: a copy saved with Save Map As can be left '
+                'uncompiled by the JassHelper of that editor, with no error shown, and the game cannot load '
+                'it. To keep the original, copy the map file first. After saving, Diagnosis says whether '
+                'the script was compiled.',
             )
         )
     elif ev and not ev.get('needs_jasshelper'):
