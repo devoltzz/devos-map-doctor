@@ -20,7 +20,7 @@ CREATES = re.compile(
     r'AddWeatherEffect|BlzCreateUnitWithSkin|BlzCreateItemWithSkin|CreateTrackable|CreateUbersplat)'
     r'[ \t]*\('
 )
-RX_LOCAL_BODY = re.compile(r'\bcall[ \t]+(\w+)[ \t]*\(')
+RX_LOCAL_BODY = re.compile(r'\b(?:call|return)[ \t]+(\w+)[ \t]*\(')
 RX_COMMENT = re.compile(r'//[^\r\n]*')
 
 
