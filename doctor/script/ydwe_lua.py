@@ -5,7 +5,7 @@ import re
 RX_EXEC = re.compile(r'\b(?:AbilityId|Cheat)\s*+\(\s*+"exec-lua:\s*+(?:\\"|\')?([^"\'\\\s]+)(?:\\"|\')?\s*+"\s*+\)')
 RX_LOADER = re.compile(r'StartCampaignAI\s*\([^\n]*"callback"\s*\)')
 RX_TRIGGER = re.compile(r'\b(?:CreateTrigger|TimerStart)\s*\(')
-_RX_STRING_OR_COMMENT = re.compile(r'"(?:[^"\\\n]|\\.)*+"|//[^\n]*')
+_RX_STRING_OR_COMMENT = re.compile(r'"(?:[^"\\\n]|\\.)*+"|//[^\r\n]*')
 
 
 def sem_comentarios(script):
