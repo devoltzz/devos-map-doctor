@@ -319,8 +319,19 @@ def build_lua_route(r, lua, original, extract, log, details):
     if generated:
         folder = os.path.join(r.OUT, 'generated')
         os.makedirs(folder, exist_ok=True)
+        in_use = set()
         for fname, data_bytes in sorted(generated.items()):
-            p = os.path.join(folder, fname.replace('\\', '__').replace('/', '__'))
+            f = re.sub(r'[:*?"<>|\x00-\x1f]', '_', fname.replace('\\', '__').replace('/', '__'))
+            if f in ('', '.', '..'):
+                f = '_' + f
+            p = os.path.join(folder, f)
+            k = 1
+            while p.lower() in in_use:
+                k += 1
+                p = os.path.join(folder, '%d_%s' % (k, f))
+            in_use.add(p.lower())
+            if os.path.dirname(os.path.abspath(p)) != os.path.abspath(folder):
+                raise Aborts('a file the map writes at run time has a name that leaves its folder: %r' % fname)
             _writes(p, data_bytes)
             output.append((fname, p))
         log('   %d file(s) the map writes at run time (frame definitions) or the port derives put in the map: %s'
@@ -716,11 +727,11 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
     buttons = new.fdf_buttons(extract, body_text)
     pair['KK_UI_BOTOES'] = 'true' if buttons else 'false'
     if buttons:
-        pair.update(new.buttons_in_chunks(buttons))
+        pair.update((k, new._jass_text(v)) for k, v in new.buttons_in_chunks(buttons).items())
     hotkeys = new.fdf_hotkeys(extract, body_text)
     pair['KK_UI_ATALHOS'] = 'true' if hotkeys else 'false'
     if hotkeys:
-        pair['KK_UI_ATALHOS_LISTA'] = hotkeys
+        pair['KK_UI_ATALHOS_LISTA'] = new._jass_text(hotkeys)
     if diag['jn']:
         found_key = channel_table.jn_ability(extract)
         if not found_key:
@@ -1215,7 +1226,7 @@ def writes_hangul(body_text, extract=None):
 
 
 def text_template(r, log, body_text='', extract=None):
-    own_font = map_font(body_text, extract)
+    own_font = map_font(_utf8(body_text), extract)
     source = own_font.replace('\\', '\\\\') if own_font else TEXT_FONT
     _writes(os.path.join(r.DATA, *FDF_TEXT.split('\\')),
             ('Frame "TEXT" "DevoKKTexto" {\r\n    FrameFont "%s", 0.010, "",\r\n}\r\n' % source)
@@ -1788,11 +1799,24 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
                 "%s function(s) of the map have the name of a port layer function; the map's own are kept: %s"
                 % (m.group(1), m.group(2).split(': ', 1)[-1])
             )
+        m = re.search(r'(?m)^9c deferred main: NOT applied[^:]*: (.*)$', chain_log)
+        if m:
+            reason = m.group(1).strip()
+            reason = (re.sub(r'^a local in main: ', 'a local variable in main: ', reason)
+                      .replace('main does not exist', 'the main function was not found')
+                      .replace('no globals block before main', 'no globals block before main')
+                      .replace('the if/loop blocks of main do not close', 'the if/loop blocks of main do not close'))
+            WARNINGS.append("the map's start-up (its main function) still runs during the loading screen, as before: "
+                            "it could not be moved past it (%s)" % reason[:200])
         m0f = re.search(r'0f dead type: (\d+) type', chain_log)
         decl, order = __import__('doctor.port.layer', fromlist=['layer']).map_native_declarations(raw_data)
         details['dead_type'] = dead_type.applies(body_text, dead_type.engine_types(
             open(os.path.join(new.REF, 'common.j'), 'rb').read().decode('latin-1')))[1] if m0f else {}
         details['stubs'] = stubs_and_dependents(r, order)
+        lado = os.path.join(r.OUT, 'layer_stubs.json')
+        if os.path.isfile(lado):
+            layer_stubs = set(json.load(open(lado, encoding='utf-8')))
+            diag['implemented_count'] = [n for n in diag['implemented_count'] if n not in layer_stubs]
         memory_warnings(getattr(r, 'MEMORY_INFO', None))
         name_warnings(getattr(r, 'SHADOWED_INFO', None))
         log('   G1 %s | G2 %s; %d stub(s) called by the map' % ('PASS' if g1 else 'FAIL', 'PASS' if g2 else 'FAIL',
@@ -1835,7 +1859,7 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
             arte, _s = _muted(art_packs.import_it, original, list(packages), script, os.path.join(r.OUT, 'arte'),
                               data_bytes=os.path.join(r.DATA, 'Units'), extract=extract, log=_art_warnings.append,
                               local=local_art, map_data=r.DATA)
-            WARNINGS.extend(m for m in _art_warnings if m.startswith(('package ', 'the game files')))
+            WARNINGS.extend(m for m in _art_warnings if m.startswith('the game files'))
             if isinstance(arte, SystemExit):
                 WARNINGS.append('the art packages could not be read: %s' % arte)
             else:
@@ -1894,7 +1918,8 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
             job_progress.topo('classic', 'Keeping the classic look of the game effects')
             from doctor.port import sd_models as _sd
             sd, _s = _muted(_sd.applies, os.path.join(r.OUT, 'war3map.j'), r.DATA, extract, original,
-                            os.path.join(r.OUT, 'arte'), log=lambda s: None)
+                            os.path.join(r.OUT, 'arte'), log=lambda s: None,
+                            sources=[os.path.join(r.ROOT, 'port', 'out', 'extract_en')])
             if isinstance(sd, SystemExit) or not isinstance(sd, dict):
                 WARNINGS.append('the classic look of the game effects could not be applied: %s' % (sd,))
             else:
@@ -1922,6 +1947,29 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
                     'of %d model(s) copied under war3mapImported\\PickSD and their model fields pointed at it'
                     % (len(set((k, i) for k, _s, i, _p in ic['items'])), len(ic['paths']))
                 )
+        try:
+            from doctor.models import reforged_texture
+            console_skin = None
+            for console_folder in (r.DATA, extract):
+                console_skin_path = os.path.join(console_folder, 'war3mapSkin.txt')
+                if os.path.isfile(console_skin_path):
+                    with open(console_skin_path, 'rb') as h:
+                        console_skin = h.read().decode('utf-8', 'replace')
+                    break
+            console_pieces_found = reforged_texture.console_of_map(mpqread.Archive(original).read, console_skin)
+            for console_name, console_data in sorted(console_pieces_found.items()):
+                console_target = os.path.join(r.OUT, 'arte', *console_name.split('\\'))
+                if not os.path.exists(console_target):
+                    os.makedirs(os.path.dirname(console_target), exist_ok=True)
+                    with open(console_target, 'wb') as h:
+                        h.write(console_data)
+            if console_pieces_found:
+                details['console'] = sorted(console_pieces_found)
+                log('6. %d console piece(s) that the game draws beside the map\'s own console since 1.29 made '
+                    'transparent: %s' % (len(console_pieces_found), ', '.join(sorted(console_pieces_found))))
+        except Exception as e:
+            WARNINGS.append('the console pieces that the game draws beside the map\'s own console could not be made '
+                            'transparent (%s: %s): they may show over the map\'s interface' % (type(e).__name__, e))
         to_remove = ['kkmap.jc'] if forma == 'kkwe' else (['war3map.bin'] if forma == 'j2b' else [])
         if ht and ht['dlls']:
             to_remove += ht['dlls']
@@ -1941,10 +1989,24 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
         job_progress.topo('assemble', 'Assembling the ported map')
         sz, slack, entrou = build_w3x(original, output, r, to_remove, listing, log, name_list=name_list, script=script)
         if (details.get('arte') or {}).get('local_vars'):
-            details['arte']['local_folder'] = write_local_art(os.path.join(r.OUT, 'local_art'), output, log)
+            try:
+                details['arte']['local_folder'] = write_local_art(os.path.join(r.OUT, 'local_art'), output, log)
+            except Exception as e:
+                local_target = os.path.splitext(output)[0] + '_local_files'
+                shutil.rmtree(local_target, ignore_errors=True)
+                details['arte']['local_vars'] = 0
+                WARNINGS.append(
+                    'the art the map reads from the game folder (loose files) could not be saved next to the '
+                    'ported map (%s: %s): the map still asks for it' % (type(e).__name__, e)
+                )
         if slack < 0 and shrink_large:
             job_progress.topo('shrinks', 'Making the map smaller')
-            sz, slack = shrinks(output, sz, log, shrink_with_loss)
+            try:
+                sz, slack = shrinks(output, sz, log, shrink_with_loss)
+            except Exception as e:
+                WARNINGS.append(
+                    'the map is above 512 MiB and could not be made smaller (%s: %s)' % (type(e).__name__, e)
+                )
         job_progress.topo('checks', 'Checking the ported map')
         port_checks(original, output, details)
         details.update(output=output, bytes=sz, slack=slack, file_set=entrou,
