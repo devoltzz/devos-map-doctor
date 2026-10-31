@@ -312,7 +312,17 @@ def power_of_two(data, quality=90):
     extra = struct.unpack_from('<I', data, 20)[0]
     im = im.convert('RGBA')
     alpha = 8 if info['alpha_bits'] and im.getextrema()[3][0] < 250 else 0
-    _n, new = blpwrite.blp_jpeg_bytes(im.resize(to, Image.LANCZOS), quality=quality, alpha_bits=alpha, extra=extra)
+    if info['content'] == 1 and len(data) >= HEADER + PALETTE:
+        new = blpwrite.blp_palette_bytes(
+            im.resize(to, Image.LANCZOS), alpha, True, extra, data[HEADER : HEADER + PALETTE]
+        )
+    else:
+        tabela = blpwrite.qtable_from_bytes(data) if info['content'] == 0 else None
+        if tabela and sum(tabela) < sum(blpwrite._scaled_table(quality / 100.0)):
+            _n, new = blpwrite.blp_jpeg_bytes(im.resize(to, Image.LANCZOS), 100, alpha, True, extra, tabela)
+        else:
+            _n, new = blpwrite.blp_jpeg_bytes(im.resize(to, Image.LANCZOS), quality=quality, alpha_bits=alpha,
+                                              extra=extra)
     again = inspect(new)
     if (again['width'], again['height']) != to or blpread.read_bytes(new, 0, None, '<bytes>')[0].size != to:
         raise ValueError('the new texture is not %dx%d' % to)
