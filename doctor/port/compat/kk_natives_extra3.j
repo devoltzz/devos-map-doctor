@@ -39,6 +39,9 @@ function DzCreateFrame takes string frame,integer parent,integer id returns inte
     if frame==null or p==null then
         return 0
     endif
+    //{{KK_SE:KK_UI_NOMES}}
+    call DB_nomes_arma()
+    //{{KK_FIMSE:KK_UI_NOMES}}
     //{{KK_SE:KK_UI_LARGA}}
     if DB_fh(parent)==null then
         set parent=DzGetGameUI()
@@ -71,6 +74,9 @@ function DzCreateSimpleFrame takes string frame,integer parent,integer id return
     if frame==null or p==null then
         return 0
     endif
+    //{{KK_SE:KK_UI_NOMES}}
+    call DB_nomes_arma()
+    //{{KK_FIMSE:KK_UI_NOMES}}
     set f=BlzCreateSimpleFrame(frame, p, id)
     if f==null then
         set f=BlzCreateFrame(frame, p, 0, id)
