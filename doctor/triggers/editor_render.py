@@ -1792,6 +1792,116 @@ def editor_script(rendering, header, dropped=(), replaced=(), inject=True, trigg
     return ''.join([types, rendering.globals_text(decls), natives] + early + [functions, triggers] + late + ends)
 
 
+RX_INJECT = re.compile(r'(?ms)^[ \t]*//![ \t]*inject[ \t]+(main|config)\b[^\n]*\n(.*?)^[ \t]*//![ \t]*endinject\b[^\n]*'
+                       r'(?:\n|\Z)')
+
+
+RX_OTHER_DIRECTIVE = re.compile(r'(?m)^[ \t]*//![ \t]*(?!(?:end)?inject\b|dovjassinit\b)(\w+)')
+RX_DOVJASSINIT = re.compile(r'(?m)^[ \t]*//![ \t]*dovjassinit\b[^\n]*\n?')
+
+
+def compile_custom_script(text):
+    from doctor.script import jass_ast
+    from doctor.fix import editor_version
+    crlf = '\r\n' in text
+    t = editor_version._lines(text)
+    if not editor_version.uncompiled_custom_script(t):
+        return None, 'not a World Editor script from before JassHelper'
+    blocks = list(RX_INJECT.finditer(t))
+    kinds = [m.group(1) for m in blocks]
+    if len(set(kinds)) != len(kinds):
+        return None, 'two //! inject blocks of the same function'
+    rest = RX_INJECT.sub('', t)
+    other = RX_OTHER_DIRECTIVE.search(rest)
+    if other:
+        return None, 'other JassHelper commands (//! %s): a vJass map, only JassHelper compiles it' % other.group(1)
+    try:
+        tree = jass_ast.parse(rest)
+    except Exception as e:
+        return None, 'without its //! inject blocks the script does not parse (%s)' % e
+    lines = rest.split('\n')
+    globals_, natives, types, functions = [], [], [], {}
+    for item in tree.items:
+        kind = type(item).__name__
+        if kind == 'Globals':
+            globals_.append((item.line, item.end_line))
+        elif kind == 'Function' and item.is_native:
+            natives.append(item.line)
+        elif kind == 'Function':
+            functions[item.name] = (item.line, item.end_line)
+        elif kind == 'TypeDecl':
+            types.append(item.line)
+    if not globals_ or not functions or any(k not in functions for k in kinds):
+        return None, 'the script has no globals block, no function or no %s of the editor' % (' or '.join(kinds) or
+                                                                                              'main')
+    twice = collections.Counter(item.name for item in tree.items if type(item).__name__ == 'Function')
+    if any(twice[k] > 1 for k in kinds):
+        return None, 'the script defines %s more than once' % ' or '.join(k for k in kinds if twice[k] > 1)
+    first = globals_[0]
+    anchor = min(first[0], min(a for a, _b in functions.values()))
+    moved = set(types) | set(n for n in natives if n > anchor)
+    for a, b in globals_:
+        moved.update(range(a, b + 1))
+    bodies = {}
+    for m in blocks:
+        body = RX_DOVJASSINIT.sub('', m.group(2))
+        bodies[functions[m.group(1)][0]] = (m.group(1), body[:-1].split('\n') if body.endswith('\n') else
+                                            body.split('\n'))
+    out, i, placed = [], 1, False
+    while i <= len(lines):
+        if i == anchor and not placed:
+            placed = True
+            out.extend(lines[k - 1] for k in sorted(types))
+            out.append(lines[first[0] - 1])
+            for a, b in globals_:
+                out.extend(lines[a:b - 1])
+            out.append(lines[first[1] - 1])
+            out.extend(lines[k - 1] for k in sorted(natives) if k in moved)
+        elif i in bodies:
+            name, body = bodies[i]
+            out.append('function %s takes nothing returns nothing' % name)
+            out.extend(body)
+            out.append('endfunction')
+            i = functions[name][1] + 1
+        else:
+            if i not in moved:
+                out.append(lines[i - 1])
+            i += 1
+    compiled = '\n'.join(out)
+    try:
+        tree = jass_ast.parse(compiled)
+    except Exception as e:
+        return None, 'the compiled script does not parse (%s)' % e
+    scalars, arrays = set(), set()
+    for item in tree.items:
+        if type(item).__name__ == 'Globals':
+            for d in item.decls:
+                (arrays if d.is_array else scalars).add(d.name)
+    lines = compiled.split('\n')
+    typecast = []
+    for name, start, end, params, locals_ in jass_ast.function_specs(tree):
+        taken = set(params) | set(locals_)
+        for local in locals_:
+            target = 'l__' + local
+            if local in scalars and target in arrays and target not in taken:
+                rx = re.compile(r'"(?:[^"\\\n]|\\.)*"|\'[^\'\n]*\'|//[^\n]*|\b%s\b' % re.escape(local))
+                for k in range(start - 1, min(end, len(lines))):
+                    lines[k] = rx.sub(lambda m: target if m.group(0) == local else m.group(0), lines[k])
+                taken.add(target)
+                typecast.append((name, local))
+    compiled = '\n'.join(lines)
+    if editor_version.uncompiled_custom_script(compiled):
+        return None, 'the compiled script still has the custom script as written'
+    if typecast:
+        try:
+            jass_ast.parse(compiled)
+        except Exception as e:
+            return None, 'the compiled script does not parse after the typecast (%s)' % e
+    report = {'main': 'main' in kinds, 'config': 'config' in kinds, 'globals': len(globals_) - 1,
+              'natives': len([k for k in natives if k in moved]), 'types': len(types), 'typecast': typecast}
+    return (compiled.replace('\n', '\r\n') if crlf else compiled), report
+
+
 def fitted_header(header, dropped=(), replaced=()):
     spans = [header.decls[n][4] for n in dropped if n in header.decls]
     gone = set(dropped)
