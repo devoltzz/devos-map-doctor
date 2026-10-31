@@ -76,7 +76,7 @@ def read_replay_container(data):
         bh[8:12] = b'\0\0\0\0'
         ok = (_fold(zlib.crc32(bytes(bh))) | _fold(zlib.crc32(body)) << 16) == ck
         try:
-            raw = zlib.decompressobj().decompress(body)
+            raw = zlib.decompressobj().decompress(body, MAX_PAYLOAD - len(out) + 1)
         except zlib.error as e:
             raw = b''
             ok = False
@@ -219,8 +219,8 @@ def files(path):
 
 
 def _safe_join(root, name):
-    parts = [p for p in name.replace('\\', '/').split('/') if p not in ('', '.', '..')]
-    if not parts or ':' in parts[0]:
+    parts = [p.replace(':', '_') for p in name.replace('\\', '/').split('/') if p not in ('', '.', '..')]
+    if not parts:
         raise SaveError('a name outside the folder: %s' % name)
     return os.path.join(root, *parts)
 
@@ -247,6 +247,8 @@ def extract(path, to):
             try:
                 b = a.read(n)
             except Exception:
+                continue
+            if b is None:
                 continue
             p = _safe_join(to, n)
             os.makedirs(os.path.dirname(p), exist_ok=True)
