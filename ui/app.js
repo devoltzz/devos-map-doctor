@@ -144,7 +144,7 @@ const state = {
   trImages: false, trReview: null,
   trOverride: null,
   extras: { card: null, translation: null, models: null, modelNames: null, singlePlayer: null, portraits: null,
-    dataPointers: null, kkTextures: null, disabledIcons: null, uabi: null, preload: null, attributes: null, gameOverrides: null, graphicsModes: null, requirements: null, modelPaths: null, fdf: null, slkObjects: null, lobbyImage: null },
+    dataPointers: null, kkTextures: null, disabledIcons: null, consoleSides: null, uabi: null, preload: null, attributes: null, gameOverrides: null, graphicsModes: null, requirements: null, modelPaths: null, fdf: null, slkObjects: null, lobbyImage: null },
   cheatpacks: null, cheatPack: { id: null, options: {}, result: null },
   qol: null, qolOpt: {}, qolResult: null,
   rawcodes: null,
@@ -473,14 +473,14 @@ window.addEventListener('error', ev => unhandled(ev.error || ev.message));
 async function saveSettings() { try { await api().save_settings(state.settings); } catch (e) { } }
 
 function remember(path) {
-  const r = (state.settings.recent || []).filter(p => p !== path);
+  const r = (Array.isArray(state.settings.recent) ? state.settings.recent : []).filter(p => p !== path);
   r.unshift(path);
   state.settings.recent = r.slice(0, 8);
   saveSettings();
 }
 
 function showRecent() {
-  const r = state.settings.recent || [];
+  const r = Array.isArray(state.settings.recent) ? state.settings.recent : [];
   $('#recent').classList.toggle('hidden', !r.length);
   $('#recentList').replaceChildren(...r.map(p => el('li', {}, el('a', { text: base(p), title: p,
     onclick: () => openMap(p) }), el('span', { class: 'faint', text: '  ' + p }))));
@@ -511,7 +511,7 @@ async function openMap(path) {
   state.portTargets = null;
   state.portTarget = '';
   state.extras = { card: null, translation: null, models: null, modelNames: null, singlePlayer: null, portraits: null,
-    dataPointers: null, kkTextures: null, disabledIcons: null, uabi: null, preload: null, attributes: null, gameOverrides: null, graphicsModes: null, requirements: null, modelPaths: null, fdf: null, slkObjects: null, lobbyImage: null };
+    dataPointers: null, kkTextures: null, disabledIcons: null, consoleSides: null, uabi: null, preload: null, attributes: null, gameOverrides: null, graphicsModes: null, requirements: null, modelPaths: null, fdf: null, slkObjects: null, lobbyImage: null };
   state.cheatpacks = null;
   state.cheatPack = { id: null, options: {}, result: null };
   state.qol = null;
@@ -748,6 +748,7 @@ async function checkReforgedQuietly(gen) {
     if (r.data_pointers && r.data_pointers.fixable) { state.extras.dataPointers = r.data_pointers; renderActions(); }
     if (r.kk_textures && r.kk_textures.fixable) { state.extras.kkTextures = r.kk_textures; renderActions(); }
     if (r.disabled_icons && r.disabled_icons.fixable) { state.extras.disabledIcons = r.disabled_icons; renderActions(); }
+    if (r.console_sides && r.console_sides.fixable) { state.extras.consoleSides = r.console_sides; renderActions(); }
     if (r.uabi && r.uabi.distinct) { state.extras.uabi = r.uabi; renderActions(); }
     if (r.preload && (r.preload.units || r.preload.abilities)) { state.extras.preload = r.preload; renderActions(); }
     if (r.model_names && r.model_names.fixable) { state.extras.modelNames = r.model_names; renderActions(); }
@@ -776,7 +777,7 @@ const ACTIONS = {
 };
 const EXTRA_STEPS = {
   fix: ['attributes', 'gameOverrides', 'graphicsModes', 'models', 'modelNames', 'portraits', 'dataPointers', 'kkTextures',
-    'disabledIcons', 'uabi', 'preload', 'singlePlayer', 'card', 'translation', 'requirements', 'modelPaths', 'fdf', 'nullHandles',
+    'disabledIcons', 'consoleSides', 'uabi', 'preload', 'singlePlayer', 'card', 'translation', 'requirements', 'modelPaths', 'fdf', 'nullHandles',
     'minify', 'stripIndent', 'shrinkModels', 'shrinkModelsLossy', 'shrink', 'shrinkLossy', 'slkObjects',
     'lobbyImage'],
   editor: ['singlePlayer', 'card', 'translation', 'stripIndent'],
@@ -835,6 +836,12 @@ function extraSteps(action) {
       label: 'Fix the green icons',
       detail: x.disabledIcons.fixable + ' imported ' + (x.disabledIcons.fixable === 1 ? 'icon has' : 'icons have') +
         ' no disabled art, so the game draws it green (a dead hero, another unit\'s items); it is made from each icon.',
+      on: true, applies: true, group: 'extra' });
+    if (k === 'consoleSides' && x.consoleSides) out.push({ key: 'x:consoleSides',
+      label: 'Hide the console pieces the map does not cover',
+      detail: x.consoleSides.fixable + ' console ' + (x.consoleSides.fixable === 1 ? 'piece' : 'pieces') +
+        ' that the game draws since 1.29 beside the map\'s own console show the default stone over its interface;' +
+        ' they are made transparent.',
       on: true, applies: true, group: 'extra' });
     if (k === 'uabi' && x.uabi) out.push({ key: 'x:uabi', label: 'Move the unit ability lists to the script',
       detail: x.uabi.distinct + ' distinct abilities in the unit lists; reported to drop games on ' +
@@ -927,7 +934,7 @@ const FLAGS = { mpq: 'unprotect', falsos: 'fake-files', fake_list: 'fake-files',
   contagem_inflada: 'counts', inflated_counts: 'counts', doodads_invalidos: 'doodads', invalid_doodads: 'doodads',
   gatilhos_gui: 'gui-triggers', objetos_do_script: 'script-objects', unidades_seguras: 'safe-units',
   texturas_iguais: 'identical-textures', duplicate_textures: 'identical-textures', 'x:models': 'models', 'x:modelNames': 'model-names', 'x:portraits': 'portraits',
-  'x:dataPointers': 'data-pointers', 'x:kkTextures': 'kk-textures', 'x:disabledIcons': 'green-icons',
+  'x:dataPointers': 'data-pointers', 'x:kkTextures': 'kk-textures', 'x:disabledIcons': 'green-icons', 'x:consoleSides': 'console-sides',
   'x:uabi': 'uabi', 'x:preload': 'preload', 'x:singlePlayer': 'single-player', 'x:card': 'card',
   'x:translation': 'translation', 'x:stripIndent': 'strip-indent', 'x:shrink': 'shrink',
   'x:shrinkLossy': 'shrink-lossy', 'x:attributes': 'fix-attributes', 'x:gameOverrides': 'remove-game-files', 'x:gameOverridesIdentical': 'remove-game-copies',
@@ -1119,6 +1126,7 @@ async function runAction(action) {
   if (extras.dataPointers) params.extras.data_pointers = true;
   if (extras.kkTextures) params.extras.kk_textures = true;
   if (extras.disabledIcons) params.extras.disabled_icons = true;
+  if (extras.consoleSides) params.extras.console_sides = true;
   if (extras.uabi) params.extras.uabi = true;
   if (extras.preload) params.extras.preload = true;
   if (extras.attributes) params.extras.attributes = true;
@@ -1208,7 +1216,11 @@ async function reportProblem() {
     [['Cancel', null], ['Copy', 'copy'], state.hello && state.hello.repository ? ['Open GitHub issue', 'gh', true] :
       null].filter(Boolean));
   if (v === 'copy') { await copyText(text.value); toast('The report is in the clipboard.'); }
-  if (v === 'gh') api().report_problem(title, text.value);
+  if (v === 'gh') {
+    const r = await api().report_problem(title, text.value);
+    if (r && r.cut && await copyText(text.value)) toast('The report was too long for the GitHub address: the issue has ' +
+      'its beginning, and the whole text is in the clipboard to paste there.', { sticky: true });
+  }
 }
 
 function offerUpdate(release) {
@@ -1507,9 +1519,14 @@ function imageSlot(which, name) {
 async function replaceImage(which, box) {
   const p = await api().pick_file('image');
   if (!p) return;
-  const b64 = await api().read_file(p);
   const ext = p.toLowerCase().split('.').pop();
   if (!['png', 'jpg', 'jpeg', 'bmp'].includes(ext)) { toast('Choose a PNG, JPG or BMP image.', { bad: true }); return; }
+  let b64 = null;
+  try { b64 = await api().read_file(p); } catch (e) { b64 = null; }
+  if (!b64) {
+    toast('The image ' + base(p) + ' could not be read: pick a valid PNG, JPG or BMP under 32 MB.', { bad: true });
+    return;
+  }
   const img = new Image();
   img.onload = () => {
     const size = which === 'minimap' ? 256 : Math.min(256, Math.max(img.width, img.height));
@@ -2008,10 +2025,16 @@ async function loadScript(gen) {
     tabBody('script', el('div', { class: 'card' },
       el('div', { class: 'row' }, el('h2', { class: 'grow', text: (s.name || 'Script') + (s.size ? ' (' + mb(s.size) +
         ')' : '') }),
-      s.text ? el('button', { class: 'btn', text: 'Export...', onclick: async () => {
+      s.text ? el('button', { class: 'btn needs-idle', text: 'Export...', onclick: async () => {
+        if (state.running) return;
         const p = await api().pick_save(base(state.map).replace(/\.\w+$/, '') + (s.language === 'lua' ? '.lua' : '.j'),
           'script');
-        if (p) { await api().write_text(p, s.text); toast('Saved ' + base(p) + '.'); }
+        if (!p) return;
+        try {
+          const r = await run('script_export', { file: p }, { label: 'Saving the script...' });
+          if (r.error) { failed({ message: r.error }, 'Saving the script'); return; }
+          toast('Saved ' + base(p) + '.');
+        } catch (e) { failed(e, 'Saving the script'); }
       } }) : null),
       s.note ? el('p', { class: 'lead', text: s.note }) : null,
       s.language === 'jass' && s.text ? scriptChecksCard() : null,
@@ -3138,7 +3161,7 @@ window.addEventListener('pywebviewready', async () => {
   wire();
   const h = await api().hello();
   state.hello = h;
-  state.settings = h.settings || {};
+  state.settings = h.settings && typeof h.settings === 'object' && !Array.isArray(h.settings) ? h.settings : {};
   $('#version').textContent = 'v' + h.version;
   $('#where').textContent = web() ? ' · runs in your browser' : ' · runs on your computer';
   languagePicker(h.settings && h.settings.lang);
