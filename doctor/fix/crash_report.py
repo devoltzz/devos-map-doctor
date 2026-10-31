@@ -10,20 +10,21 @@ RX_TAG = re.compile(r'^<([\w.]+)>(.*)$')
 RX_ADDR = re.compile(r'DBG-ADDR<([0-9A-Fa-f]+)>\("([^"]*)"\)')
 RX_SUMMARY = re.compile(r'^(?:class\s+)?([\w:]+)\s*\((.*?)\)')
 RX_LOGLINE = re.compile(r'^\d+/\d+ \d+:\d+:\d+\.\d+\s+(.*)$')
-RX_FDF_LONG = re.compile(r'^\(([^)]*?)//(\d+)\) Error, framename "([^"]*)" is too long!')
+RX_FDF_LONG = re.compile(r'^\(([^)]*?)//(\d{1,18})\) Error, framename "([^"]*)" is too long!')
 RX_FRAME_DUP = re.compile(r'Error, frame "([^"]*)" already encountered!')
 RX_MODEL = re.compile(r'^model creation failed - (.*)$')
-RX_LEVEL = re.compile(r'^\[Out of Bound Level\] Unit: (.*?), level: (\d+), maxLevel: (\d+)')
+RX_LEVEL = re.compile(r'^\[Out of Bound Level\] Unit: (.*?), level: (\d{1,18}), maxLevel: (\d{1,18})')
 RX_MAP = re.compile(r'^(?:Opening map|Played) - ?(.*)$|^Played (.*)$')
-RX_DESYNC = re.compile(r'Network desync on turn (\d+) in game ([^\r\n]+)')
-RX_DESYNC_BLOCK = re.compile(r'\[Desync - (\d+) - Turn\((\d+)\) = (\d+)\]')
-RX_DESYNC_ENTRY = re.compile(r'#(\d+)#:\s*(0x[0-9A-Fa-f]+)')
+RX_DESYNC = re.compile(r'Network desync on turn (\d{1,18}) in game ([^\r\n]+)')
+RX_DESYNC_BLOCK = re.compile(r'\[Desync - (\d{1,18}) - Turn\((\d{1,18})\) = (\d{1,18})\]')
+RX_DESYNC_ENTRY = re.compile(r'#(\d{1,18})#:\s*(0x[0-9A-Fa-f]+)')
 RX_C_BUILD = re.compile(r'Warcraft III\s*\(build\s*(\d+)\)', re.I)
 RX_C_INSTR = re.compile(r"The instruction at\s+'?0x([0-9A-Fa-f]+)'?\s+referenced memory at\s+'?0x([0-9A-Fa-f]+)'?"
                         r"(?:\.\s*The memory could not be\s+'?(\w+)'?)?", re.I)
 RX_C_KIND = re.compile(r'\b(EXCEPTION_[A-Z_]+|[A-Z_]*ACCESS_VIOLATION|STACK_OVERFLOW|INT_DIVIDE_BY_ZERO|'
                        r'ILLEGAL_INSTRUCTION|PRIV_INSTRUCTION)\b')
-RX_C_GAMEDLL = re.compile(r'0x([0-9A-Fa-f]+)(?:[^\n]*?0x([0-9A-Fa-f]+))?[^\n]*?:[^\n]*?Game\.dll', re.I)
+RX_C_HEX = re.compile(r'0x([0-9A-Fa-f]+)', re.I)
+RX_C_GAMEDLL_NAME = re.compile(r'Game\.dll', re.I)
 RX_C_REG = re.compile(r'\b(E?[A-D]X|E?SI|E?DI|E?BP|E?SP|EIP|EFLAGS)\s*[=:]\s*(?:0x)?([0-9A-Fa-f]{8})\b')
 RX_C_DUMP = re.compile(r'^[ \t]*(?:0x)?([0-9A-Fa-f]{4,8}):?[ \t]+((?:[0-9A-Fa-f]{2}[ \t]+){15}[0-9A-Fa-f]{2})\b')
 GAME_DLL_BASE = 0x6F000000
@@ -60,9 +61,11 @@ def _game_dll_line(t):
     k = next((i for i, l in enumerate(lines) if 'Loaded Modules' in l), None)
     for l in (lines[k:] if k is not None else lines):
         if len(l) <= 1000 and 'game.dll' in l.lower():
-            m = RX_C_GAMEDLL.search(l)
-            if m:
-                return m
+            names = [g.start() for g in RX_C_GAMEDLL_NAME.finditer(l)]
+            c = l.rfind(':', 0, names[-1]) if names else -1
+            hexes = [m.group(1) for m in RX_C_HEX.finditer(l, 0, max(c, 0))]
+            if c > 0 and hexes:
+                return (hexes + [None])[:2]
     return None
 
 
@@ -153,7 +156,7 @@ def parse_crash(t):
             if k == 'Exception.BuildNumber':
                 out['build'] = v
             elif k.startswith('Mem.'):
-                mm = re.match(r'(\d+)\s*MB', v)
+                mm = re.match(r'(\d{1,18})\s*MB', v)
                 if mm:
                     out['memory'][k[4:]] = int(mm.group(1))
     seen = []
@@ -195,10 +198,10 @@ def parse_classic(t):
     base, size, assumed = GAME_DLL_BASE, GAME_DLL_SIZE, True
     m = _game_dll_line(t)
     if m:
-        base = int(m.group(1), 16)
+        base = int(m[0], 16)
         assumed = True
-        if m.group(2):
-            second = int(m.group(2), 16)
+        if m[1]:
+            second = int(m[1], 16)
             if second > base:
                 size, assumed = second - base, False
             elif 0 < second < 0x4000000:
