@@ -475,6 +475,16 @@ def same_code(assembled, original):
     return g1 == g2 and f1 == [f for f in f2 if f[0] not in ('main', 'config')] + end_pos
 
 
+_skipped = []
+
+
+def _warning(step_size, e, log):
+    ln = '%s: %s: %s' % (step_size, type(e).__name__, e)
+    log(ln)
+    if ln not in _skipped:
+        _skipped.append(ln)
+
+
 def to_standard_script(body_text, b_w3i, log=print, doo=None, ref=None):
     try:
         from doctor.script import jass_normal
@@ -490,7 +500,7 @@ def to_standard_script(body_text, b_w3i, log=print, doo=None, ref=None):
         report['line_list'] = trigger_restore.optimizer_lines(report)
         return new, report, n_players
     except Exception as e:
-        log('standard script: %s: %s' % (type(e).__name__, e))
+        _warning('standard script', e, log)
         return body_text, None, n_players
 
 
@@ -860,7 +870,7 @@ def fit_to_editor(header_text, file_set, original, log=print, tgt=None):
         td = triggerdata.load()
         return editor_render.outcome(editor_render.fit(header_text, file_set, td, original=original, log=log), td)
     except Exception as e:
-        log('editor_render: %s: %s' % (type(e).__name__, e))
+        _warning('editor_render', e, log)
         return None
 
 
@@ -868,6 +878,7 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
             options=None, version_num=None):
     def step_on(hash_key):
         return options is None or options.get(hash_key, True) is not False
+    del _skipped[:]
     a = mpqread.Archive(entry)
     details = {}
     tgt = target_editor(version_num)
@@ -899,6 +910,8 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
         )
         if _rf.get('ok'):
             raw_bytes = _plaintext
+        elif _rf.get('error'):
+            _skipped.append('%s: %s' % ('lua_fuscator', _rf['error']))
     body_text = raw_bytes.decode('latin-1').replace('\r\n', '\n').replace('\r', '\n')
     details['good'] = body_text.startswith('\xef\xbb\xbf')
     if details['good']:
@@ -935,7 +948,7 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
     name_list.update(n.strip() for n in lf.decode('utf-8', 'surrogateescape').splitlines()
                      if n.strip() and a.find(n.strip()))
     imported = sorted((n for n in name_list if n.lower() not in {x.lower() for x in SPECIAL_FILES}
-                       and not RX_NATIVE.match(n.split('\\')[-1]) and a.read(n) is not None),
+                       and not RX_NATIVE.match(n.split('\\')[-1])),
                       key=lambda n: (n.lower(), n))
     engine = []
     for t in (ENGINE_TEXTURES if tgt is None else ()):
@@ -943,7 +956,7 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
             if a.find(t) and jpeg_flat.blp_is_white(a.read(t) or b''):
                 engine.append(t)
         except Exception as e:
-            log('%s: %s' % (t, e))
+            _warning(t, e, log)
     if engine:
         left_out = set(x.lower() for x in engine)
         name_list = set(n for n in name_list if n.lower() not in left_out)
@@ -957,7 +970,7 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
             (n, a.read(n)) for n in ('war3map.w3u', 'war3map.w3t', 'war3mapSkin.w3u', 'war3mapSkin.w3t') if a.find(n)))
     except Exception as e:
         skin_files = {}
-        log('skin: %s' % e)
+        _warning('skin', e, log)
     for n in sorted(skin_files):
         if a.find(n):
             replacements[n] = skin_files[n]
@@ -968,6 +981,7 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
         details['skin'] = sorted(n for n in skin_files if n.startswith('war3mapSkin'))
     if tgt is not None:
         details['textures_power_of_two'] = []
+        bad_ones = []
         from doctor.fix import blp_check
         for n in imported:
             if not n.lower().endswith('.blp'):
@@ -976,10 +990,14 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
                 new_blp, blp_info = blp_check.power_of_two(a.read(n) or b'')
             except Exception as e:
                 log('%s: %s' % (n, e))
+                bad_ones.append((n, e))
                 continue
             if new_blp is not None:
                 replacements[n] = new_blp
                 details['textures_power_of_two'].append((n, blp_info['from'], blp_info['to']))
+        if bad_ones:
+            _warning(bad_ones[0][0] if len(bad_ones) == 1 else '%s (+%d)' % (bad_ones[0][0], len(bad_ones) - 1),
+                     bad_ones[0][1], lambda *_a: None)
     try:
         w3i_version = struct.unpack_from('<i', w3i_era, 0)[0] if w3i_era else None
     except struct.error:
@@ -1024,7 +1042,7 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
                     details['doodads'] = [{'id': k.decode('latin-1'), 'n': v} for k, v in _bad]
                     details['doodads_outside'] = sum(v for _k, v in _bad)
     except Exception as e:
-        log('war3map.doo: %s' % e)
+        _warning('war3map.doo', e, log)
     try:
         _duplicates, details['duplicate_textures'] = (
             duplicate_textures.make_distinct(a, sorted(name_list, key=lambda n: (n.lower(), n)))
@@ -1034,7 +1052,7 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
         replacements.update(_duplicates)
     except Exception as e:
         details['duplicate_textures'] = []
-        log('duplicate textures: %s' % e)
+        _warning('identical textures', e, log)
     EMPTY_FILES = {'war3map.w3r': empty_w3r, 'war3map.w3c': empty_w3c, 'war3map.mmp': empty_mmp,
                    'war3map.w3s': empty_w3s if tgt is None else (lambda: empty_w3s(tgt['w3s']))}
 
@@ -1219,7 +1237,7 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
             outside = missing_from_imp(b_imp, imported)
             new_imp = imp_with(b_imp, outside) if outside else None
         except Exception as e:
-            log('war3map.imp: %s' % e)
+            _warning('war3map.imp', e, log)
             outside, new_imp = list(imported), imp(imported)
         if new_imp is not None:
             replacements['war3map.imp'] = new_imp
@@ -1227,7 +1245,7 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
     try:
         details['unnamed'] = unnamed(a, name_list)
     except Exception as e:
-        log('unnamed: %s' % e)
+        _warning('unnamed files', e, log)
     if tgt is not None:
         details['editor_target']['needs_jasshelper'] = needs_jasshelper(trigger_list, restored, restoration, details)
     if trigger_list and not is_lua and tgt is None:
@@ -1332,4 +1350,5 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
     if lua_error not in (None, 'no_lupa'):
         failures.append('the Lua custom script does not compile: %s' % lua_error)
     details['failures'] = failures + list(r.get('error_list') or [])
+    details['warnings'] = list(_skipped)
     return details, assembled
