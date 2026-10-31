@@ -2,6 +2,7 @@
 import re
 
 from doctor.port import swap_calls as T
+from doctor.port import class1
 
 
 KNOWN_NAMES = {'SetUnitState': 1, 'GetUnitState': 1, 'GetUnitStateSwap': 1}
@@ -78,8 +79,8 @@ def classify_items(fname, st, consts=None):
     return None, None
 
 
-def rewrite_line(line, by, failures, no, consts=None):
-    ss = T.sitios(line, KNOWN_NAMES)
+def rewrite_line(line, by, failures, no, consts=None, bitmask=None):
+    ss = T.sitios(line if bitmask is None else bitmask, KNOWN_NAMES)
     for begin, end_pos, fname in sorted(ss, reverse=True):
         k = line.index('(', end_pos)
         a, on_close = args(line, k)
@@ -123,10 +124,10 @@ def pluralize(body_text):
     by = {}
     failures = []
     consts = w3p_constants(body_text)
-    for no, line in enumerate(body_text.split('\n'), 1):
-        if T.RX_NATIVE.match(line) or 'UnitState' not in line:
+    for no, (line, m) in enumerate(zip(body_text.split('\n'), class1.masked_lines(body_text)), 1):
+        if T.RX_NATIVE.match(line) or 'UnitState' not in m:
             continue
-        rewrite_line(line, by, failures, no, consts)
+        rewrite_line(line, by, failures, no, consts, m)
     return by
 
 
@@ -135,10 +136,11 @@ def applies(body_text, expected_count=None, to_report=False):
     by = {}
     failures = []
     consts = w3p_constants(body_text)
+    masked_text_lines = class1.masked_lines(body_text)
     for idx, line in enumerate(line_list):
-        if T.RX_NATIVE.match(line) or 'UnitState' not in line:
+        if T.RX_NATIVE.match(line) or 'UnitState' not in masked_text_lines[idx]:
             continue
-        new_l = rewrite_line(line, by, failures, idx + 1, consts)
+        new_l = rewrite_line(line, by, failures, idx + 1, consts, masked_text_lines[idx])
         line_list[idx] = new_l
     swapped = sum(by.values())
     if swapped and expected_count is not None:
