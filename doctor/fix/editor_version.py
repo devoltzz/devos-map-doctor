@@ -470,3 +470,39 @@ def without_jassnative_mark_bytes(data):
         return None
     m = found[0]
     return (text[:m.start()] + text[m.end():]).encode('latin-1')
+
+
+RX_INJECT_BLOCK = re.compile(r'(?ms)^[ \t]*//![ \t]*inject[ \t]+(main|config)\b[^\n]*\n(.*?)^[ \t]*//![ \t]*endinject\b'
+                             r'[^\n]*(?:\n|\Z)')
+RX_GLOBALS_LINE = re.compile(r'(?m)^[ \t]*globals\b')
+RX_FUNCTION_LINE = re.compile(r'(?m)^[ \t]*(?:constant[ \t]+)?function[ \t]')
+
+
+def uncompiled_custom_script(script):
+    if isinstance(script, bytes):
+        script = script.decode('latin-1')
+    if not script:
+        return False
+    text = _lines(script)
+    found = False
+    if '//!' in text:
+        found = any(any(x.strip() and not x.strip().startswith('//') for x in m.group(2).split('\n'))
+                    for m in RX_INJECT_BLOCK.finditer(text))
+    if not found:
+        first = RX_FUNCTION_LINE.search(text)
+        found = bool(first and RX_GLOBALS_LINE.search(text, first.end()))
+    if not found:
+        return False
+    from doctor.script import jass_ast
+    try:
+        tree = jass_ast.parse(text)
+    except Exception:
+        return True
+    seen_function = False
+    for item in tree.items:
+        kind = type(item).__name__
+        if kind == 'Function' and not item.is_native:
+            seen_function = True
+        elif kind == 'Globals' and seen_function:
+            return True
+    return False
