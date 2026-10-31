@@ -252,8 +252,6 @@ def _rewrite_file(m, name, data):
     from doctor.data import objects
     lvl = objects.uses_levels(name)
     ver, objs, pos = objects.read_objects_bytes(data, lvl, name, with_end=True)
-    if objects.write_objects_bytes(ver, objs, lvl) + data[pos:] != data:
-        raise RuntimeError('%s does not come back byte for byte through the writer, so it is left alone' % name)
     changes = []
     planned = {}
     novos = []
@@ -292,6 +290,8 @@ def _rewrite_file(m, name, data):
                      else (t, orig, novo, mods))
     if not planned:
         return None, [], {}
+    if objects.write_objects_bytes(ver, objs, lvl) + data[pos:] != data:
+        raise RuntimeError('%s does not come back byte for byte through the writer, so it is left alone' % name)
     new = objects.write_objects_bytes(ver, novos, lvl) + data[pos:]
     ver2, objs2, pos2 = objects.read_objects_bytes(new, lvl, name, with_end=True)
     if ver2 != ver or len(objs2) != len(objs) or pos2 != len(new) - len(data) + pos:
@@ -326,6 +326,7 @@ def fix(path_in, path_out, progress=None, casc=None):
     p('Reading the object data')
     writes = []
     changes = []
+    skipped = []
     for plain, skin, _meta in SPECIES:
         for name in (plain, skin):
             d = unprotect._read(a, name)
@@ -334,12 +335,16 @@ def fix(path_in, path_out, progress=None, casc=None):
             try:
                 new, ch, _pl = _rewrite_file(m, name, d)
             except Exception as e:
-                res['error'] = 'The object data does not read (%s).' % (str(e) or type(e).__name__)
-                return res
+                skipped.append((name, str(e) or type(e).__name__))
+                continue
             if new is not None:
                 writes.append((name, new))
                 changes += [(name,) + c for c in ch]
+    res['skipped'] = [{'file': n, 'reason': w} for n, w in skipped]
     if not writes:
+        if skipped:
+            res['error'] = 'The object data does not read (%s: %s).' % skipped[0]
+            return res
         res['state'] = 'nothing_to_do'
         return res
     agg = collections.OrderedDict()
@@ -386,4 +391,7 @@ def fix(path_in, path_out, progress=None, casc=None):
     res.update(state='done', fixed=fixed, count=len(fixed), files=[n for n, _d in writes])
     res['lines'] = ['Model paths of the object data that now point to a model the map has: %d (%d with a doubled '
                     'war3mapImported folder, %d by the only model of that name).' % (len(fixed), nd, len(fixed) - nd)]
+    if skipped:
+        res['lines'].append('Object files left as they are, since they do not read: %s.'
+                            % ', '.join(n for n, _w in skipped))
     return res
