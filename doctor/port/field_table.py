@@ -101,8 +101,12 @@ def build_pairs(data_bytes, tab, field_id):
             continue
         seen[a] = rid
         pairs.append((a, v, rid))
-    pairs.sort(key=lambda x: x[0])
+    pairs.sort(key=lambda x: signed_order(x[0]))
     return pairs, without_id, dup
+
+
+def signed_order(v):
+    return v - 0x100000000 if v >= 0x80000000 else v
 
 
 DEFAULT_TEXTS = {
@@ -380,8 +384,9 @@ def verify(file_path, info, fields):
                 if obtained != expected_len:
                     failures.append('%s[%d] (%s): divergent value\n     expected %r\n     got      %r'
                                     % (fname, i, rid, expected_len[:120], obtained[:120]))
-            kl = [ks[fname][i] for i in range(len(pairs))]
+            kl = [signed_order(ks[fname][i]) for i in range(len(pairs))]
             for i, (a, v, rid) in enumerate(pairs):
+                a = signed_order(a)
                 lo, hi = 0, len(kl) - 1
                 achou = -1
                 while lo <= hi:
