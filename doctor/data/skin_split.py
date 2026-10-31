@@ -119,7 +119,7 @@ def split(files):
         new_classic = _write(version, objects, d, lambda f: f not in fields)
         new_skin = _skin(objects, d, fields)
         try:
-            before = _content(d, levels)
+            before = _content(d[:end], levels)
             after = _content(new_classic, levels)
             for ids, c in _content(new_skin, levels).items():
                 after[ids].update(c)
