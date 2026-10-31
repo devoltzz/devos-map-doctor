@@ -38,6 +38,26 @@ def resolve(line_list):
     return out
 
 
+RX_Y_FIELD = re.compile(r';Y(\d+)')
+
+
+def _lines_come_back(line_list):
+    visited, current = set(), None
+    for line in line_list:
+        if not line.startswith('C;') or ';Y' not in line:
+            continue
+        m = RX_Y_FIELD.search(line)
+        if not m:
+            continue
+        y = int(m.group(1))
+        if y != current:
+            if y in visited:
+                return True
+            visited.add(y)
+            current = y
+    return False
+
+
 def add_levels(line_list):
     col, _ = C.slk_columns(line_list)
     if not col:
@@ -68,7 +88,7 @@ def add_levels(line_list):
             arg.append(fname)
     arg = b''.join(C._ints(v) if not isinstance(v, str) else struct.pack('<I', len(v)) + v.encode('ascii')
                    for v in arg)
-    r = C._step(6, line_list, arg)
+    r = C._step(6, line_list, arg) if not _lines_come_back(line_list) else None
     if r is not None:
         copied = r.int()
         return {
@@ -85,7 +105,12 @@ def add_levels(line_list):
         if k is not None and y is not None and y > 1:
             level4[(y, x)] = k
 
+    emitted_columns = set()
+
     def new_cells(y):
+        if y in emitted_columns:
+            return []
+        emitted_columns.add(y)
         out = []
         for x4, new_ones in plain_name:
             for xn, fname in new_ones:
