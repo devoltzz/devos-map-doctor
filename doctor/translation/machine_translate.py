@@ -816,6 +816,9 @@ def translate_map(path, out_file, progress=None, only=None, quality='best', lang
     p = progress or _nothing
     rep = {'state': None, 'error': None, 'file': None, 'entries': 0, 'language': '', 'model': None, 'translated': 0,
            'left': 0, 'rejected': {}, 'pieces': 0, 'seconds': 0, 'images': None, 'kept': 0}
+    if translation_io.output_is_input(path, out_file):
+        rep.update(state='failed', error=translation_io.SAME_FILE)
+        return rep
     try:
         p('reading map')
         a = translation_io._open(path)
@@ -829,24 +832,13 @@ def translate_map(path, out_file, progress=None, only=None, quality='best', lang
     if not mt.entries:
         rep['state'] = 'no_text'
         return rep
-    kept = {}
+    kdoc = None
     if keep:
         try:
-            with open(keep, encoding='utf-8') as f:
-                kdoc = json.load(f)
+            kdoc = translation_io._load(keep)
         except (OSError, ValueError) as e:
             rep.update(state='failed', error='cannot read the translation file to keep (%s)' % translation_io._error(e))
             return rep
-        texts = dict((e['id'], e['text']) for e in mt.entries)
-        for t in kdoc.get('entries') or [] if isinstance(kdoc, dict) else []:
-            if isinstance(t, dict) and isinstance(t.get('translation'), str) and t['translation'] and \
-                    texts.get(t.get('id')) == t.get('text'):
-                kept[t['id']] = t['translation']
-        by_text = dict((texts[i], tr) for i, tr in kept.items())
-        for e in mt.entries:
-            if e['id'] not in kept and e['text'] in by_text:
-                kept[e['id']] = by_text[e['text']]
-        rep['kept'] = len(kept)
     lang = lang or detect_language(e['text'] for e in mt.entries)
     rep['language'] = lang
     if lang not in MODELS:
@@ -868,6 +860,18 @@ def translate_map(path, out_file, progress=None, only=None, quality='best', lang
         n, _lang, err = translation_io.add_images(mt, path, p)
         rep['images'] = {'entries': n, 'error': err}
         rep['entries'] = len(mt.entries)
+    kept = {}
+    if kdoc is not None:
+        texts = dict((e['id'], e['text']) for e in mt.entries)
+        for t in kdoc.get('entries') or []:
+            if isinstance(t, dict) and isinstance(t.get('id'), str) and isinstance(t.get('translation'), str) and \
+                    t['translation'] and isinstance(t.get('text'), str) and texts.get(t['id']) == t['text']:
+                kept[t['id']] = t['translation']
+        by_text = dict((texts[i], tr) for i, tr in kept.items())
+        for e in mt.entries:
+            if e['id'] not in kept and e['text'] in by_text:
+                kept[e['id']] = by_text[e['text']]
+        rep['kept'] = len(kept)
     result, info = translate_entries([e for e in mt.entries if e['id'] not in kept], lang, engine, p)
     rep.update(info)
     result.update(kept)
