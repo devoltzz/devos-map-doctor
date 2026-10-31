@@ -1434,6 +1434,7 @@ def unlock(path_in, path_out, progress=None):
     if res['reason']:
         return stop('refused', res['reason'])
     if not sites:
+        rep['lines'] = ['The map does not end the game in single player.']
         return stop('nothing', 'The map does not end the game in single player.')
     with unprotect.quiet():
         protected = a.is_malformed or mpqdoctor.virtual_tables(a) or mpqdoctor.is_sprotect(a)[0]
