@@ -324,7 +324,7 @@ def infer_parent(row, base_norm, candidates=None):
     return best
 
 
-def convert(read, names, species, base, w3i=None, progress=None, complete=False):
+def convert(read, names, species, base, w3i=None, progress=None, complete=False, parents=None):
     ob = _objetos()
     p = progress or (lambda *_a, **_k: None)
     cfg = ob.OBJ_KINDS[species]
@@ -359,7 +359,11 @@ def convert(read, names, species, base, w3i=None, progress=None, complete=False)
             rep['originals'] += 1
         else:
             code = row.get('code') if species == 'ability' else None
-            if code and code in base_tab:
+            owner = (parents or {}).get(rid.lower())
+            if owner and owner in base_tab:
+                parent = owner
+                rep['parent_file'] = rep.get('parent_file', 0) + 1
+            elif code and code in base_tab:
                 parent = code
                 rep['parent_code'] += 1
             else:
@@ -471,6 +475,7 @@ def fix(path_in, path_out, progress=None, base=None, species=SPECIES, version=No
     def stop(state, why):
         rep['state'] = state
         rep['lines'] = [('bad' if state == 'failed' else 'warn', why)]
+        rep['error' if state == 'failed' else 'reason'] = str(why).rstrip('.')
         return rep
 
     if os.path.abspath(path_in) == os.path.abspath(path_out):
@@ -563,8 +568,12 @@ def fix(path_in, path_out, progress=None, base=None, species=SPECIES, version=No
     for s in partial:
         fname = ob.OBJ_KINDS[s]['map_path']
         try:
-            r = convert(read, names, s, base, progress=p, complete=leave)
+            _v, had, _p = ob.read_objects_bytes(read(fname), ob.uses_levels(fname), fname, True)
+            file_parents = dict((o[2].lower(), o[1]) for o in had if o[0] == 1)
+            r = convert(read, names, s, base, progress=p, complete=leave, parents=file_parents)
             m = merge_new(read(fname), fname, r['objects'])
+            other_parent = any(o[0] == 1 and o[2].lower() in file_parents and
+                               o[1].lower() != file_parents[o[2].lower()].lower() for o in r['objects'])
         except Exception as e:
             rep['lines'].append(('bad', '%s: the new objects only the SLK tables hold were not added to %s (%s).' % (
                 s, fname, str(e)[:100])))
@@ -584,6 +593,10 @@ def fix(path_in, path_out, progress=None, base=None, species=SPECIES, version=No
         files.append((fname, m['bytes']))
         if leave and not r['report'].get('skipped'):
             done.append(s)
+            if other_parent:
+                rep['lines'].append(('warn', '%s: some objects of %s have a parent the game tables lack; they keep '
+                                             'their own fields, without the ones only the SLK tables gave them.'
+                                             % (s, fname)))
         rep['lines'].append(
             (
                 'good',
@@ -618,6 +631,8 @@ def fix(path_in, path_out, progress=None, base=None, species=SPECIES, version=No
         )
     if not files:
         rep['state'] = 'failed' if any(k == 'bad' for k, _t in rep['lines']) else 'nothing_to_do'
+        if rep['state'] == 'failed':
+            rep['error'] = '; '.join(t.rstrip('.') for k, t in rep['lines'] if k == 'bad')
         return rep
     remove = [n for s in done for n in (lower.get(r) for r in ob.OBJ_KINDS[s]['slk']) if n]
     try:
