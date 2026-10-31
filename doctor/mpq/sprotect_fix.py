@@ -41,12 +41,16 @@ def looks_like_sector_table(buf, pos, psize, usize, sector):
 
 def fix(path, out_path):
     buf = bytearray(open(path, 'rb').read())
-    off = find_mpq(buf)
+    h, _skipped = _ML.find_header(bytes(buf), path)
+    off = h.offset if h is not None else find_mpq(buf)
     if off is None:
         sys.exit('no MPQ header found (is this a .w3x?)')
 
     magic, hsize, asize, ver, bshift, hpos, bpos, hcount, bcount = \
         struct.unpack_from('<4sIIHHIIII', buf, off)
+    hcount &= 0x0FFFFFFF
+    bcount &= 0x0FFFFFFF
+    hpos_abs = (off + hpos) & 0xFFFFFFFF
     print('MPQ at 0x%X' % off)
     print('  headerSize = 0x%08X (%s)' % (hsize, buf[off + 4:off + 8]))
     print('  archiveSize = 0x%08X (%s)' % (asize, buf[off + 8:off + 12]))
@@ -60,15 +64,17 @@ def fix(path, out_path):
     hkey = hash_string('(hash table)', HASH_FILE_KEY)
     bkey = hash_string('(block table)', HASH_FILE_KEY)
 
-    htab = bytearray(decrypt(bytes(buf[off + hpos:off + hpos + hcount * 16]), hkey))
+    htab = bytearray(decrypt(bytes(buf[hpos_abs:hpos_abs + hcount * 16]), hkey))
     fixed_hash = 0
-    for i in range(hcount):
+    for i in range(len(htab) // 16):
         n1, n2, loc, plat, bi = struct.unpack_from('<IIHHI', htab, i * 16)
         if n1 == 0xFFFFFFFF and n2 == 0xFFFFFFFF and bi == 0xFFFFFFFF:
             continue
         if bi == 0xFFFFFFFE:
             continue
         if bi >= bcount:
+            if (bi & 0x00FFFFFF) < bcount <= (bi & 0x0FFFFFFF):
+                continue
             bi &= 0x00FFFFFF
         if loc != 0 or plat != 0 or bi != struct.unpack_from('<I', htab, i * 16 + 12)[0]:
             fixed_hash += 1
@@ -80,7 +86,9 @@ def fix(path, out_path):
     overlap = 0
     if btab_pos < HEADER_V1:
         overlap = max(0, min(HEADER_V1, btab_pos + bcount * 16) - btab_pos)
-    btab = bytearray(decrypt(bytes(buf[off + btab_pos:off + btab_pos + bcount * 16]), bkey))
+    babs = (off + btab_pos) & 0xFFFFFFFF
+    btab = bytearray(decrypt(bytes(buf[babs:babs + bcount * 16]), bkey))
+    bcount = len(btab) // 16
 
     fixed_block = 0
     for i in range(bcount):
@@ -100,7 +108,7 @@ def fix(path, out_path):
 
     new_bpos = len(buf) - off
     buf += encrypt(bytes(btab), bkey)
-    buf[off + hpos:off + hpos + hcount * 16] = encrypt(bytes(htab), hkey)
+    buf[hpos_abs:hpos_abs + len(htab)] = encrypt(bytes(htab), hkey)
 
     struct.pack_into('<4sIIHHIIII', buf, off,
                      MPQ_MAGIC, 0x20, len(buf) - off, 0, bshift,
