@@ -279,6 +279,8 @@ def walk(d, h, data_end=None, first_pos=0x20):
         for q in cuts:
             members.append(Member(pos, q - pos))
             pos = q
+    if len(members) >= MAX_MEMBERS and base + pos + 8 <= end_pos:
+        holes.append((pos, end_pos - base))
     return members, holes
 
 
@@ -658,6 +660,17 @@ def _intact(pos, n, loss_start):
     return max(0, (loss_start - pos) // 16) if loss_start > pos else 0
 
 
+def _big_names_index(details, log=None):
+    from doctor.mpq import mpqnames
+    try:
+        return mpqnames.load_big()
+    except Exception as e:
+        details['big_names_index'] = '%s: %s' % (type(e).__name__, str(e)[:120])
+        if log:
+            log('the names index did not load (%s): going on without it' % details['big_names_index'])
+        return None
+
+
 def repair_tables(d, loss_start, fname=None, index_='auto'):
     details = {'lost_blocks': 0, 'lost_slots': 0, 'rebuilt': 0, 'no_member': [], 'leftover_count': 0, 'how': {},
                'inserted': 0, 'unnamed': 0}
@@ -718,8 +731,7 @@ def repair_tables(d, loss_start, fname=None, index_='auto'):
         except Exception as e:
             m.err = str(e)[:80]
     if index_ == 'auto':
-        from doctor.mpq import mpqnames
-        index_ = mpqnames.load_big()
+        index_ = _big_names_index(details)
     assign_names(members, index_)
     by_pos = dict((m.pos, m) for m in members)
     good_positions = set(bt[4 * i] for i in range(good) if bt[4 * i + 3] & BLOCK_EXISTS)
@@ -882,15 +894,16 @@ def carve(file_path, output=None, index_='auto', log=None):
         except Exception as e:
             m.err = str(e)[:80]
     if index_ == 'auto':
-        from doctor.mpq import mpqnames
-        index_ = mpqnames.load_big()
+        index_ = _big_names_index(details, log)
     assign_names(members, index_, log)
     how = collections.Counter(m.how for m in members if m.data_bytes is not None)
     details['name_list'] = dict(how)
     details['unreadable_items'] = sum(1 for m in members if m.data_bytes is None)
     file_set = collections.OrderedDict()
+    seen = set()
     for m in members:
-        if m.data_bytes is not None and m.fname and m.fname.upper() not in (x.upper() for x in file_set):
+        if m.data_bytes is not None and m.fname and m.fname.upper() not in seen:
+            seen.add(m.fname.upper())
             file_set[m.fname] = m.data_bytes
     details['file_set'] = len(file_set)
     default_value = ('war3map.w3i', 'war3map.w3e', 'war3map.j', 'war3map.lua', 'war3map.wts', 'war3map.doo',
