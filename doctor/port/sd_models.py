@@ -94,12 +94,12 @@ def rewrite_objects(data_bytes, new_ones):
         for ext in ('.mdx', '.mdl'):
             tgt = re.escape((old[:-4] + ext).encode('latin-1', 'replace'))
             swap = new.encode('latin-1')
-            data_bytes, k = re.subn(tgt + b'(?=[\x00,])', lambda _m: swap, data_bytes, flags=re.I)
+            data_bytes, k = re.subn(b'(?<=[\x00,])' + tgt + b'(?=[\x00,])', lambda _m: swap, data_bytes, flags=re.I)
             n += k
     return data_bytes, n
 
 
-def applies(script, data_bytes, extract, map_path, dest, casc=None, log=print):
+def applies(script, data_bytes, extract, map_path, dest, casc=None, log=print, sources=()):
     details = {
         'status': 'nothing',
         'models': [],
@@ -146,16 +146,34 @@ def applies(script, data_bytes, extract, map_path, dest, casc=None, log=print):
                     with open(c, 'wb') as f:
                         f.write(t2.encode('utf-8', 'surrogateescape'))
                     details['references']['data_bytes'] += k
-    if extract and os.path.isdir(extract) and data_bytes:
-        for fname in sorted(os.listdir(extract)):
-            if fname.lower().startswith('war3map') and fname.lower().endswith(OBJECTS):
-                with open(os.path.join(extract, fname), 'rb') as f:
-                    d = f.read()
-                d2, k = rewrite_objects(d, new_ones)
-                if k:
-                    os.makedirs(data_bytes, exist_ok=True)
-                    with open(os.path.join(data_bytes, fname), 'wb') as f:
-                        f.write(d2)
-                    details['references']['objects'] += k
+    if data_bytes:
+        from doctor.port import int32_balance
+        folders = [data_bytes] + [p for p in (sources or ()) if p] + [extract]
+        folders = [p for p in folders if p and os.path.isdir(p)]
+        name_list = {}
+        for folder in folders:
+            for fname in sorted(os.listdir(folder)):
+                if fname.lower().startswith('war3map') and fname.lower().endswith(OBJECTS):
+                    name_list.setdefault(fname.lower(), fname)
+        for hash_key in sorted(name_list):
+            finding = None
+            for folder in folders:
+                finding = int32_balance._find_ci(folder, [name_list[hash_key]])
+                if finding:
+                    break
+            if not finding:
+                continue
+            with open(finding, 'rb') as f:
+                d = f.read()
+            d2, k = rewrite_objects(d, new_ones)
+            if k:
+                os.makedirs(data_bytes, exist_ok=True)
+                in_data_folder = os.path.normcase(os.path.dirname(os.path.abspath(finding))) == \
+                    os.path.normcase(os.path.abspath(data_bytes))
+                with open(
+                    finding if in_data_folder else os.path.join(data_bytes, os.path.basename(finding)), 'wb'
+                ) as f:
+                    f.write(d2)
+                details['references']['objects'] += k
     details['status'] = 'done'
     return details
