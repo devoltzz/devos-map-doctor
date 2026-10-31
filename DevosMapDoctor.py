@@ -3,9 +3,24 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def onefile_restart(argv, env, mei, frozen):
+    if not frozen or not mei or '--worker' in argv or env.pop('DEVOS_MAP_DOCTOR_RESTARTED', None):
+        return None
+    if os.path.isfile(os.path.join(mei, 'doctor', 'ref', '3.0', 'common.ai')):
+        return None
+    return [sys.executable] + list(argv), dict(env, PYINSTALLER_RESET_ENVIRONMENT='1', DEVOS_MAP_DOCTOR_RESTARTED='1')
+
+
+_restart = onefile_restart(sys.argv[1:], os.environ, getattr(sys, '_MEIPASS', None), getattr(sys, 'frozen', False))
+if _restart:
+    import subprocess
+    subprocess.Popen(_restart[0], env=_restart[1], close_fds=True)
+    sys.exit(0)
 from doctor.fix import unprotect as D
 
-VERSION = '1.11.0'
+VERSION = '2.0.0'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -33,6 +48,7 @@ STAGES = {
     'extra_data_pointers': 'Aligning the data pointers...',
     'extra_kk_textures': 'Decrypting the KK textures...',
     'extra_disabled_icons': 'Making the disabled icons...',
+    'extra_console_sides': 'Making the console pieces transparent...',
     'extra_uabi': 'Moving the ability lists to the script...',
     'extra_preload': 'Preloading the first seconds...',
     'extra_single_player': 'Allowing single player...',
@@ -839,6 +855,25 @@ def editor_text(r):
             out.append(('warning', '      %s the script defines %s also defined by Reforged (%s%s).'
                         % (pluralize(len(ch), 'name', 'names'), 'is' if len(ch) == 1 else 'are', ', '.join(ch[:2]),
                            '...' if len(ch) > 2 else '')))
+    tx = r.get('texts_back') or {}
+    if tx and not tx.get('err'):
+        out.append(
+            (
+                'info',
+                '  - Put back into the script the texts the platform DLL fills in: %s and %s.'
+                % (
+                    pluralize(tx.get('texts') or 0, 'text', 'texts'),
+                    pluralize(tx.get('w3p_constants') or 0, 'number', 'numbers'),
+                ),
+            )
+        )
+        if tx.get('cut_texts'):
+            out.append(('info', '      %s had been stored cut in the middle of a character, which is left out.'
+                        % pluralize(tx['cut_texts'], 'text', 'texts')))
+    lf = details.get('lua_fuscator') or {}
+    if lf.get('ok'):
+        for line in lf.get('notes') or []:
+            out.append(('info', '  - ' + str(line)))
     if details.get('regenerated_triggers'):
         out.append(('info', '  - The YDWE triggers went to the map script in the custom script.'))
     if details.get('w3i_tail'):
@@ -1022,16 +1057,23 @@ def editor_text(r):
     return out
 
 
-def execute(action_code, map_path, progress=None, safe_units=True):
+def execute(action_code, map_path, progress=None, safe_units=True, statuses=None):
+    statuses = [] if statuses is None else statuses
     if action_code == 'diag':
-        return diagnosis_text(D.diagnose(map_path, progress))
+        d = D.diagnose(map_path, progress)
+        statuses.append(d.get('fixable'))
+        return diagnosis_text(d)
     from doctor.fix import no_edit
     if no_edit.read(map_path):
+        statuses.append(NO_EDIT_TEXT)
         return [('heading', os.path.basename(map_path)), ('invalid', NO_EDIT_TEXT)]
     if action_code == 'unprotect':
-        return unprotection_text(D.unprotect(map_path, D.free_output(map_path, '_fixed'), progress))
-    return editor_text(D.prepare_for_editor(map_path, D.free_output(map_path, '_editor'), progress,
-                                            safe_units=safe_units))
+        r = D.unprotect(map_path, D.free_output(map_path, '_fixed'), progress)
+        statuses.append(r.get('status'))
+        return unprotection_text(r)
+    r = D.prepare_for_editor(map_path, D.free_output(map_path, '_editor'), progress, safe_units=safe_units)
+    statuses.append(r.get('status'))
+    return editor_text(r)
 
 
 def window(initial_map_path=None):
@@ -1082,6 +1124,7 @@ def main(argv=None):
         return 0
     cli_only = ('--help', '-h', '--version', '--json-schema')
     if '--cli' in argv or (argv and not argv[0].startswith('--') and not os.path.isfile(argv[0])) or \
+            (argv and argv[0].startswith('-') and doctor_cli.cli_command(argv)) or \
             (argv and argv[0] in cli_only) or \
             (argv and any(a in cli_only for a in argv) and all(a in cli_only + ('--json', '--quiet') for a in argv)):
         return doctor_cli.main([a for a in argv if a != '--cli'], sys.modules[__name__], VERSION)
@@ -1092,6 +1135,7 @@ def main(argv=None):
             out.reconfigure(encoding='utf-8', errors='replace')
         except Exception:
             pass
+        out = doctor_cli.plain_terminal(out)
         args = [a for a in argv if not a.startswith('--')]
         if not args or not os.path.isfile(args[0]):
             print('usage: --text <map.w3x> [--unprotect] [--editor] [--log=<file>]', file=out)
@@ -1103,6 +1147,7 @@ def main(argv=None):
             ['diag'] + (['unprotect'] if '--unprotect' in argv else []) + (['editor'] if '--editor' in argv else [])
         )
         safe_units = '--units=all' not in argv
+        statuses = []
         try:
             for action_code in action_codes:
                 for st, txt in execute(
@@ -1110,13 +1155,16 @@ def main(argv=None):
                     map_path,
                     progress=lambda c: print('   [%s]' % STAGES.get(c, c), file=out),
                     safe_units=safe_units,
+                    statuses=statuses,
                 ):
                     print(('## ' if st == 'heading' else '') + txt, file=out)
                 print(file=out)
         finally:
             if log:
                 out.close()
-        return 0
+        return (
+            1 if set(statuses) & {'failed', 'not_a_map', 'cannot_read', 'incomplete', 'unreadable', NO_EDIT_TEXT} else 0
+        )
     args = [a for a in argv if not a.startswith('--')]
     window(os.path.normpath(args[0]) if args and os.path.isfile(args[0]) else None)
     return 0
