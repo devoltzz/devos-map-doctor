@@ -377,8 +377,23 @@ def assemble(r, argv=None):
     medidas['ui_local'] = dict(
         (k, info[k]) for k in ('local_vars', 'functions', 'synchronous_ones', 'quadro', 'boot_info')
     )
-    found_t = thread_local.audit(t)
-    found_c = [a for a in thread_local.audit(t, creation=True) if all(x.startswith('+') for x in a[1])]
+    params_file = os.path.join(r.ROOT, 'port', 'kk_parametros.json')
+    if os.path.isfile(params_file) and json.load(open(params_file, encoding='utf-8')).get('KK_UI_NOMES') == 'true':
+        t, n = ui_local.name_list(t)
+        print('3n names: %d frame name(s) converted on every machine (KK_UI_NOMES)' % n)
+        verify('8a names', exp_len.get('ui_names'), n)
+    if 'thread_fix' in exp_len:
+        t, info = thread_local.fixable(t)
+        if info['failures']:
+            aborts('8b (the local code fix)', info['failures'])
+        print('8b fix: %d function(s) switched to %d copy(ies) without a trigger (%s)'
+              % (info['replacements'], len(info['copies']), ', '.join(info['copies'][:8])))
+        verify('8b fix', exp_len['thread_fix'], {'replacements': info['replacements'], 'copies': len(info['copies'])})
+    branches = 'thread_fix' in exp_len
+    found_t = thread_local.audit(t, branches=branches)
+    found_c = [
+        a for a in thread_local.audit(t, creation=True, branches=branches) if all(x.startswith('+') for x in a[1])
+    ]
     if 'local' in exp_len:
         thread_local.report_data(found_t)
         if found_c:
