@@ -260,7 +260,7 @@ def _cite(data, pairs):
 
 def fix(path_in, path_out, progress=None):
     p = progress or (lambda *_a: None)
-    rep = {'renamed': [], 'files': [], 'portraits': 0, 'note': None, 'error': None}
+    rep = {'state': 'failed', 'renamed': [], 'files': [], 'portraits': 0, 'note': None, 'error': None}
     if os.path.normcase(os.path.abspath(path_in)) == os.path.normcase(os.path.abspath(path_out)):
         rep['error'] = 'the output must be a new file'
         return rep
@@ -274,9 +274,7 @@ def fix(path_in, path_out, progress=None):
     pairs, rep['portraits'] = _pairs(a, base)
     if not pairs:
         rep['note'] = 'no model name carries the mark'
-        parte = path_out + '.part'
-        shutil.copyfile(path_in, parte)
-        os.replace(parte, path_out)
+        rep['state'] = 'nothing_to_do'
         return rep
     p('Rewriting the names in the map files')
     repl, touched = [], []
@@ -334,6 +332,7 @@ def fix(path_in, path_out, progress=None):
         rep['error'] = '; '.join(problems[:4])
         return rep
     os.replace(part, path_out)
+    rep['state'] = 'done'
     rep['renamed'] = pairs
     rep['files'] = touched
     return rep
