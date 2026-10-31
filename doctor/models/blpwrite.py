@@ -3,6 +3,7 @@ import io
 import struct
 
 from PIL import Image, ImageChops
+from PIL.JpegImagePlugin import zigzag_index
 
 
 
@@ -78,6 +79,24 @@ LUMA_K = [16, 11, 10, 16, 24, 40, 51, 61, 12, 12, 14, 19, 26, 58, 60, 55, 14, 13
           14, 17, 22, 29, 51, 87, 80, 62, 18, 22, 37, 56, 68, 109, 103, 77, 24, 35, 55, 64, 81, 104, 113, 92,
           49, 64, 78, 87, 103, 121, 120, 101, 72, 92, 95, 98, 112, 100, 103, 99]
 QTABLE_HIGH = [max(1, (v * 20 + 50) // 100) for v in LUMA_K]
+
+
+def qtable_from_bytes(d):
+    hs = struct.unpack_from('<I', d, 156)[0]
+    offs = struct.unpack_from('<16I', d, 28)
+    sizes = struct.unpack_from('<16I', d, 92)
+    jpg = d[160:160 + hs] + d[offs[0]:offs[0] + sizes[0]]
+    p = 2
+    while p + 4 <= len(jpg) and jpg[p] == 0xFF:
+        m = jpg[p + 1]
+        txt_ln = struct.unpack('>H', jpg[p + 2:p + 4])[0]
+        if m == 0xDB and p + 5 + 64 <= len(jpg) and not (jpg[p + 4] >> 4):
+            raw = jpg[p + 5:p + 5 + 64]
+            return [raw[i] for i in zigzag_index]
+        if m == 0xDA:
+            break
+        p += 2 + txt_ln
+    return None
 
 
 def _scaled_table(scale, base=None):
