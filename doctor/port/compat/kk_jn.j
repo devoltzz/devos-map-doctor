@@ -1275,27 +1275,11 @@ function KKJN_CargaLe takes integer quantas returns boolean
     return true
 endfunction
 
-function KKJN_CargaComeca takes string MapId,string UserId,string SecretKey,string Character returns integer
-    local string u
-    local string c=Character
-    local string obj
-    local integer k
-    if not KKJN_pronto or UserId==null or UserId=="" then
-        return 1
-    endif
-    set u=KKJN_UKey(UserId)
-    if c==null then
-        set c=""
-    endif
-    call SaveStr(KKJN_dbf, KKJN_AKey(u), 0, c)
-    set obj=KKJN_ObjChar(u, c)
-    set k=StringHash(obj)
+function KKJN_CargaObj takes string obj,string base returns boolean
+    local integer k=StringHash(obj)
     if KKJN_cg_obj!="" then
         if KKJN_cg_obj==obj then
-            if not KKJN_CargaLe(KKJN_CARGA_POR_TIQUE) then
-                return KKJN_CARGA_PENDENTE
-            endif
-            return 0
+            return not KKJN_CargaLe(KKJN_CARGA_POR_TIQUE)
         endif
         call KKJN_CargaLe(0)
     endif
@@ -1304,10 +1288,10 @@ function KKJN_CargaComeca takes string MapId,string UserId,string SecretKey,stri
         call KKJN_ClearObj(obj)
         if KKJN_nslots>0 then
             call KKJN_SlotClear()
-            call Preloader(KKJN_BaseChar(u, c)+"0.pld")
+            call Preloader(base+"0.pld")
             if KKJN_SlotGet(0)!="" then
                 set KKJN_cg_obj=obj
-                set KKJN_cg_base=KKJN_BaseChar(u, c)
+                set KKJN_cg_base=base
                 set KKJN_cg_parts=S2I(KKJN_SlotHead(KKJN_SlotGet(0)))
                 if KKJN_cg_parts<1 then
                     set KKJN_cg_parts=1
@@ -1318,12 +1302,31 @@ function KKJN_CargaComeca takes string MapId,string UserId,string SecretKey,stri
                 set KKJN_cg_espera=0
                 set KKJN_cg_curto=false
                 if not KKJN_CargaLe(KKJN_CARGA_POR_TIQUE) then
-                    return KKJN_CARGA_PENDENTE
+                    return true
                 endif
             else
                 call KKJN_SlotRestore()
             endif
         endif
+    endif
+    return false
+endfunction
+
+function KKJN_CargaComeca takes string MapId,string UserId,string SecretKey,string Character returns integer
+    local string u
+    local string c=Character
+    local integer k
+    if not KKJN_pronto or UserId==null or UserId=="" then
+        return 1
+    endif
+    set u=KKJN_UKey(UserId)
+    if c==null then
+        set c=""
+    endif
+    call SaveStr(KKJN_dbf, KKJN_AKey(u), 0, c)
+    set k=StringHash(KKJN_ObjChar(u, c))
+    if KKJN_CargaObj(KKJN_ObjChar(u, c), KKJN_BaseChar(u, c)) then
+        return KKJN_CARGA_PENDENTE
     endif
     if HaveSavedBoolean(KKJN_dbf, k, -2) then
         return 0
@@ -1658,6 +1661,46 @@ function KKJN_CurChar takes string user returns string
     return c
 endfunction
 
+function KKJN_ApagaPersonagem takes string UserId,string nome returns boolean
+    local string u
+    local integer ik
+    local integer n
+    local integer i=0
+    local integer a=-1
+    if not KKJN_pronto or UserId==null or UserId=="" or nome==null or nome=="" then
+        return false
+    endif
+    set u=KKJN_UKey(UserId)
+    set ik=KKJN_IKey(u)
+    if StringHash(KKJN_CurChar(u))==StringHash(nome) then
+        return false
+    endif
+    call KKJN_LoadIndex(u)
+    set n=LoadInteger(KKJN_dbf, ik, -1)
+    loop
+        exitwhen i>=n or a>=0
+        if StringHash(LoadStr(KKJN_dbf, ik, i))==StringHash(nome) then
+            set a=i
+        endif
+        set i=i+1
+    endloop
+    if a<0 then
+        return false
+    endif
+    call KKJN_ClearObj(KKJN_ObjChar(u, nome))
+    call KKJN_SaveObj(KKJN_ObjChar(u, nome), KKJN_BaseChar(u, nome))
+    set i=a
+    loop
+        exitwhen i>=n-1
+        call SaveStr(KKJN_dbf, ik, i, LoadStr(KKJN_dbf, ik, i+1))
+        set i=i+1
+    endloop
+    call RemoveSavedString(KKJN_dbf, ik, n-1)
+    call SaveInteger(KKJN_dbf, ik, -1, n-1)
+    call KKJN_SaveIndex(u)
+    return true
+endfunction
+
 function KKJN_CurNs takes string user returns string
     local string c=LoadStr(KKJN_dbf, KKJN_AKey(user), 2)
     if c==null then
@@ -1886,6 +1929,23 @@ function JNObjectUserInit takes string MapId,string Userid,string SecretKey,stri
     return 0
     //{{KK_FIMSE:KK_JN_INIT_ZERO}}
     return 1
+endfunction
+
+function KKJN_CargaComecaUsuario takes string MapId,string UserId,string SecretKey,string Character returns integer
+    local string u
+    local string ns=Character
+    if not KKJN_pronto or UserId==null or UserId=="" then
+        return 1
+    endif
+    set u=KKJN_UKey(UserId)
+    if ns==null then
+        set ns=""
+    endif
+    call SaveStr(KKJN_dbf, KKJN_AKey(u), 2, ns)
+    if KKJN_CargaObj(KKJN_ObjUser(u, ns), KKJN_BaseUser(u, ns)) then
+        return KKJN_CARGA_PENDENTE
+    endif
+    return JNObjectUserInit(MapId, UserId, SecretKey, Character)
 endfunction
 
 //{{KK_SE:KK_JN_INIT2}}
