@@ -2,9 +2,9 @@
 import re
 
 
-RX_NATIVE = re.compile(r'^\s*native\s+([A-Za-z_]\w*)\s+takes\s')
+RX_NATIVE = re.compile(r'^\s*(?:constant\s+)?native\s+([A-Za-z_]\w*)\s+takes\s')
 RX_FUNCTION_DEF = re.compile(r'(?m)^function\s+([A-Za-z_]\w*)\s+takes\s')
-RX_NATIVE_TEXT = re.compile(r'(?m)^\s*native\s+([A-Za-z_]\w*)\s+takes\s')
+RX_NATIVE_TEXT = re.compile(r'(?m)^\s*(?:constant\s+)?native\s+([A-Za-z_]\w*)\s+takes\s')
 ENGINE_COMMENT = '// natives of the ENGINE declared by the map (see part_0_map_natives.j)'
 
 
@@ -65,7 +65,7 @@ def report_strip(info, origin):
 
 def inject_engine(body_text, natives_text):
     info = {'injetadas': [], 'failures': []}
-    native_lines = [line for line in natives_text.split('\n') if re.match(r'^\s*native\s+', line)]
+    native_lines = [line for line in natives_text.split('\n') if re.match(r'^\s*(?:constant\s+)?native\s+', line)]
     if not native_lines:
         return body_text, info
     for line in native_lines:
