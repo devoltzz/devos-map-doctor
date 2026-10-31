@@ -98,7 +98,10 @@ def native_decryption():
     target = ['-target', 'x86_64-linux-gnu.2.17', '-fPIC'] if LINUX else ['-target', 'x86_64-windows-gnu']
     r = subprocess.run([sys.executable, '-m', 'ziglang', 'cc'] + target + ['-shared', '-O2', '-s', '-o', lib, source],
                        capture_output=True, text=True)
-    if r.returncode:
+    if r.returncode and os.path.isfile(lib):
+        print('%s could not be built (pip install ziglang): kept the older one, what was added since runs in Python'
+              % os.path.basename(lib))
+    elif r.returncode:
         print(
             '%s could not be built (pip install ziglang): the program decrypts maps in Python' % os.path.basename(lib)
         )
@@ -123,6 +126,9 @@ def native_checks():
         shutil.copyfile(built, lib)
     elif not os.path.isfile(lib):
         print('%s could not be built (https://rustup.rs): the program runs the script checks in Python'
+              % os.path.basename(lib))
+    else:
+        print('%s could not be built (https://rustup.rs): kept the older one, what was added since runs in Python'
               % os.path.basename(lib))
 
 
