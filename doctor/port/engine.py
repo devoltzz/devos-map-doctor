@@ -15,11 +15,43 @@ DAMAGE_KEYS = {
 
 RX_DESTROYS = re.compile(r'\bcall[ \t]+DestroyTimer[ \t]*\(')
 RX_TYPE_CHECK = re.compile(r'(?<![\w.])IsUnitType\s*\(')
+RX_TEXT = re.compile(r'//[^\n]*|"(?:[^"\\]|\\.)*"|\'(?:[^\'\\\n]|\\.){1,4}\'', re.S)
+
+
+def _outside_text(body_text):
+    import bisect
+    begin, end_pos = [], []
+    for m in RX_TEXT.finditer(body_text):
+        if m.group(0)[0] != '/':
+            begin.append(m.start())
+            end_pos.append(m.end())
+
+    def outside(p):
+        k = bisect.bisect_right(begin, p) - 1
+        return k < 0 or p >= end_pos[k]
+    return outside
+
+
+def swap_destroy(body_text):
+    if 'DestroyTimer' not in body_text:
+        return body_text, 0
+    outside = _outside_text(body_text)
+    n = [0]
+
+    def sub(m):
+        if not outside(m.start()):
+            return m.group(0)
+        n[0] += 1
+        return 'call KK_tmr_destroi('
+    return RX_DESTROYS.sub(sub, body_text), n[0]
 
 
 def dead_swap(body_text):
     replacements = []
+    outside = _outside_text(body_text) if 'UNIT_TYPE_DEAD' in body_text else None
     for m in RX_TYPE_CHECK.finditer(body_text):
+        if outside is None or not outside(m.start()):
+            continue
         opens = m.end() - 1
         end_pos = ui_local.on_close(body_text, opens)
         if end_pos < 0:
@@ -38,8 +70,7 @@ def applies(body_text, expected_count=None, to_report=False):
     failures = []
     info = {'failures': failures}
     line_list = body_text.count('\n')
-    n_dt = len(RX_DESTROYS.findall(body_text))
-    body_text = RX_DESTROYS.sub('call KK_tmr_destroi(', body_text)
+    body_text, n_dt = swap_destroy(body_text)
     body_text, n_dead = dead_swap(body_text)
     info['destroy_timer'] = n_dt
     info['dead_unit'] = n_dead
