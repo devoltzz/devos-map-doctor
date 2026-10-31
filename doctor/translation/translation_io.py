@@ -40,6 +40,7 @@ TEXT_FIELDS = {
 }
 OBJECT_KIND = {'w3u': 'unit', 'w3t': 'item', 'w3a': 'ability', 'w3h': 'buff', 'w3q': 'upgrade', 'w3b': 'destructable'}
 NAME_FIELDS = ('unam', 'anam', 'gnam', 'bnam', 'upro', 'ucun')
+OBJECT_NAME_FIELDS = ('unam', 'anam', 'gnam', 'bnam', 'fnam')
 W3I_FIELDS = (('name', 'map name'), ('author', 'map author'), ('description', 'map description'),
               ('players_recommended', 'suggested players'), ('loading_title', 'loading screen title'),
               ('loading_subtitle', 'loading screen subtitle'), ('loading_text', 'loading screen text'),
@@ -89,15 +90,28 @@ HELP = (
     'For a Chinese, Japanese or Korean translation, set "language" (zh, ja or ko).',
     'Image entries are the text drawn in an image (read by OCR): the translation is drawn in its place; for a text '
     'in several lines, the words are spread over them.')
+def _head(fmt, sep=' ('):
+    return fmt.split(sep)[0]
+
+
+LEVELS_COMMAS = 'niveis: %d virgulas, esperado %d'
+LEVELS_QUOTES = 'niveis: %d aspas, esperado %d'
+LEVELS = _head(LEVELS_COMMAS, ':') + ':'
+JASS_LITERAL_MAX = 1023
+NUMBERS = _head('numbers differ (%s -> %s)')
+TOO_LONG = _head('muito longo (%d chars vs %d)')
 REASONS = (('empty', 'empty translation'), ('CJK restante', 'Chinese, Japanese or Korean text left'),
-           ('mencao a IA', 'mentions AI or translation'), ('raw line break', 'a real line break (use |n)'),
-           ('codigos de cor diferentes', 'color codes changed'),
+           ('mencao a IA/traducao', 'mentions AI or translation'),
+           ('raw line break', 'a real line break (use |n)'),
+           (_head('different color codes (%s -> %s)'), 'color codes changed'),
            ('double quotes in a txt value', 'double quotes in a data value'),
            ('different quote escaping', 'escaped quotes changed'),
-           ('aspas sem escape', 'a double quote without a backslash in a script text'),
+           ('unescaped quotes in a JASS literal', 'a double quote without a backslash in a script text'),
            ('barra invertida solta', 'a lone backslash in a script text'),
-           ('muito longo', 'much longer than the original'), ('numeros diferentes', 'numbers changed'),
-           ('level_list', 'level commas changed'), ('not a string', 'not a string'))
+           (TOO_LONG, 'much longer than the original'), (NUMBERS, 'numbers changed'),
+           (LEVELS, 'level commas changed'), ('not a string', 'not a string'),
+           ('key:value record', 'a key:value record changed (keep its keys and its `:`, no `,` or `:` inside a '
+                                'value)'))
 
 
 def _nothing(*_a, **_k):
@@ -185,6 +199,7 @@ class MapText(object):
         self.refs = collections.defaultdict(list)
         self.compared_trigstr = set()
         self.name_trigstr = set()
+        self.name_objects = collections.defaultdict(set)
         self.layer_texts = collections.Counter()
         self.archive = None
         self.w3i_format = None
@@ -197,12 +212,14 @@ class MapText(object):
         return kw
 
 
-def _ref(mt, value, who, name=False):
+def _ref(mt, value, who, name=False, obj=None):
     m = RX_TRIGSTR.match(value)
     if m:
         mt.refs[int(m.group(1))].append(who)
         if name:
             mt.name_trigstr.add(int(m.group(1)))
+        if obj:
+            mt.name_objects[int(m.group(1))].add(obj)
     return bool(m)
 
 
@@ -295,7 +312,8 @@ def _collect_objects(mt, read):
                         s = _decode(val)
                         label = TEXT_FIELDS[ext].get(mid)
                         what = '%s %s %s' % (OBJECT_KIND[ext], ident, label or mid)
-                        if _ref(mt, s, what, mid in NAME_FIELDS) or not label or not is_text(s):
+                        named = ident if mid in OBJECT_NAME_FIELDS else None
+                        if _ref(mt, s, what, mid in NAME_FIELDS, named) or not label or not is_text(s):
                             continue
                         title = names.get(ident)
                         mt.add(id='obj:%s:%s:%s%s' % (name, ident, mid, ':%d' % lvl if lvl else ''), source='object',
@@ -352,15 +370,15 @@ def _collect_profiles(mt, read, names):
             continue
         text = _decode(files[name])
         found = []
-        tr_extract.extract_txt_text(name, text, found, collections.Counter(), collections.Counter(),
-                                    tem_text=is_text)
+        tr_extract.extract_txt_text(name, text, found, collections.Counter(), collections.Counter(), is_text, set())
         lines = tr_extract.line_break(text)[0]
         sections = _sections(lines)
         for ln, line in enumerate(lines):
             m = RX_KEY.match(line)
             if m:
                 _ref(mt, m.group(2).strip('"'), '%s [%s] %s' % (name, sections[ln], m.group(1)),
-                     m.group(1).lower() in ('name', 'propernames'))
+                     m.group(1).lower() in ('name', 'propernames'),
+                     sections[ln] if m.group(1).lower() == 'name' else None)
         if found:
             mt.files[name] = files[name]
         for e in found:
@@ -567,7 +585,7 @@ def _collect_script(mt, a, read):
         if n:
             mt.skipped['script: the port layer of Port to Reforged (the Doctor\'s own code)'] += n
     found = []
-    tr_extract.extract_script_text(src, found, collections.Counter(), (), tem_text=_script_candidate)
+    tr_extract.extract_script_text(src, found, collections.Counter(), (), _script_candidate, True)
     functions = _functions_by_line(lines)
     screen = dict((e['text'], e) for e in found if e['kind'] == 'script')
     cats = collections.defaultdict(collections.Counter)
@@ -596,7 +614,7 @@ def _collect_script(mt, a, read):
         if 'localizada' in e['uses']:
             reason = 'a game string key'
         elif groups['caution'] and not groups['datum'] and all(
-                cat.startswith('prudencia:fluxo') for cat in c if cat.startswith('caution')):
+                cat.startswith('caution:flow ') for cat in c if cat.startswith('caution')):
             reason = 'compared or used as a key through a function or variable of the map'
         elif groups['caution'] or groups['datum']:
             reason = 'compared by the script'
@@ -811,7 +829,8 @@ def _data_names(mt, src):
         return
     keep = []
     for e in mt.entries:
-        if e.get('_kind') == 'name' and obj(e) in out:
+        held = e['source'] == 'wts' and mt.name_objects.get(e['_where'], set()) & out
+        if e.get('_kind') == 'name' and obj(e) in out or held:
             mt.skipped['%s: a name the script reads as data' % e['source']] += 1
         else:
             keep.append(e)
@@ -866,6 +885,18 @@ def _open(path):
 
 def _error(e):
     return '%s: %s' % (type(e).__name__, e) if str(e) else type(e).__name__
+
+
+SAME_FILE = 'the output is the input map itself: write a copy'
+
+
+def output_is_input(path_in, path_out):
+    if os.path.normcase(os.path.abspath(path_in)) == os.path.normcase(os.path.abspath(path_out)):
+        return True
+    try:
+        return os.path.exists(path_out) and os.path.samefile(path_in, path_out)
+    except OSError:
+        return False
 
 
 OBJECT_LABEL = {'w3u': 'Units', 'w3t': 'Items', 'w3a': 'Abilities', 'w3h': 'Buffs', 'w3q': 'Upgrades',
@@ -964,6 +995,9 @@ def export(path, out_file, progress=None, only=None, images=False):
     p = progress or _nothing
     rep = {'state': None, 'error': None, 'file': None, 'map_name': None, 'script': None, 'entries': 0,
            'by_source': {}, 'skipped': {}, 'linked': 0, 'linked_added': 0, 'images': None}
+    if output_is_input(path, out_file):
+        rep.update(state='failed', error=SAME_FILE)
+        return rep
     try:
         p('reading map')
         a = _open(path)
@@ -1025,6 +1059,9 @@ def _html_text(s):
 
 def export_html(path, out_file, progress=None, only=None):
     import html
+    if output_is_input(path, out_file):
+        return {'state': 'failed', 'error': SAME_FILE, 'file': None, 'map_name': None, 'script': None, 'entries': 0,
+                'by_source': {}, 'skipped': {}, 'linked': 0, 'linked_added': 0, 'images': None}
     tmp = out_file + '.json.part'
     rep = export(path, tmp, progress, only)
     if rep['state'] != 'done':
@@ -1133,12 +1170,12 @@ def _english(err):
     for pt, en in REASONS:
         if err.startswith(pt):
             rest = err[len(pt):]
-            if pt == 'level_list':
-                m = re.match(r':\s*(\d+) (virgulas|aspas), esperado (\d+)', rest)
+            if pt == LEVELS:
+                m = re.match(r'\s*(\d+) (virgulas|aspas), esperado (\d+)', rest)
                 if m:
                     return 'level %s: %s, expected %s' % ('commas' if m.group(2) == 'virgulas' else 'quotes',
                                                          m.group(1), m.group(3))
-            if pt == 'muito longo':
+            if pt == TOO_LONG:
                 rest = rest.replace(' chars vs ', ' characters vs ')
             return en + (rest if rest.startswith(' (') else '')
     return err
@@ -1183,15 +1220,26 @@ def check_entry(e, translation, language=''):
         expected = len(tr_pair_check.level_commas('"%s"' % e['text'], True))
         found = len(tr_pair_check.level_commas('"%s"' % translation, True))
         if found != expected:
-            errs.append('niveis: %d virgulas, esperado %d' % (found, expected))
+            errs.append(LEVELS_COMMAS % (found, expected))
         elif translation.count('"') % 2 != e['text'].count('"') % 2:
-            errs.append('niveis: %d aspas, esperado %d' % (translation.count('"'), e['text'].count('"')))
+            errs.append(LEVELS_QUOTES % (translation.count('"'), e['text'].count('"')))
     if e['source'] == 'profile' and '"' in e['text'] and translation.count('"') != e['text'].count('"') and \
-            not any(x.startswith('level_list') for x in errs):
-        errs.append('niveis: %d aspas, esperado %d' % (translation.count('"'), e['text'].count('"')))
+            not any(x.startswith(LEVELS) for x in errs):
+        errs.append(LEVELS_QUOTES % (translation.count('"'), e['text'].count('"')))
     if not _cjk(e['text']) or _is_cjk_language(language):
         errs = [x for x in errs if not x.startswith('CJK restante')]
+    if _is_cjk_language(language) and any(x.startswith(NUMBERS) for x in errs):
+        def numbers(s):
+            return collections.Counter(
+                tr_pair_check.numbers(s if item.get('level_list') else tr_pair_check.without_thousands(s))
+            )
+
+        a, b = numbers(e['text']), numbers(translation)
+        if set((a - b) + (b - a)) <= {'1'}:
+            errs = [x for x in errs if not x.startswith(NUMBERS)]
     out = [_english(x) for x in errs]
+    if e['source'] == 'script' and len(_encode(translation)) > JASS_LITERAL_MAX >= len(_encode(e['text'])):
+        out.append('longer than the %d bytes a JASS string literal holds' % JASS_LITERAL_MAX)
     if '\x00' in translation:
         out.append('a NUL character')
     if sorted(RX_FORMAT.findall(e['text'])) != sorted(RX_FORMAT.findall(translation)):
@@ -1345,7 +1393,11 @@ def _lua_readback(mt, wanted, replaced, data):
                 before[b_srcs[-1].base + len(b_srcs[-1].text):] != after[a_srcs[-1].base + len(a_srcs[-1].text):]:
             missing.append((name, 'the code around the Lua modules changed'))
         for sb, sa in zip(b_srcs, a_srcs):
-            for why in tr_lua.readback(sb.text, sa.text, modules.get(sb.module) or {}):
+            try:
+                whys = tr_lua.readback(sb.text, sa.text, modules.get(sb.module) or {})
+            except lua_ast.LuaSyntaxError as ex:
+                whys = ['does not read as Lua (%s)' % ex]
+            for why in whys:
                 missing.append(('%s%s' % (name, ' [%s]' % sb.module if sb.module else ''), why))
     return missing
 
@@ -1636,8 +1688,8 @@ def import_(path_in, translation_file, path_out, progress=None):
     rep = {'state': None, 'error': None, 'output': None, 'applied': 0, 'applied_by_source': {}, 'empty': 0,
            'rejected': [], 'unknown': [], 'rejected_by_reason': {}, 'files_changed': [], 'script_copies': 0,
            'verified': None}
-    if os.path.normcase(os.path.abspath(path_in)) == os.path.normcase(os.path.abspath(path_out)):
-        rep.update(state='failed', error='the output is the input map itself: write a copy')
+    if output_is_input(path_in, path_out):
+        rep.update(state='failed', error=SAME_FILE)
         return rep
     try:
         doc = _load(translation_file)
@@ -1737,8 +1789,8 @@ def override(path_in, translation_file, path_out, progress=None):
     rep = {'state': None, 'error': None, 'output': None, 'applied': 0, 'applied_by_source': {}, 'files': [],
            'held': {}, 'empty': 0, 'rejected': [], 'rejected_by_reason': {}, 'unknown': [], 'map_texts': None,
            'verified': None}
-    if os.path.normcase(os.path.abspath(path_in)) == os.path.normcase(os.path.abspath(path_out)):
-        rep.update(state='failed', error='the output is the input map itself: write a copy')
+    if output_is_input(path_in, path_out):
+        rep.update(state='failed', error=SAME_FILE)
         return rep
     try:
         doc = _load(translation_file)
