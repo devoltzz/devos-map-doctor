@@ -184,9 +184,6 @@ def applies(extract, data_bytes, raw_data, segment, tr_dir=None, expected_count=
         info['slk_levels'] = out.strip().splitlines()[-3:]
     else:
         info['slk_levels'] = []
-        info['warnings'].append(
-            'the map has no Units\\AbilityData.slk: without levels 5 and 6 and without the Chaos abilities'
-        )
     from doctor.data import buttonpos_fix
     rc, out = run_action(buttonpos_fix, [units, '--no-learn'])
     if rc:
@@ -198,6 +195,9 @@ def applies(extract, data_bytes, raw_data, segment, tr_dir=None, expected_count=
         info['warnings'] += ['morph_chaos: ' + f for f in target_sites]
     else:
         failures += ['morph_chaos: ' + f for f in target_sites]
+    if targets and not has_abil:
+        warning = 'the map has no Units\\AbilityData.slk: without the Chaos abilities of its %d DzSetUnitID change(s)'
+        info['warnings'].append(warning % len(targets))
     slk = objects.no_box(units, 'AbilityData.slk')
     strings = objects.no_box(units, 'campaignabilitystrings.txt')
     if has_abil and targets:
