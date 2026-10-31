@@ -274,7 +274,8 @@ fn prec(op: &[u8]) -> Option<u32> {
     Some(match op {
         b"and" => 1,
         b"or" => 2,
-        b"==" | b"!=" | b"<" | b"<=" | b">" | b">=" => 3,
+        b"==" | b"!=" => 3,
+        b"<" | b"<=" | b">" | b">=" => 4,
         b"+" | b"-" => 5,
         b"*" | b"/" => 6,
         _ => return None,
