@@ -889,11 +889,15 @@ function TriggerEvaluate(t)
 end
 function TriggerExecute(t)
   if not t then return end
+  -- [Dream 2.0 KK-R2-F2] a contagem de execucoes do jogo: o `TP 01` do Dream registra as areas de portal so' na 1.a
+  -- execucao (`GetTriggerExecCount == 1`); sem ela o sistema de portais nunca existia no simulador
+  t.execs = (t.execs or 0) + 1
   local prev = __trigger __trigger = t
   for _, a in ipairs(t.actions) do M.nasc = M.nasc + 1 local ok, e = __wd_call(a) if not ok then __logerr("action: " .. tostring(e)) end end
   __trigger = prev
 end
 function TriggerExecuteWait(t) TriggerExecute(t) end
+function GetTriggerExecCount(t) return t and t.execs or 0 end
 function TriggerSyncStart() end
 function TriggerSyncReady() end
 function TriggerWaitForSound(s, o) end
