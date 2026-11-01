@@ -2769,9 +2769,25 @@ constant string DB_teclas_lista="{{KK_TECLAS_LISTA}}"
 
 function DB_tecla_muda takes nothing returns nothing
     local integer k=GetHandleId(BlzGetTriggerPlayerKey())
+    local integer b=GetPlayerId(GetTriggerPlayer())*256
+    local integer g
     if k>=0 and k<256 then
-        set DB_key_down[GetPlayerId(GetTriggerPlayer())*256+k]=BlzGetTriggerPlayerIsKeyDown()
+        set DB_key_down[b+k]=BlzGetTriggerPlayerIsKeyDown()
+        if k>=160 and k<=165 then
+            set g=160+((k-160)/2)*2
+            set DB_key_down[b+16+(k-160)/2]=DB_key_down[b+g] or DB_key_down[b+g+1]
+        endif
     endif
+endfunction
+
+function DB_tecla_evento takes trigger t,player p,integer k returns nothing
+    local integer m=0
+    loop
+        exitwhen m>15
+        call BlzTriggerRegisterPlayerKeyEvent(t, p, ConvertOsKeyType(k), m, true)
+        call BlzTriggerRegisterPlayerKeyEvent(t, p, ConvertOsKeyType(k), m, false)
+        set m=m+1
+    endloop
 endfunction
 
 function DB_botao_muda takes nothing returns nothing
@@ -2790,7 +2806,6 @@ function DB_teclas_registra takes nothing returns nothing
     local integer i=0
     local integer j
     local integer p
-    local integer m
     local integer n=StringLength(DB_teclas_lista)
     local integer k
     call TriggerAddAction(t, function DB_tecla_muda)
@@ -2814,13 +2829,11 @@ function DB_teclas_registra takes nothing returns nothing
                     call TriggerRegisterPlayerEvent(tb, Player(p), EVENT_PLAYER_MOUSE_DOWN)
                     call TriggerRegisterPlayerEvent(tb, Player(p), EVENT_PLAYER_MOUSE_UP)
                 elseif k>0 and k<256 then
-                    set m=0
-                    loop
-                        exitwhen m>15
-                        call BlzTriggerRegisterPlayerKeyEvent(t, Player(p), ConvertOsKeyType(k), m, true)
-                        call BlzTriggerRegisterPlayerKeyEvent(t, Player(p), ConvertOsKeyType(k), m, false)
-                        set m=m+1
-                    endloop
+                    call DB_tecla_evento(t, Player(p), k)
+                    if k>=16 and k<=18 then
+                        call DB_tecla_evento(t, Player(p), 160+(k-16)*2)
+                        call DB_tecla_evento(t, Player(p), 161+(k-16)*2)
+                    endif
                 endif
             endif
             set p=p+1
