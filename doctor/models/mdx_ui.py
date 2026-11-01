@@ -222,3 +222,8 @@ def is_world_model(data, limit=2.0):
             q += sz
     return False
 
+
+def empty(name='DevoEmpty'):
+    modl = name.encode('ascii')[:79].ljust(80, b'\0') + b''.ljust(260, b'\0') + struct.pack('<7fI', *([0.0] * 7), 150)
+    return b'MDLX' + b'VERS' + struct.pack('<II', 4, 800) + b'MODL' + struct.pack('<I', len(modl)) + modl
+
