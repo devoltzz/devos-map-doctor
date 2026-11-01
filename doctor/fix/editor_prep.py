@@ -797,7 +797,7 @@ def locals_without_clash(body_text, log=print, kept=None):
 PRAGMA_ON, PRAGMA_OFF = '//# +nosemanticerror', '//# -nosemanticerror'
 
 
-def typecast_for_jasshelper(body_text, kept):
+def typecast_for_jasshelper(body_text, kept, compiled=False):
     done = {'decoys': [], 'marked': []}
     if not kept:
         return body_text, done
@@ -846,6 +846,8 @@ def typecast_for_jasshelper(body_text, kept):
         for f_name, f_start, f_end, parameters, local_vars in specs:
             body = range(f_start - 1, min(f_end, len(line_list)))
             if f_name in declare[fname]:
+                if compiled:
+                    continue
                 for i in body:
                     line_list[i] = rx.sub(lambda m: isca if m.group(0) == fname else m.group(0), line_list[i])
                 done['decoys'].append((f_name, isca))
@@ -1291,9 +1293,12 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
         if without_mark is not None:
             final_script = without_mark
     if (details.get('renamed_locals') or details.get('kept_locals')) and not is_lua:
-        new_j, renamed_done = locals_without_clash(final_script.decode('latin-1'), log, kept=[])
-        if renamed_done:
+        kept_j = []
+        new_j, renamed_done = locals_without_clash(final_script.decode('latin-1'), log, kept=kept_j)
+        new_j, tc_j = typecast_for_jasshelper(new_j, kept_j, compiled=True)
+        if renamed_done or tc_j['marked']:
             final_script = new_j.encode('latin-1')
+        if renamed_done:
             details['locals_in_script'] = len(renamed_done)
     if output_script != j_source or final_script != map_raw:
         (replacements if a.find(output_script) else new_ones)[output_script] = final_script
