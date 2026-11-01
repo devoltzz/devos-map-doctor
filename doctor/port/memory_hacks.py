@@ -29,6 +29,7 @@ EFFECT_FUNCTIONS = {
     'JNGetLocalSpecialEffectX': (1, 'return BlzGetLocalSpecialEffectX({0})'),
     'JNGetLocalSpecialEffectY': (1, 'return BlzGetLocalSpecialEffectY({0})'),
     'JNGetLocalSpecialEffectZ': (1, 'return BlzGetLocalSpecialEffectZ({0})'),
+    'TriggerSleepActionByTimer': (1, 'call TriggerSleepAction({0})'),
 }
 
 
