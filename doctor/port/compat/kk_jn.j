@@ -329,7 +329,7 @@ function KKJN_Especial takes string s returns boolean
     loop
         exitwhen i>=n
         set b=SubString(s, i, i+1)
-        if b==";" or b=="\\" or b=="\"" or b=="\n" or b=="\r" or b=="%" then
+        if b==";" or b=="\\" or b=="\"" or b=="\n" or b=="\r" or b=="%" or b=="<" or b==">" then
             return true
         endif
         set i=i+1
@@ -361,6 +361,10 @@ function KKJN_Esc2 takes string s,string p returns string
             set r=r+p+"0D"
         elseif b=="=" then
             set r=r+p+"3D"
+        elseif b=="<" then
+            set r=r+p+"3C"
+        elseif b==">" then
+            set r=r+p+"3E"
         else
             set r=r+b
         endif
@@ -398,6 +402,10 @@ function KKJN_Unesc2 takes string s,string p returns string
                 set r=r+"\r"
             elseif c=="3D" then
                 set r=r+"="
+            elseif c=="3C" then
+                set r=r+"<"
+            elseif c=="3E" then
+                set r=r+">"
             else
                 set r=r+p+c
             endif
