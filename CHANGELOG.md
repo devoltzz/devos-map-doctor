@@ -3,6 +3,29 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 2.0.2 (2026-11-01)
+
+### Fixed
+
+- **Open in World Editor for the older editors (1.24 to 1.29 and the JassNative Editor), the memory-library typecast
+  (issue 59):** a save of the 2.0.1 copy in the JassNative Editor still stopped with "Index missing for array variable
+  l__SmartCastSystem__MemoryBlock_block". The logs of that save showed why: the file JassHelper compiled was the map's
+  own `war3map.j`, not a script the World Editor wrote from the custom script, and 2.0.1 had put the pjass mark
+  (`//# +nosemanticerror`) only in the custom script. `war3map.j` now has the mark too, around the function that reads
+  the array without an index. The mark is a comment, so the game runs the same code. The pjass of the JassNative
+  Editor accepts JassHelper's output of that save with the mark added; the save itself is not tested in that editor.
+- **Port to Reforged, "RebuildError: hash table full for ... (larger fator_hash needed)":** when the port has to
+  rewrite the whole map file, the table that finds each file by its name was always twice the size of the map's own,
+  and a map that gets many new files (a Naruto Legend 3.0a) did not fit. The table now grows until a quarter of it is
+  free. Maps that fitted come out the same as before.
+- **Port to Reforged, JassNative maps with the exact wait `TriggerSleepActionByTimer`:** that wait reads the game's
+  memory to find the trigger it wakes, which Reforged does not have, so it slept forever (revive abilities and portals
+  that never acted, on the ARS RPG). It now becomes the game's own wait for the same time.
+- **Port to Reforged, M16 saves:** a research or item text with `<` or `>` lost everything after that sign when the
+  save was loaded; those signs are now escaped in the save. Saves made before stay as they are.
+- **Port to Reforged, KK and M16 maps that read Shift, Ctrl or Alt:** the keys are now seen as held down also when
+  only the left or the right key of the pair is pressed.
+
 ## 2.0.1 (2026-10-31)
 
 ### Fixed
