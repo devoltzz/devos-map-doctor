@@ -158,6 +158,12 @@ def rebuild(
     k = hash_factor
     if k < 1 or k & (k - 1):
         raise RebuildError('fator_hash must be a power of 2: %r' % (k,))
+    needs_work = len(new_ones) + (1 if listfile and '(listfile)' not in keep.values() else 0)
+    if hn * k - k * len(keep) < needs_work:
+        while hn * k - k * len(keep) - needs_work < hn * k // 4:
+            k *= 2
+        log('hash table: factor %d -> %d (%d new files, %d kept, %d entries in the original)'
+            % (hash_factor, k, needs_work, len(keep), hn))
     hm = hn * k
 
     def status(s):
