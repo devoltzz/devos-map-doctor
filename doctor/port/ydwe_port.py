@@ -423,6 +423,69 @@ def misc_lua(extract=None, log=None):
     return '\n'.join(line_list) + '\n'
 
 
+RX_TC_FOG = re.compile(r'\bConvertFogState[ \t]*\([ \t]*(?![-\d])')
+TC_FOG_LUA = '''
+-- the I2H typecast through a fogstate (ConvertFogState(<handle id>) saved, read back as another handle type): the
+-- handle of each id GetHandleId gave, and the fogstate of a known id carries that handle into the hashtable slot
+local __tc_id = setmetatable({}, { __mode = "v" })
+local __tc_slot = setmetatable({}, { __mode = "k" })
+local __tc_GetHandleId, __tc_ConvertFogState, __tc_SaveFog = GetHandleId, ConvertFogState, SaveFogStateHandle
+local __tc_marca = {}
+GetHandleId = function(h)
+  local id = __tc_GetHandleId(h)
+  if id and id ~= 0 and h ~= nil then __tc_id[id] = h end
+  return id
+end
+ConvertFogState = function(n)
+  local h = __tc_id[n]
+  if h ~= nil then return { [__tc_marca] = h } end
+  return __tc_ConvertFogState(n)
+end
+SaveFogStateHandle = function(t, a, b, v)
+  if type(v) == "table" and v[__tc_marca] ~= nil then
+    local s = __tc_slot[t]
+    if not s then s = {} __tc_slot[t] = s end
+    s[a .. ":" .. b] = v[__tc_marca]
+    return true
+  end
+  local s = __tc_slot[t]
+  if s then s[a .. ":" .. b] = nil end
+  return __tc_SaveFog(t, a, b, v)
+end
+-- the type of a handle: the simulator's `__kind`, the game's `tostring` ("unit: 0000...")
+local function __tc_tipo(h)
+  if type(h) == "table" then return h.__kind end
+  return tostring(h):match("^(%a+):")
+end
+local __tc_widget = { unit = true, item = true, destructable = true, widget = true }
+for _, n in ipairs({ "Unit", "Item", "Widget", "Destructable", "Player", "Effect", "Trigger", "Timer", "Group",
+                     "Location", "Rect", "Force", "Region", "TextTag", "Lightning", "Image", "Ubersplat",
+                     "Button", "Dialog", "Multiboard", "Leaderboard", "Sound", "FogStateHandle" }) do
+  local nome = "Load" .. n .. (n == "FogStateHandle" and "" or "Handle")
+  local quer = n:lower()
+  local f = _ENV[nome]
+  if f then
+    _ENV[nome] = function(t, a, b)
+      local s = __tc_slot[t]
+      if s then
+        local h = s[a .. ":" .. b]
+        if h ~= nil then
+          -- a handle of another type reads as null, as the old game gave for an item asked of a unit
+          local k = __tc_tipo(h)
+          if k == nil or k == quer or (quer == "widget" and __tc_widget[k]) then return h end
+          return nil
+        end
+      end
+      return f(t, a, b)
+    end
+  end
+end
+'''
+
+
+WIDTHS = '__larguras__'
+
+
 def build_lua(final_j, collect, slk_lua='', log=None, extract=None, scale_factors=None, translation=None, stubs=None):
     from doctor.script import jass2lua
     log = log or (lambda s: None)
@@ -504,7 +567,11 @@ def build_lua(final_j, collect, slk_lua='', log=None, extract=None, scale_factor
         '__ydwe_i32 = {%s}\n' % ', '.join('%s = %r' % (d, float(f)) for d, f in sorted((scale_factors or {}).items())
                                          if f and f != 1),
         '__ydwe_traducao = {%s}\n' % ', '.join('[%s]=%s' % (_lua_str(k), _lua_str(v))
-                                              for k, v in sorted((translation or {}).items()) if k and v),
+                                              for k, v in sorted((translation or {}).items())
+                                              if k and v and k != WIDTHS),
+        '__ydwe_largura_en = {%s}\n' % ', '.join('[%s]=%s' % (_lua_str(k), repr(float(v)))
+                                                for k, v in sorted(((translation or {}).get(WIDTHS) or {}).items())
+                                                if k and v),
         _read(_route_data('ydwe', 'bignum.lua')), '\n',
         _read(_route_data('ydwe', 'motor.lua')), '\n',
         '\n'.join(segments), '\n',
@@ -520,7 +587,16 @@ end })
 __JENV = JENV
 local _ENV = JENV
 ''',
+        TC_FOG_LUA if RX_TC_FOG.search(final_j) else '',
         res['lua_functions'], '\n', link_markers(markers(final_j)),
+        '''
+do
+  local o = rawget(JENV, "DzFrameSetSize")
+  if type(o) == "function" and __ydwe_quadro_modelo_refaz then
+    rawset(JENV, "DzFrameSetSize", function(f, w, h) o(f, w, h) __ydwe_quadro_modelo_refaz(f) end)
+  end
+end
+''',
         '\n-- globals\n', g_root,
         '\n-- the globals whose initial value calls a function: run by main, never at map load\n'
         'local function __ydwe_init_globais()\n', g_deferred, '\nend\n',
@@ -631,6 +707,8 @@ CLICKABLE_FDF = ('GLUETEXTBUTTON', 'GLUEBUTTON', 'BUTTON', 'TEXTBUTTON', 'CHECKB
                  'GLUEPOPUPMENU', 'SLIDER', 'MENU', 'EDITBOX', 'GLUEEDITBOX')
 FDF_FALLBACK = 'devos\\kk_modelos.fdf'
 TOC_FALLBACK = 'devos\\kk_modelos.toc'
+FRAME_MODEL_FDF = ('Frame "FRAME" "DevosModeloMoldura" {\n    LayerStyle "IGNORETRACKEVENTS",\n}\n'
+                   'Frame "SPRITE" "DevosModeloSprite" {\n    LayerStyle "IGNORETRACKEVENTS",\n}\n')
 
 
 def fallback_templates(in_use, fdfs):
@@ -702,6 +780,10 @@ def generated_files(lua_p, seconds=15.0, log=None, extract=None, textures=None, 
                 if a.lower().endswith('.fdf'):
                     fdfs.append(open(os.path.join(root, a), 'rb').read().decode('utf-8', 'replace'))
     fallback_fdf = fallback_templates(in_use, fdfs)
+    with open(lua_p, 'rb') as f:
+        uses_frame_model = b'FrameAddModel' in f.read()
+    if uses_frame_model:
+        fallback_fdf += FRAME_MODEL_FDF
     if fallback_fdf:
         out[FDF_FALLBACK] = fallback_fdf.encode('utf-8')
         out[TOC_FALLBACK] = (FDF_FALLBACK + '\r\n').encode('utf-8')
