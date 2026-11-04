@@ -695,6 +695,9 @@ _ARCHIVE = {
                           'would read.', 'none'),
     'kk_encrypted': ('kk_encrypted', 'blocker', 'The map is encrypted by the KK platform: its real content is outside '
                      'the archive and only the platform client opens it. It cannot be ported.', 'none'),
+    'kk_came': ('kk_came', 'blocker', 'The map is in the CAME container of the KK platform: the whole map is '
+                'encrypted outside the archive (AES-256-GCM + zstd) and only the platform client reads it as it is. '
+                '"Fix map" decrypts it into a normal map; then it needs a port.', 'doctor'),
     'script_kkwe': ('kk_compiled_script', 'blocker', 'The script is KKWE bytecode (kkmap.jc), which only the KK '
                     'platform client runs. The Doctor turns it back into JASS for the editor; the map then needs a '
                     'port.', 'port'),
