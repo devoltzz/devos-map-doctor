@@ -3,6 +3,30 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 2.1.1 (2026-11-04)
+
+### Changed
+
+- **KK maps in the CAME container, Fix map keeps every file:** in 2.1.0 a file the Doctor could not name was left
+  out of the decrypted map (5,475 of 9,711 on the map I measured). The fixed map now keeps all of them: the unnamed
+  files go into the archive by the two hashes of their names, with a table the game searches to the end, so the game
+  finds each file by the name it already knows. On that map the result has all 9,711 files, and StormLib (the library
+  the game's tools read maps with) opens it and finds the script, the map info and an image the Doctor could not name.
+  The copy for the World Editor and the Port to Reforged still use only the named files, because they need the names.
+  Not tested in the game yet.
+- **CAME, two more map layouts read:** the key block is also searched before the header when it is not where the
+  measured maps keep it, and a closing `MHAU` block at the end of the file is skipped. No map I have uses either; they
+  come from a script the KK community shared.
+- **CAME, one package less:** the zstd decompression now comes from Python itself (3.14), so `zstandard` is no longer
+  shipped; `pycryptodome` still is (for AES-GCM).
+
+### Fixed
+
+- **The shared list of file names now has the names you sent:** the "New file names" issues the Doctor opens were
+  answered and closed, but a mistake in the repository's workflow meant none of the names was ever saved. I fixed the
+  workflow and recovered 7,386 names from the 23 issues sent so far; they are in this version's `names.npz`, so the
+  Doctor names more files in the maps they came from. Thank you to everyone who sent them.
+
 ## 2.1.0 (2026-11-04)
 
 ### Added
