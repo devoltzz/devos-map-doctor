@@ -24,6 +24,7 @@ from doctor.fix import duplicate_textures
 from doctor.triggers import wtg_triggers
 from doctor.mpq import ntfs_undo
 from doctor.data import slk_patch
+from doctor.mpq import kk_came
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 KK = os.path.normpath(os.path.join(HERE, '..', 'kk'))
@@ -552,6 +553,19 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True, doodad
         if rn is not None:
             return rn
     r['fname'] = map_name(d)
+    came = None
+    try:
+        if kk_came.is_came(d):
+            came = kk_came.info(d) or {'err': 'CAME container without a readable header'}
+    except Exception as e:
+        came = {'err': _error(e)}
+    if came is not None:
+        prot('kk_came', **came)
+        r['script'] = 'kk_encrypted'
+        r['fixable'] = 'impossible' if came.get('err') else 'yes'
+        r['editor'] = {'w3i': 'ok', 'missing_items': list(EDITOR_FILES), 'imp': False,
+                       'status': 'impossible' if came.get('err') else 'needs_work'}
+        return r
     with quiet():
         hdr, decoys = mpqdoctor.scan_header(d, file_path)
     if hdr is None:
@@ -1221,6 +1235,32 @@ def _remove_quietly(file_path):
         pass
 
 
+def _unprotect_came(file_path, output, p, diag, res):
+    part = _part(output)
+    try:
+        p('name_list')
+        r = kk_came.to_map(file_path, part, progress=p)
+        res['steps']['came'] = {'record_count': r['record_count'], 'named': r['named'], 'unnamed': r['unnamed'],
+                                'hash_key': r['hash_key'], 'arquivos_no_mapa': r['arquivos_no_mapa']}
+        if r['error_list']:
+            raise RuntimeError('check: %d output file(s) not read back the same (%s)'
+                               % (len(r['error_list']), ', '.join(r['error_list'][:5])))
+        p('verify')
+        res['output'] = part
+        res['after_diag'] = diagnose(part)
+        res['content'] = {'identical': r['arquivos_no_mapa'], 'different': [], 'missing_items': [], 'empty_files': [],
+                          'unnamed': r['unnamed']}
+        os.replace(part, output)
+        res['output'] = res['after_diag']['file_name'] = os.path.abspath(output)
+        res['status'] = 'done' if not r['unnamed'] else 'partial'
+        res['left_out'] = ['came_sem_nome'] if r['unnamed'] else []
+    except (Exception, SystemExit) as e:
+        res['status'] = 'failed'
+        res['err'] = _error(e)
+        _remove_quietly(part)
+    return res
+
+
 def unprotect(file_path, output, progress=None, diag=None, options=None):
     p = progress or _nothing
     diag = diag or diagnose(file_path, p)
@@ -1241,6 +1281,11 @@ def unprotect(file_path, output, progress=None, diag=None, options=None):
         return res
     codes = set(x['code'] for x in diag['protections'])
     res['for_button3'] = sorted(codes & set(BUTTON3_ONLY))
+    if 'kk_came' in codes:
+        if not step_on(options, 'mpq'):
+            res['status'] = 'nothing_selected'
+            return res
+        return _unprotect_came(file_path, output, p, diag, res)
     if 'ntfs_copy' in codes:
         return _unprotect_ntfs_copy(file_path, output, p, diag, res, options)
     if not codes - set(BUTTON3_ONLY):
