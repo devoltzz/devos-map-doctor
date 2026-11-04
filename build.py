@@ -20,7 +20,7 @@ EXCLUDE = ('cv2', 'matplotlib', 'pytest', 'setuptools', 'pip', 'unittest', 'pydo
 LUA = ('lupa.lua53', 'lupa.lua54')
 PACKAGES = ('numpy', 'pillow', 'pywebview', 'pythonnet', 'clr_loader', 'bottle', 'proxy_tools', 'cffi',
             'pycparser', 'typing_extensions', 'PyGObject', 'pycairo', 'zopfli', 'lupa', 'ctranslate2', 'sentencepiece',
-            'onnxruntime')
+            'onnxruntime', 'zstandard', 'pycryptodome')
 
 VERSION_FILE = """VSVersionInfo(
   ffi=FixedFileInfo(filevers=({v}), prodvers=({v}), mask=0x3f, flags=0x0, OS=0x40004, fileType=0x1,
@@ -236,6 +236,8 @@ def main():
         args += ['--add-binary', pjass + os.pathsep + os.path.join('doctor', 'script')]
     elif not os.path.isfile(os.path.join(ENGINE, 'script', pjass_name)):
         print('%s not found (doctor/script/%s or PJASS): the program cannot port maps' % (pjass_name, pjass_name))
+    for extra in ('zstandard', 'Crypto', 'Crypto.Cipher', 'Crypto.Cipher.AES', 'Crypto.Util._raw_api'):
+        args += ['--hidden-import', extra]
     if not LINUX:
         import importlib.util
         for package in ('zopfli',):
