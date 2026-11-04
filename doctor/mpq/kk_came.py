@@ -36,11 +36,25 @@ class CameError(Exception):
 
 def _libs():
     try:
-        import zstandard
+        from compression import zstd
+    except ImportError:
+        try:
+            import zstandard as zstd
+        except ImportError as e:
+            raise CameError(
+                'zstd is missing (the Python 3.14 stdlib has it): python -m pip install -r requirements.txt'
+            ) from e
+    try:
         from Crypto.Cipher import AES
     except ImportError as e:
-        raise CameError('missing %s: python -m pip install -r requirements.txt' % e.name)
-    return zstandard, AES
+        raise CameError('missing %s: python -m pip install -r requirements.txt' % e.name) from e
+    return zstd, AES
+
+
+def _zstd_decompress(zstd, data_bytes):
+    if getattr(zstd, '__name__', '') == 'compression.zstd':
+        return zstd.decompress(data_bytes)
+    return zstd.ZstdDecompressor().decompress(data_bytes)
 
 
 def is_came(d):
@@ -70,8 +84,14 @@ def layout(d, base=None):
         return None
     if hash_abs + hn * 16 > len(d) or block_abs + bn * 16 > len(d) or record_count >= len(d):
         return None
+    end_pos = len(d)
+    if len(d) >= 0x74 and bytes(d[-0x74:-0x70]) == b'MHAU':
+        n_trailer = struct.unpack_from('<I', d, len(d) - 0x74 + 8)[0]
+        candidate = len(d) - 0x74 - n_trailer * 4 - 28
+        if record_count < candidate <= len(d):
+            end_pos = candidate
     return {'base': base, 'record_count': record_count, 'hash_abs': hash_abs, 'block_abs': block_abs,
-            'hash_n': hn, 'block_n': bn}
+            'hash_n': hn, 'block_n': bn, 'end_pos': end_pos}
 
 
 def _find_header(d):
@@ -232,20 +252,43 @@ def search_kek(pe, blob, progress=None, out_limit=None):
     return None, None
 
 
+def _blobs(d, lay, out_limit=0x10000):
+    fixed_kek = lay['hash_abs'] - KEY_BLOCK
+    if 0 <= fixed_kek <= len(d) - KEY_BLOCK:
+        yield fixed_kek
+    begin = max(0, lay['base'] - out_limit)
+    for o in range(begin, max(0, lay['base'] - KEY_BLOCK + 1)):
+        if o != fixed_kek:
+            yield o
+    if lay['hash_abs'] > lay['base']:
+        begin = max(lay['base'], lay['hash_abs'] - out_limit, KEY_BLOCK)
+        for o in range(begin, lay['hash_abs'] - KEY_BLOCK):
+            if o != fixed_kek:
+                yield o
+
+
 def hash_key(d, lay, progress=None, pe_info=None):
-    if lay['hash_abs'] < KEY_BLOCK:
-        raise CameError('the hash table is before the key blob (layout not measured)')
-    blob = bytes(d[lay['hash_abs'] - KEY_BLOCK:lay['hash_abs']])
+    blobs = list(_blobs(d, lay))
+    if not blobs:
+        raise CameError('no blob window before the header/hash table')
     info = pe_info or find_pe(d, lay)
     if not info:
         raise CameError('no SDK PE among the blocks of the container: nowhere to take the key from')
     pe, sha = info['pe'], info['sha256']
     editor_profile = PROFILES.get(sha)
     cache = _cache_read().get(sha)
+
+    def open_blob(kek):
+        for o in blobs:
+            k = unwrap(bytes(d[o:o + KEY_BLOCK]), kek)
+            if k:
+                return k, o
+        return None, None
+
     if editor_profile:
-        kek, fo = kek_at_rva(pe, editor_profile[1])
+        kek, _fo = kek_at_rva(pe, editor_profile[1])
         if kek:
-            k = unwrap(blob, kek)
+            k, o = open_blob(kek)
             if k:
                 return {
                     'key': k,
@@ -253,6 +296,7 @@ def hash_key(d, lay, progress=None, pe_info=None):
                     'kek_rva': editor_profile[1],
                     'sdk': editor_profile[0],
                     'origin': 'editor_profile',
+                    'blob': o,
                 }
     if cache:
         try:
@@ -260,12 +304,13 @@ def hash_key(d, lay, progress=None, pe_info=None):
         except ValueError:
             kek = None
         if kek:
-            k = unwrap(blob, kek)
+            k, o = open_blob(kek)
             if k:
                 return {'key': k, 'kek': kek, 'kek_rva': cache.get('rva'), 'sdk': cache.get('fname'),
-                        'origin': 'cache'}
+                        'origin': 'cache', 'blob': o}
     if progress:
         progress('CAME: the SDK %s is not in the table; searching for the key' % sha[:12])
+    blob = bytes(d[blobs[0]:blobs[0] + KEY_BLOCK])
     kek, rva = search_kek(pe, blob, progress)
     if not kek:
         raise CameError('the KEK is not in the readable sections of the SDK (sha256 %s)' % sha)
@@ -273,15 +318,17 @@ def hash_key(d, lay, progress=None, pe_info=None):
     if not k:
         raise CameError('the KEK found at RVA 0x%X does not open the blob' % rva)
     _cache_write(sha, 'auto (RVA 0x%X)' % rva, rva, kek)
-    return {'key': k, 'kek': kek, 'kek_rva': rva, 'sdk': 'auto (RVA 0x%X)' % rva, 'origin': 'lookup'}
+    return {'key': k, 'kek': kek, 'kek_rva': rva, 'sdk': 'auto (RVA 0x%X)' % rva, 'origin': 'lookup',
+            'blob': blobs[0]}
 
 
 def record_count(d, lay, out_limit=None):
     pos = lay['record_count']
+    end_pos = lay.get('end_pos', len(d))
     n = 0
-    while pos + 12 <= len(d):
+    while pos + 12 <= end_pos:
         a, b, size = struct.unpack_from('<3I', d, pos)
-        if size < 0x1C or pos + 12 + size > len(d):
+        if size < 0x1C or pos + 12 + size > end_pos:
             return
         yield a, b, size, pos + 12
         pos += 12 + size
@@ -291,8 +338,7 @@ def record_count(d, lay, out_limit=None):
 
 
 def read_record(d, a, b, size, pos, key):
-    _z, AES = _libs()
-    import zstandard
+    zstd, AES = _libs()
     nonce = bytes(d[pos:pos + 12])
     ct = bytes(d[pos + 12:pos + size - 16])
     tag = bytes(d[pos + size - 16:pos + size])
@@ -303,8 +349,8 @@ def read_record(d, a, b, size, pos, key):
     except ValueError:
         return None
     try:
-        return zstandard.ZstdDecompressor().decompress(plain)
-    except zstandard.ZstdError:
+        return _zstd_decompress(zstd, plain)
+    except zstd.ZstdError:
         return None
 
 
@@ -409,9 +455,15 @@ def extract(file_path, folder, name_list=(), index=True, progress=None):
             fh.write('# hashA hashB  (use these to match against a listfile later)\n')
             for a, b, size in unres:
                 fh.write('%08X %08X %d\n' % (a, b, size))
-        return {'record_count': len(pairs), 'named': len(pairs) - unnamed, 'bytes': sum(s for _a, _b, s in pairs),
-                'file_set': file_set, 'unnamed': unnamed, 'hash_key': {'sdk': ch['sdk'], 'origin': ch['origin'],
-                                                                     'kek_rva': ch['kek_rva']}}
+        return {
+            'record_count': len(pairs),
+            'named': len(pairs) - unnamed,
+            'bytes': sum(s for _a, _b, s in pairs),
+            'file_set': file_set,
+            'unnamed': unnamed,
+            'pairs': [(a, b) for a, b, _s in pairs],
+            'hash_key': {'sdk': ch['sdk'], 'origin': ch['origin'], 'kek_rva': ch['kek_rva'], 'blob': ch.get('blob')},
+        }
     finally:
         shutil.rmtree(os.path.join(folder, '_came_raw'), ignore_errors=True)
         d.close()
@@ -439,14 +491,18 @@ def _map_header(file_path):
     return header
 
 
-def _write_map(output, item_entries, map_header, sector_shift=3, level=6):
+def _write_map(output, item_entries, map_header, sector_shift=3, level=6, all_items=False):
     sector_bytes = 512 << sector_shift
-    name_list = sorted({n for n, _h, _p in item_entries if n not in ('(listfile)', '(attributes)', '(signature)')},
-                       key=lambda n: (n.lower(), n))
+    special_names = ('(listfile)', '(attributes)', '(signature)')
+    name_list = sorted(
+        {n for n, _h, _p in item_entries if n not in special_names and not n.lower().startswith('unknown_files\\')},
+        key=lambda n: (n.lower(), n),
+    )
     if '(listfile)' not in {n for n, _h, _p in item_entries}:
         item_entries = list(item_entries) + [('(listfile)', None, None)]
     hm = 16
-    while hm < 2 * len(item_entries):
+    tgt = (len(item_entries) + max(64, len(item_entries) // 16)) if all_items else 2 * len(item_entries)
+    while hm < tgt:
         hm <<= 1
     map_header = bytes(map_header)
     if len(map_header) % 0x200:
@@ -456,36 +512,41 @@ def _write_map(output, item_entries, map_header, sector_shift=3, level=6):
         out.write(bytes(32))
         data_bytes = 0
         blocks_v = []
-        listing = []
-        for fname, _h, file_path in sorted(item_entries, key=lambda x: (x[0].lower(), x[0])):
+        hash_entries = []
+        for fname, hashes, file_path in sorted(item_entries, key=lambda x: (x[0].lower(), x[0])):
             if fname == '(listfile)':
                 body_text = ('\r\n'.join(name_list) + '\r\n').encode('utf-8', 'surrogateescape')
                 body, fl = mpq_rebuild.pack_file(body_text, sector_bytes, level)
                 raw_bytes = len(body_text)
+                hashes = (M.hashstr('(listfile)', 1), M.hashstr('(listfile)', 2))
             else:
                 with open(file_path, 'rb') as fh:
                     data_f = fh.read()
                 body, fl = mpq_rebuild.pack_file(data_f, sector_bytes, level)
                 raw_bytes = len(data_f)
+                if hashes is None:
+                    hashes = (M.hashstr(fname, 1), M.hashstr(fname, 2))
             blocks_v.append((32 + data_bytes, len(body), raw_bytes, fl or mpq_rebuild.F_EXISTS))
             out.write(body)
             data_bytes += len(body)
-            listing.append(fname)
-        tab = [None] * hm
-        bi = dict((n, i) for i, (n, _h, _p) in enumerate(sorted(item_entries, key=lambda x: (x[0].lower(), x[0]))))
-        for fname in listing:
-            i0 = M.hashstr(fname, 0) & (hm - 1)
-            for k in range(hm):
-                i = (i0 + k) & (hm - 1)
-                if tab[i] is None:
-                    tab[i] = fname
-                    break
-        hv = []
-        for fname in tab:
-            if fname is None:
-                hv += [0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF]
-            else:
-                hv += [M.hashstr(fname, 1), M.hashstr(fname, 2), 0, bi[fname]]
+            hash_entries.append((fname, hashes, len(blocks_v) - 1))
+        if all_items:
+            tab = [(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFE)] * hm
+            for i, (_name, (h1, h2), bi) in enumerate(hash_entries):
+                tab[i] = (h1, h2, 0, bi)
+            hv = [v for t in tab for v in t]
+        else:
+            tab = [None] * hm
+            for _name, (h1, h2), bi in hash_entries:
+                i0 = M.hashstr(_name, 0) & (hm - 1)
+                for k in range(hm):
+                    i = (i0 + k) & (hm - 1)
+                    if tab[i] is None:
+                        tab[i] = (h1, h2, bi)
+                        break
+            hv = []
+            for t in tab:
+                hv += [0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF] if t is None else [t[0], t[1], 0, t[2]]
         bv = [v for b in blocks_v for v in b]
         hash_pos = 32 + data_bytes
         block_pos = hash_pos + 16 * hm
@@ -495,29 +556,42 @@ def _write_map(output, item_entries, map_header, sector_shift=3, level=6):
         out.seek(len(map_header))
         out.write(struct.pack('<4sIIHHIIII', MPQ_MAGIC, 32, total, 0, sector_shift, hash_pos, block_pos, hm,
                               len(blocks_v)))
-    return {'file_set': len(item_entries), 'bytes': os.path.getsize(output)}
+    return {'file_set': len(item_entries), 'bytes': os.path.getsize(output), 'all_items': all_items,
+            'index_': {n: bi for n, _h, bi in hash_entries}}
 
 
-def to_map(file_path, output, name_list=(), index=True, progress=None):
+def to_map(file_path, output, name_list=(), index=True, progress=None, all_items=False):
     import tempfile
     tmp = tempfile.mkdtemp(prefix='devos_came_')
     try:
         r = extract(file_path, tmp, name_list, index, progress)
         item_entries = []
-        error_list = []
-        for fname, _size in r['file_set']:
-            if fname.lower().startswith('unknown_files\\'):
+        for (fname, _size), (a, b) in zip(r['file_set'], r['pairs']):
+            if fname.lower().startswith('unknown_files\\') and not all_items:
                 continue
-            item_entries.append((fname, None, os.path.join(tmp, fname.replace('\\', os.sep))))
+            item_entries.append((fname, (a, b), os.path.join(tmp, fname.replace('\\', os.sep))))
         if progress:
-            progress('writes the map: %d files (%d unnamed are left out)' % (len(item_entries), r['unnamed']))
-        header = _map_header(file_path)
-        _write_map(output, item_entries, header)
+            progress('writes the map: %d files (%s)' % (
+                len(item_entries), ('%d unnamed go in by hash' % r['unnamed']) if all_items
+                else ('%d unnamed are left out' % r['unnamed'])))
+        w = _write_map(output, item_entries, _map_header(file_path), all_items=all_items)
         b = mpqread.Archive(output)
+        error_list = []
         for fname, _h, p in item_entries:
-            if b.read(fname) != open(p, 'rb').read():
+            with open(p, 'rb') as fh:
+                plaintext = fh.read()
+            if b.read('', bi=w['index_'][fname]) != plaintext:
                 error_list.append(fname)
-        r.update({'output': os.path.abspath(output), 'arquivos_no_mapa': len(item_entries), 'error_list': error_list})
+            elif not fname.lower().startswith('unknown_files\\') and b.read(fname) != plaintext:
+                error_list.append(fname + ' (by name)')
+        r.update(
+            {
+                'output': os.path.abspath(output),
+                'arquivos_no_mapa': len(item_entries),
+                'all_items': all_items,
+                'error_list': error_list,
+            }
+        )
         return r
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
