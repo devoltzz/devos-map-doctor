@@ -100,7 +100,76 @@ def _decode(i):
     return op, a, b, c, bx, bx - 131071, i >> 6
 
 
-def literal(v):
+NUM_OPS = frozenset((ADD, SUB, MUL, MOD, POW, DIV, IDIV, LT, LE))
+BIT_OPS = frozenset((BAND, BOR, BXOR, SHL, SHR))
+_WRITES_A = frozenset((MOVE, LOADK, LOADKX, LOADBOOL, GETUPVAL, GETTABUP, GETTABLE, NEWTABLE, NOT, LEN, CLOSURE)) | \
+    NUM_OPS - {LT, LE} | BIT_OPS | {UNM, BNOT, CONCAT}
+
+
+def _register_use(code, start, r):
+    for pc in range(start, len(code)):
+        op, a, b, c, bx, sbx, ax = _decode(code[pc])
+        if op in NUM_OPS or op in BIT_OPS:
+            if (not b & 0x100 and b == r) or (not c & 0x100 and c == r):
+                return 'num' if op in NUM_OPS else 'bit'
+        elif op == EQ:
+            if (not b & 0x100 and b == r) or (not c & 0x100 and c == r):
+                continue
+        elif op == UNM and b == r:
+            return 'num'
+        elif op == BNOT and b == r:
+            return 'bit'
+        elif op == FORPREP and a <= r <= a + 2:
+            return 'num'
+        elif op in (MOVE, NOT, LEN) and b == r:
+            return None
+        elif op in (GETTABLE, SELF) and (b == r or (not c & 0x100 and c == r)):
+            return None
+        elif op in (SETTABLE, SETTABUP) and (
+            a == r and op == SETTABLE or any(not x & 0x100 and x == r for x in (b, c))
+        ):
+            return None
+        elif op == SETUPVAL and a == r:
+            return None
+        elif op == CONCAT and b <= r <= c:
+            return None
+        elif op in (TEST, TESTSET) and (a == r or (op == TESTSET and b == r)):
+            return None
+        elif op in (CALL, TAILCALL, RETURN, SETLIST, TFORCALL, VARARG, FORLOOP, TFORLOOP, LOADNIL) and r >= a:
+            return None
+        elif op == CLOSURE:
+            return None
+        if op in _WRITES_A and a == r:
+            return None
+    return None
+
+
+def _big_as_number(code, consts):
+    big = {k for k, v in enumerate(consts)
+           if isinstance(v, int) and not isinstance(v, bool) and v != -2 ** 63 and not -2 ** 31 < v < 2 ** 31}
+    if not big:
+        return set()
+    num, bit = set(), set()
+    for pc, i in enumerate(code):
+        op, a, b, c, bx, sbx, ax = _decode(i)
+        if op in NUM_OPS or op in BIT_OPS or op == EQ:
+            for x in (b, c):
+                if x & 0x100 and (x & 0xFF) in big:
+                    if op in NUM_OPS:
+                        num.add(x & 0xFF)
+                    elif op in BIT_OPS:
+                        bit.add(x & 0xFF)
+        elif op in (SETTABLE, SETTABUP, GETTABLE, GETTABUP, SELF):
+            for x in (b, c) if op != GETTABUP else (c,):
+                if x & 0x100 and (x & 0xFF) in big:
+                    bit.add(x & 0xFF)
+        elif op == LOADK and bx in big:
+            use = _register_use(code, pc + 1, a)
+            (num if use == 'num' else bit).add(bx)
+    return num - bit
+
+
+def literal(v, as_float=False):
     if v is None:
         return 'nil'
     if v is True:
@@ -110,6 +179,8 @@ def literal(v):
     if isinstance(v, int):
         if v == -2 ** 63:
             return 'math.mininteger'
+        if as_float and not -2 ** 31 < v < 2 ** 31:
+            return literal(float(v))
         if not -2 ** 31 < v < 2 ** 31:
             return '0x%x' % (v & 0xFFFFFFFFFFFFFFFF)
         return '%d' % v if v >= 0 else '(%d)' % v
@@ -190,8 +261,10 @@ def _function(pr):
             return 'X[%d]' % k
         return 'r%d' % k
 
+    as_float = _big_as_number(code, consts)
+
     def K(k):
-        return literal(consts[k])
+        return literal(consts[k], k in as_float)
 
     def RK(x):
         return K(x & 0xFF) if x & 0x100 else R(x)
