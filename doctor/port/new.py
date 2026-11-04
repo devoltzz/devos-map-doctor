@@ -415,6 +415,10 @@ def _call(body_text, native, args=r'[^\n]*'):
     return False
 
 
+def wide_ui(body_text):
+    return 'true' if re.search(r'\bDzEnableWideScreen[ \t]*\([ \t]*true[ \t]*\)', body_text) else 'false'
+
+
 def ui_mouse_pos(body_text):
     if 'DzSetMousePos' not in body_text:
         return 'false'
