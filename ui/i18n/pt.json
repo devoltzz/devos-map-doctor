@@ -3507,5 +3507,6 @@
  ", {0} still unnamed (not in the new map)": ", {0} ainda sem nome (fora do mapa novo)",
  "CAME container (KK platform): {0} in {1}, AES-256-GCM + zstd; the SDK is {2}{3}. \"Fix map\" decrypts them into a normal map.": "Contêiner CAME (plataforma KK): {0} em {1}, AES-256-GCM + zstd; o SDK é {2}{3}. \"Consertar mapa\" os decifra num mapa normal.",
  "Decrypted the CAME container (KK platform): {0} written{1}.": "Contêiner CAME (plataforma KK) decifrado: {0} gravados{1}.",
- "The map is in the CAME container of the KK platform: the whole map is encrypted outside the archive (AES-256-GCM + zstd) and only the platform client reads it as it is. \"Fix map\" decrypts it into a normal map; then it needs a port.": "O mapa está no contêiner CAME da plataforma KK: o mapa inteiro está cifrado fora do arquivo (AES-256-GCM + zstd) e só o cliente da plataforma o lê assim. \"Consertar mapa\" o decifra num mapa normal; depois ele precisa de um port."
+ "The map is in the CAME container of the KK platform: the whole map is encrypted outside the archive (AES-256-GCM + zstd) and only the platform client reads it as it is. \"Fix map\" decrypts it into a normal map; then it needs a port.": "O mapa está no contêiner CAME da plataforma KK: o mapa inteiro está cifrado fora do arquivo (AES-256-GCM + zstd) e só o cliente da plataforma o lê assim. \"Consertar mapa\" o decifra num mapa normal; depois ele precisa de um port.",
+ ", {0} unnamed (kept: the game finds them by hash)": ", {0} sem nome (mantidos: o jogo os acha pela hash)"
 }
