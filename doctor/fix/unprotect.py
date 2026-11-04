@@ -1235,13 +1235,19 @@ def _remove_quietly(file_path):
         pass
 
 
-def _unprotect_came(file_path, output, p, diag, res):
+def _unprotect_came(file_path, output, p, diag, res, all_items=True):
     part = _part(output)
     try:
         p('name_list')
-        r = kk_came.to_map(file_path, part, progress=p)
-        res['steps']['came'] = {'record_count': r['record_count'], 'named': r['named'], 'unnamed': r['unnamed'],
-                                'hash_key': r['hash_key'], 'arquivos_no_mapa': r['arquivos_no_mapa']}
+        r = kk_came.to_map(file_path, part, progress=p, all_items=all_items)
+        res['steps']['came'] = {
+            'record_count': r['record_count'],
+            'named': r['named'],
+            'unnamed': r['unnamed'],
+            'hash_key': r['hash_key'],
+            'arquivos_no_mapa': r['arquivos_no_mapa'],
+            'all_items': r['all_items'],
+        }
         if r['error_list']:
             raise RuntimeError('check: %d output file(s) not read back the same (%s)'
                                % (len(r['error_list']), ', '.join(r['error_list'][:5])))
@@ -1252,8 +1258,8 @@ def _unprotect_came(file_path, output, p, diag, res):
                           'unnamed': r['unnamed']}
         os.replace(part, output)
         res['output'] = res['after_diag']['file_name'] = os.path.abspath(output)
-        res['status'] = 'done' if not r['unnamed'] else 'partial'
-        res['left_out'] = ['came_sem_nome'] if r['unnamed'] else []
+        res['status'] = 'done' if (r['all_items'] or not r['unnamed']) else 'partial'
+        res['left_out'] = [] if r['all_items'] else (['came_sem_nome'] if r['unnamed'] else [])
     except (Exception, SystemExit) as e:
         res['status'] = 'failed'
         res['err'] = _error(e)
@@ -1285,7 +1291,7 @@ def unprotect(file_path, output, progress=None, diag=None, options=None):
         if not step_on(options, 'mpq'):
             res['status'] = 'nothing_selected'
             return res
-        return _unprotect_came(file_path, output, p, diag, res)
+        return _unprotect_came(file_path, output, p, diag, res, all_items=step_on(options, 'came_todos'))
     if 'ntfs_copy' in codes:
         return _unprotect_ntfs_copy(file_path, output, p, diag, res, options)
     if not codes - set(BUTTON3_ONLY):
@@ -1623,6 +1629,8 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
         src = file_path
         name_list = None
         if set(x['code'] for x in diag['protections']):
+            if unprotection is not None and ((unprotection.get('steps') or {}).get('came') or {}).get('all_items'):
+                unprotection = None
             if unprotection is not None:
                 r1 = unprotection
                 t = r1.get('output')
@@ -1630,7 +1638,11 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
                     raise RuntimeError('unprotect: the output %r of button 2 no longer exists' % t)
             else:
                 t = os.path.join(tmp, '1_unprotected.w3x')
-                r1 = unprotect(file_path, t, p, diag, options)
+                options_d = options
+                if any(x['code'] == 'kk_came' for x in diag['protections']) and \
+                        (options is None or 'came_todos' not in options):
+                    options_d = dict(options or {}, came_todos=False)
+                r1 = unprotect(file_path, t, p, diag, options_d)
             res['unprotection'] = r1
             if r1['status'] in ('done', 'partial'):
                 src = t
