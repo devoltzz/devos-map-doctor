@@ -3505,5 +3505,6 @@
  ", {0} still unnamed (not in the new map)": "，{0} 個仍未命名（不在新地圖中）",
  "CAME container (KK platform): {0} in {1}, AES-256-GCM + zstd; the SDK is {2}{3}. \"Fix map\" decrypts them into a normal map.": "CAME 容器（KK 平台）：{1} 中有 {0}，AES-256-GCM + zstd；SDK 為 {2}{3}。「修復地圖」會把它們解密成一般地圖。",
  "Decrypted the CAME container (KK platform): {0} written{1}.": "已解密 CAME 容器（KK 平台）：寫入 {0}{1}。",
- "The map is in the CAME container of the KK platform: the whole map is encrypted outside the archive (AES-256-GCM + zstd) and only the platform client reads it as it is. \"Fix map\" decrypts it into a normal map; then it needs a port.": "地圖在 KK 平台的 CAME 容器中：整張地圖在封存檔之外被加密（AES-256-GCM + zstd），只有平台用戶端能直接讀取。「修復地圖」會把它解密成一般地圖；之後還需要移植。"
+ "The map is in the CAME container of the KK platform: the whole map is encrypted outside the archive (AES-256-GCM + zstd) and only the platform client reads it as it is. \"Fix map\" decrypts it into a normal map; then it needs a port.": "地圖在 KK 平台的 CAME 容器中：整張地圖在封存檔之外被加密（AES-256-GCM + zstd），只有平台用戶端能直接讀取。「修復地圖」會把它解密成一般地圖；之後還需要移植。",
+ ", {0} unnamed (kept: the game finds them by hash)": "，{0} 個未命名（已保留：遊戲依雜湊找到它們）"
 }
