@@ -724,6 +724,9 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
     pair['KK_UI_SISTEMA'] = 'true'
     pair['KK_UI_CICLO'] = 'true'
     pair['KK_UI_MOUSE_POS'] = new.ui_mouse_pos(body_text)
+    pair['KK_UI_LARGA'] = new.wide_ui(body_text)
+    if pair['KK_UI_LARGA'] == 'true':
+        pair['KK_UI_MOUSE_POS'] = 'true'
     pair['KK_UI_BORDAS'] = new.ui_borders(body_text)
     pair['KK_UI_RETRATO'] = new.ui_portrait(body_text)
     pair['KK_UI_PAI'] = new.ui_parent(body_text)
