@@ -3,6 +3,56 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 2.1.0 (2026-11-04)
+
+### Added
+
+- **KK maps in the "CAME" container (Fix map, Port to Reforged):** the newer KK platform maps keep the whole map
+  encrypted outside the MPQ archive (AES-256-GCM, each file compressed with zstd); the MPQ inside holds only a few
+  bait files and the platform's SDK. The Doctor now recognizes them: the diagnosis shows the new code `kk_came` with the
+  number of files, their size and the SDK. "Fix map" decrypts every file into a normal map with a `(listfile)`, and the
+  port decrypts the map before it reads it. The key comes from the platform's SDK, which is shipped inside the map: it
+  is recognized by its SHA-256 or searched for in the SDK's readable sections, so the key that changes from map to map
+  needs nothing from you.
+  - A file in the container keeps only two of the three hashes of its name, so a file the Doctor cannot name cannot be
+    put back into the new map. On the map I measured, 4,236 of 9,711 files were named; the other 5,475 (art the
+    script and the models never cite by name) are counted in the report and left out. Every file decrypts; the
+    limit is only the names.
+  - Not tested in the game yet.
+- Two new packages ship inside the binaries for this: `zstandard` and `pycryptodome`.
+
+### Fixed
+
+- **Port to Reforged, KK maps whose whole game is Lua (the YDWE Lua engine) written in TypeScript (issue 69):** the
+  ported map started empty: no selection, nothing on the screen. Three things stopped its Lua before it did anything:
+  - The platform's network time (`EXNetGetTime`), which the map reads at start, was missing. It now answers like the
+    platform server: the same date and time on every player's machine (a fixed date plus the game time), so it cannot
+    desync.
+  - The game's Lua on Reforged has 32-bit integers, and a large number in the map's compiled Lua (the `4294967295`
+    limit of the TypeScript string split) turned into -1 there, so every text split came out empty. A number like that
+    is now written as a decimal number when the map only compares it or does arithmetic with it; bit operations keep
+    the old form.
+  - The map looks up every global name in the engine's libraries. The port's engine answered "a function that does
+    nothing" for any name, so the map's own lists (`TargetAttach`, `DamageType`, `unpack`...) became functions and the
+    map stopped. Only names shaped like the engine's functions get that answer now; the rest are empty, as in the
+    original engine.
+
+  With the three, the map of the issue loads its 573 Lua modules and runs two minutes of game in the Doctor's
+  simulator with no error (before: 115 modules, then the stop). Not tested in the game yet.
+- **Port to Reforged and Runs on Reforged?, "InitGlobals / RunInitializationTriggers is defined and nothing calls it"
+  (issue 59):** a false alarm on maps compiled before (optimized maps, and the Doctor's own editor copies), whose
+  `main` does that work itself. The line now shows only when the work of that function is really not done anywhere.
+- **Port to Reforged, KK maps that turn on the platform's wide screen (`DzEnableWideScreen(true)`):** on the platform
+  the map's interface filled the whole 16:9 screen; in Reforged it was squeezed into the 4:3 area in the middle (an
+  inventory cut on the right, command buttons out of place). The port now sees that call and lays the interface out on
+  the wide screen.
+- **Port to Reforged, Lua-engine maps that turn a handle id back into a unit or item through a fog state** (the
+  `ConvertFogState` trick of the old libraries): in Reforged's Lua the table kept the fog state, and reading the item
+  under the mouse stopped with "item expected, got fogstate". The handle now comes back as the unit or item it was.
+- **Translate images, text over a transparent background** (name plates floating over units): the English was drawn
+  on a dark box. The box now stays transparent and the English is written alone, light with a dark outline, like the
+  original.
+
 ## 2.0.2 (2026-11-01)
 
 ### Fixed
