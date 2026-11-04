@@ -3506,5 +3506,6 @@
  ", {0} still unnamed (not in the new map)": ", 이름 없음 {0}개 (새 맵에 들어가지 않음)",
  "CAME container (KK platform): {0} in {1}, AES-256-GCM + zstd; the SDK is {2}{3}. \"Fix map\" decrypts them into a normal map.": "CAME 컨테이너 (KK 플랫폼): {1} 안에 {0}, AES-256-GCM + zstd; SDK는 {2}{3}. \"맵 수정\"이 일반 맵으로 복호화합니다.",
  "Decrypted the CAME container (KK platform): {0} written{1}.": "CAME 컨테이너 (KK 플랫폼) 복호화: {0} 기록{1}.",
- "The map is in the CAME container of the KK platform: the whole map is encrypted outside the archive (AES-256-GCM + zstd) and only the platform client reads it as it is. \"Fix map\" decrypts it into a normal map; then it needs a port.": "맵이 KK 플랫폼의 CAME 컨테이너에 들어 있습니다: 맵 전체가 아카이브 밖에서 암호화되어 있고(AES-256-GCM + zstd) 이 상태로는 플랫폼 클라이언트만 읽습니다. \"맵 수정\"이 일반 맵으로 복호화하며, 그다음 포팅이 필요합니다."
+ "The map is in the CAME container of the KK platform: the whole map is encrypted outside the archive (AES-256-GCM + zstd) and only the platform client reads it as it is. \"Fix map\" decrypts it into a normal map; then it needs a port.": "맵이 KK 플랫폼의 CAME 컨테이너에 들어 있습니다: 맵 전체가 아카이브 밖에서 암호화되어 있고(AES-256-GCM + zstd) 이 상태로는 플랫폼 클라이언트만 읽습니다. \"맵 수정\"이 일반 맵으로 복호화하며, 그다음 포팅이 필요합니다.",
+ ", {0} unnamed (kept: the game finds them by hash)": ", 이름 없음 {0}개 (유지됨: 게임이 해시로 찾습니다)"
 }
