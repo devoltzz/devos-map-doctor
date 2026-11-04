@@ -3506,5 +3506,6 @@
  ", {0} still unnamed (not in the new map)": ", stále bez názvu: {0} (nejsou v nové mapě)",
  "CAME container (KK platform): {0} in {1}, AES-256-GCM + zstd; the SDK is {2}{3}. \"Fix map\" decrypts them into a normal map.": "Kontejner CAME (platforma KK): {0} v {1}, AES-256-GCM + zstd; SDK je {2}{3}. \"Opravit mapu\" je dešifruje do běžné mapy.",
  "Decrypted the CAME container (KK platform): {0} written{1}.": "Kontejner CAME (platforma KK) dešifrován: zapsáno {0}{1}.",
- "The map is in the CAME container of the KK platform: the whole map is encrypted outside the archive (AES-256-GCM + zstd) and only the platform client reads it as it is. \"Fix map\" decrypts it into a normal map; then it needs a port.": "Mapa je v kontejneru CAME platformy KK: celá mapa je zašifrovaná mimo archiv (AES-256-GCM + zstd) a v této podobě ji čte jen klient platformy. \"Opravit mapu\" ji dešifruje do běžné mapy; potom potřebuje port."
+ "The map is in the CAME container of the KK platform: the whole map is encrypted outside the archive (AES-256-GCM + zstd) and only the platform client reads it as it is. \"Fix map\" decrypts it into a normal map; then it needs a port.": "Mapa je v kontejneru CAME platformy KK: celá mapa je zašifrovaná mimo archiv (AES-256-GCM + zstd) a v této podobě ji čte jen klient platformy. \"Opravit mapu\" ji dešifruje do běžné mapy; potom potřebuje port.",
+ ", {0} unnamed (kept: the game finds them by hash)": ", bez názvu: {0} (ponechány: hra je najde podle hashe)"
 }
