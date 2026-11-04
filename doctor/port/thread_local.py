@@ -38,7 +38,7 @@ RX_LOCAL = re.compile(r'\bGetLocalPlayer[ \t]*\([ \t]*\)')
 RX_LOCAL_NE = re.compile(r'\bGetLocalPlayer[ \t]*\([ \t]*\)[ \t]*!=|!=[ \t]*GetLocalPlayer[ \t]*\([ \t]*\)')
 
 
-def local_regions(body):
+def local_regions(body, elseif_local=False):
     nameless = RX_COMMENT.sub(lambda m: ' ' * len(m.group()), body)
     out, stack = [], []
     for m in RX_LINE.finditer(nameless):
@@ -53,14 +53,21 @@ def local_regions(body):
                     'begin': m.end(),
                     'plain_globals': True,
                     'ret': False,
+                    'branch': None,
                 }
             )
         elif not stack:
             continue
         elif re.match(r'(elseif|else)\b', txt_ln):
             stack[-1]['plain_globals'] = False
+            if elseif_local and not stack[-1]['loc']:
+                if stack[-1]['branch'] is not None:
+                    out.append((stack[-1]['branch'], m.start()))
+                stack[-1]['branch'] = m.end() if re.match(r'elseif\b', txt_ln) and RX_LOCAL.search(txt_ln) else None
         elif re.match(r'endif\b', txt_ln):
             b = stack.pop()
+            if b['branch'] is not None:
+                out.append((b['branch'], m.start()))
             if b['loc']:
                 out.append((b['begin'], m.start()))
                 if b['ne'] and b['plain_globals'] and b['ret']:
@@ -79,24 +86,24 @@ def local_regions(body):
     return joined_ones
 
 
-def _roots_of(fs, branches):
-    roots = []
+def _roots_of(fs, branches, extra_roots=None, elseif_local=False):
+    roots = [(r, 'recipe root') for r in (extra_roots or ()) if r in fs]
     for fname, c in fs.items():
         if fname.startswith('KK_loc_'):
             m = RX_LOCAL_BODY.search(c)
             if m and m.group(1) in fs:
                 roots.append((m.group(1), fname))
         elif branches and RX_LOCAL.search(c):
-            for a, b in local_regions(c):
+            for a, b in local_regions(c, elseif_local):
                 for g in set(RX_CALL.findall(c[a:b])) | set(RX_EXEC.findall(c[a:b])):
                     if g in fs and g != fname:
                         roots.append((g, 'local branch of ' + fname))
     return roots
 
 
-def audit(body_text, creation=False, branches=False):
+def audit(body_text, creation=False, branches=False, roots=None, elseif_local=False):
     fs = functions(body_text)
-    roots = _roots_of(fs, branches)
+    roots = _roots_of(fs, branches, roots, elseif_local)
     file_path = {}
     work_queue = [(r, [loc]) for r, loc in roots]
     while work_queue:
@@ -121,7 +128,7 @@ def audit(body_text, creation=False, branches=False):
         for f in sorted(fs):
             if f in file_path or not RX_LOCAL.search(fs[f]):
                 continue
-            segments = ''.join(fs[f][a:b] for a, b in local_regions(fs[f]))
+            segments = ''.join(fs[f][a:b] for a, b in local_regions(fs[f], elseif_local))
             ths = sorted(set(m.group(1) for m in THREAD.finditer(segments)))
             if creation:
                 ths += sorted(set('+' + m.group(1) for m in CREATES.finditer(segments)))
@@ -130,10 +137,10 @@ def audit(body_text, creation=False, branches=False):
     return matches
 
 
-def local_closure(body_text, branches=False):
+def local_closure(body_text, branches=False, roots=None, elseif_local=False):
     fs = functions(body_text)
     seen = set()
-    work_queue = [g for g, _q in _roots_of(fs, branches)]
+    work_queue = [g for g, _q in _roots_of(fs, branches, roots, elseif_local)]
     while work_queue:
         f = work_queue.pop()
         if f in seen or f not in fs:
@@ -151,6 +158,12 @@ RX_ST_LIT = re.compile(r'\b(TriggerEvaluate|TriggerExecute)[ \t]*\([ \t]*st___pr
                        r'[ \t]*\)?[ \t]*\][ \t]*\)')
 RX_SC_LIT = re.compile(r'\bsc___prototype(\d+)_(evaluate|execute)[ \t]*\([ \t]*(\d+)[ \t]*(,[ \t]*|(?=\)))')
 RX_SC_ANY = re.compile(r'\bsc___prototype\d+_(?:evaluate|execute)[ \t]*\(')
+RX_SLOT_M = re.compile(
+    r'set[ \t]+st__([A-Za-z]\w*)[ \t]*=[ \t]*CreateTrigger\(\)\s*call[ \t]+TriggerAddCondition\([ \t]*'
+    r'st__\1[ \t]*,[ \t]*Condition\([ \t]*function[ \t]+(\w+)[ \t]*\)[ \t]*\)'
+)
+RX_ST_M = re.compile(r'\bTriggerEvaluate[ \t]*\([ \t]*st__([A-Za-z]\w*)[ \t]*\)')
+RX_SC_M = re.compile(r'\bsc__([A-Za-z]\w*)[ \t]*\(')
 RX_REF = re.compile(r'\bfunction[ \t]+(\w+)')
 RX_EXEC_LIT = re.compile(r'\bExecuteFunc[ \t]*\([ \t]*"(\w+)"[ \t]*\)')
 COPY = 'KKH_'
@@ -167,15 +180,34 @@ def _gaps_of(body_text):
     return out
 
 
-def fixable(body_text, turns_done=8):
+def fixable(body_text, turns_done=8, methods=False, calls=None, roots=None, elseif_local=False):
     info = {'replacements': 0, 'copies': [], 'failures': []}
     nl = '\r\n' if '\r\n' in body_text[:65536] else '\n'
     rx_kkh = re.compile(r'\b%s\w+' % COPY)
+    if roots:
+        vaos0 = _gaps_of(body_text)
+        info['failures'] += ['root without a function: %s' % r for r in roots if r not in vaos0]
+        if info['failures']:
+            return body_text, info
     for _goes_back in range(turns_done):
         slots = dict(((n, k), sa) for n, k, sa in RX_SLOT.findall(body_text))
+        mslots = dict(RX_SLOT_M.findall(body_text)) if methods else {}
         gaps_found = _gaps_of(body_text)
-        closure = local_closure(body_text, branches=True)
+        closure = local_closure(body_text, branches=True, roots=roots, elseif_local=elseif_local)
         new_ones = []
+
+        def swap_calls(body, where):
+            for cmd, targets in (calls or {}).items():
+                if cmd not in body:
+                    continue
+                missing = [g for g in targets if g not in gaps_found]
+                if missing:
+                    info['failures'].append('%s: %s without the function %s' % (where, cmd, ', '.join(missing)))
+                    continue
+                for g in targets:
+                    new_ones.append((COPY + g, g))
+                body = body.replace(cmd, nl.join('call %s%s()' % (COPY, g) for g in targets))
+            return body
 
         def rewrite(body, where):
             def st(m):
@@ -203,28 +235,44 @@ def fixable(body_text, turns_done=8):
                     return 'DoNothing()'
                 new_ones.append((COPY + m.group(1), m.group(1)))
                 return COPY + m.group(1) + '()'
-            new = RX_SC_LIT.sub(sc, RX_ST_LIT.sub(st, body))
+            def stm(m):
+                sa = mslots.get(m.group(1))
+                if not sa:
+                    return m.group(0)
+                new_ones.append((COPY + sa, sa))
+                return COPY + sa + '()'
+
+            def scm(m):
+                fname = 'sc__' + m.group(1)
+                if m.group(1) not in mslots or fname not in gaps_found:
+                    return m.group(0)
+                new_ones.append((COPY + fname, fname))
+                return COPY + fname + '('
+            new = swap_calls(RX_SC_LIT.sub(sc, RX_ST_LIT.sub(st, body)), where)
+            if methods:
+                new = RX_SC_M.sub(scm, RX_ST_M.sub(stm, new))
             new = RX_EXEC_LIT.sub(ef, new)
             for m in RX_SC_ANY.finditer(new):
                 info['failures'].append('%s: non-literal index in %s' % (where, new[m.start():m.start() + 60].strip()))
             return new
         replacements = {}
         for f in sorted(closure, key=lambda x: gaps_found[x][0]):
-            if f.startswith('sc___prototype') or f.startswith(COPY + 'sc'):
+            if f.startswith('sc___prototype') or f.startswith(COPY + 'sc') or (methods and f.startswith('sc__')):
                 continue
             a, b = gaps_found[f]
             new = rewrite(body_text[a:b], f)
             if new != body_text[a:b]:
                 replacements[f] = new
         for f in sorted(gaps_found, key=lambda x: gaps_found[x][0]):
-            if f in closure or f.startswith('sc___prototype') or f.startswith(COPY + 'sc'):
+            if f in closure or f.startswith('sc___prototype') or f.startswith(COPY + 'sc') or \
+                    (methods and f.startswith('sc__')):
                 continue
             a, b = gaps_found[f]
             body = body_text[a:b]
             if not RX_LOCAL.search(body):
                 continue
             new, pos = '', 0
-            for ra, rb in local_regions(body):
+            for ra, rb in local_regions(body, elseif_local):
                 new += body[pos:ra] + rewrite(body[ra:rb], f)
                 pos = rb
             new += body[pos:]
@@ -275,6 +323,9 @@ def fixable(body_text, turns_done=8):
                 header = body.index('\n')
                 body = re.sub(r'(function[ \t]+)%s\b' % re.escape(orig), r'\g<1>' + fname, body[:header], count=1) + \
                     body[header:]
+                before_ch = len(new_ones)
+                body = body[:header] + swap_calls(body[header:], fname)
+                work_queue.extend(new_ones[before_ch:])
                 core_part = body[body.index('\n'):]
                 for g in sorted(set(RX_CALL.findall(core_part)) | set(RX_REF.findall(core_part))):
                     if g == orig:
