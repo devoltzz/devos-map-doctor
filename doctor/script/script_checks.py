@@ -212,7 +212,39 @@ def check_text(text, native=True, extended=False):
     if extended and 'error' not in out and RX_EXTENDED.search(text):
         _supplement(out, text)
         out['lines'] = summary(out)
+    if out.get('start') and _start_done_elsewhere(out, text):
+        out['lines'] = summary(out)
     return out
+
+
+RX_FUNCTION_BODY = re.compile(
+    r'(?m)^[ \t]*function[ \t]+(\w+)[ \t]+takes\b[^\r\n]*\r?\n(.*?)^[ \t]*endfunction\b', re.S
+)
+RX_CALLED = re.compile(r'\b(\w+)[ \t]*\(|\bfunction[ \t]+(\w+)(?![ \t]+takes\b)|\bExecuteFunc[ \t]*\([ \t]*"(\w+)"')
+
+
+def _start_done_elsewhere(out, text):
+    bodies = {}
+    for m in RX_FUNCTION_BODY.finditer(text):
+        bodies[m.group(1)] = [re.sub(r'\s+', '', l.split('//', 1)[0]) for l in m.group(2).split('\n')]
+    called = {'main', 'config'}
+    for m in RX_CALLED.finditer(text):
+        called.add(m.group(1) or m.group(2) or m.group(3))
+    lines = set()
+    for name, body in bodies.items():
+        if name in called:
+            lines.update(body)
+    kept = []
+    for s in out['start']:
+        own = [l for l in bodies.get(s['name'], ['?']) if l and not l.startswith('local')]
+        if s['name'] in bodies and all(l in lines for l in own):
+            continue
+        kept.append(s)
+    if len(kept) == len(out['start']):
+        return False
+    out['start'] = kept
+    out.setdefault('counts', {})['start'] = len(kept)
+    return True
 
 
 def _base(text, native):
