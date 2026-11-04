@@ -447,7 +447,13 @@ def render(im, items):
         ink = box[dist > max(60.0, 3.0 * spread)]
         color = tuple(int(c) for c in (np.median(ink, axis=0) if len(ink) else (255, 255, 255, 255)))
         style = 'replace' if spread < 18 else 'band'
-        _coons(a, x0, y0, x1, y1)
+        if bg[3] < 30:
+            style = 'replace'
+            a[max(0, y0 - 6):y1 + 6, max(0, x0 - 6):x1 + 6] = 0
+            if 0.299 * color[0] + 0.587 * color[1] + 0.114 * color[2] < 140:
+                color = (232, 232, 232, 255)
+        else:
+            _coons(a, x0, y0, x1, y1)
         tint = tuple(int(c * 0.3) for c in np.mean(ring[:, :3], axis=0)) + (255,)
         plan.append(((x0, y0, x1, y1), text, style, color, bg, tint, group[k]))
     out = Image.fromarray(a.astype(np.uint8), 'RGBA')
