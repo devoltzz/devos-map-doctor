@@ -20,7 +20,7 @@ if _restart:
     sys.exit(0)
 from doctor.fix import unprotect as D
 
-VERSION = '2.1.0'
+VERSION = '2.1.1'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -573,7 +573,10 @@ def _fixes_done(details, steps, before):
                    % (pluralize(cv.get('file_set') or 0, 'file', 'files'), extra))
     if steps.get('came'):
         cv = steps['came']
-        extra = ', %s still unnamed (not in the new map)' % num(cv['unnamed']) if cv.get('unnamed') else ''
+        if cv.get('all_items'):
+            extra = ', %s unnamed (kept: the game finds them by hash)' % num(cv['unnamed']) if cv.get('unnamed') else ''
+        else:
+            extra = ', %s still unnamed (not in the new map)' % num(cv['unnamed']) if cv.get('unnamed') else ''
         out.append('Decrypted the CAME container (KK platform): %s written%s.'
                    % (pluralize(cv.get('arquivos_no_mapa') or 0, 'file', 'files'), extra))
     if steps.get('sprotect'):
