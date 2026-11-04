@@ -478,6 +478,40 @@ local inertes = {}
 
 local japi_registrada = {}
 __ydwe_japi_registrada = japi_registrada
+
+
+
+
+
+local VERBO_JAPI = {}
+for v in ([[Get Set Create Destroy Is Has Add Remove Clear Show Hide Enable Disable Load Save Send Register Unregister
+  Find Bind UnBind Unbind Cage Click Reset Display Blend Dclare Declare Mat Sync Request Open Close Play Stop Start Pause
+  Resume Exec Execute Call Run Check Can Trigger Post Hook Unhook Lock Unlock Copy Write Read Print Log Draw Release Flush
+  Store Restore Select Issue Apply Toggle Convert Begin End Refresh Sort Insert Delete Modify Replace Update]]):gmatch("%a+") do
+  VERBO_JAPI[v] = true
+end
+local PREFIXO_JAPI = { "DzAPI_Map_", "DzAPI_", "KKApi", "KKAPI", "YDWE", "YD", "EX", "Ex", "Dz", "KK", "MH", "Japi",
+  "JAPI" }
+local FAMILIA_JAPI = { "SimpleFontString", "SimpleTexture", "SimpleFrame", "Simple", "Frame", "Effect", "Ability",
+  "Mouse", "Game", "Map", "Player", "Window" }
+local function tem_cara_de_japi(nome)
+  if type(nome) ~= "string" or not smatch_(nome, "^%u") then return false end
+  local function verbo(resto)
+    local v = smatch_(resto, "^(%u%l+)")
+    return v ~= nil and VERBO_JAPI[v] == true
+  end
+  local function sem(lista, s)
+    for _, p in ipairs(lista) do
+      if #s > #p and s:sub(1, #p) == p then return s:sub(#p + 1) end
+    end
+    return nil
+  end
+  local s1 = sem(PREFIXO_JAPI, nome) or nome
+  if verbo(s1) then return true end
+  local s2 = sem(FAMILIA_JAPI, s1)
+  return s2 ~= nil and verbo(s2)
+end
+__ydwe_cara_de_japi = tem_cara_de_japi
 local function inerte_japi(nome)
   local f = inertes[nome]
   if f == nil then
@@ -516,6 +550,29 @@ local function pai_padrao(nome, f)
 end
 
 local SOBREPOE = { FrameSetAlpha = true, FrameShow = true }
+
+
+
+
+
+local HORA_REDE_BASE = 20454 * 86400
+local function hora_da_rede()
+  local clk = rawget(G, "__clock")
+  local s = HORA_REDE_BASE + math.floor(type(clk) == "function" and (clk() or 0) or 0)
+  local dias, resto = s // 86400, s % 86400
+
+  local z = dias + 719468
+  local era = (z >= 0 and z or z - 146096) // 146097
+  local doe = z - era * 146097
+  local yoe = (doe - doe // 1460 + doe // 36524 - doe // 146096) // 365
+  local doy = doe - (365 * yoe + yoe // 4 - yoe // 100)
+  local mp = (5 * doy + 2) // 153
+  local d = doy - (153 * mp + 2) // 5 + 1
+  local m = mp < 10 and mp + 3 or mp - 9
+  local y = yoe + era * 400 + (m <= 2 and 1 or 0)
+  return string.format("%04d-%02d-%02d %02d:%02d:%02d", y, m, d, resto // 3600, resto % 3600 // 60, resto % 60)
+end
+__ydwe_hora_da_rede = hora_da_rede
 local function do_japi(nome)
   if SOBREPOE[nome] and __ydwe_japi_extra and __ydwe_japi_extra[nome] then return __ydwe_japi_extra[nome], nome end
   local v = do_jass(nome)
@@ -545,6 +602,10 @@ local function do_japi(nome)
     if japi_registrada[nome] then return nil end
 
 
+    if nome == "EXNetGetTime" then return hora_da_rede, nome end
+
+
+    if not tem_cara_de_japi(nome) then return nil end
     return inerte_japi(nome), nome
   end
   return nil
@@ -1132,12 +1193,19 @@ local ffi = { cdef = function() end, C = inerte("ffi.C"), load = function(n) ret
               arch = "x86", abi = function() return false end, istype = function() return false end }
 
 
+local LUA_ANTIGO = { unpack = true, loadstring = true, setfenv = true, getfenv = true, module = true, bit32 = true,
+                     newproxy = true, gcinfo = true, jit = true, bit = true, table = true, string = true, math = true }
 local function anota_ausente(t, lib, funcao)
 
 
   local idx = function(_, k)
     ausente(lib, k)
-    if funcao and k ~= "hook" and type(k) == "string" then return inerte_japi(lib .. "." .. k) end
+
+
+
+    if funcao and k ~= "hook" and type(k) == "string" and smatch_(k, "^%l") and not LUA_ANTIGO[k] then
+      return inerte_japi(lib .. "." .. k)
+    end
     return nil
   end
   local mt = getmetatable(t)
@@ -1212,7 +1280,10 @@ do
     if k == "hook" and type(v) == "function" then instala() end
   end
 end
-anota_ausente(dbg, "debug", true)
+
+
+
+anota_ausente(dbg, "debug")
 anota_ausente(runtime, "runtime")
 anota_ausente(console, "console")
 anota_ausente(storm, "storm")
@@ -1446,6 +1517,10 @@ do
     aplicado[f] = nil
     refaz(f)
   end
+
+
+
+  __ydwe_quadro_modelo_refaz = function(f) if interno[f] then refaz(f) end end
   X.FrameSetModelSize = function(f, s)
     local i = modelo_de(f)
     local h = fh(i)
@@ -1527,9 +1602,22 @@ do
     local criar = __JENV and rawget(__JENV, "DzCreateFrameByTagName")
     if not criar then return 0 end
     n_modelo = n_modelo + 1
-    local moldura = criar("FRAME", "ydwe_model_" .. n_modelo, pai or 0, "", 0)
-    if not moldura or moldura == 0 then return 0 end
-    local spr = criar("SPRITE", "ydwe_model_s" .. n_modelo, moldura, "", 0)
+
+
+    local do_fdf = __JENV and rawget(__JENV, "DzCreateFrame")
+    local moldura, spr
+    if do_fdf then
+      moldura = do_fdf("DevosModeloMoldura", pai or 0, n_modelo)
+      if moldura and moldura ~= 0 then
+        spr = do_fdf("DevosModeloSprite", moldura, n_modelo)
+        if not spr or spr == 0 then spr = criar("SPRITE", "ydwe_model_s" .. n_modelo, moldura, "", 0) end
+      end
+    end
+    if not moldura or moldura == 0 then
+      moldura = criar("FRAME", "ydwe_model_" .. n_modelo, pai or 0, "", 0)
+      if not moldura or moldura == 0 then return 0 end
+      spr = criar("SPRITE", "ydwe_model_s" .. n_modelo, moldura, "", 0)
+    end
     local hm, hs = fh(moldura), fh(spr)
     if hm and hs then
       BlzFrameSetSize(hs, 0.001, 0.001)
@@ -1726,6 +1814,11 @@ do
       if b == 194 and sbyte(s, i + 1) == 183 then return 2 end
       return 0
     end
+
+    local PONTUACAO = { ["，"] = ", ", ["。"] = ".", ["："] = ": ", ["；"] = "; ", ["！"] = "!", ["？"] = "?",
+      ["、"] = ", ", ["（"] = " (", ["）"] = ") ", ["【"] = "[", ["】"] = "]", ["《"] = "'", ["》"] = "'",
+      ["“"] = "'", ["”"] = "'", ["‘"] = "'", ["’"] = "'", ["～"] = "~", ["…"] = "...", ["—"] = "-", ["·"] = " " }
+    for k, v in pairs(PONTUACAO) do if tab[k] == nil then tab[k] = v end end
     local function troca_trecho(t)
       local r = tab[t]
       if r then return r end
@@ -1733,7 +1826,11 @@ do
       while i <= n do
         local achou = nil
         local j = math.min(n, i + maior - 1)
-        while j > i do
+
+
+        local um = largo(t, i)
+        local minimo = (PONTUACAO[ssub(t, i, i + um - 1)] and i + um - 1) or (i + um)
+        while j > i and j >= minimo do
           local v = tab[ssub(t, i, j)]
           if v then achou = j break end
           j = j - 1
@@ -1780,13 +1877,75 @@ do
       BlzSetHeroProperName = 2, BlzSetItemName = 2, BlzSetItemTooltip = 2, BlzSetItemExtendedTooltip = 2,
       BlzSetItemDescription = 2, BlzSetAbilityTooltip = 2, BlzSetAbilityExtendedTooltip = 2,
       BlzSetAbilityResearchTooltip = 2, BlzSetAbilityResearchExtendedTooltip = 2, BlzSetUnitWeaponStringField = 3 }
+
+
+
+
+    local encolhidos = setmetatable({}, { __mode = "k" })
+    local function largura(s)
+      s = sgsub(sgsub(s, "|[cC]%x%x%x%x%x%x%x%x", ""), "|[rR]", "")
+      local w, i, n = 0.0, 1, #s
+      while i <= n do
+        local l = largo(s, i)
+        if l == 3 then w = w + 1.0 i = i + 3
+        elseif l == 2 then w = w + 0.5 i = i + 2
+        else
+          local b = sbyte(s, i)
+          if b == 32 then w = w + 0.28 elseif b >= 65 and b <= 90 then w = w + 0.62 else w = w + 0.52 end
+          i = i + 1
+        end
+      end
+      return w
+    end
+    local larg_en = rawget(G, "__ydwe_largura_en") or {}
+
+
+    local function largura_original(s)
+      local limpo = sgsub(sgsub(s, "|[cC]%x%x%x%x%x%x%x%x", ""), "|[rR]", "")
+      local w = larg_en[limpo]
+      if w then return w end
+      local pre, resto = string.match(limpo, "^([%p%d%s]*Lv%.?%d*[%p%s]*)(.+)$")
+      if not resto then pre, resto = string.match(limpo, "^([%p%d%s]*)(.+)$") end
+      local meio, suf = string.match(resto or "", "^(.-)([%p%d%s]*)$")
+      w = meio and larg_en[meio]
+      if w then return w + largura(pre or "") + largura(suf or "") end
+      return nil
+    end
+    local function cabe(frame, original, traduzido)
+      if frame == nil or type(original) ~= "string" or type(traduzido) ~= "string" then return end
+      if sfind(original, "|[nN]") or sfind(original, "\n") then return end
+      local wo
+      if original == traduzido then
+        wo = largura_original(traduzido)
+        if wo == nil then
+          if encolhidos[frame] then BlzFrameSetScale(frame, 1.0) encolhidos[frame] = nil end
+          return
+        end
+      else
+        wo = largura(original)
+      end
+      local wt = largura(traduzido)
+      local r = (wt > 0) and (wo / wt) or 1.0
+      if r < 0.92 and wo <= 14 then
+        if r < 0.6 then r = 0.6 end
+        BlzFrameSetScale(frame, r)
+        encolhidos[frame] = true
+      elseif encolhidos[frame] then
+        BlzFrameSetScale(frame, 1.0)
+        encolhidos[frame] = nil
+      end
+    end
     for nome, pos in pairs(onde) do
       local f = rawget(G, nome)
       if type(f) == "function" then
+        local e_quadro = (nome == "BlzFrameSetText")
         rawset(G, nome, function(...)
           local a = table.pack(...)
-          a[pos] = traduz(a[pos])
-          return f(table.unpack(a, 1, a.n))
+          local original = a[pos]
+          a[pos] = traduz(original)
+          local r = f(table.unpack(a, 1, a.n))
+          if e_quadro and BlzFrameSetScale then cabe(a[1], original, a[pos]) end
+          return r
         end)
       end
     end
