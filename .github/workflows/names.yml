@@ -38,12 +38,12 @@ jobs:
           cat /tmp/comment.md
       - name: Commit, comment, close
         run: |
-          if git diff --quiet -- names/learned.txt; then
+          git add names/learned.txt
+          if git diff --cached --quiet -- names/learned.txt; then
             echo "nothing new"
           else
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add names/learned.txt
             git commit -m "names: the file names of issue #$ISSUE"
             git push
           fi
