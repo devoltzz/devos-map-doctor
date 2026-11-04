@@ -1909,6 +1909,7 @@
   ", {0} locals moved ({1})",
   ", {0} still unnamed (not in the new map)",
   ", {0} unnamed",
+  ", {0} unnamed (kept: the game finds them by hash)",
   "... and {0} more (the report of the port lists them all)",
   "... and {0} more text triggers",
   "0x{0} (not inside Game.dll: another module, or the report has no Game.dll range)",
