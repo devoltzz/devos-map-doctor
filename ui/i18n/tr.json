@@ -3505,5 +3505,6 @@
  ", {0} still unnamed (not in the new map)": ", {0} hâlâ adsız (yeni haritada yok)",
  "CAME container (KK platform): {0} in {1}, AES-256-GCM + zstd; the SDK is {2}{3}. \"Fix map\" decrypts them into a normal map.": "CAME kapsayıcısı (KK platformu): {1} içinde {0}, AES-256-GCM + zstd; SDK: {2}{3}. \"Haritayı onar\" bunları normal bir haritaya çözer.",
  "Decrypted the CAME container (KK platform): {0} written{1}.": "CAME kapsayıcısı (KK platformu) çözüldü: {0} yazıldı{1}.",
- "The map is in the CAME container of the KK platform: the whole map is encrypted outside the archive (AES-256-GCM + zstd) and only the platform client reads it as it is. \"Fix map\" decrypts it into a normal map; then it needs a port.": "Harita KK platformunun CAME kapsayıcısında: haritanın tamamı arşivin dışında şifreli (AES-256-GCM + zstd) ve onu bu haliyle yalnızca platform istemcisi okur. \"Haritayı onar\" onu normal bir haritaya çözer; ardından bir port gerekir."
+ "The map is in the CAME container of the KK platform: the whole map is encrypted outside the archive (AES-256-GCM + zstd) and only the platform client reads it as it is. \"Fix map\" decrypts it into a normal map; then it needs a port.": "Harita KK platformunun CAME kapsayıcısında: haritanın tamamı arşivin dışında şifreli (AES-256-GCM + zstd) ve onu bu haliyle yalnızca platform istemcisi okur. \"Haritayı onar\" onu normal bir haritaya çözer; ardından bir port gerekir.",
+ ", {0} unnamed (kept: the game finds them by hash)": ", {0} adsız (korundu: oyun onları hash ile bulur)"
 }
