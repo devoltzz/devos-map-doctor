@@ -6,6 +6,7 @@
 2bd262407f963ac5ef55e5e539137414-2.mdx
 7bc654fc615cc1f1bb5bc58d8241312c2.mdx
 7e450567d5b3cee89723c734c11889d0_PORTRAIT.mdx
+7fx_alphamask_glow_red512.blp
 7ne_nightelf_retainingwall02.mdx
 7ne_nightelf_retainingwall03.mdx
 7ne_nightelf_retainingwall05.mdx
@@ -98,15 +99,64 @@ AZ_Lina_G2_2_jnt.mdx
 AZ_Sil_C1 (Orange).mdx
 az_tormentedsoul_t1red2a.mdx
 az_tormentedsoul_t1red2a_skin.mdx
+b5c2d995f5c6723e514562c2e564c2e8_0.blp
+b5c2d995f5c6723e514562c2e564c2e8_1.blp
+b5c2d995f5c6723e514562c2e564c2e8_2.blp
+b5c2d995f5c6723e514562c2e564c2e8_3.blp
+b5c2d995f5c6723e514562c2e564c2e8_4.blp
+b5c2d995f5c6723e514562c2e564c2e8_5.blp
 baozha_yellow.mdx
+barrel1.blp
+big factory.blp
+bjwz1.blp
+bjwz2.blp
+BlastFlash_my.blp
+BlastFlash_sb.blp
+BloodTotem_CasterArmor.blp
+BloodTotem_CasterBase.blp
+BloodTotem_MeleeArmor.blp
 BloodySplat_Missile.mdx
+blue cistern.blp
 bl_b.blp
 bojack_uf2.mdx
+bosslique_0.blp
+bosslique_1.blp
+bosslique_2.blp
 BossSign.blp
+boss_fbhx.mdx
+boss_in_ball.blp
+boss_in_ball_bai.blp
+boss_in_ball_s_ground.blp
+boss_in_boom.blp
+boss_lique.mdx
+boss_qjs.mdx
+boss_xz_1.mdx
+boss_xz_2.mdx
+boss_xz_6.mdx
 Bo_Grassdragon.tga
 BRL_body_1.blp
 BRL_face.blp
 br_b.blp
+bskr3_00000.blp
+bskr3_00001.blp
+bskr3_00002.blp
+bskr3_00003.blp
+bskr3_00004.blp
+bskr3_00005.blp
+bskr3_00006.blp
+bskr3_00007.blp
+bskr3_00008.blp
+bskr3_00009.blp
+bskr3_00010.blp
+bskr3_00011.blp
+bskr3_00012.blp
+bskr3_00013.blp
+bskr3_00014.blp
+bskr3_00015.blp
+bskr3_00016.blp
+bskr3_00017.blp
+bskr3_00018.blp
+bskr3_00019.blp
 BTN19A.blp
 BTNAndroid21.blp
 BTNAndroid8.blp
@@ -278,6 +328,13 @@ CaptainAmerica_Hand_Leg.blp
 Captain_Skin_Portrait.blp
 Capt_R_Shield_Skin.mdx
 Capt_W_Hit_Skin.mdx
+cb_blsy.mdx
+cb_emzy.mdx
+cb_fire.mdx
+cb_ice.mdx
+cb_jtsy.mdx
+cb_leidianzhiyi.mdx
+cb_zise.mdx
 CDs\CD (1).BLP
 CDs\CD (10).BLP
 CDs\CD (100).BLP
@@ -431,8 +488,17 @@ ChimaeraAncientV1_00.mdx
 ChloeLilithilla_PORTRAIT.mdx
 ch_001_003.blp
 ch_001_005_weapon.blp
+ch_bug.mdx
+ch_jsws.mdx
+ch_jyzz.mdx
+ch_msdz.mdx
+ch_zgts.mdx
+cjb_yue.mdx
 Clockwise2.BLP
+concrite and metal tube.blp
+concrite barier1.blp
 COOLAA_D_Projectile_small.mdx
+CQ123.blp
 Cross Crash.mdx
 Cutscene_Echo_R_Ve3_birth.mdx
 Cutscene_Echo_R_Ve3_death.mdx
@@ -450,6 +516,7 @@ c_Vector_slg_eyeblend.blp
 c_Vector_slg_eye_d.blp
 c_Vector_slg_face_d.blp
 c_Vector_slg_hair_d.blp
+darkgreen container.blp
 DarkMageFire2.mdx
 DefOmagan\building\alice1.blp
 DefOmagan\building\alice2.blp
@@ -1845,6 +1912,48 @@ DW\wfx\t\ff6b4a42_ribbon_ffe38f_b158.blp
 DW\wfx\water_b158.mdx
 DW\wfx\wave_b158.mdx
 DW\wfx\wind_b158.mdx
+dw_boss_dm.mdx
+dw_boss_tianfu.mdx
+dw_enemy_6.mdx
+dw_enemy_7.mdx
+dw_enemy_8.mdx
+dw_fabao_02_2.mdx
+dw_horse_1.mdx
+dw_horse_feijian_1.mdx
+dw_horse_feijian_1_0.blp
+dw_horse_feijian_1_1.blp
+dw_horse_feijian_1_3.blp
+dw_horse_feijian_1_4.blp
+dw_horse_feijian_1_5.blp
+dw_horse_feijian_1_7.blp
+dw_jiansheng.mdx
+dw_jtxn.mdx
+dw_mj10_boss.mdx
+dw_mj1_boss.mdx
+dw_mj3_boss.mdx
+dw_mj5_boss.mdx
+dw_mj6_boss.mdx
+dw_mj7_boss.mdx
+dw_mj8_boss.mdx
+dw_muzhuang.mdx
+dw_suit_10.mdx
+dw_suit_4.mdx
+dw_suit_6.mdx
+dw_suit_7.mdx
+dw_suit_8.mdx
+dw_suit_9.mdx
+dw_task_2.mdx
+dw_task_3.mdx
+dw_task_4.mdx
+dw_task_5.mdx
+dw_task_7.mdx
+dw_task_8.mdx
+dw_task_9.mdx
+dw_xiaobing1.mdx
+dw_zs_laohu.mdx
+dw_zs_laohu_sprite.mdx
+dw_zs_lqsn.mdx
+dw_zs_lqsn_sprite.mdx
 E3BowMd140011.blp
 E3PistolMd020011.blp
 E3PistolMd020011Alpha.blp
@@ -2434,6 +2543,9 @@ EffectMod\Textures\[XT]ZG_GH_BLLH2.blp
 EffectMod\Textures\[XT]ZG_GH_BLLH3.blp
 EffectMod\Wing_M536.mdx
 EffectMod\Wing_M603.mdx
+effect_feidao01.blp
+effect_feidao02.blp
+effect_feng_huoxuanfeng_1X6.blp
 egg_light.blp
 elaina_4_PORTRAIT.mdx
 eve_ana_PORTRAIT.mdx
@@ -2450,8 +2562,21 @@ eve_ypyy_PORTRAIT.mdx
 eve_zylmcj_PORTRAIT.mdx
 E_BuffYellow2a.mdx
 FelMinionV1_00_1.mdx
+fence and plank.blp
 fengchidiancheP.mdx
+fonts\text.ttf
+gh_01_0.blp
+gh_01_1.blp
+gh_01_2.blp
+gh_02.mdx
+gh_hanbing.mdx
+gh_huoyan.mdx
+gh_leidian.mdx
+gh_xxgh.mdx
+girl_1_sprite.mdx
+girl_pf_1.mdx
 GjiantouP1T.mdx
+gjs_ngd.mdx
 GK\altar.blp
 GK\altar_lock.blp
 GK\altar_lock.mdx
@@ -2569,7 +2694,11 @@ GK\warn_r33.mdx
 GK\warn_r50.mdx
 GK\warn_r67.mdx
 GPF-New_PORTRAIT.mdx
+green cistern.blp
+grey cistern.blp
+grey container.blp
 HalfFallenAngelWarrior.blp
+hanger building.blp
 herohighlordinquisitor_v2_new.mdx
 HeroSkill_NEC.MDX
 hero\alice.blp
@@ -2611,7 +2740,12 @@ hero\Houjuu Nue.blp
 hero\Houjuu Nue.MDX
 hero\iku.blp
 hero\iku.MDX
+Hero_Butcher_N5_Body.blp
+Hero_Butcher_N5_Weapon.blp
+Hero_Butcher_N5_Weapon2.blp
+Hero_CrystalMaiden_N2_Flare.blp
 hero_data\UI_HERO_DATA_75.blp
+Hero_DwarvenSniper_N6S_star.blp
 hero_tlbk_PORTRAIT.mdx
 HighSentinel_02_Di.blp
 Icon\Equipments\Equip_Armor1.blp
@@ -7488,6 +7622,7 @@ XJCSMppBYQ.mdx
 zidan3.blp
 ZigguratDemonV1_05.mdx
 [AKE]war3AKE_com - 4888447066767509587607100.mdx
+[BossRPG.com]t11481A.blp
 [building]7sr_boundarywall_pillar.mdx
 [building]7sr_boundarywall_pillar_broken01.mdx
 [building]7sr_boundarywall_pillar_broken02.mdx
@@ -7498,6 +7633,7 @@ ZigguratDemonV1_05.mdx
 [doodads]action_arrow.mdx
 [doodads]horoscop_table.mdx
 [dz_spell]006.mdx
+[effect-lightning]laser2_zi.blp
 [effect]airt - darkblue.mdx
 [effect]animatedenviromentaleffectraincv002.mdx
 [effect]sheild.mdx
@@ -7506,12 +7642,23 @@ ZigguratDemonV1_05.mdx
 [effect][0312].mdx
 [effect][0314].mdx
 [effect][0388].mdx
+[effect][0399]_(01).blp
+[effect][0399]_(02).blp
 [found]rock-barren.mdx
 [light]lightcircle.mdx
 [light]lightcircle45g.mdx
 [light]light_blue.mdx
 [light]light_white.mdx
 [maps_dz_rpg_A078365F5AAC87E181607FFFE5563997_new_names.txt](https:\\github.com\user-attachments\files\33924674\maps_dz_rpg_A078365F5AAC87E181607FFFE5563997_new_names.txt)
+[mx]h-js2_0.blp
+[mx]h-js2_3.blp
+[mx]h-js2_4.blp
+[mx]h-js2_5.blp
+[mx]h-js2_6.blp
+[mx]h-js2_7.blp
+[mx]h-js2_8.blp
+[mx]h-js_1.blp
+[mx]h-js_4.blp
 [names.txt](https:\\github.com\user-attachments\files\34066474\names.txt)
 [plant]mz_lilypad03.mdx
 [PumpkinTD_v2.3c_editor_new_names.txt](https:\\github.com\user-attachments\files\34068288\PumpkinTD_v2.3c_editor_new_names.txt)
@@ -7521,6 +7668,9 @@ ZigguratDemonV1_05.mdx
 [rock]6fw_spire_b04.mdx
 [rock]6fw_spire_c04.mdx
 [rock]6fw_spire_c09.mdx
+[rock][firestone]_big4.mdx
+[rock][firestone]_wall1_0.mdx
+[rock][firestone]_wall5_90.mdx
 [stage08]acolyte.mdx
 [tree]7sr_citytree_b01.mdx
 [water]lostwaterfv2.mdx
