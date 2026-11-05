@@ -117,6 +117,7 @@ BloodTotem_CasterBase.blp
 BloodTotem_MeleeArmor.blp
 BloodySplat_Missile.mdx
 blue cistern.blp
+blue_+.tga
 bl_b.blp
 bojack_uf2.mdx
 bosslique_0.blp
@@ -2695,10 +2696,12 @@ GK\warn_r50.mdx
 GK\warn_r67.mdx
 GPF-New_PORTRAIT.mdx
 green cistern.blp
+green_+.tga
 grey cistern.blp
 grey container.blp
 HalfFallenAngelWarrior.blp
 hanger building.blp
+hd_summertreewall.blp
 herohighlordinquisitor_v2_new.mdx
 HeroSkill_NEC.MDX
 hero\alice.blp
@@ -4351,6 +4354,9 @@ obj27_1.blp
 Orb_Red_S.mdx
 Orb_Yellow_S.mdx
 Pet_287_KD_PORTRAIT.mdx
+Pet_BabyHippo.blp
+Pet_GraveGolem.blp
+Pet_HearthStoneElemental.tga
 pf0103.mdx
 pf0103_PORTRAIT.mdx
 pf0203.mdx
@@ -7040,9 +7046,58 @@ UI\XRUI4\Violet.tga
 UI\yifu1.tga
 UI\yifu2.tga
 UI\youcediban.tga
+ui_alpha2.tga
+ui_alpha3.tga
+ui_arrowL.tga
+ui_arrowL_disabled.tga
+ui_arrowL_pressed.tga
+ui_arrowR.tga
+ui_arrowR_disabled.tga
+ui_arrowR_pressed.tga
+ui_backdropslot.tga
+ui_border_disabled.tga
+ui_buttonO.tga
+ui_buttonO_disabled.tga
+ui_buttonO_pressed.tga
+ui_buttonX.tga
+ui_buttonX_disabled.tga
+ui_buttonX_pressed.tga
+ui_button_achievement.tga
+ui_button_book.tga
+ui_button_character.tga
+ui_button_guide.tga
+ui_button_quest.tga
+ui_button_resource.tga
+ui_button_setting.tga
+ui_chart_icon.tga
+ui_chart_raceBG.tga
+ui_chart_raceBG_pressed.tga
+ui_char_lvbar_fill.tga
+ui_completed.tga
 ui_dimiangezi_lv_0.blp
 ui_dimiangezi_lv_1.blp
 ui_dimiangezi_lv_3.blp
+ui_EXPBar.mdx
+ui_guide_homepageA.tga
+ui_guide_homepageB.tga
+ui_guide_homepageC.tga
+ui_guide_homepageD.tga
+ui_highlights.tga
+ui_lock.tga
+ui_MLBar.mdx
+ui_model_bg.tga
+ui_MPBar.mdx
+ui_MRBar.mdx
+ui_pet_all.tga
+ui_player_bagSlot.tga
+ui_player_petSlot.tga
+ui_QuestBar.mdx
+ui_shop_slot.tga
+ui_skin_arrowL.tga
+ui_skin_arrowL_disabled.tga
+ui_skin_arrowR.tga
+ui_skin_arrowR_disabled.tga
+ui_ValueBar.mdx
 UnitMod\armor.mdx
 UnitMod\Assastant_DHD.mdx
 UnitMod\Assastant_SWZY.mdx
@@ -7248,6 +7303,16 @@ war3mapImported\AZ_Scene60.blp
 war3mapImported\AZ_Scene61.blp
 war3mapImported\BabyBuilt.mp3
 war3mapImported\BabyChrono2.mp3
+war3mapImported\blue_0.mdx
+war3mapImported\blue_1.mdx
+war3mapImported\blue_2.mdx
+war3mapImported\blue_3.mdx
+war3mapImported\blue_4.mdx
+war3mapImported\blue_5.mdx
+war3mapImported\blue_6.mdx
+war3mapImported\blue_7.mdx
+war3mapImported\blue_8.mdx
+war3mapImported\blue_9.mdx
 war3mapImported\BTNAzraelP.blp
 war3mapImported\BTNdiyuhaozhu.blp
 war3mapImported\BTNFBP.blp
@@ -7317,6 +7382,7 @@ war3mapImported\CWG_LinkFrame_R3_C1.blp
 war3mapImported\CWG_LinkFrame_R3_C2.blp
 war3mapImported\CWG_LinkFrame_R3_C3.blp
 war3mapImported\CWG_LinkFrame_R3_C4.blp
+war3mapImported\CycloneHelp.mdx
 war3mapImported\dainjuren2_PORTRAIT.mdx
 war3mapImported\dd006.blp
 war3mapImported\dd008.blp
@@ -7351,6 +7417,16 @@ war3mapImported\File00000046-B026D.mdx
 war3mapImported\File00000047-805BD.mdx
 war3mapImported\GambleLumberWin.mp3
 war3mapImported\GraveSound.mp3
+war3mapImported\green_0.mdx
+war3mapImported\green_1.mdx
+war3mapImported\green_2.mdx
+war3mapImported\green_3.mdx
+war3mapImported\green_4.mdx
+war3mapImported\green_5.mdx
+war3mapImported\green_6.mdx
+war3mapImported\green_7.mdx
+war3mapImported\green_8.mdx
+war3mapImported\green_9.mdx
 war3mapImported\guaiwu.blp
 war3mapImported\hero (276)_PORTRAIT.mdx
 war3mapImported\Hero_Yuanyzg2_PORTRAIT.mdx
@@ -7494,6 +7570,16 @@ war3mapImported\PokemonOut.mp3
 war3mapImported\pumpkintdstart4.mp3
 war3mapImported\Puppets [WolSai].png
 war3mapImported\RagnarosBuilt.mp3
+war3mapImported\red_0.mdx
+war3mapImported\red_1.mdx
+war3mapImported\red_2.mdx
+war3mapImported\red_3.mdx
+war3mapImported\red_4.mdx
+war3mapImported\red_5.mdx
+war3mapImported\red_6.mdx
+war3mapImported\red_7.mdx
+war3mapImported\red_8.mdx
+war3mapImported\red_9.mdx
 war3mapImported\RelicTranscend_UI_R1_C1.blp
 war3mapImported\RelicTranscend_UI_R1_C2.blp
 war3mapImported\RelicTranscend_UI_R1_C3.blp
@@ -7509,6 +7595,16 @@ war3mapImported\SHOP_data.mdx
 war3mapImported\SHOP_show_model.mdx
 war3mapImported\SniperHeadshot.mp3
 war3mapImported\Sodasniffer.mp3
+war3mapImported\star24.mdx
+war3mapImported\star30.mdx
+war3mapImported\star31.mdx
+war3mapImported\star32.mdx
+war3mapImported\star33.mdx
+war3mapImported\star40.mdx
+war3mapImported\star41.mdx
+war3mapImported\star42.mdx
+war3mapImported\star50.mdx
+war3mapImported\star51.mdx
 war3mapImported\Statue01_bb.mdx
 war3mapImported\Statue01_DD.blp
 war3mapImported\status_panel_frame_extracted.blp
@@ -7577,6 +7673,8 @@ war3mapImported\[TP] (2).blp
 war3mapImported\[TP] (4).blp
 war3mapImported\[TP] (5).blp
 war3mapImported\[TP] (9).blp
+warubou.blp
+watabou.blp
 Wave3_k2.blp
 weapon\mis\diyuhuo\miss_diyuhuoP_fire.mdx
 weapon\mis\diyuhuo\miss_diyuhuoP_hit_flesh.mdx
