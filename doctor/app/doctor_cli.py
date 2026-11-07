@@ -101,7 +101,7 @@ Extras of fix / editor (fix turns on by itself the ones the window ticks when it
   --model-names --data-pointers --kk-textures --green-icons --console-sides --fix-attributes --fix-graphics-modes
   --fix-requirements --fix-model-paths --fix-fdf; --no-<extra> leaves one out; the others are off unless given):
   --models --model-names --portraits --data-pointers --kk-textures --green-icons --console-sides --uabi --preload
-  --single-player --shrink --shrink-lossy --translation=<file> --strip-indent
+  --single-player --shrink --shrink-lossy --translation=<file> --translation-keep --strip-indent
   --fix-attributes --remove-game-files --remove-game-copies --fix-requirements --fix-model-paths --fix-fdf
   --null-handles --minify
   --slk-objects --fix-graphics-modes
@@ -276,6 +276,8 @@ def pick_extras(action, opts):
         if not os.path.isfile(opts['translation']):
             raise UsageError('no such translation file: %s' % opts['translation'])
         extras['translation'] = os.path.abspath(opts['translation'])
+        if opts.get('translation-keep') is True:
+            extras['translation_keep'] = True
     if isinstance(opts.get('portraits'), str) and action == 'fix':
         if opts['portraits'] not in ('stamp', 'upgrade'):
             raise UsageError('--portraits takes stamp or upgrade (or nothing)')
@@ -852,6 +854,7 @@ def _fix_options():
     o.update(_flags('remove-game-copies', 'shrink', 'shrink-lossy', 'shrink-models', 'shrink-models-lossy'))
     o['portraits'] = {'kind': 'flag-or-value', 'values': ['stamp', 'upgrade']}
     o['translation'] = _value('a translation file of the map')
+    o.update(_flags('translation-keep'))
     o['lobby-image'] = _value('a picture')
     return o
 
@@ -860,6 +863,7 @@ def _editor_options():
     o = _steps()
     o.update(_flags(*[f for f in EDITOR_EXTRAS if f in EXTRA_FLAGS]))
     o['translation'] = _value('a translation file of the map')
+    o.update(_flags('translation-keep'))
     o['editor-version'] = _value('the World Editor to open the map in',
                                  ['reforged', 'auto', 'jn', '1.24', '1.25', '1.26', '1.27', '1.28', '1.29'])
     return o
