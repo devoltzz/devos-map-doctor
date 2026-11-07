@@ -3506,5 +3506,7 @@
  "CAME container (KK platform): {0} in {1}, AES-256-GCM + zstd; the SDK is {2}{3}. \"Fix map\" decrypts them into a normal map.": "คอนเทนเนอร์ CAME (แพลตฟอร์ม KK): {0} ใน {1}, AES-256-GCM + zstd; SDK คือ {2}{3} \"ซ่อมแมพ\" ถอดรหัสให้เป็นแมพปกติ",
  "Decrypted the CAME container (KK platform): {0} written{1}.": "ถอดรหัสคอนเทนเนอร์ CAME (แพลตฟอร์ม KK) แล้ว: เขียน {0}{1}",
  "The map is in the CAME container of the KK platform: the whole map is encrypted outside the archive (AES-256-GCM + zstd) and only the platform client reads it as it is. \"Fix map\" decrypts it into a normal map; then it needs a port.": "แมพอยู่ในคอนเทนเนอร์ CAME ของแพลตฟอร์ม KK: ทั้งแมพถูกเข้ารหัสไว้นอกไฟล์เก็บ (AES-256-GCM + zstd) และมีเพียงไคลเอนต์ของแพลตฟอร์มที่อ่านได้ในสภาพนี้ \"ซ่อมแมพ\" ถอดรหัสให้เป็นแมพปกติ จากนั้นต้องพอร์ต",
- ", {0} unnamed (kept: the game finds them by hash)": ", {0} ไม่มีชื่อ (เก็บไว้: เกมหาเจอด้วยแฮช)"
+ ", {0} unnamed (kept: the game finds them by hash)": ", {0} ไม่มีชื่อ (เก็บไว้: เกมหาเจอด้วยแฮช)",
+ "Keep the texts left out only by their wording ({0})": "คงข้อความที่ถูกเว้นไว้เพราะถ้อยคำเท่านั้น ({0})",
+ "Numbers that changed, a text much longer than the original, or Chinese, Japanese or Korean left in it: they go in as written. The other texts left out would break the map.": "ตัวเลขที่เปลี่ยนไป ข้อความที่ยาวกว่าต้นฉบับมาก หรือภาษาจีน ญี่ปุ่น หรือเกาหลีที่ตกค้างอยู่ในนั้น: จะถูกใช้ตามที่เขียนไว้ ส่วนข้อความอื่นที่ถูกเว้นไว้จะทำให้แมพเสีย"
 }
