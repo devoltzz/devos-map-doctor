@@ -165,6 +165,65 @@ def rewrite(data, has_levels, change):
     return b''.join(output), replacements
 
 
+def add_levels(data, has_levels, objects):
+    ver, tabs, end_pos = read_data(data, has_levels)
+    existing_ones = {o[1] for t in tabs for o in t}
+    p = _end_of_table(data, has_levels, ver, 4)
+    n = struct.unpack_from('<I', data, p)[0]
+    body = []
+    for base, new_id, mods in objects:
+        if new_id in existing_ones:
+            raise ValueError('object %r already exists' % new_id)
+        existing_ones.add(new_id)
+        b = [base.encode('latin1'), new_id.encode('latin1')]
+        if ver >= 3:
+            b.append(struct.pack('<II', 1, 0))
+        b.append(struct.pack('<I', len(mods)))
+        for m in mods:
+            field_id, kind, field_value = m[:3]
+            b.append(field_id.encode('latin1') + struct.pack('<I', kind))
+            if has_levels:
+                b.append(struct.pack('<II', m[3] if len(m) > 3 else 0, m[4] if len(m) > 4 else 0))
+            if kind == 3:
+                v = field_value.encode('utf-8') if isinstance(field_value, str) else field_value
+                if b'\0' in v:
+                    raise ValueError('field %r: text with a NUL' % field_id)
+                b.append(v + b'\0')
+            else:
+                if len(field_value) != 4:
+                    raise ValueError('field %r: the value needs 4 bytes' % field_id)
+                b.append(field_value)
+            b.append(b'\0\0\0\0')
+        body.append(b''.join(b))
+    output = data[:p] + struct.pack('<I', n + len(objects)) + data[p + 4:end_pos] + b''.join(body) + data[end_pos:]
+    v2, t2, _ = read_data(output, has_levels)
+    if [o[1] for o in t2[1][-len(objects):]] != [o[1] for o in objects] or len(t2[0]) != len(tabs[0]):
+        raise ValueError('the file with the new objects does not read back the same')
+    return output
+
+
+def _end_of_table(data, has_levels, ver, p):
+    cnt = struct.unpack_from('<I', data, p)[0]
+    p += 4
+    for _ in range(cnt):
+        p += 8
+        item_sets = 1
+        if ver >= 3:
+            item_sets = struct.unpack_from('<I', data, p)[0]
+            p += 4
+        for _ in range(item_sets):
+            if ver >= 3:
+                p += 4
+            nm = struct.unpack_from('<I', data, p)[0]
+            p += 4
+            for _ in range(nm):
+                vt = struct.unpack_from('<I', data, p + 4)[0]
+                p += 8 + (8 if has_levels else 0)
+                p = data.index(b'\0', p) + 1 if vt == 3 else p + 4
+                p += 4
+    return p
+
+
 def load_data(p):
     data = io.open(p, 'rb').read()
     has = os.path.basename(p).lower() in WITH_LEVELS
