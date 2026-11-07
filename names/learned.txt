@@ -667,6 +667,7 @@ BTNDB_Stl_Pants.blp
 BTNDB_Stl_Ring.blp
 BTNDB_Stl_Weapon.blp
 BTNDB_Stl_Wrist.blp
+BTNDiscordSDB.blp
 BTNDR_BTN_ATT.blp
 BTNDR_BTN_BAG.blp
 BTNDR_BTN_BOOK.blp
@@ -761,6 +762,9 @@ BTNJTV_D1.blp
 BTNJTV_E1.blp
 BTNJTV_R1.blp
 BTNJTV_W1.blp
+BTNKafkaBlade.blp
+BTNKafkaPassive.blp
+BTNKafkaUlt.blp
 BTNMadara_D.blp
 BTNMadara_E.blp
 BTNMadara_Q.blp
@@ -774,6 +778,7 @@ BTNMari_E.blp
 BTNMari_Q.blp
 BTNMari_R.blp
 BTNMari_W.blp
+BTNPatchNoteSDB.blp
 BTNRB_Armor.blp
 BTNRB_Bead.blp
 BTNRB_Ring.blp
@@ -791,10 +796,12 @@ BTNSK2_Q.blp
 BTNSK2_R.blp
 BTNSK2_W.blp
 BTNSPSkill1.blp
+BTNSuggestSDB.blp
 BTNS_Menu_Golem2.blp
 BTNS_Menu_Golem_1.blp
 BTNS_Menu_Golem_2.blp
 BTNS_Menu_WP.blp
+BTNUpdateSDB.blp
 BTNW4_Bahad.blp
 BTNW4_Core.blp
 BTNW4_Frail.blp
@@ -1405,6 +1412,7 @@ devos\kk_modelos.fdf
 devos\kk_texto.fdf
 devos\kk_texto.toc
 dingzhi_by_wood_effect_blood_biaoxue_2.mdx
+DISBTNDiscordSDB.blp
 DISBTNFWD12_PlagueKing.blp
 DISBTNFWD12_PlagueLord.blp
 DISBTNFWD12_PlagueMage.blp
@@ -1441,12 +1449,14 @@ DISBTNFWD32_SCEPTER2.blp
 DISBTNFWD32_TRIDENT0.blp
 DISBTNFWD32_TRIDENT1.blp
 DISBTNFWD32_TRIDENT2.blp
+DISBTNHero_GokuNormal_Portrait.blp
 DISBTNHero_Goku_Portrait.blp
 DISBTNMari_D.blp
 DISBTNMari_E.blp
 DISBTNMari_Q.blp
 DISBTNMari_R.blp
 DISBTNMari_W.blp
+DISBTNPatchNoteSDB.blp
 DISBTNRB_Armor.blp
 DISBTNRB_Bead.blp
 DISBTNRB_Ring.blp
@@ -1458,6 +1468,8 @@ DISBTNRN_Drop1.blp
 DISBTNRN_Drop2.blp
 DISBTNRN_Drop3.blp
 DISBTNRN_Drop4.blp
+DISBTNSuggestSDB.blp
+DISBTNUpdateSDB.blp
 DISBTNW4_Bahad.blp
 DISBTNW4_Core.blp
 DISBTNW4_Frail.blp
@@ -1496,11 +1508,26 @@ DISBTNW7_WpnE.blp
 DISBTNW7_WpnL.blp
 DISBTNW7_WpnM.blp
 DISBTNW7_WpnR.blp
+DISFrieren_Portrait.blp
+DISKaiba_Portrait.blp
 DISPASBTNMari_Z.blp
+DISRoxy_Portrait.blp
+DISYugi_Portrait.blp
 Divine Edict_jnt.mdx
 diyuhuoP.blp
+Doodads_Bush.mdx
+Doodads_Bush2.mdx
+Doodads_Fence.mdx
+Doodads_Flower.mdx
+Doodads_Flowers1.mdx
+Doodads_Flowers2.mdx
+Doodads_Milestone.mdx
+Doodads_Tree (1).mdx
+Doodads_Tree (2).mdx
+Doodads_Wall.mdx
 DragonFlameStrike.mdx
 DragonhawkRiderUndeadV1_00_13.mdx
+Drakedog_Portrait.blp
 dtbluenoringwhite2_new_fix.mdx
 DustSpawn.mdx
 DWCJH.blp
@@ -4619,11 +4646,70 @@ EffectMod\Textures\[XT]ZG_GH_BLLH2.blp
 EffectMod\Textures\[XT]ZG_GH_BLLH3.blp
 EffectMod\Wing_M536.mdx
 EffectMod\Wing_M603.mdx
+Effects\BY_Wood_Effect_Order_Integration_Slash_Blue.mdx
+Effects\KafkaAtkMissile.mdx
+Effects\KafkaBlast.mdx
+Effects\KafkaBurst.mdx
+Effects\KafkaBurstS.mdx
+Effects\KafkaCore.blp
+Effects\KafkaCoreB.blp
+Effects\KafkaCoreO.blp
+Effects\KafkaCross.blp
+Effects\KafkaGlow.blp
+Effects\KafkaHail1.mdx
+Effects\KafkaHail2.mdx
+Effects\KafkaHailHit.mdx
+Effects\KafkaHailO1.mdx
+Effects\KafkaHailO2.mdx
+Effects\KafkaRing.blp
+Effects\KafkaRingB.blp
+Effects\KafkaRingO.blp
+Effects\KafkaShot.mdx
+Effects\KafkaShotHit.mdx
+Effects\KafkaSlash1.mdx
+Effects\KafkaSlash2.mdx
+Effects\KafkaTrail.blp
+Effects\KafkaWeb.blp
+Effects\KafkaWeb.mdx
+Effects\Makise Gear Aura Dim.mdx
+Effects\VFX_baojiang2a_half.mdx
+Effect\Long_Bullet.mdx
+Effect\Marco_Bullet.mdx
+Effect\Marco_Bullet_O.mdx
 effect_feidao01.blp
 effect_feidao02.blp
 effect_feng_huoxuanfeng_1X6.blp
+Effect_Star_Explosion_Blue_aoko_NoSnd.mdx
 egg_light.blp
 elaina_4_PORTRAIT.mdx
+EllenJoe.mdx
+EllenJoe_Dash1.mp3
+EllenJoe_Dash2.mp3
+EllenJoe_Dash3.mp3
+EllenJoe_hair.blp
+EllenJoe_outfit.blp
+EllenJoe_Portrait.blp
+EllenJoe_PORTRAIT.mdx
+EllenJoe_Q1_Voice.mp3
+EllenJoe_Q2_Voice.mp3
+EllenJoe_R_Dash.mp3
+EllenJoe_R_Exp.mp3
+EllenJoe_R_Exp2.mp3
+EllenJoe_R_Jump.mp3
+EllenJoe_R_Loop.mp3
+EllenJoe_R_Voice (2).mp3
+EllenJoe_skin.blp
+EllenJoe_SlashHit1.mp3
+EllenJoe_SlashHit2.mp3
+EllenJoe_Start (1).mp3
+EllenJoe_Swing1.mp3
+EllenJoe_Swing2.mp3
+EllenJoe_Swing3.mp3
+EllenJoe_Swing4.mp3
+EllenJoe_weapon.blp
+EllenJoe_Weapon.mdx
+EllenJoe_W_Projectile_Swing.mp3
+EllenJoe_W_Voice.mp3
 eve_ana_PORTRAIT.mdx
 eve_bzd_whzy_PORTRAIT.mdx
 eve_gtsnlmly_PORTRAIT.mdx
@@ -4637,11 +4723,21 @@ eve_xmys_PORTRAIT.mdx
 eve_ypyy_PORTRAIT.mdx
 eve_zylmcj_PORTRAIT.mdx
 E_BuffYellow2a.mdx
+FDE_LeftEnemyCount.fdf
+FDF_List.toc
 FelMinionV1_00_1.mdx
 fence and plank.blp
 fengchidiancheP.mdx
+File00001189.mdx
+File00001189a_White.mdx
+Firebolt Classic5.mdx
+Firebolt Classic_fix2_x3.mdx
+FireDrakon2.blp
 fire_Spout.mdx
+Flame Grenade.mdx
 fonts\text.ttf
+Frieren_Portrait.blp
+Frieren_PORTRAIT.mdx
 FWD_DuskArmor.blp
 FWD_DuskCloth.blp
 FWD_DuskGuardian.mdx
@@ -4660,6 +4756,11 @@ FWD_StarDevourer.mdx
 FWD_VoidCrystal.blp
 FWD_VoidGolem.mdx
 FWD_VoidRock.blp
+gaonengbaoji_LightBlue.mdx
+Genji_Slash_Red_Tilt.mdx
+gggbar_green.blp
+gggbar_red.blp
+gggbar_yellow.blp
 gh_01_0.blp
 gh_01_1.blp
 gh_01_2.blp
@@ -4848,6 +4949,7 @@ green_+.tga
 grey cistern.blp
 grey container.blp
 HalfFallenAngelWarrior.blp
+HallowIchigoVFX.mdx
 hanger building.blp
 hd_summertreewall.blp
 herohighlordinquisitor_v2_new.mdx
@@ -4905,7 +5007,13 @@ hero_ying_eyelight.blp
 hero_ying_light1.blp
 hero_ying_light2.blp
 hero_ying_light3.blp
+HGUJIA.blp
 HighSentinel_02_Di.blp
+hudbar_mana_e.blp
+HudBlack.blp
+ICE-02_EJ.blp
+ICE15_2.MDx
+ICE15_EJ.mdx
 Icon\Equipments\Equip_Armor1.blp
 Icon\Equipments\Equip_Armor2.blp
 Icon\Equipments\Equip_Armor3.blp
@@ -5422,6 +5530,8 @@ Icon\UI\UI_TIMEEND_2.blp
 Icon\UI\UnitTianMo.blp
 IlluminaRing_navyglow.blp
 IlluminaRing_white.mdx
+ImpaleTargetDust_05sec.mdx
+ImpaleTargetDust_1sec.mdx
 jiamo.mdx
 jidi_click.mdx
 jiujifengbao_p.mdx
@@ -6541,12 +6651,21 @@ JNtu\A6 (6).blp
 JNtu\A6 (7).blp
 JNtu\A6 (8).blp
 JNtu\A6 (9).blp
+kafka_m3_last.wav
+kafka_m3_loop.wav
+kafka_pick.mp3
+kafka_pick_1.mp3
+kafka_pick_2.mp3
+Kafka_Portrait.blp
+kafka_ult1.mp3
+kafka_ult2.mp3
 Kakuzu-heart.mp3
 KakuzuLibeR.mp3
 KakuzuLibeR2.mp3
 KakuzuLibeR3.mp3
 KakuzuLibeT.mp3
 kakuzu_vfx_1.mdx
+Kula_D_Eff1.mdx
 Lingyao.mdx
 liuqin4_PORTRAIT.mdx
 longjuanfeng_loop_p.mdx
@@ -6556,6 +6675,37 @@ LUI\QQGrpClick.tga
 LUI\QQGrpLink.tga
 LUI\TextBulletScreen.tga
 lvsetoufanvgongjianshoumx_PORTRAIT.mdx
+Madara-vfx-2.mdx
+Madara-vfx-3.mdx
+Madara_Enter.mp3
+Madara_fire_hit.mdx
+Madara_SE1.mp3
+Madara_SE2.mp3
+Madara_SE_E.mp3
+Madara_SE_Katon.mp3
+Madara_SE_Q1.mp3
+Madara_SE_R2_0.mp3
+Madara_SE_R2_1.mp3
+Madara_SE_R2_2.mp3
+Madara_SE_R2_3.mp3
+Madara_VE_E1.mp3
+Madara_VE_E2.mp3
+Madara_VE_Q.mp3
+Madara_VE_R2_1.mp3
+Madara_VE_R2_2.mp3
+Madara_VE_W_1.mp3
+Madara_vfx1.mdx
+Madara_vfx2.mdx
+madara_vfx3.mdx
+madara_vfx4.mdx
+madara_vfx5.mdx
+Madara_vfx7.mdx
+madara_vfx8.mdx
+madara_vfx_1.mdx
+madara_vfx_w.mdx
+Marco_Bullet_O.blp
+Mari Sportswear Bag.blp
+Mari Sportswear Body.blp
 MarineFBP.blp
 MirrorWorld.mdx
 mrfz_bj.mdx
