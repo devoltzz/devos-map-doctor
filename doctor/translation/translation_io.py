@@ -114,6 +114,9 @@ REASONS = (('empty', 'empty translation'), ('CJK restante', 'Chinese, Japanese o
                                 'value)'))
 
 
+KEEPABLE = ('numbers changed', 'much longer than the original', 'Chinese, Japanese or Korean text left')
+
+
 def _nothing(*_a, **_k):
     pass
 
@@ -1508,7 +1511,7 @@ def _id_without_case(ident):
     return ident
 
 
-def _plan(mt, doc):
+def _plan(mt, doc, keep=False):
     language = str(doc.get('language') or '')
     current = dict((e['id'], e) for e in mt.entries)
     for t in doc['entries']:
@@ -1533,7 +1536,7 @@ def _plan(mt, doc):
         e = current.get(ident)
         if e is None and isinstance(ident, str):
             e = folded.get(_id_without_case(ident))
-        reason = None
+        reason, soft = None, False
         if ident in seen:
             reason = 'repeated id in the file'
         elif e is None:
@@ -1545,12 +1548,14 @@ def _plan(mt, doc):
         else:
             tr = unglue(e['text'], tr, language)[0]
             errs = check_entry(e, tr, language)
-            if errs:
+            soft = bool(errs) and all(x.startswith(KEEPABLE) for x in errs)
+            if errs and not (keep and soft):
                 reason = '; '.join(errs)
             else:
                 wanted.append((e, tr))
         if reason:
-            rejected.append({'id': ident, 'text': tr if isinstance(tr, str) else repr(tr), 'reason': reason})
+            rejected.append({'id': ident, 'text': tr if isinstance(tr, str) else repr(tr), 'reason': reason,
+                             'keepable': soft})
         seen.add(ident)
     linked, groups = {}, collections.defaultdict(list)
     for e in mt.entries:
@@ -1595,6 +1600,7 @@ def check(path, translation_file, progress=None):
     p('checking translations')
     wanted, _linked, rejected, empty, unknown = _plan(mt, doc)
     rep.update(ok=len(wanted), rejected=rejected, empty=empty, unknown=unknown,
+               keepable=sum(1 for r in rejected if r.get('keepable')),
                images=sum(1 for t in doc['entries'] if isinstance(t, dict) and str(t.get('id', '')).startswith('img:')))
     return rep
 
@@ -1683,7 +1689,7 @@ def _remove(path):
         pass
 
 
-def import_(path_in, translation_file, path_out, progress=None):
+def import_(path_in, translation_file, path_out, progress=None, keep=False):
     p = progress or _nothing
     rep = {'state': None, 'error': None, 'output': None, 'applied': 0, 'applied_by_source': {}, 'empty': 0,
            'rejected': [], 'unknown': [], 'rejected_by_reason': {}, 'files_changed': [], 'script_copies': 0,
@@ -1704,7 +1710,7 @@ def import_(path_in, translation_file, path_out, progress=None):
         rep.update(state='failed', error='cannot read the map (%s)' % _error(e))
         return rep
     p('checking translations')
-    wanted, linked, rejected, empty, unknown = _plan(mt, doc)
+    wanted, linked, rejected, empty, unknown = _plan(mt, doc, keep)
     rep.update(rejected=rejected, empty=empty, unknown=unknown,
                rejected_by_reason=dict(collections.Counter(r['reason'] for r in rejected)))
     if not wanted:
