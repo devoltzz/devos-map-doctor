@@ -90,7 +90,7 @@ def virtual_tables(a):
     return a.hash_n_read < a.h.hash_n or len(a.bt) // 4 < a.h.block_n or a.h.hash_pos < 0x20
 
 
-def outside_tables(a, byte_size):
+def gaps_found(a, byte_size):
     base = a.h.offset
     ivs = [(0, base + 32)]
     for pos, n in ((a.h.hash_pos, a.h.hash_n), (a.h.block_pos, a.h.block_n)):
@@ -101,14 +101,68 @@ def outside_tables(a, byte_size):
             begin = (base + off) & 0xFFFFFFFF
             ivs.append((begin, min(byte_size, begin + cs)))
     ivs.sort()
-    outside, segments, end_pos = 0, [], 0
+    out, end_pos = [], 0
     for begin, f in ivs + [(byte_size, byte_size)]:
         if begin > end_pos:
-            outside += begin - end_pos
-            if begin - end_pos >= 1 << 20:
-                segments.append((end_pos, begin))
+            out.append((end_pos, begin))
         end_pos = max(end_pos, f)
-    return outside, segments
+    return out
+
+
+def outside_tables(a, byte_size):
+    vs = gaps_found(a, byte_size)
+    return sum(f - i for i, f in vs), [(i, f) for i, f in vs if f - i >= 1 << 20]
+
+
+def _orphan_at(d, begin, end_pos, sector_bytes):
+    end_pos = min(end_pos, len(d))
+    if begin + 8 > end_pos:
+        return None
+    first = struct.unpack_from('<I', d, begin)[0]
+    if first < 8 or first % 4 or begin + first > end_pos:
+        return None
+    t = struct.unpack_from('<%dI' % (first // 4), d, begin)
+    if t[-1] > end_pos - begin or any(b <= a_ or b - a_ > sector_bytes for a_, b in zip(t, t[1:])):
+        return None
+    out = bytearray()
+    for j, (a_, b) in enumerate(zip(t, t[1:])):
+        s = d[begin + a_:begin + b]
+        try:
+            if len(s) == sector_bytes:
+                out += s
+            elif s[0] == 0x02:
+                out += R.inflate(s[1:], sector_bytes)
+            elif s[0] == 0x10:
+                out += R.bunzip(s[1:], sector_bytes)
+            else:
+                return None
+        except (ValueError, OSError):
+            return None
+        if j < len(t) - 2 and len(out) != (j + 1) * sector_bytes:
+            return None
+    return t[-1], bytes(out)
+
+
+def orphan_type(data_bytes):
+    if re.search(rb'^[ \t]*function[ \t]+main[ \t]+takes[ \t]', data_bytes, re.M):
+        return 'jass'
+    if re.search(rb'^[ \t]*function[ \t]+main[ \t]*\(', data_bytes, re.M):
+        return 'lua'
+    return 'bin'
+
+
+def orphan_files(a, d, sector_bytes=None):
+    sector_bytes = sector_bytes or M.header_sector(a.h.block_shift)
+    out = []
+    for begin, end_pos in gaps_found(a, len(d)):
+        p = begin
+        while True:
+            r = _orphan_at(d, p, end_pos, sector_bytes)
+            if r is None:
+                break
+            out.append((p, r[0], r[1], orphan_type(r[1])))
+            p += r[0]
+    return out
 
 
 def data_regions(a, byte_size):
@@ -342,6 +396,18 @@ def diagnose(path):
             ' (the largest: 0x%X to 0x%X): the game does not read these bytes through the MPQ (the ENCRYPTED KK map, the r8, keeps them'
             ' this way)' % (outside / 1e6, 100 * outside // len(d), len(segments), segments[0][0], segments[0][1])
         )
+    orphan_blocks = orphan_files(a, d)
+    for pos, disk_path, data_bytes, kind in orphan_blocks:
+        if kind != 'bin':
+            print(
+                'ORPHAN  : 0x%X, %d B on disk, %d B open, script %s with no MPQ entry: what is left of a file'
+                ' swapped, the game does not read it and it may be an OLD version (compare). Extract: --orfaos=<folder>'
+                % (pos, disk_path, len(data_bytes), kind)
+            )
+    others = [o for o in orphan_blocks if o[3] == 'bin']
+    if others:
+        print('ORPHAN  : %d other file(s) with no MPQ entry, %d B on disk' % (len(others),
+                                                                                    sum(o[1] for o in others)))
     x = analyze_tables(a)
     if x['free_slots'] == 0 and x['deleted'] == 0:
         print('FULL HASH TABLE: no free or deleted entry -> the MPQ Editor cannot ADD a file, and every'
