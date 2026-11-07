@@ -69,10 +69,16 @@ async function boot() {
   post({ type: 'ready' });
 }
 
-function addFile(path, file) {
+const BIG_FILE = 200 * 1024 * 1024;
+
+async function addFile(path, file) {
   const dir = '/in/' + (mounts++);
   py.FS.mkdirTree(dir);
-  py.FS.mount(py.FS.filesystems.WORKERFS, { files: [file] }, dir);
+  if (file.size >= BIG_FILE) {
+    py.FS.writeFile(dir + '/' + file.name, new Uint8Array(await file.arrayBuffer()), { canOwn: true });
+  } else {
+    py.FS.mount(py.FS.filesystems.WORKERFS, { files: [file] }, dir);
+  }
   try { py.FS.unlink(path); } catch (e) { }
   py.FS.mkdirTree(path.slice(0, path.lastIndexOf('/')) || '/');
   py.FS.symlink(dir + '/' + file.name, path);
@@ -98,7 +104,7 @@ const booted = boot().catch(e => { post({ type: 'boot_failed', message: String(e
 self.onmessage = ev => {
   const m = ev.data;
   queue = queue.then(() => booted).then(() => {
-    if (m.type === 'file') addFile(m.path, m.file);
+    if (m.type === 'file') return addFile(m.path, m.file);
     else if (m.type === 'read') readFile(m.rid, m.path);
     else if (m.type === 'delete') {
       try { py.FS.unlink(m.path); } catch (e) { }
