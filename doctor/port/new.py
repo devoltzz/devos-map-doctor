@@ -459,6 +459,15 @@ def ui_portrait(body_text):
     )
 
 
+def ui_mini(body_text):
+    clean = re.search(r'\bDzFrameClearAllPoints[ \t]*\([ \t]*\(?[ \t]*DzFrameGetMinimapButton[ \t]*\(', body_text)
+    anchor_text = re.search(
+        r'\bDzFrameSet(?:Point|AbsolutePoint|AllPoints)[ \t]*\([ \t]*\(?[ \t]*DzFrameGetMinimapButton[ \t]*\(',
+        body_text,
+    )
+    return 'true' if clean and not anchor_text else 'false'
+
+
 def ui_parent(body_text):
     if not re.search(r'\bDzFrameHideInterface[ \t]*\(', body_text):
         return 'false'
