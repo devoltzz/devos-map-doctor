@@ -45,7 +45,8 @@
         reads.delete(m.rid);
         if (r) m.error ? r.reject(new Error(m.error)) : r.resolve(m);
       } else if (m.type === 'event') {
-        const e = JSON.parse(m.event);
+        let e;
+        try { e = JSON.parse(m.event); } catch (x) { if (workers[key] === rec) retire(key, null); return; }
         if (e.type === 'output' || (/^index_/.test(e.type) && key !== 'main')) return;
         const job = jobs.get(e.job);
         if (job && job.silent) {
