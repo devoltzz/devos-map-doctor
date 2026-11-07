@@ -419,7 +419,7 @@ EXTRA_NAME = {
     'lobby_image': 'the lobby image',
     'shrink_models': 'the model shrink',
 }
-BEFORE_EDITOR = ('models', 'single_player', 'card', 'translation')
+BEFORE_EDITOR = ('models', 'single_player', 'card', 'translation', 'translation_keep')
 
 
 NOTHING_DONE = ('nothing_to_do', 'nothing_to_apply')
