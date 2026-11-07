@@ -3506,5 +3506,7 @@
  "CAME container (KK platform): {0} in {1}, AES-256-GCM + zstd; the SDK is {2}{3}. \"Fix map\" decrypts them into a normal map.": "Контейнер CAME (платформа KK): {0} у {1}, AES-256-GCM + zstd; SDK: {2}{3}. \"Виправити мапу\" розшифровує їх у звичайну мапу.",
  "Decrypted the CAME container (KK platform): {0} written{1}.": "Контейнер CAME (платформа KK) розшифровано: записано {0}{1}.",
  "The map is in the CAME container of the KK platform: the whole map is encrypted outside the archive (AES-256-GCM + zstd) and only the platform client reads it as it is. \"Fix map\" decrypts it into a normal map; then it needs a port.": "Мапа в контейнері CAME платформи KK: уся мапа зашифрована поза архівом (AES-256-GCM + zstd), і в такому вигляді її читає лише клієнт платформи. \"Виправити мапу\" розшифровує її у звичайну мапу; потім потрібен порт.",
- ", {0} unnamed (kept: the game finds them by hash)": ", без назви: {0} (збережено: гра знаходить їх за хешем)"
+ ", {0} unnamed (kept: the game finds them by hash)": ", без назви: {0} (збережено: гра знаходить їх за хешем)",
+ "Keep the texts left out only by their wording ({0})": "Залишити тексти, пропущені лише через формулювання ({0})",
+ "Numbers that changed, a text much longer than the original, or Chinese, Japanese or Korean left in it: they go in as written. The other texts left out would break the map.": "Числа, що змінилися, текст, значно довший за оригінал, або китайська, японська чи корейська, що залишилася в ньому: вони застосовуються як написано. Інші пропущені тексти зламали б мапу."
 }
