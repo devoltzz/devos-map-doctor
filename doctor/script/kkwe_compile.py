@@ -400,10 +400,17 @@ class Parser(object):
             return args
 
     def expr(self):
+        left = self.or_op()
+        if self.is_at('kw', 'and'):
+            self.advance()
+            return ('bin', 'and', left, self.expr())
+        return left
+
+    def or_op(self):
         left = self.comparison()
-        if self.is_at('kw', 'and') or self.is_at('kw', 'or'):
-            op = self.advance().field_value
-            return ('bin', op, left, self.expr())
+        if self.is_at('kw', 'or'):
+            self.advance()
+            return ('bin', 'or', left, self.or_op())
         return left
 
     def comparison(self):
