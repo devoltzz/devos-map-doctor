@@ -227,7 +227,10 @@ def apply_extras(entry, output, extras, progress=None):
                         details = map_card.write(src, t, param)
                     elif extra == 'translation':
                         from doctor.translation import translation_io
-                        details = translation_io.import_(src, param, t)
+
+                        details = translation_io.import_(
+                            src, param, t, None, bool((extras or {}).get('translation_keep'))
+                        )
                     elif extra == 'strip_indent':
                         from doctor.fix import script_indent
                         details = script_indent.fix(src, t, compact=not (extras or {}).get('shrink'))
