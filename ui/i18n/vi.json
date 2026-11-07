@@ -3506,5 +3506,7 @@
  "CAME container (KK platform): {0} in {1}, AES-256-GCM + zstd; the SDK is {2}{3}. \"Fix map\" decrypts them into a normal map.": "Vỏ chứa CAME (nền tảng KK): {0} trong {1}, AES-256-GCM + zstd; SDK là {2}{3}. \"Sửa bản đồ\" giải mã chúng thành một bản đồ bình thường.",
  "Decrypted the CAME container (KK platform): {0} written{1}.": "Đã giải mã vỏ chứa CAME (nền tảng KK): đã ghi {0}{1}.",
  "The map is in the CAME container of the KK platform: the whole map is encrypted outside the archive (AES-256-GCM + zstd) and only the platform client reads it as it is. \"Fix map\" decrypts it into a normal map; then it needs a port.": "Bản đồ nằm trong vỏ chứa CAME của nền tảng KK: toàn bộ bản đồ được mã hóa bên ngoài kho lưu trữ (AES-256-GCM + zstd) và chỉ client của nền tảng đọc được nó ở dạng này. \"Sửa bản đồ\" giải mã nó thành một bản đồ bình thường; sau đó cần port.",
- ", {0} unnamed (kept: the game finds them by hash)": ", {0} chưa có tên (được giữ: trò chơi tìm chúng theo hash)"
+ ", {0} unnamed (kept: the game finds them by hash)": ", {0} chưa có tên (được giữ: trò chơi tìm chúng theo hash)",
+ "Keep the texts left out only by their wording ({0})": "Giữ các văn bản chỉ bị loại ra vì cách diễn đạt ({0})",
+ "Numbers that changed, a text much longer than the original, or Chinese, Japanese or Korean left in it: they go in as written. The other texts left out would break the map.": "Các con số đã thay đổi, văn bản dài hơn bản gốc rất nhiều, hoặc còn sót tiếng Trung, Nhật hay Hàn trong đó: chúng được áp dụng đúng như đã viết. Các văn bản bị loại ra còn lại sẽ làm hỏng bản đồ."
 }
