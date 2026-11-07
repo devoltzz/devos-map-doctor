@@ -3506,5 +3506,7 @@
  "CAME container (KK platform): {0} in {1}, AES-256-GCM + zstd; the SDK is {2}{3}. \"Fix map\" decrypts them into a normal map.": "CAME 容器（KK 平台）：{1} 中有 {0}，AES-256-GCM + zstd；SDK 為 {2}{3}。「修復地圖」會把它們解密成一般地圖。",
  "Decrypted the CAME container (KK platform): {0} written{1}.": "已解密 CAME 容器（KK 平台）：寫入 {0}{1}。",
  "The map is in the CAME container of the KK platform: the whole map is encrypted outside the archive (AES-256-GCM + zstd) and only the platform client reads it as it is. \"Fix map\" decrypts it into a normal map; then it needs a port.": "地圖在 KK 平台的 CAME 容器中：整張地圖在封存檔之外被加密（AES-256-GCM + zstd），只有平台用戶端能直接讀取。「修復地圖」會把它解密成一般地圖；之後還需要移植。",
- ", {0} unnamed (kept: the game finds them by hash)": "，{0} 個未命名（已保留：遊戲依雜湊找到它們）"
+ ", {0} unnamed (kept: the game finds them by hash)": "，{0} 個未命名（已保留：遊戲依雜湊找到它們）",
+ "Keep the texts left out only by their wording ({0})": "僅因措辭而被排除的文字也保留 ({0})",
+ "Numbers that changed, a text much longer than the original, or Chinese, Japanese or Korean left in it: they go in as written. The other texts left out would break the map.": "數字已更改、文字比原文長得多，或其中殘留中文、日文或韓文：這些文字將依原樣寫入。其他被排除的文字會破壞地圖。"
 }
