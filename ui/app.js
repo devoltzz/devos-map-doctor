@@ -953,6 +953,8 @@ function shellLine(action) {
     let f = /^(dados|data):/.test(k) ? 'data' : FLAGS[k] || k.replace(/^x:/, '').replace(/[:_]/g, '-');
     if (k === 'x:translation' && state.extras.translation) f += '="' + base(state.extras.translation.file) + '"';
     if (!flags.includes(f)) flags.push(f);
+    if (k === 'x:translation' && state.extras.translation && state.extras.translation.keep &&
+        state.extras.translation.check.keepable) flags.push('translation-keep');
   }
   const name = state.open ? state.open.name : base(state.map);
   if (action === 'editor' && state.editorVersion !== 'reforged') flags.push(['editor-version', state.editorVersion].join('='));
@@ -1149,7 +1151,10 @@ async function runAction(action) {
     params.extras.lobby_image = img;
   }
   if (extras.card && state.extras.card) params.extras.card = state.extras.card;
-  if (extras.translation && state.extras.translation) params.extras.translation = state.extras.translation.file;
+  if (extras.translation && state.extras.translation) {
+    params.extras.translation = state.extras.translation.file;
+    if (state.extras.translation.keep && state.extras.translation.check.keepable) params.extras.translation_keep = true;
+  }
   if (extras.stripIndent) params.extras.strip_indent = true;
   if (extras.shrink || extras.shrinkLossy) {
     params.extras.shrink = { recompress: true, blp: true, dedup: true };
@@ -2499,6 +2504,11 @@ function renderTranslation() {
     tr ? el('div', { style: 'margin-top:14px' }, el('div', { class: 'notice info', text: base(tr.file) + ': ' +
       (tr.check.ok || 0) + ' texts pass the checks' + (tr.check.rejected && tr.check.rejected.length ? ', ' +
       tr.check.rejected.length + ' left out' : '') + '.' }),
+    tr.check.keepable ? el('label', { style: 'display:flex;gap:8px;align-items:flex-start;margin-top:10px;cursor:pointer' },
+      el('input', { type: 'checkbox', checked: !!tr.keep, onchange: e => { tr.keep = e.target.checked; } }),
+      el('div', {}, el('div', { text: 'Keep the texts left out only by their wording (' + tr.check.keepable + ')' }),
+        el('div', { class: 'faint', text: 'Numbers that changed, a text much longer than the original, or Chinese, ' +
+          'Japanese or Korean left in it: they go in as written. The other texts left out would break the map.' }))) : null,
     tr.check.images && !web() ? el('button', { class: 'btn needs-idle', style: 'margin-top:10px',
       text: 'Review the images (' + tr.check.images + ')...', disabled: !!state.running, onclick: () => loadReview() }) :
       null,
