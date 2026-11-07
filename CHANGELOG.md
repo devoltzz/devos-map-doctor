@@ -3,6 +3,28 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 2.1.2 (2026-11-07)
+
+### Added
+
+- **Keep the texts left out only by their wording:** when a translation file is checked, some texts are left out. A new
+  box in the Translation tab (`--translation-keep` on the command line) applies the ones refused only for how they are
+  written: numbers that changed (like a Korean `2000만` written as `20M`), a text much longer than the original, or
+  Chinese, Japanese or Korean left in it. The other texts left out would break the map, so they stay out with the box
+  ticked.
+
+### Fixed
+
+- **Big maps on the site:** "Fix map" on a 448 MB map broke on the fourth run in the same tab, with `offset is out of
+  bounds` in the extras and a page error about text that is not valid JSON. Each run loaded the whole map into the
+  engine's memory, and that memory never shrinks. Maps of 200 MB and more are now read piece by piece, outside that
+  memory: six runs in a row in the same tab worked, and the fixed map is byte for byte the same as before. The Windows
+  and Linux programs are not affected.
+- **The site no longer waits for ever when the engine breaks:** an answer from the engine that cannot be read now ends
+  the job with an error, and the next job starts on a fresh engine.
+- **Port, KK maps that clear the minimap buttons:** a button the map cleared stayed in Reforged over the map's side menu.
+  The port now hides it. I found this while porting Apocalypse ORPG.
+
 ## 2.1.1 (2026-11-04)
 
 ### Changed
