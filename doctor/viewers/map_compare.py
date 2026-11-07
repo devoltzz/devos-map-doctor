@@ -9,6 +9,7 @@ from doctor.script import jass_ast
 from doctor.script import lua_ast
 from doctor.mpq import mpqdoctor
 from doctor.mpq import mpqnames
+from doctor.mpq import mpqread
 from doctor.data import objbin
 from doctor.data import object_names
 from doctor.data import slk
@@ -69,7 +70,7 @@ def _block(a, name):
 def _raw(a, bi):
     off, cs, fs, fl = a.blocks[bi]
     p = (a.h.offset + off) & 0xFFFFFFFF
-    return memoryview(a.d)[p:p + cs], fs, fl, off
+    return mpqread.sector_slice(a.d, p, p + cs), fs, fl, off
 
 
 def _same_stored(ra, rb, piece=1 << 22):
