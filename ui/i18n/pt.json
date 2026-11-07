@@ -3508,5 +3508,7 @@
  "CAME container (KK platform): {0} in {1}, AES-256-GCM + zstd; the SDK is {2}{3}. \"Fix map\" decrypts them into a normal map.": "Contêiner CAME (plataforma KK): {0} em {1}, AES-256-GCM + zstd; o SDK é {2}{3}. \"Consertar mapa\" os decifra num mapa normal.",
  "Decrypted the CAME container (KK platform): {0} written{1}.": "Contêiner CAME (plataforma KK) decifrado: {0} gravados{1}.",
  "The map is in the CAME container of the KK platform: the whole map is encrypted outside the archive (AES-256-GCM + zstd) and only the platform client reads it as it is. \"Fix map\" decrypts it into a normal map; then it needs a port.": "O mapa está no contêiner CAME da plataforma KK: o mapa inteiro está cifrado fora do arquivo (AES-256-GCM + zstd) e só o cliente da plataforma o lê assim. \"Consertar mapa\" o decifra num mapa normal; depois ele precisa de um port.",
- ", {0} unnamed (kept: the game finds them by hash)": ", {0} sem nome (mantidos: o jogo os acha pela hash)"
+ ", {0} unnamed (kept: the game finds them by hash)": ", {0} sem nome (mantidos: o jogo os acha pela hash)",
+ "Keep the texts left out only by their wording ({0})": "Manter os textos deixados de fora só pela redação ({0})",
+ "Numbers that changed, a text much longer than the original, or Chinese, Japanese or Korean left in it: they go in as written. The other texts left out would break the map.": "Números que mudaram, um texto bem mais longo que o original, ou chinês, japonês ou coreano que sobrou nele: entram como estão escritos. Os outros textos deixados de fora quebrariam o mapa."
 }
