@@ -1622,6 +1622,12 @@ function DzFrameClearAllPoints takes integer frame returns nothing
             call BlzFrameSetSize(f, 0.0001, 0.0001)
         endif
         //{{KK_FIMSE:KK_UI_RETRATO}}
+        //{{KK_SE:KK_UI_MINI}}
+        if frame==DB_origin(ORIGIN_FRAME_MINIMAP_BUTTON, 0) or frame==DB_origin(ORIGIN_FRAME_MINIMAP_BUTTON, 1) or frame==DB_origin(ORIGIN_FRAME_MINIMAP_BUTTON, 2) or frame==DB_origin(ORIGIN_FRAME_MINIMAP_BUTTON, 3) or frame==DB_origin(ORIGIN_FRAME_MINIMAP_BUTTON, 4) then
+            call BlzFrameSetVisible(f, false)
+            call BlzFrameSetAbsPoint(f, FRAMEPOINT_CENTER, -1.0, -1.0)
+        endif
+        //{{KK_FIMSE:KK_UI_MINI}}
         //{{KK_SE:KK_UI_PAINEL}}
         if DB_ui_ht!=null and LoadBoolean(DB_ui_ht, frame, DB_SIMPLES_JOGO) then
             call BlzFrameSetAbsPoint(f, FRAMEPOINT_CENTER, -1.0, -1.0)
