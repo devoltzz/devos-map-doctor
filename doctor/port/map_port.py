@@ -729,6 +729,7 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
         pair['KK_UI_MOUSE_POS'] = 'true'
     pair['KK_UI_BORDAS'] = new.ui_borders(body_text)
     pair['KK_UI_RETRATO'] = new.ui_portrait(body_text)
+    pair['KK_UI_MINI'] = new.ui_mini(body_text)
     pair['KK_UI_PAI'] = new.ui_parent(body_text)
     atk = new.covered_attack(extract)
     pair['KK_CMD_ATAQUE'] = 'true' if atk else 'false'
