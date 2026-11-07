@@ -3507,5 +3507,7 @@
  "CAME container (KK platform): {0} in {1}, AES-256-GCM + zstd; the SDK is {2}{3}. \"Fix map\" decrypts them into a normal map.": "CAME-Container (KK-Plattform): {0} in {1}, AES-256-GCM + zstd; das SDK ist {2}{3}. \"Karte reparieren\" entschlüsselt sie zu einer normalen Karte.",
  "Decrypted the CAME container (KK platform): {0} written{1}.": "CAME-Container (KK-Plattform) entschlüsselt: {0} geschrieben{1}.",
  "The map is in the CAME container of the KK platform: the whole map is encrypted outside the archive (AES-256-GCM + zstd) and only the platform client reads it as it is. \"Fix map\" decrypts it into a normal map; then it needs a port.": "Die Karte liegt im CAME-Container der KK-Plattform: die ganze Karte ist außerhalb des Archivs verschlüsselt (AES-256-GCM + zstd), und nur der Plattform-Client liest sie so. \"Karte reparieren\" entschlüsselt sie zu einer normalen Karte; danach braucht sie einen Port.",
- ", {0} unnamed (kept: the game finds them by hash)": ", {0} ohne Namen (behalten: das Spiel findet sie über den Hash)"
+ ", {0} unnamed (kept: the game finds them by hash)": ", {0} ohne Namen (behalten: das Spiel findet sie über den Hash)",
+ "Keep the texts left out only by their wording ({0})": "Nur wegen ihres Wortlauts ausgelassene Texte beibehalten ({0})",
+ "Numbers that changed, a text much longer than the original, or Chinese, Japanese or Korean left in it: they go in as written. The other texts left out would break the map.": "Zahlen, die sich geändert haben, ein Text, der viel länger als das Original ist, oder darin verbliebenes Chinesisch, Japanisch oder Koreanisch: Sie werden wie geschrieben übernommen. Die anderen ausgelassenen Texte würden die Karte beschädigen."
 }
