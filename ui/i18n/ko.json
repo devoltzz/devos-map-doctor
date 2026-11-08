@@ -3509,5 +3509,8 @@
  "The map is in the CAME container of the KK platform: the whole map is encrypted outside the archive (AES-256-GCM + zstd) and only the platform client reads it as it is. \"Fix map\" decrypts it into a normal map; then it needs a port.": "맵이 KK 플랫폼의 CAME 컨테이너에 들어 있습니다: 맵 전체가 아카이브 밖에서 암호화되어 있고(AES-256-GCM + zstd) 이 상태로는 플랫폼 클라이언트만 읽습니다. \"맵 수정\"이 일반 맵으로 복호화하며, 그다음 포팅이 필요합니다.",
  ", {0} unnamed (kept: the game finds them by hash)": ", 이름 없음 {0}개 (유지됨: 게임이 해시로 찾습니다)",
  "Keep the texts left out only by their wording ({0})": "표현 때문에만 제외된 텍스트도 유지 ({0})",
- "Numbers that changed, a text much longer than the original, or Chinese, Japanese or Korean left in it: they go in as written. The other texts left out would break the map.": "숫자가 바뀌었거나, 원문보다 훨씬 긴 텍스트이거나, 중국어·일본어·한국어가 남아 있는 텍스트: 작성된 그대로 적용됩니다. 제외된 나머지 텍스트는 맵을 망가뜨릴 것입니다."
+ "Numbers that changed, a text much longer than the original, or Chinese, Japanese or Korean left in it: they go in as written. The other texts left out would break the map.": "숫자가 바뀌었거나, 원문보다 훨씬 긴 텍스트이거나, 중국어·일본어·한국어가 남아 있는 텍스트: 작성된 그대로 적용됩니다. 제외된 나머지 텍스트는 맵을 망가뜨릴 것입니다.",
+ "Run the map's start on the loading screen": "로딩 화면에서 맵의 시작 부분 실행",
+ "For a map that freezes right after it starts and then runs too fast, or skips the character selection. The loading screen takes longer, and on a very heavy map a player can drop in multiplayer while it loads.": "시작 직후 멈췄다가 너무 빠르게 실행되거나 캐릭터 선택을 건너뛰는 맵용입니다. 로딩 화면이 더 오래 걸리며, 매우 무거운 맵에서는 로딩 중에 플레이어가 멀티플레이에서 튕길 수 있습니다.",
+ "the first seconds: if the game freezes right after it starts and then time runs too fast (or the character selection is skipped), port again with \"Run the map's start on the loading screen\" (--start-on-loading-screen)": "처음 몇 초: 게임이 시작 직후 멈췄다가 시간이 너무 빠르게 흐르거나(또는 캐릭터 선택을 건너뛰면) \"로딩 화면에서 맵의 시작 부분 실행\"(--start-on-loading-screen) 옵션으로 다시 포팅하세요"
 }
