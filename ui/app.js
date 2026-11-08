@@ -2853,6 +2853,10 @@ function renderPort() {
           detail: 'The game\'s own effect models the map uses keep their classic (SD) look: copied into the map under ' +
             'new names, the references rewritten. Reforged shows their HD variant, another effect for many spells.',
           onchange: e => { state.portClassic = e.target.checked; } }),
+        optionItem({ checked: state.portOnLoad === true, title: 'Run the map\'s start on the loading screen',
+          detail: 'For a map that freezes right after it starts and then runs too fast, or skips the character selection. ' +
+            'The loading screen takes longer, and on a very heavy map a player can drop in multiplayer while it loads.',
+          onchange: e => { state.portOnLoad = e.target.checked; } }),
         optionItem({ checked: state.portBalance === true, title: 'Balance huge numbers',
           detail: 'Scales life, damage, mana and armor down so the biggest fit the game\'s limit, keeping the proportions.',
           onchange: e => { state.portBalance = e.target.checked; } }),
@@ -3087,7 +3091,7 @@ async function runPort() {
     const r = await run('port', { packages: state.portPackages || [], memory: state.portMemory !== false,
       icons: state.portIcons !== false, textures: state.portTextures !== false, balance: state.portBalance === true,
       game_files: state.portGameFiles === true, lossy: state.portLossy === true, strip_indent: stripIndentOn(),
-      classic: state.portClassic === true, to: state.portTarget || '' },
+      classic: state.portClassic === true, on_load: state.portOnLoad === true, to: state.portTarget || '' },
       { label: state.portTarget ? 'Porting the map to ' + state.portTarget + '...' : 'Porting the map to Reforged...' });
     state.portResult = r;
     state.results.port = r;
