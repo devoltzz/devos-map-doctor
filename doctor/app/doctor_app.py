@@ -566,7 +566,7 @@ def page_stub(s):
 
 
 def run_port(D, G, path, progress, emit, packages=(), memory=True, icons=False, textures=False, balance=False,
-             strip_indent=False, game_files=False, lossy=False, classic=False, to=''):
+             strip_indent=False, game_files=False, lossy=False, classic=False, to='', on_load=False):
     if to:
         from doctor.data import wc3_versions
         if wc3_versions.normalize(to) != wc3_versions.REFORGED:
@@ -585,7 +585,7 @@ def run_port(D, G, path, progress, emit, packages=(), memory=True, icons=False, 
         try:
             r = map_port.map_port(path, os.path.join(work, 'port'), out, report, log=port_log, packages=list(packages),
                                   memory_hacks='neutralize' if memory else 'equivalents', balance_numbers=bool(balance),
-                                  shrink_with_loss=bool(lossy), sd_models=bool(classic))
+                                  shrink_with_loss=bool(lossy), sd_models=bool(classic), main_on_load=bool(on_load))
         except BaseException as e:
             write_port_failure(report, '%s: %s' % (type(e).__name__, e), traceback.format_exc()[-3000:])
             raise
@@ -734,7 +734,7 @@ def _run_job(job, emit, G, D, task, path, progress):
         return run_port(D, G, path, progress, emit, job.get('packages') or [], job.get('memory', True),
                         job.get('icons', False), job.get('textures', False), job.get('balance', False),
                         job.get('strip_indent', False), job.get('game_files', False), job.get('lossy', False),
-                        job.get('classic', False), job.get('to') or '')
+                        job.get('classic', False), job.get('to') or '', job.get('on_load', False))
     if task == 'cheatpack_inject':
         return _cheatpack_inject(job, progress, emit)
     if task == 'qol_apply':
