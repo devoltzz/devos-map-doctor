@@ -3,6 +3,18 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 2.1.3 (2026-11-08)
+
+### Added
+
+- **Port to Reforged, run the map's start on the loading screen:** since October the port starts a map's heavy part
+  (units, models, triggers) right after the game begins, so the loading screen is fast and nobody is dropped from
+  multiplayer while it loads. On some big maps that start freezes the game for a while: Windows says "not responding",
+  then time runs too fast and the character selection can be skipped. A new option under "More options" of the port
+  (`--start-on-loading-screen` on the command line) runs the start on the loading screen again. The reporter of issue 59
+  tested two maps on Reforged 3.0.1.24371 with it, and both work. The loading screen takes longer, and on a very heavy
+  map a player can drop in multiplayer while it loads, so this stays off by default. The port report names the option.
+
 ## 2.1.2 (2026-11-07)
 
 ### Added
