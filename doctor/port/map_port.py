@@ -1465,6 +1465,10 @@ def report_text(details):
           'loading does not desync',
           '- the menus and panels the platform drew (shop, lobby, F-keys) and the map frames (DzFrame -> BlzFrame)',
           '- every feature listed under the stubs above']
+    if details.get('deferred_main'):
+        L += ['- the first seconds: if the game freezes right after it starts and then time runs too fast (or the '
+              'character selection is skipped), port again with "Run the map\'s start on the loading screen" '
+              '(--start-on-loading-screen)']
     if d and d.get('ujapi'):
         L += ['- the UjAPI parts: the frames, the damage and key events, and the objects Reforged has no type for '
               '(sprites, doodads, projectiles, handle lists) -- those natives are stubs and do nothing']
@@ -1693,7 +1697,7 @@ def write_local_art(folder, output, log=print):
 
 def map_port(map_path, work, output=None, stats=None, heading=None, log=print, packages=(), shrink_large=True,
              memory_hacks='neutralize', balance_numbers=False, lua_translation=None, shrink_with_loss=False,
-             sd_models=False):
+             sd_models=False, main_on_load=False):
     t0 = time.time()
     map_path = os.path.abspath(map_path)
     base = os.path.splitext(map_path)[0]
@@ -1792,6 +1796,8 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
         r = recipe(root, raw_data, diag, blz, listing, heading, added_models=lua_models,
                    carrier=_pair.get('KK_CAR_LIGADO') == 'true')
         r.MEMORY_LEVEL = memory_hacks
+        if main_on_load:
+            r.DEFERRED_MAIN = False
         r.COMMAND_CARD = _pair.get('KK_JN_CARTAO') == 'true'
         r.HUD_LOL = new.ui_hud_lol(body_text) == 'true'
         from doctor.port import shadowed
@@ -1819,6 +1825,7 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
                 "%s function(s) of the map have the name of a port layer function; the map's own are kept: %s"
                 % (m.group(1), m.group(2).split(': ', 1)[-1])
             )
+        details['deferred_main'] = bool(re.search(r'(?m)^9c deferred main: \d', chain_log))
         m = re.search(r'(?m)^9c deferred main: NOT applied[^:]*: (.*)$', chain_log)
         if m:
             reason = m.group(1).strip()
