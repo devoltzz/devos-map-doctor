@@ -3509,5 +3509,8 @@
  "The map is in the CAME container of the KK platform: the whole map is encrypted outside the archive (AES-256-GCM + zstd) and only the platform client reads it as it is. \"Fix map\" decrypts it into a normal map; then it needs a port.": "マップは KK プラットフォームの CAME コンテナに入っています：マップ全体がアーカイブの外で暗号化され（AES-256-GCM + zstd）、そのままではプラットフォームのクライアントしか読めません。「マップを修正」で通常のマップに復号し、その後ポートが必要です。",
  ", {0} unnamed (kept: the game finds them by hash)": "、名前なし{0}件（保持：ゲームはハッシュで見つけます）",
  "Keep the texts left out only by their wording ({0})": "表現だけが理由で除外されたテキストも残す({0})",
- "Numbers that changed, a text much longer than the original, or Chinese, Japanese or Korean left in it: they go in as written. The other texts left out would break the map.": "数値が変わったもの、原文よりかなり長いテキスト、または中国語・日本語・韓国語が残っているもの:書かれたまま適用されます。除外されたそれ以外のテキストはマップを壊します。"
+ "Numbers that changed, a text much longer than the original, or Chinese, Japanese or Korean left in it: they go in as written. The other texts left out would break the map.": "数値が変わったもの、原文よりかなり長いテキスト、または中国語・日本語・韓国語が残っているもの:書かれたまま適用されます。除外されたそれ以外のテキストはマップを壊します。",
+ "Run the map's start on the loading screen": "ロード画面でマップの開始処理を実行",
+ "For a map that freezes right after it starts and then runs too fast, or skips the character selection. The loading screen takes longer, and on a very heavy map a player can drop in multiplayer while it loads.": "開始直後にフリーズし、その後速すぎる速度で動作する、またはキャラクター選択をスキップするマップ向けです。ロード画面が長くなり、非常に重いマップでは、ロード中にプレイヤーがマルチプレイから切断されることがあります。",
+ "the first seconds: if the game freezes right after it starts and then time runs too fast (or the character selection is skipped), port again with \"Run the map's start on the loading screen\" (--start-on-loading-screen)": "最初の数秒: ゲームが開始直後にフリーズし、その後時間が速く進みすぎる(またはキャラクター選択がスキップされる)場合は、\"ロード画面でマップの開始処理を実行\"(--start-on-loading-screen)を指定して再度移植してください"
 }
