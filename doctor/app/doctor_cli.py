@@ -23,7 +23,7 @@ a .w3mod): a package is read as data, never run; diag, files and extract work on
   port <map> [--to=<version>] [--package=<name>] [--icons] [--textures] [--keep-memory] [--balance-numbers]
        [--strip-indent]
        (the icons and the textures are on, as in the window: --no-icons, --no-textures)
-       [--remove-game-files] [--lossy] [--classic-effects]
+       [--remove-game-files] [--lossy] [--classic-effects] [--start-on-loading-screen]
                                   Port to Reforged (KK and M16 maps): saves <map>_reforged.w3x and the report;
                                   --to=<version>: to another version of the classic game instead (1.24a to
                                   1.29.2; newer or older than the map, a Reforged map included; no platform, no
@@ -628,6 +628,7 @@ def build_job(command, pos, opts, run):
                         'strip_indent': opts.get('strip-indent') is True,
                         'game_files': bool(opts.get('remove-game-files')), 'lossy': bool(opts.get('lossy')),
                         'classic': bool(opts.get('classic-effects')),
+                        'on_load': bool(opts.get('start-on-loading-screen')),
                         'to': opts.get('to') if isinstance(opts.get('to'), str) else ''}
     if command == 'check':
         need(pos, 2, '<map>')
@@ -878,7 +879,7 @@ CONTRACT = (
      dict(_WRITES, changes='object')),
     ('port', 'port <map> [options]',
      dict(_flags('icons', 'textures', 'keep-memory', 'balance-numbers', 'strip-indent', 'remove-game-files', 'lossy',
-                 'classic-effects'),
+                 'classic-effects', 'start-on-loading-screen'),
           to=_value('a game version: 1.24a to 1.29.2, 2.0.4 (none: Reforged 3.0)'),
           package=_value('art packages, comma separated')),
      dict(_WRITES, report='string', port='object')),
