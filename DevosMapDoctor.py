@@ -20,7 +20,7 @@ if _restart:
     sys.exit(0)
 from doctor.fix import unprotect as D
 
-VERSION = '2.1.3'
+VERSION = '2.2.0'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -213,6 +213,8 @@ def describe(p):
     if c == 'kk_encrypted':
         return ('Encrypted by the KK platform: %s of the map is stored outside the MPQ archive.'
                 % mb(p.get('outside', 0)))
+    if c == 'xm_package':
+        return 'Encrypted package game.pkg (xmload maps): "Fix map" unpacks its models, textures and scripts.'
     if c == 'kk_came':
         sdk = p.get('sdk') or {}
         return (
@@ -571,6 +573,10 @@ def _fixes_done(details, steps, before):
         extra = ', %s unnamed' % num(name_list['unnamed']) if name_list.get('unnamed') else ''
         out.append('Rebuilt the map from its files: %s found by content%s.'
                    % (pluralize(cv.get('file_set') or 0, 'file', 'files'), extra))
+    if steps.get('xm'):
+        out.append('Unpacked game.pkg: %s into the map (%s).'
+                   % (pluralize(steps['xm'].get('files') or 0, 'file', 'files'),
+                      'the package was kept' if steps['xm'].get('package_kept') else 'the package was removed'))
     if steps.get('came'):
         cv = steps['came']
         if cv.get('all_items'):
