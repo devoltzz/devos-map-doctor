@@ -112,8 +112,10 @@ def objects_out(tr_dir=None):
 
 _SEP_MODE = {'mista': r'\r\n|\r|\n', 'crlf': r'\r\n', 'lf': r'\n'}
 _COMENTARIO_MODE = {'mista': r'//[^\r\n]*', 'crlf': r'//(?:(?!\r\n).)*', 'lf': r'//[^\n]*'}
-_RX_QUOTES_MODE = dict((m, re.compile(_COMENTARIO_MODE[m] + r'|"(?:[^"\\]|\\.)*"|' + _SEP_MODE[m], re.S))
-                       for m in _SEP_MODE)
+_RX_QUOTES_MODE = dict(
+    (m, re.compile(_COMENTARIO_MODE[m] + r'''|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.){1,4}'|''' + _SEP_MODE[m], re.S))
+    for m in _SEP_MODE
+)
 
 
 def split_outside_quotes(body_text, method='mista'):
