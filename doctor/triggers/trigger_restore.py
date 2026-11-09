@@ -1475,6 +1475,8 @@ def _usable_variables(variables, src, td, lang):
             kept[n] = 'a constant'
         elif tt is None or not tt.can_be_global:
             kept[n] = 'type %s is not a GUI variable type' % v.type
+        elif TARGET['editor'] is not None and not wtg.fits_classic(v.initial_value or ''):
+            kept[n] = 'an initial value longer than this editor reads'
         else:
             good.append(v)
     mine = _editor_declarations(good, td, lang) if good else {}
@@ -1574,6 +1576,9 @@ def _gui(ctx, d, obfuscated):
     if m is None or m.trigger is None:
         return (getattr(m, 'reason', '') or 'no GUI form')[:200]
     t = m.trigger
+    if TARGET['editor'] is not None and wtg.longest_parameter(t.functions) > wtg.CLASSIC_MAX_VALUE:
+        return 'a text of %d bytes, and this editor reads at most %d in a trigger parameter' % (
+            wtg.longest_parameter(t.functions), wtg.CLASSIC_MAX_VALUE)
     t.name = d.name
     banner_desc = _banner(src, d.own)[1]
     t.description = (m.trigger.description or banner_desc or (NOTE_RENAMED if obfuscated else ''))
