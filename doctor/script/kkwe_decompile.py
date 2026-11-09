@@ -797,6 +797,20 @@ class Inference(object):
 
 def real_text(bits):
     v = struct.unpack('<f', struct.pack('<i', bits))[0]
+    if KC.CLASSIC_REALS:
+        from doctor.script import classic_real
+        t = classic_real.text_for(bits)
+        if t:
+            return t
+        for d in range(1, classic_real.SAFE_DIGITS + 1):
+            s = '%.*f' % (d, v)
+            if KC.f32_bits(s) == bits:
+                return s
+        s = '%.*f' % (classic_real.SAFE_DIGITS, v)
+        if abs(float(s) - v) > abs(v) * 1e-3 or KC.CLASSIC_APPROX_REALS.get(s, bits) != bits:
+            raise DecompileError('real without a text the classic game reads back: %08x' % (bits & 0xFFFFFFFF))
+        KC.CLASSIC_APPROX_REALS[s] = bits
+        return s
     for d in range(1, 80):
         s = '%.*f' % (d, v)
         if KC.f32_bits(s) == bits:
@@ -1330,15 +1344,23 @@ HEADER_LINES = (
 )
 
 
-def recover(bc, common, blizzard, extra_natives=None, map_own='', header_text=HEADER_LINES, no_clash=False):
+def recover(bc, common, blizzard, extra_natives=None, map_own='', header_text=HEADER_LINES, no_clash=False,
+            classic_reals=False):
     old = sys.getrecursionlimit()
     if old < KC._RECURSION:
         sys.setrecursionlimit(KC._RECURSION)
+    before = KC.CLASSIC_REALS
+    KC.CLASSIC_REALS = classic_reals
+    KC.CLASSIC_APPROX_REALS = {}
     try:
-        return _decompile(bc, common, blizzard, extra_natives, map_own, header_text, no_clash)
+        body_text, report = _decompile(bc, common, blizzard, extra_natives, map_own, header_text, no_clash)
+        if classic_reals:
+            report['approx_reals'] = KC.CLASSIC_APPROX_REALS
+        return body_text, report
     except RecursionError:
         raise DecompileError('the script does not come back: an expression of the map is too deep (RecursionError)')
     finally:
+        KC.CLASSIC_REALS = before
         if old < KC._RECURSION:
             sys.setrecursionlimit(old)
 
