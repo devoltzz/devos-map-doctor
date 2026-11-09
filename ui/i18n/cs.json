@@ -3512,5 +3512,18 @@
  "Numbers that changed, a text much longer than the original, or Chinese, Japanese or Korean left in it: they go in as written. The other texts left out would break the map.": "Čísla, která se změnila, text mnohem delší než originál nebo v něm zbylá čínština, japonština či korejština: použijí se tak, jak jsou napsané. Ostatní vynechané texty by mapu poškodily.",
  "Run the map's start on the loading screen": "Spustit začátek mapy na načítací obrazovce",
  "For a map that freezes right after it starts and then runs too fast, or skips the character selection. The loading screen takes longer, and on a very heavy map a player can drop in multiplayer while it loads.": "Pro mapu, která se hned po spuštění zasekne a pak běží příliš rychle, nebo přeskočí výběr postavy. Načítací obrazovka trvá déle a u velmi těžké mapy může hráč při načítání vypadnout z multiplayeru.",
- "the first seconds: if the game freezes right after it starts and then time runs too fast (or the character selection is skipped), port again with \"Run the map's start on the loading screen\" (--start-on-loading-screen)": "prvních pár sekund: pokud hra hned po spuštění zamrzne a pak čas běží příliš rychle (nebo se přeskočí výběr postavy), portujte znovu s volbou \"Spustit začátek mapy na načítací obrazovce\" (--start-on-loading-screen)"
+ "the first seconds: if the game freezes right after it starts and then time runs too fast (or the character selection is skipped), port again with \"Run the map's start on the loading screen\" (--start-on-loading-screen)": "prvních pár sekund: pokud hra hned po spuštění zamrzne a pak čas běží příliš rychle (nebo se přeskočí výběr postavy), portujte znovu s volbou \"Spustit začátek mapy na načítací obrazovce\" (--start-on-loading-screen)",
+ "Unpack game.pkg into the map": "Rozbalit game.pkg do mapy",
+ "Its models, textures and scripts become normal files.": "Jeho modely, textury a skripty se stanou běžnými soubory.",
+ "Also keep game.pkg": "Ponechat také game.pkg",
+ "The map stays playable with its own loader, but gets much bigger.": "Mapu lze dál hrát s jejím vlastním zavaděčem, ale je mnohem větší.",
+ "Encrypted package game.pkg (xmload maps): \"Fix map\" unpacks its models, textures and scripts.": "Šifrovaný balíček game.pkg (mapy s xmload): \"Opravit mapu\" rozbalí jeho modely, textury a skripty.",
+ "Unpacked game.pkg: {0} into the map ({1}).": "Rozbalen game.pkg: {0} do mapy ({1}).",
+ "the package was kept": "balíček byl ponechán",
+ "the package was removed": "balíček byl odstraněn",
+ "Make the Lua run on Reforged": "Spustit Lua na Reforged",
+ "Put the real script back": "Vrátit skutečný skript",
+ "Replaces the DLL Reforged cannot load, as Port does. The script becomes Lua. Takes minutes.": "Nahradí DLL, které Reforged nenačte, stejně jako Port. Skript se změní na Lua. Trvá několik minut.",
+ "this map does not run Lua through the YDWE engine": "tato mapa nespouští Lua přes engine YDWE",
+ "war3map.jx becomes the map script and the loader leaves. Not when game.pkg stays.": "war3map.jx se stane skriptem mapy a loader zmizí. Ne když game.pkg zůstává."
 }
