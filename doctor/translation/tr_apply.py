@@ -61,6 +61,8 @@ for _f in ('YDWESaveStringByString', 'YDWESaveStringByInteger',
            'YDWEFlushStoredIntegerByString', 'YDWEFlushStoredIntegerByInteger'):
     ARGUMENTS_KEY[_f] = frozenset((0, 1))
 ARGUMENTS_KEY['YDWEFlushMissionByString'] = frozenset((0,))
+RX_YDWE_BY_STRING = re.compile(r'^YDWE\w+ByString$')
+YDWE_BY_STRING_KEYS = frozenset((0, 1))
 ARGUMENTS_KEY['YDWEFlushMissionByInteger'] = frozenset((0,))
 PREFIXES_KEY = ('DzAPI_Map_', 'JNObject', 'JNDaily', 'JNRPG', 'JNSetLog', 'JNMapServerLog', 'JNPublicMapServerLog')
 PREFIXES_KEY_ARGS = {
@@ -148,6 +150,8 @@ def classifica_occurrence(line_str, pos, lit, caution_as_screen=False, script_fl
         if keys is ALL_OS_ARGUMENTS or idx in keys:
             return 'hash_key:' + fn
         return 'screen:' + fn
+    if RX_YDWE_BY_STRING.match(fn):
+        return ('hash_key:' if idx in YDWE_BY_STRING_KEYS else 'screen:') + fn
     for p in PREFIXES_KEY:
         if fn.startswith(p):
             return 'hash_key:' + fn
@@ -749,6 +753,8 @@ def classify_call_occurrence(fn, idx):
     if fn in ARGUMENTS_KEY:
         keys = ARGUMENTS_KEY[fn]
         return 'hash_key' if keys is ALL_OS_ARGUMENTS or idx in keys else 'screen'
+    if RX_YDWE_BY_STRING.match(fn):
+        return 'hash_key' if idx in YDWE_BY_STRING_KEYS else 'screen'
     for p in PREFIXES_KEY:
         if fn.startswith(p):
             return 'hash_key'
