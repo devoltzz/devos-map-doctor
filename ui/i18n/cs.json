@@ -3525,5 +3525,11 @@
  "Put the real script back": "Vrátit skutečný skript",
  "Replaces the DLL Reforged cannot load, as Port does. The script becomes Lua. Takes minutes.": "Nahradí DLL, které Reforged nenačte, stejně jako Port. Skript se změní na Lua. Trvá několik minut.",
  "this map does not run Lua through the YDWE engine": "tato mapa nespouští Lua přes engine YDWE",
- "war3map.jx becomes the map script and the loader leaves. Not when game.pkg stays.": "war3map.jx se stane skriptem mapy a loader zmizí. Ne když game.pkg zůstává."
+ "war3map.jx becomes the map script and the loader leaves. Not when game.pkg stays.": "war3map.jx se stane skriptem mapy a loader zmizí. Ne když game.pkg zůstává.",
+ "Cancelling...": "Rušení...",
+ "Loading Python...": "Načítám Python...",
+ "Loading numpy and Pillow...": "Načítám numpy a Pillow...",
+ "Loading the engine...": "Načítám engine...",
+ "an initial value longer than this editor reads": "počáteční hodnota delší, než kolik tento editor přečte",
+ "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "text o délce {0} bajtů, přičemž tento editor přečte v parametru triggeru nejvýše {1}"
 }
