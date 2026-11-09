@@ -72,6 +72,17 @@ def steps(diag):
     place(
         'fix', 'fake_list', mpq and 'fake_files' in code_part, reason=None if 'fake_files' in code_part else 'no_fakes'
     )
+    xm = 'xm_package' in code_part
+    place('fix', 'xm_unpack', xm, reason=None if xm else 'no_package')
+    place('fix', 'xm_keep_package', xm, reason=None if xm else 'no_package', default_on=False)
+    place('fix', 'xm_script', xm, reason=None if xm else 'no_package')
+    place(
+        'fix',
+        'lua_reforged',
+        diag.get('lua_engine'),
+        reason=None if diag.get('lua_engine') else 'no_lua',
+        default_on=False,
+    )
     place('fix', 'listing', mpq and not has_virtual_tables(diag), reason=None if mpq else 'no_protection')
     place('fix', 'ids', ids and ids.get('fixable'), reason=None if ids else 'no_ids')
     for problem in slk_patch.PROBLEMS:
@@ -788,6 +799,13 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True, doodad
         if not r['no_edit']:
             r['no_edit'] = next((dict(m['no_edit'], map=m['fname']) for m in r['campaign_info'].get('map_list') or []
                                  if m.get('no_edit')), None)
+    try:
+        from doctor.mpq import xm_pkg
+        if xm_pkg.opens(a):
+            prot('xm_package')
+    except Exception:
+        pass
+    r['lua_engine'] = _lua_engine(a, r)
     codes = [x['code'] for x in r['protections']]
     carvable = is_carvable(r)
     if 'kk_encrypted' in codes:
@@ -1270,6 +1288,79 @@ def _unprotect_came(file_path, output, p, diag, res, all_items=True):
     return res
 
 
+def _lua_engine(a, r):
+    try:
+        if r.get('script') in ('kkwe', 'j2b') or any(x['code'] == 'xm_package' for x in r['protections']):
+            return True
+        from doctor.script import ydwe_lua
+        for fname in ('war3map.j', 'scripts\\war3map.j'):
+            if a.find(fname):
+                return bool(ydwe_lua.detect(a.read(fname).decode('latin-1')))
+    except Exception:
+        pass
+    return False
+
+
+def _rewrite_lua(file_path, output, res):
+    from doctor.port import map_port
+    part = _part(output)
+    folder = tempfile.mkdtemp(prefix='devos_map_doctor_lua_')
+    stats = os.path.splitext(output)[0] + '.report.txt'
+    try:
+        r = map_port.map_port(file_path, os.path.join(folder, 'port'), part, stats, log=_nothing, only_lua=True)
+        if r.get('no_lua'):
+            _remove_quietly(stats)
+            return None
+        if r.get('err') or not str(r.get('resultado')).startswith('ported'):
+            raise RuntimeError(r.get('err') or r.get('resultado'))
+        os.replace(part, output)
+        res.update(status='done', output=os.path.abspath(output), after_diag=diagnose(output))
+        res['steps']['lua_reforged'] = {'stats': stats, 'resultado': r['resultado'], 'warnings': r.get('warnings')}
+    except (Exception, SystemExit) as e:
+        res['status'] = 'failed'
+        res['err'] = _error(e)
+        _remove_quietly(part)
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+    return res
+
+
+def _unpack_xm_package(file_path, output, p, res, options):
+    from doctor.mpq import xm_pkg
+    part = _part(output)
+    aberto = part + '.xm.w3x'
+    try:
+        p('is_pack')
+        rx = xm_pkg.unpack_to_map(
+            file_path,
+            aberto,
+            bool(options and options.get('xm_keep_package') is True),
+            log=_nothing,
+            real_script=step_on(options, 'xm_script'),
+        )
+        r2 = unprotect(aberto, part, p, None, dict(options or {}, xm_unpack=False))
+        if r2['status'] == 'nothing_to_do':
+            os.replace(aberto, part)
+            r2 = dict(r2, status='done', output=part, after_diag=diagnose(part))
+        elif r2['status'] not in ('done', 'partial'):
+            raise RuntimeError(r2.get('err') or r2['status'])
+        if r2['status'] == 'partial' and all(x['code'] == 'xm_package' or x['code'] in BUTTON3_ONLY
+                                          for x in (r2.get('after_diag') or {}).get('protections') or []):
+            r2 = dict(r2, status='done')
+        os.replace(part, output)
+        res.update((k, v) for k, v in r2.items() if k not in ('before', 'steps'))
+        res['steps'].update(r2.get('steps') or {})
+        res['steps']['xm'] = rx
+        res['output'] = res['after_diag']['file_name'] = os.path.abspath(output)
+    except (Exception, SystemExit) as e:
+        res['status'] = 'failed'
+        res['err'] = _error(e)
+        _remove_quietly(part)
+    finally:
+        _remove_quietly(aberto)
+    return res
+
+
 def unprotect(file_path, output, progress=None, diag=None, options=None):
     p = progress or _nothing
     diag = diag or diagnose(file_path, p)
@@ -1285,11 +1376,22 @@ def unprotect(file_path, output, progress=None, diag=None, options=None):
     if _same_file(file_path, output) or _same_file(file_path, _part(output)):
         res['status'], res['err'] = 'failed', 'the output is the input map itself: the original is never written'
         return res
+    if (
+        options
+        and options.get('lua_reforged') is True
+        and diag.get('lua_engine')
+        and diag['fixable'] in ('yes', 'nothing')
+    ):
+        r = _rewrite_lua(file_path, output, res)
+        if r is not None:
+            return r
     if diag['fixable'] != 'yes':
         res['status'] = {'nothing': 'nothing_to_do'}.get(diag['fixable'], diag['fixable'])
         return res
     codes = set(x['code'] for x in diag['protections'])
     res['for_button3'] = sorted(codes & set(BUTTON3_ONLY))
+    if 'xm_package' in codes and step_on(options, 'xm_unpack'):
+        return _unpack_xm_package(file_path, output, p, res, options)
     if 'kk_came' in codes:
         if not step_on(options, 'mpq'):
             res['status'] = 'nothing_selected'
@@ -1662,7 +1764,8 @@ def prepare_for_editor(file_path, output, progress=None, diag=None, safe_units=T
             p('script')
             t = os.path.join(tmp, '2_script.w3x')
             with quiet():
-                res['script'] = editor_prep.script_restore(src, t, diag['script'], log=_nothing)
+                res['script'] = editor_prep.script_restore(src, t, diag['script'], log=_nothing,
+                                                           classic=bool(version_num))
             src = t
             name_list = None
         t = os.path.join(tmp, '2b_texts.w3x')
