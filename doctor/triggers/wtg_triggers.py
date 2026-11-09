@@ -5,6 +5,7 @@ import struct
 SECTIONS = {'TriggerEvents': 'event', 'TriggerConditions': 'condition', 'TriggerActions': 'action',
             'TriggerCalls': 'call'}
 ECA_TYPE = {0: 'event', 1: 'condition', 2: 'action', 3: 'call'}
+CLASSIC_LIMIT = 299
 _CACHE = {}
 LAST_ERROR = None
 
@@ -58,6 +59,7 @@ class _Reader(object):
     def __init__(self, b, arity):
         self.b, self.arity, self.p = b, arity, 0
         self.unknowns = []
+        self.longest_param = 0
 
     def u(self, fmt):
         v = struct.unpack_from('<' + fmt, self.b, self.p)
@@ -78,7 +80,9 @@ class _Reader(object):
 
     def parameter(self):
         self.u('i')
+        begin = self.p
         self.z()
+        self.longest_param = max(self.longest_param, self.p - begin - 1)
         if self.u('i') == 1:
             self.eca(False)
         if self.u('i') == 1:
@@ -185,10 +189,11 @@ def verify(b, arity):
     except (ValueError, IndexError, struct.error, RecursionError) as e:
         out['err'] = str(e)[:120] or type(e).__name__
     out['unknowns'] = r.unknowns
+    out['longest_param'] = r.longest_param
     return out
 
 
-def needs_regeneration(b, arity=None):
+def needs_regeneration(b, arity=None, max_param=None):
     arity = arity if arity is not None else game_arities()
     if not arity or not b:
         return None
@@ -201,4 +206,6 @@ def needs_regeneration(b, arity=None):
         return 'war3map.wtg cannot be read: %s' % c['err']
     if not c.get('on_close'):
         return 'war3map.wtg does not end at the last byte'
+    if max_param is not None and c['longest_param'] > max_param:
+        return 'a parameter of %d bytes, and the editor reads up to %d' % (c['longest_param'], max_param)
     return None
