@@ -3525,5 +3525,11 @@
  "Put the real script back": "还原真正的脚本",
  "Replaces the DLL Reforged cannot load, as Port does. The script becomes Lua. Takes minutes.": "替换 Reforged 无法加载的 DLL,与移植相同。脚本会变为 Lua。需要几分钟。",
  "this map does not run Lua through the YDWE engine": "此地图不通过 YDWE 引擎运行 Lua",
- "war3map.jx becomes the map script and the loader leaves. Not when game.pkg stays.": "war3map.jx 将成为地图脚本,加载器被移除。保留 game.pkg 时不适用。"
+ "war3map.jx becomes the map script and the loader leaves. Not when game.pkg stays.": "war3map.jx 将成为地图脚本,加载器被移除。保留 game.pkg 时不适用。",
+ "Cancelling...": "正在取消...",
+ "Loading Python...": "正在加载 Python...",
+ "Loading numpy and Pillow...": "正在加载 numpy 和 Pillow...",
+ "Loading the engine...": "正在加载引擎...",
+ "an initial value longer than this editor reads": "初始值的长度超出了此编辑器能读取的范围",
+ "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "一段 {0} 字节的文本，而此编辑器在触发器参数中最多只能读取 {1} 字节"
 }
