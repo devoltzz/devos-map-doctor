@@ -45,8 +45,19 @@ def i32(v):
     return v - 0x100000000 if v & 0x80000000 else v
 
 
+CLASSIC_REALS = False
+CLASSIC_APPROX_REALS = {}
+
+
 def f32_bits(body_text):
     try:
+        if CLASSIC_REALS:
+            if body_text in CLASSIC_APPROX_REALS:
+                return CLASSIC_APPROX_REALS[body_text]
+            from doctor.script import classic_real
+            b = classic_real.bits_of(body_text)
+            if b is not None:
+                return b
         return struct.unpack('<i', struct.pack('<f', float(body_text)))[0]
     except OverflowError:
         raise ValueError('real out of the game range: %s' % body_text)
