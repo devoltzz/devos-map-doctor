@@ -3,6 +3,23 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 2.2.0 (2026-11-08)
+
+### Added
+
+- **Maps that keep their game in `game.pkg` and `war3map.jx`:** these maps ship their art and Lua inside an encrypted pack and load it with a DLL that Reforged cannot run. Both forms of the pack can now be opened with only what the map itself carries.
+  - **Fix map** unpacks it into normal files: textures, Lua, and models converted back to MDX. It also puts the real JASS of `war3map.jx` back as the map script. You can choose to keep `game.pkg` instead, so the map still works with its own loader.
+  - **Port to Reforged** replaces the DLL with a runtime that links the map's JASS and Lua. I tested two maps of this kind on Reforged: one loads and starts with its terrain and units, the other reaches gameplay.
+  - What does not come along: any interface the map draws through its DLL (cocos2d-x), and the answers of the author's server, so saved progress, rankings and rewards do not work. The port report says so.
+- **Fix map, "Make the Lua run on Reforged":** for maps whose game is Lua run by a DLL (the YDWE Lua engine and the maps above). It does the same work as Port for these maps, so the script becomes Lua and it takes minutes. It is off by default and appears only where the map can have Lua.
+
+### Fixed
+
+- **Open in World Editor with a classic game as target:** real numbers of 10 or more digits no longer come out of KK compiled scripts, because the classic compiler wraps them into a much larger value. A real with no exact short form now uses the nearest decimal instead of refusing the map, and the report counts them. Suggested by caiohsr14.
+- **Translation:** the two keys of the `YDWE...ByString` table functions are no longer translated, so the map still finds what it saved. The value stays translatable. Suggested by caiohsr14.
+- **Translation of protected maps:** object ids whose bytes contain a line break or a quote are no longer split when the script is read. On one protected map, 202 ids silently turned into other ids.
+- **Map card:** a map rebuilt with a larger file table could be refused with "The entry of block ... changed in the new map".
+
 ## 2.1.3 (2026-11-08)
 
 ### Added
