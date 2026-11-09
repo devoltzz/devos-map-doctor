@@ -3525,5 +3525,11 @@
  "Put the real script back": "Rimetti lo script reale",
  "Replaces the DLL Reforged cannot load, as Port does. The script becomes Lua. Takes minutes.": "Sostituisce la DLL che Reforged non può caricare, come fa Port. Lo script diventa Lua. Richiede qualche minuto.",
  "this map does not run Lua through the YDWE engine": "questa mappa non esegue Lua tramite il motore YDWE",
- "war3map.jx becomes the map script and the loader leaves. Not when game.pkg stays.": "war3map.jx diventa lo script della mappa e il loader viene rimosso. Non se game.pkg resta."
+ "war3map.jx becomes the map script and the loader leaves. Not when game.pkg stays.": "war3map.jx diventa lo script della mappa e il loader viene rimosso. Non se game.pkg resta.",
+ "Cancelling...": "Annullamento...",
+ "Loading Python...": "Caricamento di Python...",
+ "Loading numpy and Pillow...": "Caricamento di numpy e Pillow...",
+ "Loading the engine...": "Caricamento del motore...",
+ "an initial value longer than this editor reads": "un valore iniziale più lungo di quanto questo editor riesca a leggere",
+ "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "un testo di {0} byte, mentre questo editor ne legge al massimo {1} in un parametro di trigger"
 }
