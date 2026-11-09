@@ -958,7 +958,8 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
         not (a.find('war3map.wtg') and a.find('war3map.wct'))
     if not trigger_list:
         try:
-            reason = wtg_triggers.needs_regeneration(a.read('war3map.wtg'), tgt['arities'] if tgt else None) or (
+            reason = wtg_triggers.needs_regeneration(a.read('war3map.wtg'), tgt['arities'] if tgt else None,
+                                                     wtg_triggers.CLASSIC_LIMIT if tgt else None) or (
                 details['editor_target']['regenerate'] if tgt else None)
         except Exception:
             reason = None
