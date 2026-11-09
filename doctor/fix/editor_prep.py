@@ -637,7 +637,7 @@ def _pjass_check(body_text, clashes):
     )
 
 
-def script_restore(entry, output, kind, log=print):
+def script_restore(entry, output, kind, log=print, classic=False):
     try:
         from doctor.script import j2b
         from doctor.script import kkwe
@@ -669,7 +669,8 @@ def script_restore(entry, output, kind, log=print):
         else:
             bc = kkwe.Bytecode(kkwe.read_container(data_bytes))
             map_own = ''
-        body_text, details = kkwe_decompile.recover(bc, common, blizzard, None, map_own, no_clash=True)
+        body_text, details = kkwe_decompile.recover(bc, common, blizzard, None, map_own, no_clash=True,
+                                                    classic_reals=classic)
     except kkwe_decompile.DecompileError as e:
         raise ScriptNotRestored(str(e))
     except OSError as e:
