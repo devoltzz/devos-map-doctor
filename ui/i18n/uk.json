@@ -3524,5 +3524,11 @@
  "Put the real script back": "Повернути справжній скрипт",
  "Replaces the DLL Reforged cannot load, as Port does. The script becomes Lua. Takes minutes.": "Замінює DLL, яку Reforged не може завантажити, як і Портування. Скрипт стає Lua. Займає кілька хвилин.",
  "this map does not run Lua through the YDWE engine": "ця мапа не запускає Lua через рушій YDWE",
- "war3map.jx becomes the map script and the loader leaves. Not when game.pkg stays.": "war3map.jx стає скриптом мапи, а завантажувач зникає. Не діє, якщо game.pkg залишається."
+ "war3map.jx becomes the map script and the loader leaves. Not when game.pkg stays.": "war3map.jx стає скриптом мапи, а завантажувач зникає. Не діє, якщо game.pkg залишається.",
+ "Cancelling...": "Скасування...",
+ "Loading Python...": "Завантаження Python...",
+ "Loading numpy and Pillow...": "Завантаження numpy і Pillow...",
+ "Loading the engine...": "Завантаження рушія...",
+ "an initial value longer than this editor reads": "початкове значення довше, ніж може прочитати цей редактор",
+ "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "текст у {0} байтів, а цей редактор читає в параметрі тригера щонайбільше {1}"
 }
