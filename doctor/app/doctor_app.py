@@ -158,6 +158,16 @@ STEP_TEXT = {
     'fake_list': ('Remove the fake files', 'Junk the protector added.'),
     'listing': ('Write a real file list', 'A (listfile) with every real name.'),
     'ids': ('Restore the object ids', 'The ids scrambled in the map data.'),
+    'xm_unpack': ('Unpack game.pkg into the map', 'Its models, textures and scripts become normal files.'),
+    'xm_keep_package': ('Also keep game.pkg', 'The map stays playable with its own loader, but gets much bigger.'),
+    'xm_script': (
+        'Put the real script back',
+        'war3map.jx becomes the map script and the loader leaves. Not when game.pkg stays.',
+    ),
+    'lua_reforged': (
+        'Make the Lua run on Reforged',
+        'Replaces the DLL Reforged cannot load, as Port does. The script becomes Lua. Takes minutes.',
+    ),
     'dados:file_column': ('Move the unit and item models to the skin files', 'Crashes 3.0 on the first unit.'),
     'dados:levels': ('Add ability levels 5 and 6', 'Copies of level 4.'),
     'dados:buttonpos': ('Complete half-written button positions', 'Like Buttonpos=,2.'),
@@ -246,14 +256,20 @@ def editor_version_guess(path, d=None):
 def page_summary(D, d):
     codes = sorted(set(p['code'] for p in d.get('protections') or []))
     data = [c for c in codes if c in D.DATA_ONLY]
-    return {'codes': codes, 'data_problems': len(data), 'slk': list(d.get('slk') or []),
-            'protected': any(c not in D.BUTTON3_ONLY and c not in D.DATA_ONLY and c not in NOTICE_CODES
-                             for c in codes),
-            'editor_ready': (d.get('editor') or {}).get('status') == 'ready', 'script': d.get('script'),
-            'script_label': SCRIPT_LABEL.get(d.get('script')) or (d.get('script') and 'unknown'),
-            'can_fix': d.get('fixable') == 'yes', 'campaign': bool(d.get('campaign_info')),
-            'package': d.get('kind') == 'is_pack', 'package_info': page_package(d.get('is_pack')),
-            'no_edit': bool(d.get('no_edit'))}
+    return {
+        'codes': codes,
+        'data_problems': len(data),
+        'slk': list(d.get('slk') or []),
+        'protected': any(c not in D.BUTTON3_ONLY and c not in D.DATA_ONLY and c not in NOTICE_CODES for c in codes),
+        'editor_ready': (d.get('editor') or {}).get('status') == 'ready',
+        'script': d.get('script'),
+        'script_label': SCRIPT_LABEL.get(d.get('script')) or (d.get('script') and 'unknown'),
+        'can_fix': d.get('fixable') == 'yes' or (d.get('fixable') == 'nothing' and bool(d.get('lua_engine'))),
+        'campaign': bool(d.get('campaign_info')),
+        'package': d.get('kind') == 'is_pack',
+        'package_info': page_package(d.get('is_pack')),
+        'no_edit': bool(d.get('no_edit')),
+    }
 
 
 def page_package(pk):
