@@ -1147,6 +1147,8 @@ def _other_files_same(a, b, changed):
     for n in changed:
         allowed.update(e[0] for e in a.hash_entries(n))
         allowed.update(e[0] for e in b.hash_entries(n))
+    names = set(tuple(a.ht[4 * i:4 * i + 2]) for i in allowed if i < a.hash_n_read)
+    allowed.update(i for i in range(a.hash_n_read) if tuple(a.ht[4 * i:4 * i + 2]) in names)
     blocks, same = set(), 0
     for i in range(a.hash_n_read):
         if i in allowed:
