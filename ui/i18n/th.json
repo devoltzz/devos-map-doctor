@@ -3511,5 +3511,18 @@
  "Numbers that changed, a text much longer than the original, or Chinese, Japanese or Korean left in it: they go in as written. The other texts left out would break the map.": "ตัวเลขที่เปลี่ยนไป ข้อความที่ยาวกว่าต้นฉบับมาก หรือภาษาจีน ญี่ปุ่น หรือเกาหลีที่ตกค้างอยู่ในนั้น: จะถูกใช้ตามที่เขียนไว้ ส่วนข้อความอื่นที่ถูกเว้นไว้จะทำให้แมพเสีย",
  "Run the map's start on the loading screen": "รันส่วนเริ่มต้นของแผนที่บนหน้าจอโหลด",
  "For a map that freezes right after it starts and then runs too fast, or skips the character selection. The loading screen takes longer, and on a very heavy map a player can drop in multiplayer while it loads.": "สำหรับแผนที่ที่ค้างทันทีหลังเริ่มแล้วทำงานเร็วเกินไป หรือข้ามการเลือกตัวละคร หน้าจอโหลดจะใช้เวลานานขึ้น และในแผนที่ที่หนักมาก ผู้เล่นอาจหลุดจากโหมดผู้เล่นหลายคนระหว่างที่โหลด",
- "the first seconds: if the game freezes right after it starts and then time runs too fast (or the character selection is skipped), port again with \"Run the map's start on the loading screen\" (--start-on-loading-screen)": "ไม่กี่วินาทีแรก: หากเกมค้างทันทีหลังเริ่มแล้วเวลาเดินเร็วเกินไป (หรือข้ามการเลือกตัวละคร) ให้พอร์ตใหม่ด้วย \"รันส่วนเริ่มต้นของแผนที่บนหน้าจอโหลด\" (--start-on-loading-screen)"
+ "the first seconds: if the game freezes right after it starts and then time runs too fast (or the character selection is skipped), port again with \"Run the map's start on the loading screen\" (--start-on-loading-screen)": "ไม่กี่วินาทีแรก: หากเกมค้างทันทีหลังเริ่มแล้วเวลาเดินเร็วเกินไป (หรือข้ามการเลือกตัวละคร) ให้พอร์ตใหม่ด้วย \"รันส่วนเริ่มต้นของแผนที่บนหน้าจอโหลด\" (--start-on-loading-screen)",
+ "Unpack game.pkg into the map": "แตกไฟล์ game.pkg เข้าไปในแมพ",
+ "Its models, textures and scripts become normal files.": "โมเดล เท็กซ์เจอร์ และสคริปต์ของมันจะกลายเป็นไฟล์ปกติ",
+ "Also keep game.pkg": "เก็บ game.pkg ไว้ด้วย",
+ "The map stays playable with its own loader, but gets much bigger.": "แมพยังเล่นได้ด้วยตัวโหลดของมันเอง แต่จะมีขนาดใหญ่ขึ้นมาก",
+ "Encrypted package game.pkg (xmload maps): \"Fix map\" unpacks its models, textures and scripts.": "แพ็กเกจที่เข้ารหัส game.pkg (แมพ xmload): \"ซ่อมแมพ\" จะแตกไฟล์โมเดล เท็กซ์เจอร์ และสคริปต์ของมัน",
+ "Unpacked game.pkg: {0} into the map ({1}).": "แตกไฟล์ game.pkg แล้ว: {0} เข้าไปในแมพ ({1})",
+ "the package was kept": "เก็บแพ็กเกจไว้แล้ว",
+ "the package was removed": "ลบแพ็กเกจแล้ว",
+ "Make the Lua run on Reforged": "ทำให้ Lua รันบน Reforged ได้",
+ "Put the real script back": "คืนสคริปต์จริงกลับมา",
+ "Replaces the DLL Reforged cannot load, as Port does. The script becomes Lua. Takes minutes.": "แทนที่ DLL ที่ Reforged โหลดไม่ได้ เหมือนที่ พอร์ต ทำ สคริปต์จะกลายเป็น Lua ใช้เวลาไม่กี่นาที",
+ "this map does not run Lua through the YDWE engine": "แมพนี้ไม่ได้รัน Lua ผ่านเอนจิน YDWE",
+ "war3map.jx becomes the map script and the loader leaves. Not when game.pkg stays.": "war3map.jx จะกลายเป็นสคริปต์ของแมพ และตัวโหลดจะหายไป ไม่ใช้กับกรณีที่เก็บ game.pkg ไว้"
 }
