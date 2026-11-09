@@ -3524,5 +3524,11 @@
  "Put the real script back": "Gerçek betiği geri koy",
  "Replaces the DLL Reforged cannot load, as Port does. The script becomes Lua. Takes minutes.": "Reforged'un yükleyemediği DLL'i, Port'un yaptığı gibi değiştirir. Betik Lua olur. Dakikalar sürer.",
  "this map does not run Lua through the YDWE engine": "bu harita Lua'yı YDWE motoru üzerinden çalıştırmıyor",
- "war3map.jx becomes the map script and the loader leaves. Not when game.pkg stays.": "war3map.jx harita betiği olur ve yükleyici kaldırılır. game.pkg kalıyorsa olmaz."
+ "war3map.jx becomes the map script and the loader leaves. Not when game.pkg stays.": "war3map.jx harita betiği olur ve yükleyici kaldırılır. game.pkg kalıyorsa olmaz.",
+ "Cancelling...": "İptal ediliyor...",
+ "Loading Python...": "Python yükleniyor...",
+ "Loading numpy and Pillow...": "numpy ve Pillow yükleniyor...",
+ "Loading the engine...": "Motor yükleniyor...",
+ "an initial value longer than this editor reads": "bu editörün okuyabildiğinden daha uzun bir başlangıç değeri",
+ "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "{0} baytlık bir metin; bu editör bir tetikleyici parametresinde en fazla {1} bayt okuyor"
 }
