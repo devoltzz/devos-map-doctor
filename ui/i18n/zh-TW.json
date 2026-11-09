@@ -3511,5 +3511,18 @@
  "Numbers that changed, a text much longer than the original, or Chinese, Japanese or Korean left in it: they go in as written. The other texts left out would break the map.": "數字已更改、文字比原文長得多，或其中殘留中文、日文或韓文：這些文字將依原樣寫入。其他被排除的文字會破壞地圖。",
  "Run the map's start on the loading screen": "在載入畫面執行地圖的開頭",
  "For a map that freezes right after it starts and then runs too fast, or skips the character selection. The loading screen takes longer, and on a very heavy map a player can drop in multiplayer while it loads.": "適用於啟動後立刻卡住、隨後執行過快，或跳過角色選擇的地圖。載入畫面會持續更久，而且在非常龐大的地圖上，玩家可能在載入時從多人遊戲中斷線。",
- "the first seconds: if the game freezes right after it starts and then time runs too fast (or the character selection is skipped), port again with \"Run the map's start on the loading screen\" (--start-on-loading-screen)": "最初幾秒：如果遊戲啟動後立刻卡住，隨後時間過快（或跳過了角色選擇），請使用\"在載入畫面執行地圖的開頭\"（--start-on-loading-screen）重新移植"
+ "the first seconds: if the game freezes right after it starts and then time runs too fast (or the character selection is skipped), port again with \"Run the map's start on the loading screen\" (--start-on-loading-screen)": "最初幾秒：如果遊戲啟動後立刻卡住，隨後時間過快（或跳過了角色選擇），請使用\"在載入畫面執行地圖的開頭\"（--start-on-loading-screen）重新移植",
+ "Unpack game.pkg into the map": "將 game.pkg 解包到地圖中",
+ "Its models, textures and scripts become normal files.": "其中的模型、貼圖和腳本會變成一般檔案。",
+ "Also keep game.pkg": "同時保留 game.pkg",
+ "The map stays playable with its own loader, but gets much bigger.": "地圖仍可透過自己的載入器遊玩，但檔案會大很多。",
+ "Encrypted package game.pkg (xmload maps): \"Fix map\" unpacks its models, textures and scripts.": "加密封包 game.pkg（xmload 地圖）：「修復地圖」會解包其中的模型、貼圖和腳本。",
+ "Unpacked game.pkg: {0} into the map ({1}).": "已將 game.pkg 解包：{0} 個檔案已放入地圖（{1}）。",
+ "the package was kept": "已保留封包",
+ "the package was removed": "已移除封包",
+ "Make the Lua run on Reforged": "讓 Lua 在 Reforged 上執行",
+ "Put the real script back": "還原真正的腳本",
+ "Replaces the DLL Reforged cannot load, as Port does. The script becomes Lua. Takes minutes.": "替換 Reforged 無法載入的 DLL,作法與「移植」相同。腳本會變成 Lua。需要數分鐘。",
+ "this map does not run Lua through the YDWE engine": "此地圖不透過 YDWE 引擎執行 Lua",
+ "war3map.jx becomes the map script and the loader leaves. Not when game.pkg stays.": "war3map.jx 會成為地圖腳本,載入器隨之移除。若保留 game.pkg 則不適用。"
 }
