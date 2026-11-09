@@ -136,21 +136,36 @@ function rgbaCanvas(img, maxSide) {
   return c;
 }
 
-const state = {
-  hello: null, settings: {}, map: null, open: null, jobs: {}, running: null, results: {},
-  gen: 0, tabState: {}, quietJobs: new Set(), images: {}, imageData: {},
-  mode: null, pane: {},
-  trGroups: null, trSkip: new Set(), mtQuality: 'best',
-  trImages: false, trReview: null,
-  trOverride: null,
-  extras: { card: null, translation: null, models: null, modelNames: null, singlePlayer: null, portraits: null,
-    dataPointers: null, kkTextures: null, disabledIcons: null, consoleSides: null, uabi: null, preload: null, attributes: null, gameOverrides: null, graphicsModes: null, requirements: null, modelPaths: null, fdf: null, slkObjects: null, lobbyImage: null },
-  cheatpacks: null, cheatPack: { id: null, options: {}, result: null },
-  qol: null, qolOpt: {}, qolResult: null,
-  rawcodes: null,
-  recipes: null,
-  editorVersion: 'reforged',
-};
+function mapState() {
+  return {
+    map: null, open: null, results: {}, lastError: null,
+    pane: {},
+    images: {}, imageData: {}, card: null, files: null, reforged: null,
+    newNames: null,
+    gameCheck: null,
+    extras: { card: null, translation: null, models: null, modelNames: null, singlePlayer: null, portraits: null,
+      dataPointers: null, kkTextures: null, disabledIcons: null, consoleSides: null, uabi: null, preload: null, attributes: null, gameOverrides: null, graphicsModes: null, requirements: null, modelPaths: null, fdf: null, slkObjects: null, lobbyImage: null },
+    trGroups: null, trSkip: new Set(), trReview: null, trOverride: null,
+    cheatpacks: null, cheatPack: { id: null, options: {}, result: null },
+    qol: null, qolOpt: {}, qolResult: null,
+    rawcodes: null, recipes: null,
+    editorVersion: 'reforged',
+    portResult: null, portPackages: [], portTargets: null, portTarget: '',
+    diag: { mode: 'entry', result: null, logs: null, log: null, crashes: null, crash: null, replays: null, replay: null,
+      checkMap: true },
+  };
+}
+
+const state = Object.assign({
+  hello: null, settings: {},
+  jobs: {}, running: null, cancelling: null, quietJobs: new Set(),
+  gen: 0,
+  tabState: {}, mode: null,
+  say: '', sayAt: 0,
+  mtQuality: 'best', trImages: false, cheatDurable: false,
+  portMemory: true, portTextures: true, portIcons: true, portClassic: false, portOnLoad: false, portBalance: false,
+  portGameFiles: false, portLossy: false,
+}, mapState());
 
 const api = () => new Proxy(window.pywebview.api, { get(target, name) {
   const v = target[name];
@@ -168,24 +183,62 @@ function tagApi(e, name) {
 
 const pendingEvents = {};
 
-const STARTING = '(starting)';
+const STARTING = '(starting)', UPDATING = '(updating)';
+const BUSY = 'Wait for the current job to finish, or cancel it.';
+
+function jobPhase() {
+  const r = state.running;
+  return !r ? 'idle' : r === STARTING ? 'starting' : r === UPDATING ? 'updating' :
+    state.cancelling === r ? 'cancelling' : 'running';
+}
+
+let timer = null;
+
+function beginJob(label) {
+  if (state.running) throw { busy: true, cancelled: true, message: BUSY };
+  state.running = STARTING;
+  $('#jobLabel').textContent = label;
+  $('#jobTime').textContent = '0:00';
+  $('#btnCancel').disabled = true;
+  $('#jobCard').classList.remove('hidden');
+  const t0 = Date.now();
+  clearInterval(timer);
+  timer = setInterval(() => { $('#jobTime').textContent = clock((Date.now() - t0) / 1000); renderCat(); }, 250);
+  setBusy(true);
+}
+
+function jobStarted(id) {
+  state.running = id;
+  $('#btnCancel').disabled = false;
+}
+
+function endJob() {
+  state.running = null;
+  state.cancelling = null;
+  clearInterval(timer);
+  $('#jobCard').classList.add('hidden');
+  $('#btnCancel').disabled = false;
+  setBusy(false);
+}
+
 async function run(task, params, opts) {
   opts = opts || {};
-  if (!opts.quiet) { state.running = STARTING; setBusy(true); }
+  if (!opts.quiet) beginJob(opts.label || 'Working...');
+  const gen = state.gen;
   let id;
   try {
     id = await api().start(task, Object.assign({ map: state.map }, params || {}, opts.quiet ? { quiet: true } : {}));
   } catch (e) {
-    if (!opts.quiet && state.running === STARTING) { state.running = null; setBusy(false); }
+    if (!opts.quiet && state.running === STARTING) endJob();
     throw e;
   }
   const ex = (params || {}).extras || {};
   const key = task + (Object.keys(ex).length ? ':' + Object.keys(ex).filter(k => ex[k]).sort().join(',') : '');
   return new Promise((resolve, reject) => {
-    state.jobs[id] = { task, key, resolve, reject, started: Date.now(), label: opts.label, quiet: opts.quiet,
+    state.jobs[id] = { task, key, resolve, reject, started: Date.now(), label: opts.label, quiet: opts.quiet, gen,
       size: state.open ? state.open.size : null, path: '', seen: {}, ended: {}, count: null, rate: {} };
     if (opts.quiet) state.quietJobs.add(id);
-    else showJob(id, opts.label || 'Working...');
+    else jobStarted(id);
     const early = pendingEvents[id];
     if (early) { delete pendingEvents[id]; early.forEach(ev => window.doctor.onEvent(ev)); }
   });
@@ -209,7 +262,7 @@ window.doctor = {
     }
     if (ev.type === 'progress') {
       if (!job.quiet) noteScope(job, ev);
-      if (!job.quiet && state.running === ev.job) {
+      if (!job.quiet && state.running === ev.job && state.cancelling !== ev.job) {
         $('#jobLabel').textContent = ev.label + (ev.total ? ' ' + ev.done + '/' + ev.total : '');
       }
       if (job.onProgress) job.onProgress(ev.label);
@@ -218,25 +271,15 @@ window.doctor = {
     if (ev.type !== 'result' && ev.type !== 'cancelled' && ev.type !== 'error') return;
     delete state.jobs[ev.job];
     state.quietJobs.delete(ev.job);
-    if (state.running === ev.job) hideJob();
-    if (ev.type === 'result') { if (!job.quiet) learnTime(job); job.resolve(ev.data); }
-    else if (ev.type === 'cancelled') job.reject({ cancelled: true, kept: !!ev.kept, output: ev.output || null,
-      message: 'Cancelled.' });
+    if (state.running === ev.job) endJob();
+    const stale = job.gen !== state.gen;
+    if (ev.type === 'result' && !stale) { if (!job.quiet) learnTime(job); job.resolve(ev.data); }
+    else if (ev.type === 'cancelled' || stale) job.reject({ cancelled: true, kept: !!ev.kept,
+      output: ev.output || null, message: 'Cancelled.' });
     else job.reject({ message: ev.message, trace: ev.trace });
   },
 };
 
-let timer = null;
-function showJob(id, label) {
-  state.running = id;
-  $('#jobLabel').textContent = label;
-  $('#jobTime').textContent = '0:00';
-  $('#jobCard').classList.remove('hidden');
-  const t0 = Date.now();
-  clearInterval(timer);
-  timer = setInterval(() => { $('#jobTime').textContent = clock((Date.now() - t0) / 1000); renderCat(); }, 250);
-  setBusy(true);
-}
 
 const BAR = 14;
 function isPrefix(p, path) { return !p || path === p || path.startsWith(p + '/'); }
@@ -417,23 +460,23 @@ function renderCat() {
   line.textContent = 'working\n' + bar + '\n' + tail;
 }
 
-async function cancelRunning() {
-  const id = state.running;
-  if (!id || !state.jobs[id]) return;
+const LOST_JOB_WAIT = 1500;
+async function cancelJob(id) {
   let known = true;
   try { known = await api().cancel(id); } catch (e) { known = false; }
   if (known !== false) return;
-  setTimeout(() => {
-    if (state.running === id && state.jobs[id]) window.doctor.onEvent({ type: 'cancelled', job: id });
-  }, 1500);
+  setTimeout(() => { if (state.jobs[id]) window.doctor.onEvent({ type: 'cancelled', job: id }); }, LOST_JOB_WAIT);
 }
 
-function hideJob() {
-  state.running = null;
-  clearInterval(timer);
-  $('#jobCard').classList.add('hidden');
-  setBusy(false);
+function cancelRunning() {
+  const id = state.running;
+  if (jobPhase() !== 'running' || !state.jobs[id]) return null;
+  state.cancelling = id;
+  $('#btnCancel').disabled = true;
+  $('#jobLabel').textContent = 'Cancelling...';
+  return cancelJob(id);
 }
+
 function setBusy(busy) {
   $$('.needs-idle').forEach(b => { b.disabled = busy || b.hasAttribute('data-off'); });
   $('#btnOpen').disabled = busy;
@@ -442,6 +485,7 @@ function setBusy(busy) {
 }
 
 function failed(e, what) {
+  if (e && e.busy) { toast(e.message); return; }
   if (e && e.cancelled) {
     status('Cancelled.');
     if (e.kept) toast(what + ' was cancelled. What it had written before the cancel stays as ' + base(e.output) + '.',
@@ -493,37 +537,11 @@ async function pickMap() {
 }
 
 async function openMap(path) {
-  if (state.running) { toast('Wait for the current job to finish, or cancel it.'); return; }
+  if (state.running) { toast(BUSY); return; }
   const gen = ++state.gen;
-  for (const id of state.quietJobs) api().cancel(id);
+  for (const id of state.quietJobs) cancelJob(id);
   state.quietJobs.clear();
-  state.map = path;
-  state.open = null;
-  state.newNames = null;
-  state.lastError = null;
-  state.card = state.files = state.reforged = null;
-  state.gameCheck = null;
-  state.images = {};
-  state.imageData = {};
-  state.results = {};
-  state.portResult = null;
-  state.portPackages = [];
-  state.portTargets = null;
-  state.portTarget = '';
-  state.extras = { card: null, translation: null, models: null, modelNames: null, singlePlayer: null, portraits: null,
-    dataPointers: null, kkTextures: null, disabledIcons: null, consoleSides: null, uabi: null, preload: null, attributes: null, gameOverrides: null, graphicsModes: null, requirements: null, modelPaths: null, fdf: null, slkObjects: null, lobbyImage: null };
-  state.cheatpacks = null;
-  state.cheatPack = { id: null, options: {}, result: null };
-  state.qol = null;
-  state.qolOpt = {};
-  state.qolResult = null;
-  state.trGroups = null;
-  state.trSkip = new Set();
-  state.trOverride = null;
-  state.rawcodes = null;
-  state.recipes = null;
-  state.editorVersion = 'reforged';
-  state.diag = { mode: 'entry', result: null, logs: null, log: null, crashes: null, crash: null, checkMap: true };
+  Object.assign(state, mapState(), { map: path });
   TABS.forEach(n => setTabState(n, 'wait'));
   $('#welcome').classList.add('hidden');
   $('#mapview').classList.remove('hidden');
@@ -534,7 +552,6 @@ async function openMap(path) {
   $('#diagLines').replaceChildren();
   $$('.tab').forEach(t => { if (!ACTIONS[t.id.slice(4)]) t.replaceChildren(); });
   Object.keys(ACTIONS).forEach(a => { $('#action-' + a).replaceChildren(); $('#results-' + a).replaceChildren(); });
-  state.pane = {};
   $('#app').classList.add('hasmap');
   selectTab('fix');
   const ctx = $('#thumb').getContext('2d');
@@ -550,6 +567,7 @@ async function openMap(path) {
     status('Ready.');
     if (r.summary.package) { openPackage(gen); return; }
     if (r.summary.no_edit) { openNoEdit(gen); return; }
+    if (r.summary.no_map) { openNoMap(); return; }
     renderTranslation();
     renderCompare();
     renderPort();
@@ -593,6 +611,18 @@ function openNoEdit(gen) {
   loadCard(gen);
 }
 const NO_EDIT_NOTE = 'Not allowed to edit';
+
+function openNoMap() {
+  for (const n of TABS) {
+    tabBody(n, el('div', { class: 'card' }, reportLines(noMapLines())));
+    setTabState(n, 'ready');
+  }
+}
+function noMapLines() {
+  const lines = (state.open && state.open.lines) || [];
+  const bad = lines.findIndex(l => l[0] === 'bad');
+  return bad < 0 ? lines : lines.slice(bad);
+}
 const JN_EDITOR = 'JassNative Editor';
 
 function renderHeader() {
@@ -606,6 +636,11 @@ function renderHeader() {
     b.push(el('span', { class: 'badge', text: pk.files + ' files, ' + pk.models + ' models, ' + pk.images +
       ' images' }));
     $('#badges').replaceChildren(...b);
+    $('#diagLines').replaceChildren(linesView(o.lines));
+    return;
+  }
+  if (s.no_map) {
+    $('#badges').replaceChildren(el('span', { class: 'badge bad', text: 'The map cannot be read.' }));
     $('#diagLines').replaceChildren(linesView(o.lines));
     return;
   }
@@ -764,7 +799,7 @@ async function checkReforgedQuietly(gen) {
     if (gen !== state.gen) return;
     const badge = $('#reforgedBadge');
     if (badge) badge.textContent = 'Runs on Reforged? could not check';
-    tabFailed('reforged', 'Checking whether it runs on Reforged', e);
+    tabFailed('reforged', e);
   }
 }
 
@@ -992,6 +1027,10 @@ function renderAction(action) {
   if (state.open.summary.no_edit) {
     return el('div', { class: 'card action', 'data-action': action }, el('div', { class: 'head' },
       el('h2', { text: a.title })), el('p', { class: 'muted', text: NO_EDIT_NOTE }));
+  }
+  if (state.open.summary.no_map) {
+    return el('div', { class: 'card action', 'data-action': action }, el('div', { class: 'head' },
+      el('h2', { text: a.title })), reportLines(noMapLines()));
   }
   const picked = choices(action);
   const steps = state.open.steps.filter(x => x.action === action);
@@ -1231,18 +1270,33 @@ async function reportProblem() {
 function offerUpdate(release) {
   const v = (release.version || '').replace(/^v/i, '');
   const u = $('#update');
-  u.className = 'badge info';
-  u.textContent = 'Version ' + v + ' is out';
-  u.style.cursor = 'pointer';
+  const offer = () => {
+    u.className = 'badge info';
+    u.textContent = 'Version ' + v + ' is out';
+    u.style.cursor = 'pointer';
+  };
+  const idle = () => { if (state.running && state.running !== UPDATING) toast(BUSY); return !state.running; };
+  offer();
   u.onclick = async () => {
+    if (!idle()) return;
     const ok = await dialog('Update', el('p', { text: 'Version ' + v + ' is available (you have ' +
       state.hello.version + '). Install it now? The program restarts.' }),
       [['Not now', null], ['Install', true, true]]);
-    if (ok) {
-      status('Downloading the new version...');
-      const r = await api().install_update(release);
-      if (r !== true) toast('The update failed: ' + r + '. The release page opened instead.', { bad: true });
+    if (!ok || !idle()) return;
+    state.running = UPDATING;
+    setBusy(true);
+    status('Downloading the new version...');
+    u.textContent = 'Downloading the new version...';
+    u.style.cursor = 'default';
+    let r;
+    try {
+      r = await api().install_update(release);
+    } finally {
+      state.running = null;
+      setBusy(false);
+      offer();
     }
+    if (r !== true) toast('The update failed: ' + r + '. The release page opened instead.', { bad: true });
   };
 }
 
@@ -1262,6 +1316,10 @@ const MODES = { fix: ['fix', 'reforged'], editor: ['editor', 'card', 'triggers']
   cheatpacks: ['cheatpacks'], qol: ['qol'], translation: ['translation'], inspect: ['files', 'script', 'compare'],
   diagnose: ['diagnose'] };
 const modeOf = name => Object.keys(MODES).find(m => MODES[m].includes(name));
+
+const TAB_WHAT = { card: 'Reading the map card', files: 'Listing the files', script: 'Reading the script',
+  cheatpacks: 'Reading the cheat packs', qol: 'Reading the map for the QoL edits', triggers: 'Reading the triggers',
+  reforged: 'Checking whether it runs on Reforged' };
 
 function setTabState(name, st) {
   state.tabState[name] = st;
@@ -1284,8 +1342,8 @@ async function loadTabsInBackground(gen) {
       new Promise(r => { limit = setTimeout(() => r(true), TAB_TIME_LIMIT * 1000); })]);
     clearTimeout(limit);
     if (timedOut && gen === state.gen) {
-      for (const id of state.quietJobs) if (!before.has(id)) api().cancel(id);
-      setTabState(name, 'failed');
+      tabFailed(name, { cancelled: true });
+      for (const id of state.quietJobs) if (!before.has(id)) cancelJob(id);
     }
   }
   await groups;
@@ -1317,7 +1375,8 @@ function selectMode(mode) {
 function tabBody(name, ...kids) {
   $('#tab-' + name).replaceChildren(...kids.flat().filter(k => k !== null && k !== undefined && k !== false));
 }
-function tabFailed(name, what, e) {
+function tabFailed(name, e) {
+  const what = TAB_WHAT[name];
   setTabState(name, 'failed');
   tabBody(name, el('div', { class: 'card' }, el('div', { class: 'report' },
     el('div', { class: 'l bad', text: what + (e && e.cancelled ? ' was cancelled.' : ' failed.') }),
@@ -1379,7 +1438,7 @@ async function loadCard(gen) {
     state.imageData = { minimap, preview };
     renderCard();
     setTabState('card', 'ready');
-  } catch (e) { if (gen === state.gen) tabFailed('card', 'Reading the map card', e); }
+  } catch (e) { if (gen === state.gen) tabFailed('card', e); }
 }
 
 function renderCard() {
@@ -1649,7 +1708,7 @@ async function loadFiles(gen) {
     state.files = f;
     renderFiles();
     setTabState('files', 'ready');
-  } catch (e) { if (gen === state.gen) tabFailed('files', 'Listing the files', e); }
+  } catch (e) { if (gen === state.gen) tabFailed('files', e); }
 }
 
 function renderFiles() {
@@ -2047,7 +2106,7 @@ async function loadScript(gen) {
         s.error ? el('div', { class: 'report' }, el('div', { class: 'l bad', text: s.error })) :
           el('p', { class: 'muted', text: 'No readable script.' })));
     setTabState('script', 'ready');
-  } catch (e) { if (gen === state.gen) tabFailed('script', 'Reading the script', e); }
+  } catch (e) { if (gen === state.gen) tabFailed('script', e); }
 }
 
 const HEAT_TEXT = { hot: 'periodic timer', repeat: 'event', once: 'start', unused: 'never runs' };
@@ -2084,13 +2143,13 @@ async function loadCheatpacks(gen) {
   try {
     const s = await run('cheatpacks', {}, { quiet: true });
     if (gen !== state.gen) return;
-    if (s.error) { tabFailed('cheatpacks', 'Reading the cheat packs', { message: s.error }); return; }
+    if (s.error) { tabFailed('cheatpacks', { message: s.error }); return; }
     state.cheatpacks = s;
     const packs = s.packs || [];
     if (!packs.some(p => p.id === state.cheatPack.id)) state.cheatPack.id = packs.length ? packs[0].id : null;
     renderCheatpacks();
     setTabState('cheatpacks', 'ready');
-  } catch (e) { if (gen === state.gen) tabFailed('cheatpacks', 'Reading the cheat packs', e); }
+  } catch (e) { if (gen === state.gen) tabFailed('cheatpacks', e); }
 }
 
 function renderCheatpacks() {
@@ -2231,11 +2290,11 @@ async function loadQol(gen) {
   try {
     const s = await run('qol', {}, { quiet: true });
     if (gen !== state.gen) return;
-    if (s.error) { tabFailed('qol', 'Reading the map for the QoL edits', { message: s.error }); return; }
+    if (s.error) { tabFailed('qol', { message: s.error }); return; }
     state.qol = s;
     renderQol();
     setTabState('qol', 'ready');
-  } catch (e) { if (gen === state.gen) tabFailed('qol', 'Reading the map for the QoL edits', e); }
+  } catch (e) { if (gen === state.gen) tabFailed('qol', e); }
 }
 
 function qolValue(key) {
@@ -2376,7 +2435,7 @@ async function loadTriggers(gen) {
     if (gen !== state.gen) return;
     renderTriggers(t);
     setTabState('triggers', 'ready');
-  } catch (e) { if (gen === state.gen) tabFailed('triggers', 'Reading the triggers', e); }
+  } catch (e) { if (gen === state.gen) tabFailed('triggers', e); }
 }
 
 function renderTriggers(t) {
