@@ -3,6 +3,25 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 2.2.1 (2026-11-09)
+
+### Fixed
+
+- **Open in World Editor with a classic editor as target (1.24 to 1.29, JassNative Editor, KKWE):** a trigger with a text of more than 299 bytes crashed the editor while it loaded the map, usually with "Not enough storage is available to process this command. Object: .PAVCWETriggerFunction@@". The 1.21 editor that the JassNative Editor and KKWE are built on reads a trigger parameter into a buffer of that size and loses its place in the file after a longer one, so the crash came with translated maps, where the texts grow. The fix applies to every classic target. Such a trigger now comes back as a custom text trigger, with its code whole, and the report says how many. The same goes for a variable with a very long initial value, and a map that already has a trigger file with such a text gets its triggers rebuilt. I found this by reading the editor's code and I could not run it here, so please tell me if a map still does not open.
+- **A file that is not a map:** a file with no map inside, a download that was cut short or an archive that does not open used to load like any map, with a green "No MPQ protection" badge and the Fix map button ready. Now the header says the map cannot be read, and every tab and both actions say why.
+- **A tab that never got its data** opened blank after its time limit. It now opens on what happened, with "Try again".
+- **Answers of the previous map:** the review of a translation's images could show the images of the map opened before, when the next map loaded a translation file with the same name. "Read the raw codes" and "Find recipes" could do the same when another map was opened at that moment.
+
+### Changed
+
+- **Cancel:** after the click the job card says "Cancelling..." and the button turns off until the job ends, so a cancel that takes a moment no longer looks like a dead button. The card also shows the moment you start a job, not when the program answers.
+- **Updates:** while a new version downloads no job can start, because the program restarts when the download ends and a job in progress was lost. A second click on the update no longer downloads it twice.
+- **Browser version:** on the first visit, a job asked while the engine is still loading says what is loading (Python, its libraries, the engine) instead of a "Checking the map..." that did not move.
+
+### Known issue
+
+- The same report also showed KKWE stopping at "Terrain decorations loading 1 / 7203", before it reads the triggers. The doodads of that map check out against KKWE's own tables and I did not find the cause, so this one may still happen.
+
 ## 2.2.0 (2026-11-08)
 
 ### Added
