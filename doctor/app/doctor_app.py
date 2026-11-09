@@ -235,6 +235,7 @@ def page_steps(D, d):
 
 
 NOTICE_CODES = ('ntfs_copy',)
+NO_MAP = ('not_a_map', 'incomplete', 'cannot_read')
 
 
 def editor_version_guess(path, d=None):
@@ -269,6 +270,7 @@ def page_summary(D, d):
         'package': d.get('kind') == 'is_pack',
         'package_info': page_package(d.get('is_pack')),
         'no_edit': bool(d.get('no_edit')),
+        'no_map': d.get('fixable') in NO_MAP and not d.get('no_edit'),
     }
 
 
@@ -1579,6 +1581,7 @@ class Api:
         self._closed = False
         self._granted = set()
         self._release = None
+        self._installing = threading.Lock()
 
     def hello(self):
         repo = getattr(self._updater, 'REPOSITORY', None)
@@ -1936,6 +1939,8 @@ class Api:
             release = self._found_release(release)
         except ValueError as e:
             return str(e)
+        if not self._installing.acquire(False):
+            return True
         try:
             if self._updater.install(release):
                 self._window.destroy()
@@ -1943,6 +1948,8 @@ class Api:
         except Exception as e:
             self._updater.open_page(release)
             return str(e)
+        finally:
+            self._installing.release()
 
     def download_index(self, release):
         try:
