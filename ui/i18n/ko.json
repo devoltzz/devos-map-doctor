@@ -3512,5 +3512,18 @@
  "Numbers that changed, a text much longer than the original, or Chinese, Japanese or Korean left in it: they go in as written. The other texts left out would break the map.": "숫자가 바뀌었거나, 원문보다 훨씬 긴 텍스트이거나, 중국어·일본어·한국어가 남아 있는 텍스트: 작성된 그대로 적용됩니다. 제외된 나머지 텍스트는 맵을 망가뜨릴 것입니다.",
  "Run the map's start on the loading screen": "로딩 화면에서 맵의 시작 부분 실행",
  "For a map that freezes right after it starts and then runs too fast, or skips the character selection. The loading screen takes longer, and on a very heavy map a player can drop in multiplayer while it loads.": "시작 직후 멈췄다가 너무 빠르게 실행되거나 캐릭터 선택을 건너뛰는 맵용입니다. 로딩 화면이 더 오래 걸리며, 매우 무거운 맵에서는 로딩 중에 플레이어가 멀티플레이에서 튕길 수 있습니다.",
- "the first seconds: if the game freezes right after it starts and then time runs too fast (or the character selection is skipped), port again with \"Run the map's start on the loading screen\" (--start-on-loading-screen)": "처음 몇 초: 게임이 시작 직후 멈췄다가 시간이 너무 빠르게 흐르거나(또는 캐릭터 선택을 건너뛰면) \"로딩 화면에서 맵의 시작 부분 실행\"(--start-on-loading-screen) 옵션으로 다시 포팅하세요"
+ "the first seconds: if the game freezes right after it starts and then time runs too fast (or the character selection is skipped), port again with \"Run the map's start on the loading screen\" (--start-on-loading-screen)": "처음 몇 초: 게임이 시작 직후 멈췄다가 시간이 너무 빠르게 흐르거나(또는 캐릭터 선택을 건너뛰면) \"로딩 화면에서 맵의 시작 부분 실행\"(--start-on-loading-screen) 옵션으로 다시 포팅하세요",
+ "Unpack game.pkg into the map": "game.pkg를 맵에 풀기",
+ "Its models, textures and scripts become normal files.": "모델, 텍스처, 스크립트가 일반 파일로 바뀝니다.",
+ "Also keep game.pkg": "game.pkg도 함께 유지",
+ "The map stays playable with its own loader, but gets much bigger.": "맵은 자체 로더로 계속 플레이할 수 있지만 크기가 훨씬 커집니다.",
+ "Encrypted package game.pkg (xmload maps): \"Fix map\" unpacks its models, textures and scripts.": "암호화된 패키지 game.pkg (xmload 맵): \"맵 수정\"을 누르면 모델, 텍스처, 스크립트를 풉니다.",
+ "Unpacked game.pkg: {0} into the map ({1}).": "game.pkg를 풀었습니다: {0}개를 맵에 넣었습니다 ({1}).",
+ "the package was kept": "패키지를 유지했습니다",
+ "the package was removed": "패키지를 제거했습니다",
+ "Make the Lua run on Reforged": "Lua를 Reforged에서 실행되게 하기",
+ "Put the real script back": "실제 스크립트 복원",
+ "Replaces the DLL Reforged cannot load, as Port does. The script becomes Lua. Takes minutes.": "포팅 탭처럼 Reforged가 불러올 수 없는 DLL을 교체합니다. 스크립트는 Lua가 됩니다. 몇 분 걸립니다.",
+ "this map does not run Lua through the YDWE engine": "이 맵은 YDWE 엔진으로 Lua를 실행하지 않습니다",
+ "war3map.jx becomes the map script and the loader leaves. Not when game.pkg stays.": "war3map.jx가 맵 스크립트가 되고 로더는 제거됩니다. game.pkg를 유지하면 적용되지 않습니다."
 }
