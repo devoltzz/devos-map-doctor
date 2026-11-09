@@ -21,6 +21,16 @@
   const say = (text, opts) => (typeof window.toast === 'function' ? window.toast(text, opts) : window.alert(text));
   const mb = n => Math.round(n / 1048576) + ' MB';
 
+  const BOOT_TEXT = ['Loading Python...', 'Loading numpy and Pillow...', 'Loading the engine...'];
+  void BOOT_TEXT;
+
+  function tellBoot(key, label, only) {
+    for (const [id, job] of jobs) {
+      if (job.key !== key || (only && id !== only)) continue;
+      if (job.silent) { if (job.silent.progress) job.silent.progress(label); } else emit({ type: 'progress', job: id, label });
+    }
+  }
+
   function stale() {
     const rec = { stale: true, ready: Promise.reject(new Error(NEW_VERSION)),
       w: { postMessage: m => { if (m && m.type === 'index') emit({ type: 'index_failed', message: NEW_VERSION }); },
@@ -37,8 +47,9 @@
     rec.ready.catch(() => {});
     w.onmessage = ev => {
       const m = ev.data;
-      if (m.type === 'ready') ok();
-      else if (m.type === 'boot_failed') bad(new Error(m.message));
+      if (m.type === 'boot') { rec.boot = m.label; tellBoot(key, m.label); }
+      else if (m.type === 'ready') { rec.boot = null; ok(); }
+      else if (m.type === 'boot_failed') { rec.boot = null; bad(new Error(m.message)); }
       else if (m.type === 'broken') { if (workers[key] === rec) retire(key, null); }
       else if (m.type === 'read') {
         const r = reads.get(m.rid);
@@ -186,6 +197,7 @@
       if (silent) silent.resolve(ev); else emit(ev);
     });
     rec.w.postMessage({ type: 'job', job });
+    if (rec.boot) tellBoot(key, rec.boot, id);
     return id;
   }
 
