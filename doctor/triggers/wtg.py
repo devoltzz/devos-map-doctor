@@ -495,6 +495,23 @@ def iter_functions(functions):
         yield from iter_functions(f.children)
 
 
+CLASSIC_MAX_VALUE = 299
+
+
+def fits_classic(text):
+    return len(text.encode('utf-8', 'surrogateescape')) <= CLASSIC_MAX_VALUE
+
+
+def longest_parameter(functions):
+    longest = 0
+    for f in iter_functions(functions):
+        for p in f.params:
+            while p is not None:
+                longest = max(longest, len(p.value.encode('utf-8', 'surrogateescape')))
+                p = p.index
+    return longest
+
+
 def tree(mt):
     stack, seen, out = [], {}, []
     at = {}
