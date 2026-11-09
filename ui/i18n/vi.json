@@ -3524,5 +3524,11 @@
  "Put the real script back": "Khôi phục script gốc",
  "Replaces the DLL Reforged cannot load, as Port does. The script becomes Lua. Takes minutes.": "Thay thế DLL mà Reforged không thể tải, giống như Chuyển đổi. Script trở thành Lua. Mất vài phút.",
  "this map does not run Lua through the YDWE engine": "bản đồ này không chạy Lua qua engine YDWE",
- "war3map.jx becomes the map script and the loader leaves. Not when game.pkg stays.": "war3map.jx trở thành script của bản đồ và trình nạp bị gỡ bỏ. Không áp dụng khi giữ lại game.pkg."
+ "war3map.jx becomes the map script and the loader leaves. Not when game.pkg stays.": "war3map.jx trở thành script của bản đồ và trình nạp bị gỡ bỏ. Không áp dụng khi giữ lại game.pkg.",
+ "Cancelling...": "Đang hủy...",
+ "Loading Python...": "Đang tải Python...",
+ "Loading numpy and Pillow...": "Đang tải numpy và Pillow...",
+ "Loading the engine...": "Đang tải engine...",
+ "an initial value longer than this editor reads": "giá trị khởi tạo dài hơn mức editor này đọc được",
+ "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "một văn bản dài {0} byte, trong khi editor này chỉ đọc tối đa {1} trong một tham số trigger"
 }
