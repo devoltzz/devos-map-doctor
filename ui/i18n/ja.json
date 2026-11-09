@@ -3525,5 +3525,11 @@
  "Put the real script back": "本来のスクリプトに戻す",
  "Replaces the DLL Reforged cannot load, as Port does. The script becomes Lua. Takes minutes.": "Reforged が読み込めない DLL を、移植と同じように置き換えます。スクリプトは Lua になります。数分かかります。",
  "this map does not run Lua through the YDWE engine": "このマップは YDWE エンジン経由で Lua を実行しません",
- "war3map.jx becomes the map script and the loader leaves. Not when game.pkg stays.": "war3map.jx がマップのスクリプトになり、ローダーは外れます。game.pkg を残す場合は行いません。"
+ "war3map.jx becomes the map script and the loader leaves. Not when game.pkg stays.": "war3map.jx がマップのスクリプトになり、ローダーは外れます。game.pkg を残す場合は行いません。",
+ "Cancelling...": "キャンセル中...",
+ "Loading Python...": "Pythonを読み込み中...",
+ "Loading numpy and Pillow...": "numpyとPillowを読み込み中...",
+ "Loading the engine...": "エンジンを読み込み中...",
+ "an initial value longer than this editor reads": "このエディターが読み取れる長さを超える初期値",
+ "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "{0}バイトのテキスト(このエディターがトリガーのパラメーターで読み取れるのは最大{1}バイト)"
 }
