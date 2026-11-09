@@ -3525,5 +3525,11 @@
  "Put the real script back": "실제 스크립트 복원",
  "Replaces the DLL Reforged cannot load, as Port does. The script becomes Lua. Takes minutes.": "포팅 탭처럼 Reforged가 불러올 수 없는 DLL을 교체합니다. 스크립트는 Lua가 됩니다. 몇 분 걸립니다.",
  "this map does not run Lua through the YDWE engine": "이 맵은 YDWE 엔진으로 Lua를 실행하지 않습니다",
- "war3map.jx becomes the map script and the loader leaves. Not when game.pkg stays.": "war3map.jx가 맵 스크립트가 되고 로더는 제거됩니다. game.pkg를 유지하면 적용되지 않습니다."
+ "war3map.jx becomes the map script and the loader leaves. Not when game.pkg stays.": "war3map.jx가 맵 스크립트가 되고 로더는 제거됩니다. game.pkg를 유지하면 적용되지 않습니다.",
+ "Cancelling...": "취소하는 중...",
+ "Loading Python...": "Python 불러오는 중...",
+ "Loading numpy and Pillow...": "numpy와 Pillow 불러오는 중...",
+ "Loading the engine...": "엔진 불러오는 중...",
+ "an initial value longer than this editor reads": "이 에디터가 읽을 수 있는 길이를 초과하는 초기값",
+ "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "{0}바이트의 텍스트이며, 이 에디터는 트리거 매개변수에서 최대 {1}까지만 읽습니다"
 }
