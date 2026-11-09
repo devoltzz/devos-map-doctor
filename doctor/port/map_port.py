@@ -122,6 +122,9 @@ def lua_route(a, raw_data, body_text, scripts_dir, log):
     if not finding:
         return None, raw_data, body_text
     col = ydwe_modules.collect(a, finding['entries'], log=log)
+    from doctor.mpq import xm_porta
+    if xm_porta.apply_modules(col, finding['entries']):
+        WARNINGS.extend(xm_porta.ENGINE_NOTES)
     if not col['lua_modules']:
         finding['modules'] = []
         msg = ('the map calls the YDWE Lua engine (%s) but its Lua modules are not in the archive, so there is nothing '
@@ -1697,7 +1700,7 @@ def write_local_art(folder, output, log=print):
 
 def map_port(map_path, work, output=None, stats=None, heading=None, log=print, packages=(), shrink_large=True,
              memory_hacks='neutralize', balance_numbers=False, lua_translation=None, shrink_with_loss=False,
-             sd_models=False, main_on_load=False):
+             sd_models=False, main_on_load=False, only_lua=False):
     t0 = time.time()
     map_path = os.path.abspath(map_path)
     base = os.path.splitext(map_path)[0]
@@ -1721,6 +1724,8 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
         job_progress.topo('prepare_stage', 'Preparing the port')
         game_reference(root, log)
         original = map_path
+        from doctor.mpq import xm_porta
+        original = xm_porta.prepare_map_copy(original, root, log) or original
         job_progress.topo('protection', 'Removing the map protection')
         from doctor.mpq import mpqdoctor
         sp, _m, _u = mpqdoctor.is_sprotect(mpqread.Archive(original))
@@ -1733,7 +1738,7 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
                 raise Aborts('SProtect: %s' % v.code)
             log('0. SProtect undone')
         else:
-            original = unprotected_result(map_path, root, log)
+            original = unprotected_result(original, root, log)
         if os.path.normcase(output) == os.path.normcase(map_path):
             raise Aborts('the output is the map itself: name another file')
         if packages:
@@ -1750,6 +1755,9 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
         details['forma'] = forma
         body_text = re.sub(r'\r(?!\n)', '\n', open(raw_data, 'rb').read().decode('latin-1'))
         lua, raw_data, body_text = lua_route(a, raw_data, body_text, os.path.join(root, 'scripts'), log)
+        if only_lua and not lua:
+            details['no_lua'] = True
+            raise Aborts('this map does not run Lua through the YDWE engine')
         uj, raw_data, body_text = ujapi_route(extract, raw_data, body_text, os.path.join(root, 'scripts'), log)
         ht, raw_data, body_text = route_text_table(
             original, extract, raw_data, body_text, os.path.join(root, 'scripts'), log
@@ -2026,6 +2034,7 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
                     'the art the map reads from the game folder (loose files) could not be saved next to the '
                     'ported map (%s: %s): the map still asks for it' % (type(e).__name__, e)
                 )
+        xm_porta.finish_map(output, log)
         if slack < 0 and shrink_large:
             job_progress.topo('shrinks', 'Making the map smaller')
             try:
