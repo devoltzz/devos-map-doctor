@@ -236,8 +236,16 @@ def main():
         args += ['--add-binary', pjass + os.pathsep + os.path.join('doctor', 'script')]
     elif not os.path.isfile(os.path.join(ENGINE, 'script', pjass_name)):
         print('%s not found (doctor/script/%s or PJASS): the program cannot port maps' % (pjass_name, pjass_name))
-    for extra in ('compression', 'compression.zstd', 'Crypto', 'Crypto.Cipher', 'Crypto.Cipher.AES',
-                  'Crypto.Util._raw_api'):
+    for extra in (
+        'compression',
+        'compression.zstd',
+        'Crypto',
+        'Crypto.Cipher',
+        'Crypto.Cipher.AES',
+        'Crypto.Cipher.Salsa20',
+        'Crypto.Cipher.ChaCha20_Poly1305',
+        'Crypto.Util._raw_api',
+    ):
         args += ['--hidden-import', extra]
     if not LINUX:
         import importlib.util
