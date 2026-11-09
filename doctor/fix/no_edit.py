@@ -143,6 +143,19 @@ def _scripts(a):
     return out
 
 
+def map_script_entry(a):
+    for name in ('war3map.lua', 'war3map.j', 'scripts\\war3map.j'):
+        data = _read_uncached(a, name)
+        if data:
+            return name, data, a.find_locale(name)[1]
+    return None, None, None
+
+
+def map_script(a):
+    name, data, _bi = map_script_entry(a)
+    return name, data
+
+
 def _of_file(a):
     try:
         if a.find(NAME) is None:
