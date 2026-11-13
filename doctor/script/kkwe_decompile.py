@@ -17,6 +17,7 @@ DEFAULT_NATIVES = os.path.join(HERE, 'kk_natives.j')
 LIT, MOVRR, MOVRV, MOVRCODE, MOVRA, MOVVR, MOVAR = 12, 13, 14, 15, 16, 17, 18
 PUSH, POP, CALLN, CALLJ, I2R, NEG, NOT, RET, LABEL, JIT, JIF, JUMP = 19, 20, 21, 22, 23, 37, 38, 39, 40, 41, 42, 43
 FUNCTION, ENDFUNCTION, LOCAL, GLOBAL, CONSTANT, FUNCARG, POPN = 3, 4, 5, 6, 7, 8, 11
+ENDPROGRAM = 1
 EXTENDS_OP, TYPE_OP = 9, 10
 BINOP = {26: '==', 27: '!=', 28: '<=', 29: '>=', 30: '<', 31: '>', 32: '+', 33: '-', 34: '*', 35: '/'}
 BASIC = {0: 'nothing', 3: 'code', 4: 'integer', 5: 'real', 6: 'string', 7: 'handle', 8: 'boolean'}
@@ -323,6 +324,8 @@ class Decompiler(object):
                     if k + 1 < end_pos and op[k + 1] == POPN:
                         n = b2s[k + 1]
                     expected_len = self.arity.get(fname)
+                    if expected_len is None and fname in self.ref.funcs:
+                        expected_len = len(self.ref.funcs[fname][0])
                     if expected_len is None or expected_len != n:
                         raise DecompileError('%s at %d: CALLJASS %s with %d arguments, the function has %s'
                                              % (f.fname, k, fname, n, expected_len))
@@ -486,9 +489,22 @@ def _allocated(bc, segment):
     return [bc.b2[k] for k in range(segment[0], segment[1]) if bc.op[k] in ALLOCATING and bc.b2[k]]
 
 
+def _breaks(bc, order):
+    n, before = 0, None
+    for t in order:
+        a = _allocated(bc, t)
+        if not a:
+            continue
+        if before is not None and before % 255 + 1 != a[0]:
+            n += 1
+        before = a[-1]
+    return n
+
+
 def _reversed_functions(bc, ref):
     fs = bc.functions()
-    bounds = [(k, fs[i + 1][0] if i + 1 < len(fs) else bc.n) for i, (k, _n) in enumerate(fs)]
+    program_end = bc.n - 1 if bc.n and bc.op[bc.n - 1] == ENDPROGRAM else bc.n
+    bounds = [(k, fs[i + 1][0] if i + 1 < len(fs) else program_end) for i, (k, _n) in enumerate(fs)]
     cut = len(fs)
     while cut > 0 and fs[cut - 1][1] in ref.funcs:
         cut -= 1
@@ -497,6 +513,9 @@ def _reversed_functions(bc, ref):
         raise DecompileError('the bytecode has no function of the map (only the Blizzard.j ones)')
     of_globals = [t for t in map_path if t[0] + 1 < t[1] and bc.op[t[0] + 1] in (GLOBAL, CONSTANT)]
     order = of_globals + [t for t in reversed(map_path) if t not in of_globals]
+    forward = of_globals + [t for t in map_path if t not in of_globals]
+    if cut == len(fs) and _breaks(bc, forward) == 0 and _breaks(bc, order) > 0:
+        return forward
     before = next((a[-1] for a in (_allocated(bc, t) for t in bounds[cut:]) if a), None)
     after_diag = next((a[0] for a in (_allocated(bc, t) for t in order) if a), None)
     if before is not None and after_diag is not None and before % 255 + 1 != after_diag and of_globals:
@@ -1430,8 +1449,7 @@ def _decompile(bc, common, blizzard, extra_natives, map_own, header_text, no_cla
     try:
         inf = Inference(ref, globals_block, funcs)
         inf.collect(globals_block)
-        if bc.order == kkwe.REVERSE_ORDER:
-            inf.pin_hook_types(funcs)
+        inf.pin_hook_types(funcs)
         types = inf.resolve()
         imp = Printer(ref, inf)
         faithful = imp.program(globals_block, funcs, natives, list(header_text))
@@ -1456,8 +1474,8 @@ def _decompile(bc, common, blizzard, extra_natives, map_own, header_text, no_cla
     if bc.order == kkwe.REVERSE_ORDER:
         hooks = [f.fname for f in funcs if is_hook(f) and f.fname not in codes and f.fname not in texts]
     else:
-        hooks = [f.fname for f in funcs if is_hook(f) and f.ret == 3 and f.fname not in codes and
-                 f.fname not in texts]
+        hooks = [f.fname for f in funcs if is_hook(f) and (f.ret == 3 or f.fname in ref.extra) and
+                 f.fname not in codes and f.fname not in texts]
     from_game = set(ref.natives) | set(ref.funcs)
     outside = [g for g in hooks if no_clash and g not in called and g in from_game]
     body_text = faithful
