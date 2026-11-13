@@ -3532,5 +3532,14 @@
  "Loading numpy and Pillow...": "Carregando numpy e Pillow...",
  "Loading the engine...": "Carregando o motor...",
  "an initial value longer than this editor reads": "um valor inicial maior do que este editor lê",
- "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "um texto de {0} bytes, e este editor lê no máximo {1} em um parâmetro de gatilho"
+ "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "um texto de {0} bytes, e este editor lê no máximo {1} em um parâmetro de gatilho",
+ "B0 loader: present and left in place (the option was off): the ported map waits for the author's server it cannot reach, and its Lua modules stay encrypted.": "Carregador B0: presente e mantido no lugar (a opção estava desativada): o mapa portado espera pelo servidor do autor, que ele não consegue alcançar, e seus módulos Lua continuam criptografados.",
+ "Remove the B0 loader and inventory the Lua modules": "Remover o carregador B0 e listar os módulos Lua",
+ "Remove the recognized comment blocks": "Remover os blocos de comentário reconhecidos",
+ "Removed the comment blocks the tool recognizes from the scripts.": "Removeu dos scripts os blocos de comentário que a ferramenta reconhece.",
+ "the comment blocks": "os blocos de comentário",
+ "The map loads {0} encrypted Lua modules through a DLL that needs the author's server. The port turns the loader off and lists each module in the report: the ones whose plain text is not found stay out. Nothing is decrypted.": "O mapa carrega {0} módulos Lua criptografados por meio de uma DLL que precisa do servidor do autor. O port desativa o carregador e lista cada módulo no relatório: os que não têm o texto simples encontrado ficam de fora. Nada é descriptografado.",
+ "{0} icon paths in the object data name a file that neither the map nor the game has: the game draws those buttons with the missing texture. Only the author can fix it (import the icon or correct the path).": "{0} caminhos de ícone nos dados de objetos apontam para um arquivo que nem o mapa nem o jogo têm: o jogo desenha esses botões com a textura ausente. Só o autor pode corrigir (importar o ícone ou corrigir o caminho).",
+ "{0} script file carries a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "{0} arquivo de script contém um bloco de comentário que a ferramenta reconhece. Só essas linhas de comentário saem; o resto de cada arquivo permanece byte a byte.",
+ "{0} script files carry a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "{0} arquivos de script contêm um bloco de comentário que a ferramenta reconhece. Só essas linhas de comentário saem; o resto de cada arquivo permanece byte a byte."
 }
