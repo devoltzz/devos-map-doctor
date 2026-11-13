@@ -3530,5 +3530,14 @@
  "Loading numpy and Pillow...": "numpy ve Pillow yükleniyor...",
  "Loading the engine...": "Motor yükleniyor...",
  "an initial value longer than this editor reads": "bu editörün okuyabildiğinden daha uzun bir başlangıç değeri",
- "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "{0} baytlık bir metin; bu editör bir tetikleyici parametresinde en fazla {1} bayt okuyor"
+ "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "{0} baytlık bir metin; bu editör bir tetikleyici parametresinde en fazla {1} bayt okuyor",
+ "B0 loader: present and left in place (the option was off): the ported map waits for the author's server it cannot reach, and its Lua modules stay encrypted.": "B0 yükleyicisi: mevcut ve yerinde bırakıldı (seçenek kapalıydı): portlanan harita ulaşamadığı yazarın sunucusunu bekler ve Lua modülleri şifreli kalır.",
+ "Remove the B0 loader and inventory the Lua modules": "B0 yükleyicisini kaldır ve Lua modüllerini envantere al",
+ "Remove the recognized comment blocks": "Tanınan yorum bloklarını kaldır",
+ "Removed the comment blocks the tool recognizes from the scripts.": "Aracın tanıdığı yorum blokları scriptlerden kaldırıldı.",
+ "the comment blocks": "yorum blokları",
+ "The map loads {0} encrypted Lua modules through a DLL that needs the author's server. The port turns the loader off and lists each module in the report: the ones whose plain text is not found stay out. Nothing is decrypted.": "Harita, yazarın sunucusunu gerektiren bir DLL aracılığıyla {0} şifreli Lua modülü yükler. Port yükleyiciyi kapatır ve her modülü raporda listeler: düz metni bulunamayanlar dışarıda kalır. Hiçbir şey şifresi çözülmez.",
+ "{0} icon paths in the object data name a file that neither the map nor the game has: the game draws those buttons with the missing texture. Only the author can fix it (import the icon or correct the path).": "Nesne verilerindeki {0} simge yolu, ne haritada ne de oyunda bulunan bir dosyayı gösteriyor: oyun bu düğmeleri eksik dokuyla çizer. Yalnızca yazar düzeltebilir (simgeyi içe aktarın veya yolu düzeltin).",
+ "{0} script file carries a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "{0} script dosyası aracın tanıdığı bir yorum bloğu içeriyor. Yalnızca bu yorum satırları kaldırılır; her dosyanın geri kalanı bayt bayt aynı kalır.",
+ "{0} script files carry a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "{0} script dosyası aracın tanıdığı bir yorum bloğu içeriyor. Yalnızca bu yorum satırları kaldırılır; her dosyanın geri kalanı bayt bayt aynı kalır."
 }
