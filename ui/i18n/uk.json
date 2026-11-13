@@ -3530,5 +3530,14 @@
  "Loading numpy and Pillow...": "Завантаження numpy і Pillow...",
  "Loading the engine...": "Завантаження рушія...",
  "an initial value longer than this editor reads": "початкове значення довше, ніж може прочитати цей редактор",
- "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "текст у {0} байтів, а цей редактор читає в параметрі тригера щонайбільше {1}"
+ "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "текст у {0} байтів, а цей редактор читає в параметрі тригера щонайбільше {1}",
+ "B0 loader: present and left in place (the option was off): the ported map waits for the author's server it cannot reach, and its Lua modules stay encrypted.": "Завантажувач B0: присутній і залишений на місці (опцію було вимкнено): портована мапа чекає на сервер автора, до якого не може підключитися, а її модулі Lua залишаються зашифрованими.",
+ "Remove the B0 loader and inventory the Lua modules": "Видалити завантажувач B0 і скласти перелік модулів Lua",
+ "Remove the recognized comment blocks": "Видалити розпізнані блоки коментарів",
+ "Removed the comment blocks the tool recognizes from the scripts.": "З скриптів видалено блоки коментарів, які розпізнає інструмент.",
+ "the comment blocks": "блоки коментарів",
+ "The map loads {0} encrypted Lua modules through a DLL that needs the author's server. The port turns the loader off and lists each module in the report: the ones whose plain text is not found stay out. Nothing is decrypted.": "Мапа завантажує зашифровані модулі Lua ({0}) через DLL, якій потрібен сервер автора. Порт вимикає завантажувач і перелічує кожен модуль у звіті: ті, чий відкритий текст не знайдено, не включаються. Нічого не розшифровується.",
+ "{0} icon paths in the object data name a file that neither the map nor the game has: the game draws those buttons with the missing texture. Only the author can fix it (import the icon or correct the path).": "Шляхи до іконок в даних об'єктів ({0}) вказують на файл, якого немає ні в мапі, ні в грі: гра малює ці кнопки з текстурою-заглушкою. Виправити це може лише автор (імпортувати іконку або виправити шлях).",
+ "{0} script file carries a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "{0} файл скрипту містить блок коментарів, який розпізнає інструмент. Видаляються лише ці рядки коментарів; решта кожного файлу залишається байт у байт.",
+ "{0} script files carry a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "Файлів скриптів з блоком коментарів, який розпізнає інструмент: {0}. Видаляються лише ці рядки коментарів; решта кожного файлу залишається байт у байт."
 }
