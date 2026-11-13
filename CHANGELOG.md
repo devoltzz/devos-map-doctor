@@ -3,6 +3,27 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 2.3.0 (2026-11-12)
+
+### Added
+
+- **Fix map, "Remove the recognized comment blocks":** some authors paste the same long comment block into every script of the map. When the Doctor finds blocks it recognizes, this option comes up ticked. Only those comment lines go; the rest of each script stays byte for byte, and every file is read back and compared before the map is saved.
+- **Port to Reforged, maps with the B0 loader:** these maps load their Lua code through a DLL that asks the author's server for a key, so a port could never start them. The new option "Remove the B0 loader and inventory the Lua modules" (ticked when the map has one) turns the loader off so the map's own start takes its plain path, and the report lists every encrypted Lua module: which ones the readable code requires, which plain text was found and where, and which ones stay out. The port never decrypts, re-signs or patches anything. A module is only used when a plain file with the same SHA-256 and size as the map's list is found next to the map. On the command line, `--keep-b0` leaves the loader in place.
+- **Runs on Reforged?, icons that exist nowhere:** a new info line counts the icon paths in the object data that name a file neither the map nor the game has, so the game draws those buttons with the missing texture. The idea comes from W3Proj Studio's check of the files used by object data (MIT).
+
+### Fixed
+
+- **Port of a compiled script (j2b) built without Blizzard.j:** some compilers leave the game's Blizzard.j out of the compiled program and write the map's functions in source order. Turning the script back into JASS stopped at the first call to a Blizzard.j function ("CALLJASS SetAmbientDaySound with 1 argument"). It now comes back and is proved instruction by instruction, as before.
+- **Port of compiled scripts with hidden calls (j2b "2SAJ3raw"):** the compiler hides every function call behind a 32-bit token. Until now the Doctor guessed most tokens from how they were used and stopped when some stayed open, as on two big KK maps where 400 of about 1,330 tokens could not be guessed. I found how the platform's script engine computes a token from the function name, so every call now comes back from the map's own name table, with no guessing, and the script is proved instruction by instruction as before.
+- **Fix map, the count of the comment blocks:** the long Lua comment form (`--[==[ ... ]==]`) was removed but not counted.
+- **Port of KKWE maps built against newer KK runtimes:** turning the script back into JASS stopped with "the signature of the native is not known" when the map called the platform's server, ladder, lobby, VIP or guild functions as natives. Those signatures are now known. The placeholders a map keeps for the platform's EX natives (`EXSetEventDamage`, `EXGetEffectX`...) now come back as natives in both compiled forms, so the port's own version of them runs instead of an empty function. Suggested by caiohsr14.
+- **Port, the YDWE file check:** a map that checks the hash of its own files at start (`EXLoadFileHashKey`) never matched after a port and stopped its start forever. On the JASS route that check is now commented out, line for line. Suggested by caiohsr14.
+- **The lobby name of a KK map:** a longer name could not be written because the platform fills the rest of the map header with random bytes. It can now, as long as no part of the archive lives in that header. Suggested by caiohsr14.
+
+### Note
+
+- On the map that brought the B0 loader, the Lua modules, 1,811 resources and a native DLL are all encrypted with a key from the author's server, so the ported map starts without the map's game. The report says so.
+
 ## 2.2.1 (2026-11-09)
 
 ### Fixed
