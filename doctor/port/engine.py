@@ -66,12 +66,53 @@ def dead_swap(body_text):
     return ui_local.apply_replacements(body_text, replacements), len(replacements)
 
 
+RX_FILE_HASH = re.compile(r'^([ \t]*)if[ \t]+EXLoadFileHashKey\(\s*"((?:[^"\\]|\\.)*)"\s*\)\s*!=\s*"[0-9A-Fa-f]*"'
+                          r'[ \t]+then[ \t]*$')
+
+
+def strip_file_hash_checks(body_text):
+    if 'EXLoadFileHashKey' not in body_text:
+        return body_text, []
+    line_list = body_text.split('\n')
+    removed = []
+    i = 0
+    while i < len(line_list):
+        m = RX_FILE_HASH.match(line_list[i].rstrip('\r'))
+        if not m:
+            i += 1
+            continue
+        level, j = 0, i + 1
+        while j < len(line_list):
+            s = line_list[j].strip()
+            if re.match(r'if\b', s):
+                level += 1
+            elif re.match(r'endif\b', s):
+                if level == 0:
+                    break
+                level -= 1
+            elif level == 0 and re.match(r'else(if)?\b', s):
+                j = -1
+                break
+            j += 1
+        if j < 0 or j >= len(line_list):
+            i += 1
+            continue
+        cr = '\r' if line_list[i].endswith('\r') else ''
+        line_list[i] = '%s// [port] removed the anti-tamper check: %s%s' % (m.group(1), m.group(2), cr)
+        for k in range(i + 1, j + 1):
+            line_list[k] = '%s//%s%s' % (m.group(1), line_list[k].strip(), '\r' if line_list[k].endswith('\r') else '')
+        removed.append(m.group(2))
+        i = j + 1
+    return '\n'.join(line_list), removed
+
+
 def applies(body_text, expected_count=None, to_report=False):
     failures = []
     info = {'failures': failures}
     line_list = body_text.count('\n')
     body_text, n_dt = swap_destroy(body_text)
     body_text, n_dead = dead_swap(body_text)
+    body_text, info['file_hash_checks'] = strip_file_hash_checks(body_text)
     info['destroy_timer'] = n_dt
     info['dead_unit'] = n_dead
     body_text, i_damage = swap_calls.applies(body_text, DAMAGE_SWAPS)
@@ -94,3 +135,6 @@ def report_data(info):
     print('  trigger damage (not physical): %d UnitDamageTarget -> KK_dano_alvo, %d UnitDamageTargetBJ -> '
           'KK_dano_alvo_bj, %d EXGetEventDamageData -> KK_dano_dado'
           % (info.get('damage_target', 0), info.get('target_damage_bj', 0), info.get('damage_dealt', 0)))
+    if info.get('file_hash_checks'):
+        print('  anti-tamper: %d file hash check(s) removed (%s): a port never matches the original hashes'
+              % (len(info['file_hash_checks']), ', '.join(info['file_hash_checks'])))
