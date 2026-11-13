@@ -1,7 +1,7 @@
 # Command line and the `--json` contract
 
-Devo's Map Doctor runs every job of the window from a terminal. On Windows, `doctor.exe` (it appears next to the program
-the first time you open it) is the console launcher; `DevosMapDoctor.exe <command> ...` works too. On Linux the program
+Devo's Map Doctor runs every job of the window from a terminal. On Windows, `doctor.exe` (a file of the release: keep it
+in the folder of `DevosMapDoctor.exe`, which also puts it there when it opens) is the console launcher; `DevosMapDoctor.exe <command> ...` works too. On Linux the program
 itself takes the commands.
 
 ```
