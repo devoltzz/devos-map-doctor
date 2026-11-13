@@ -254,6 +254,19 @@ def editor_version_guess(path, d=None):
     return out
 
 
+def page_b0(path):
+    if not path or not os.path.isfile(path):
+        return None
+    try:
+        from doctor.port import b0_port
+        det = b0_port.detect(path)
+    except Exception:
+        return None
+    if not det.get('present'):
+        return None
+    return {'present': True, 'modules': len(det.get('modules') or [])}
+
+
 def page_summary(D, d):
     codes = sorted(set(p['code'] for p in d.get('protections') or []))
     data = [c for c in codes if c in D.DATA_ONLY]
@@ -270,6 +283,7 @@ def page_summary(D, d):
         'package': d.get('kind') == 'is_pack',
         'package_info': page_package(d.get('is_pack')),
         'no_edit': bool(d.get('no_edit')),
+        'b0': page_b0(d.get('file_name')),
         'no_map': d.get('fixable') in NO_MAP and not d.get('no_edit'),
     }
 
@@ -409,6 +423,7 @@ EXTRA_DONE = {
     'shrink_models': 'Made the models smaller.',
     'lobby_image': 'Put your own picture in the lobby.',
     'minify': 'Minified the script.',
+    'aviso_ia': 'Removed the comment blocks the tool recognizes from the scripts.',
 }
 EXTRA_NAME = {
     'models': 'the model fixes',
@@ -436,6 +451,7 @@ EXTRA_NAME = {
     'slk_objects': 'the editor object files',
     'lobby_image': 'the lobby image',
     'shrink_models': 'the model shrink',
+    'aviso_ia': 'the comment blocks',
 }
 BEFORE_EDITOR = ('models', 'single_player', 'card', 'translation', 'translation_keep')
 
@@ -584,7 +600,7 @@ def page_stub(s):
 
 
 def run_port(D, G, path, progress, emit, packages=(), memory=True, icons=False, textures=False, balance=False,
-             strip_indent=False, game_files=False, lossy=False, classic=False, to='', on_load=False):
+             strip_indent=False, game_files=False, lossy=False, classic=False, to='', on_load=False, b0=True):
     if to:
         from doctor.data import wc3_versions
         if wc3_versions.normalize(to) != wc3_versions.REFORGED:
@@ -599,11 +615,23 @@ def run_port(D, G, path, progress, emit, packages=(), memory=True, icons=False, 
 
     report = os.path.splitext(out)[0] + '.report.txt'
     work = tempfile.mkdtemp(prefix='devos_map_doctor_port_')
+    b0_lines, source = [], path
     try:
         try:
-            r = map_port.map_port(path, os.path.join(work, 'port'), out, report, log=port_log, packages=list(packages),
-                                  memory_hacks='neutralize' if memory else 'equivalents', balance_numbers=bool(balance),
-                                  shrink_with_loss=bool(lossy), sd_models=bool(classic), main_on_load=bool(on_load))
+            source, b0_lines = b0_step(path, work, b0, progress)
+            r = map_port.map_port(
+                source,
+                os.path.join(work, 'port'),
+                out,
+                report,
+                log=port_log,
+                packages=list(packages),
+                memory_hacks='neutralize' if memory else 'equivalents',
+                balance_numbers=bool(balance),
+                shrink_with_loss=bool(lossy),
+                sd_models=bool(classic),
+                main_on_load=bool(on_load),
+            )
         except BaseException as e:
             write_port_failure(report, '%s: %s' % (type(e).__name__, e), traceback.format_exc()[-3000:])
             raise
@@ -619,7 +647,19 @@ def run_port(D, G, path, progress, emit, packages=(), memory=True, icons=False, 
     finally:
         shutil.rmtree(work, ignore_errors=True)
     ported = r.get('resultado', '').startswith('ported')
+    if b0_lines and source != path:
+        r['map_path'] = path
+        try:
+            with open(report, encoding='utf-8') as f:
+                text = f.read()
+            with open(report, 'w', encoding='utf-8') as f:
+                f.write(text.replace(source, path))
+        except OSError:
+            pass
     lines = page_lines(G.port_text(r))
+    if b0_lines:
+        lines += [['info', t] for t in b0_lines]
+        append_report(report, b0_lines)
     if ported and textures:
         lines += port_step(r['output'], progress, 'kk_textures', None)
     if ported and icons:
@@ -637,6 +677,31 @@ def run_port(D, G, path, progress, emit, packages=(), memory=True, icons=False, 
                      'implemented': len((r.get('diagnostico') or {}).get('implemented_count') or []),
                      'declared': len((r.get('diagnostico') or {}).get('plataforma') or []),
                      'size': r.get('bytes'), 'seconds': r.get('seconds')}}
+
+
+def b0_step(path, work, on, progress):
+    from doctor.port import b0_port
+    det = b0_port.detect(path)
+    if not det.get('present'):
+        return path, []
+    if not on:
+        return path, ['B0 loader: present and left in place (the option was off): the ported map waits for the '
+                      'author\'s server it cannot reach, and its Lua modules stay encrypted.']
+    folder = os.path.join(work, 'b0')
+    os.makedirs(folder, exist_ok=True)
+    prepared = os.path.join(folder, os.path.basename(path))
+    r = b0_port.run(path, prepared, progress=progress)
+    done = (r.get('prepare') or {}).get('state') == 'done'
+    return (prepared if done else path), r['report']['lines']
+
+
+def append_report(report, lines):
+    try:
+        if os.path.isfile(report):
+            with open(report, 'a', encoding='utf-8') as f:
+                f.write('\n' + '\n'.join(lines) + '\n')
+    except OSError:
+        pass
 
 
 def run_port_version(D, G, path, to, progress, emit):
@@ -752,7 +817,8 @@ def _run_job(job, emit, G, D, task, path, progress):
         return run_port(D, G, path, progress, emit, job.get('packages') or [], job.get('memory', True),
                         job.get('icons', False), job.get('textures', False), job.get('balance', False),
                         job.get('strip_indent', False), job.get('game_files', False), job.get('lossy', False),
-                        job.get('classic', False), job.get('to') or '', job.get('on_load', False))
+                        job.get('classic', False), job.get('to') or '', job.get('on_load', False),
+                        job.get('b0', True) is not False)
     if task == 'cheatpack_inject':
         return _cheatpack_inject(job, progress, emit)
     if task == 'qol_apply':
@@ -866,6 +932,14 @@ def _reforged(job, progress):
         try:
             from doctor.fix import lobby_image
             r['lobby_image'] = {'ready': lobby_image.scan(job['map']).get('state') == 'ready'}
+        except Exception:
+            pass
+    r['aviso_ia'] = {'fixable': 0, 'files': 0}
+    if writable:
+        try:
+            from doctor.fix import ai_notice
+            found = ai_notice.detect(job['map'])
+            r['aviso_ia'] = {'fixable': found['total'], 'files': len(found['files'])}
         except Exception:
             pass
     r['preload'] = {'units': 0, 'abilities': 0}
