@@ -165,6 +165,233 @@ def _decrypt_3raw(data):
 
 TETO_BZ2 = 512 << 20
 
+_HC1, _HC2, _HC3, _HM = 0xcc9e2d51, 0x1b873593, 0x3361d2af, 0xFFFFFFFF
+
+
+def _hr(x, n):
+    x &= _HM
+    return ((x >> n) | (x << (32 - n))) & _HM
+
+
+def _hu32(b, i):
+    return b[i] | (b[i + 1] << 8) | (b[i + 2] << 16) | (b[i + 3] << 24)
+
+
+def _hfim(h):
+    h &= _HM
+    h ^= h >> 16
+    h = (h * 0x85ebca6b) & _HM
+    h ^= h >> 13
+    h = (h * 0xc2b2ae35) & _HM
+    h ^= h >> 16
+    return h & _HM
+
+
+def hash_nome(b):
+    n = len(b)
+    if n > 24:
+        eax = (_hu32(b, n - 4) * _HC1) & _HM
+        edx = (n * _HC1) & _HM
+        eax = _hr(eax, 17)
+        eax = (eax * _HC2) & _HM
+        eax ^= n
+        eax = _hr(eax, 19)
+        eax = (eax + 0xfaddaf14) & _HM
+        ecx = (eax * 5) & _HM
+        eax = (_hu32(b, n - 0x10) * _HC1) & _HM
+        eax = _hr(eax, 17)
+        eax = (eax * _HC2) & _HM
+        ecx ^= eax
+        ecx = _hr(ecx, 19)
+        ecx = (ecx + 0xfaddaf14) & _HM
+        b_ = (ecx * 5) & _HM
+        eax = (_hu32(b, n - 8) * _HC1) & _HM
+        eax = _hr(eax, 17)
+        eax = (eax * _HC2) & _HM
+        eax ^= edx
+        eax = _hr(eax, 19)
+        eax = (eax + 0xfaddaf14) & _HM
+        ecx = (eax * 5) & _HM
+        eax = (_hu32(b, n - 0xc) * _HC1) & _HM
+        eax = _hr(eax, 17)
+        eax = (eax * _HC2) & _HM
+        ecx ^= eax
+        ecx = _hr(ecx, 19)
+        ecx = (ecx + 0xfaddaf14) & _HM
+        c_ = (ecx * 5) & _HM
+        eax = (_hu32(b, n - 0x14) * _HC1) & _HM
+        eax = _hr(eax, 17)
+        eax = (eax * _HC2) & _HM
+        eax = (eax + edx) & _HM
+        eax = _hr(eax, 19)
+        eax = (eax * 5) & _HM
+        eax = (eax + 0xe6546b64) & _HM
+        d_ = eax
+        p = 0x10
+        for _ in range((n - 1) // 20):
+            eax = (_hu32(b, p - 0x10) * _HC1) & _HM
+            ecx = _hu32(b, p - 0xc)
+            edi = _hu32(b, p)
+            eax = _hr(eax, 17)
+            esi = (eax * _HC2) & _HM
+            eax = (d_ + ecx) & _HM
+            eax = _hr(eax, 19)
+            eax = (eax * _HC3) & _HM
+            ebx = esi
+            esi ^= b_
+            esi = _hr(esi, 18)
+            esi = (esi + 0xfaddaf14) & _HM
+            ebx = (ebx - eax) & _HM
+            eax = (_hu32(b, p - 4) * _HC1) & _HM
+            b_ = ebx
+            eax = _hr(eax, 17)
+            edx = (eax * _HC2) & _HM
+            eax = (esi * 5) & _HM
+            edx = (edx + ecx) & _HM
+            edx ^= eax
+            edx = _hr(edx, 19)
+            edx = (edx + 0xfaddaf14) & _HM
+            edx = (edx + edi) & _HM
+            ecx = (edx * 5) & _HM
+            ecx = int.from_bytes(ecx.to_bytes(4, 'little'), 'big')
+            eax = (_hu32(b, p - 8) * _HC1) & _HM
+            p += 0x14
+            eax = _hr(eax, 17)
+            eax = (eax * _HC2) & _HM
+            eax = (eax + c_) & _HM
+            eax = _hr(eax, 18)
+            c_ = ecx
+            eax = (eax * 5) & _HM
+            eax = (eax + 0xe6546b64) & _HM
+            eax ^= edi
+            eax = int.from_bytes(eax.to_bytes(4, 'little'), 'big')
+            esi = (eax * 5) & _HM
+            d_ = esi
+        ecx = _hr(ecx, 11)
+        eax = (ecx * _HC1) & _HM
+        esi = _hr(esi, 11)
+        eax = _hr(eax, 17)
+        eax = (eax * _HC3) & _HM
+        ebx = (ebx - eax) & _HM
+        eax = (esi * _HC1) & _HM
+        ebx = _hr(ebx, 19)
+        eax = _hr(eax, 17)
+        ecx = (ebx - 0x52250ec) & _HM
+        ecx = (ecx * 5) & _HM
+        ecx = _hr(ecx, 17)
+        ecx = (ecx + eax) & _HM
+        eax = (ecx * _HC1) & _HM
+        eax = _hr(eax, 19)
+        eax = (eax * 5) & _HM
+        eax = (eax + 0xe6546b64) & _HM
+        eax = _hr(eax, 17)
+        return (eax * _HC1) & _HM
+    if n > 12:
+        edx = n >> 1
+        eax = (_hu32(b, edx - 4) * _HC1) & _HM
+        eax = _hr(eax, 17)
+        eax = (eax * _HC2) & _HM
+        eax ^= n
+        eax = _hr(eax, 19)
+        eax = (eax + 0xfaddaf14) & _HM
+        ecx = (eax * 5) & _HM
+        eax = (_hu32(b, 4) * _HC1) & _HM
+        eax = _hr(eax, 17)
+        eax = (eax * _HC2) & _HM
+        ecx ^= eax
+        eax = (_hu32(b, n - 8) * _HC1) & _HM
+        ecx = _hr(ecx, 19)
+        eax = _hr(eax, 17)
+        ecx = (ecx * 5) & _HM
+        eax = (eax * _HC2) & _HM
+        ecx = (ecx + 0xe6546b64) & _HM
+        ecx ^= eax
+        eax = (_hu32(b, edx) * _HC1) & _HM
+        ecx = _hr(ecx, 19)
+        eax = _hr(eax, 17)
+        ecx = (ecx * 5) & _HM
+        eax = (eax * _HC2) & _HM
+        ecx = (ecx + 0xe6546b64) & _HM
+        ecx ^= eax
+        eax = (_hu32(b, 0) * _HC1) & _HM
+        ecx = _hr(ecx, 19)
+        eax = _hr(eax, 17)
+        ecx = (ecx * 5) & _HM
+        eax = (eax * _HC2) & _HM
+        ecx = (ecx + 0xe6546b64) & _HM
+        ecx ^= eax
+        eax = (_hu32(b, n - 4) * _HC1) & _HM
+        ecx = _hr(ecx, 19)
+        eax = _hr(eax, 17)
+        ecx = (ecx * 5) & _HM
+        eax = (eax * _HC2) & _HM
+        ecx = (ecx + 0xe6546b64) & _HM
+        ecx ^= eax
+        ecx = _hr(ecx, 19)
+        ecx = (ecx * 5) & _HM
+        ecx = (ecx + 0xe6546b64) & _HM
+        return _hfim(ecx)
+    if n > 4:
+        d = (n * 5) & _HM
+        eax = (_hu32(b, 0) + n) & _HM
+        eax = (eax * _HC1) & _HM
+        eax = _hr(eax, 17)
+        eax = (eax * _HC2) & _HM
+        eax ^= d
+        eax = _hr(eax, 19)
+        eax = (eax + 0xfaddaf14) & _HM
+        ecx = (eax * 5) & _HM
+        eax = ((_hu32(b, n - 4) + d) & _HM) * _HC1 & _HM
+        eax = _hr(eax, 17)
+        eax = (eax * _HC2) & _HM
+        ecx ^= eax
+        eax = (_hu32(b, (n >> 1) & 4) * _HC3) & _HM
+        ecx = _hr(ecx, 19)
+        ecx = (ecx + 0xfaddaf14) & _HM
+        edx = (ecx * 5) & _HM
+        ecx = (0x318f97d9 - eax) & _HM
+        ecx = _hr(ecx, 17)
+        eax = (ecx * _HC2) & _HM
+        edx ^= eax
+        edx = _hr(edx, 19)
+        edx = (edx + 0xfaddaf14) & _HM
+        return _hfim((edx * 5) & _HM)
+    edi = 0
+    ebx = 9
+    for i in range(n):
+        c = b[i]
+        if c >= 0x80:
+            c -= 0x100
+        edi = (c - ((edi * _HC3) & _HM)) & _HM
+        ebx ^= edi
+    eax = (n * _HC1) & _HM
+    eax = _hr(eax, 17)
+    eax = (eax * _HC2) & _HM
+    eax ^= ebx
+    eax = _hr(eax, 19)
+    eax = (eax + 0xfaddaf14) & _HM
+    ecx = (eax * 5) & _HM
+    eax = (edi * _HC1) & _HM
+    eax = _hr(eax, 17)
+    eax = (eax * _HC2) & _HM
+    ecx ^= eax
+    ecx = _hr(ecx, 19)
+    ecx = (ecx * 5) & _HM
+    ecx = (ecx + 0xe6546b64) & _HM
+    return _hfim(ecx)
+
+
+def token_do_nome(nome, valor):
+    return (hash_nome(nome) ^ (valor & _HM)) & _HM
+
+
+def tokens_por_nome(names, valor):
+    out = {}
+    for nome in names.split(b'\x00')[:names.count(b'\x00')]:
+        if nome:
+            out[token_do_nome(nome, valor)] = nome
+    return out
+
 
 RX_PRIMEIRO_NOME = re.compile(rb'[A-Za-z_][A-Za-z0-9_]{0,80}\x00')
 
@@ -223,17 +450,56 @@ def _make(code, count, names):
 def bytecode(data, allow_hidden=False, reference=None, scripts=(), log=None):
     names, count, code = split(decrypt(data) if is_j2b(data) else data)
     hidden = 0 if allow_hidden else hidden_calls(code)
-    if hidden and reference:
-        from doctor.script import j2b_calls
+    if hidden:
         study = _make(code, count, names)
-        mapping, report = j2b_calls.resolve(study, list(reference), log=log, scripts=scripts)
-        if report['open']:
-            raise J2bError('war3map.bin decrypts, but %d of its %d calls are hidden behind tokens; %d of the %d tokens '
-                           'were resolved from the evidence, %d (%d calls) stay open (kk-plataforma.md 15.2.1)'
-                           % (report['calls'], report['calls'], report['resolved'], report['tokens'], report['open'],
-                              report['open_calls']))
-        code = j2b_calls.restore(code, study.name_list, mapping, set(f[1] for f in study.functions()))
-        hidden = hidden_calls(code)
+        functions = set(f[1] for f in study.functions())
+        from doctor.script import j2b_calls
+        mapping = {}
+        if is_3raw(data):
+            valor = struct.unpack_from('<Q', data, 4)[0]
+            if len(names.split(b'\x00')) == count + 1:
+                alvo = set(struct.unpack_from('<I', code, k + 4)[0] for k in range(0, len(code) - 7, 8)
+                           if code[k:k + 4] == _HIDDEN_CALL)
+                mapping = {t: nome.decode('utf-8', 'surrogateescape')
+                           for t, nome in tokens_por_nome(names, valor).items() if t in alvo}
+            if mapping:
+                code = j2b_calls.restore(code, study.name_list, mapping, functions)
+                hidden = hidden_calls(code)
+                if log:
+                    log('hash: %d tokens from the name table, %d calls still hidden' % (len(mapping), hidden))
+        if hidden and reference:
+            mapping2, report = j2b_calls.resolve(study, list(reference), log=log, scripts=scripts)
+            if report['open'] and not mapping:
+                raise J2bError(
+                    'war3map.bin decrypts, but %d of its %d calls are hidden behind tokens; %d of the %d '
+                    'tokens were resolved from the evidence, %d (%d calls) stay open (kk-plataforma.md 15.2.1)'
+                    % (
+                        report['calls'],
+                        report['calls'],
+                        report['resolved'],
+                        report['tokens'],
+                        report['open'],
+                        report['open_calls'],
+                    )
+                )
+            merged = dict(mapping2)
+            merged.update(mapping)
+            code = j2b_calls.restore(code, study.name_list, merged, functions)
+            hidden = hidden_calls(code)
+            if hidden and report['open']:
+                raise J2bError(
+                    'war3map.bin decrypts, but %d of its %d calls are hidden behind tokens; %d of the %d '
+                    'tokens were resolved from the evidence, %d (%d calls) stay open (kk-plataforma.md 15.2.1)'
+                    % (
+                        report['calls'],
+                        report['calls'],
+                        report['resolved'],
+                        report['tokens'],
+                        report['open'],
+                        report['open_calls'],
+                    )
+                )
+
     if hidden:
         raise J2bError('war3map.bin decrypts, but %d of its calls are hidden: opcode 36 with no register and a 32-bit '
                        'token in place of the function, which this tool cannot resolve yet (kk-plataforma.md 15.2)'
