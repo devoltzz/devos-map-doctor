@@ -3531,5 +3531,14 @@
  "Loading numpy and Pillow...": "Ładowanie numpy i Pillow...",
  "Loading the engine...": "Ładowanie silnika...",
  "an initial value longer than this editor reads": "wartość początkowa dłuższa, niż odczytuje ten edytor",
- "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "tekst o długości {0} bajtów, a ten edytor odczytuje w parametrze wyzwalacza najwyżej {1}"
+ "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "tekst o długości {0} bajtów, a ten edytor odczytuje w parametrze wyzwalacza najwyżej {1}",
+ "B0 loader: present and left in place (the option was off): the ported map waits for the author's server it cannot reach, and its Lua modules stay encrypted.": "Loader B0: obecny i pozostawiony na miejscu (opcja była wyłączona): przeportowana mapa czeka na serwer autora, którego nie może osiągnąć, a jej moduły Lua pozostają zaszyfrowane.",
+ "Remove the B0 loader and inventory the Lua modules": "Usuń loader B0 i sporządź spis modułów Lua",
+ "Remove the recognized comment blocks": "Usuń rozpoznane bloki komentarzy",
+ "Removed the comment blocks the tool recognizes from the scripts.": "Usunięto ze skryptów bloki komentarzy rozpoznawane przez narzędzie.",
+ "the comment blocks": "bloki komentarzy",
+ "The map loads {0} encrypted Lua modules through a DLL that needs the author's server. The port turns the loader off and lists each module in the report: the ones whose plain text is not found stay out. Nothing is decrypted.": "Mapa wczytuje zaszyfrowane moduły Lua ({0}) przez bibliotekę DLL, która potrzebuje serwera autora. Port wyłącza loader i wymienia każdy moduł w raporcie: te, których jawnego tekstu nie znaleziono, zostają pominięte. Nic nie jest odszyfrowywane.",
+ "{0} icon paths in the object data name a file that neither the map nor the game has: the game draws those buttons with the missing texture. Only the author can fix it (import the icon or correct the path).": "Ścieżki ikon w danych obiektów ({0}) wskazują plik, którego nie ma ani mapa, ani gra: gra rysuje te przyciski z brakującą teksturą. Naprawić to może tylko autor (importując ikonę lub poprawiając ścieżkę).",
+ "{0} script file carries a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "Plik skryptu ({0}) zawiera blok komentarzy rozpoznawany przez narzędzie. Usuwane są tylko te wiersze komentarzy; reszta każdego pliku pozostaje bajt w bajt.",
+ "{0} script files carry a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "Pliki skryptów ({0}) zawierają blok komentarzy rozpoznawany przez narzędzie. Usuwane są tylko te wiersze komentarzy; reszta każdego pliku pozostaje bajt w bajt."
 }
