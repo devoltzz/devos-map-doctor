@@ -3530,5 +3530,14 @@
  "Loading numpy and Pillow...": "กำลังโหลด numpy และ Pillow...",
  "Loading the engine...": "กำลังโหลดเอนจิน...",
  "an initial value longer than this editor reads": "ค่าเริ่มต้นที่ยาวเกินกว่าที่เอดิเตอร์นี้อ่านได้",
- "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "ข้อความขนาด {0} ไบต์ ขณะที่เอดิเตอร์นี้อ่านพารามิเตอร์ทริกเกอร์ได้สูงสุด {1}"
+ "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "ข้อความขนาด {0} ไบต์ ขณะที่เอดิเตอร์นี้อ่านพารามิเตอร์ทริกเกอร์ได้สูงสุด {1}",
+ "B0 loader: present and left in place (the option was off): the ported map waits for the author's server it cannot reach, and its Lua modules stay encrypted.": "B0 loader: มีอยู่และถูกปล่อยไว้ตามเดิม (ตัวเลือกถูกปิดอยู่): แมพที่พอร์ตแล้วรอเซิร์ฟเวอร์ของผู้สร้างที่เชื่อมต่อไม่ได้ และโมดูล Lua ของแมพยังคงถูกเข้ารหัสอยู่",
+ "Remove the B0 loader and inventory the Lua modules": "ลบ B0 loader และจัดทำรายการโมดูล Lua",
+ "Remove the recognized comment blocks": "ลบบล็อกคอมเมนต์ที่รู้จัก",
+ "Removed the comment blocks the tool recognizes from the scripts.": "ลบบล็อกคอมเมนต์ที่เครื่องมือรู้จักออกจากสคริปต์แล้ว",
+ "the comment blocks": "บล็อกคอมเมนต์",
+ "The map loads {0} encrypted Lua modules through a DLL that needs the author's server. The port turns the loader off and lists each module in the report: the ones whose plain text is not found stay out. Nothing is decrypted.": "แมพโหลดโมดูล Lua ที่เข้ารหัสไว้ {0} รายการผ่าน DLL ที่ต้องใช้เซิร์ฟเวอร์ของผู้สร้าง การพอร์ตจะปิด loader และแสดงรายการแต่ละโมดูลในรายงาน: โมดูลที่ไม่พบข้อความธรรมดาจะไม่ถูกรวมไว้ ไม่มีการถอดรหัสใดๆ",
+ "{0} icon paths in the object data name a file that neither the map nor the game has: the game draws those buttons with the missing texture. Only the author can fix it (import the icon or correct the path).": "พาธไอคอน {0} รายการในข้อมูลออบเจกต์ชี้ไปยังไฟล์ที่ทั้งแมพและเกมไม่มี: เกมจะวาดปุ่มเหล่านั้นด้วยเท็กซ์เจอร์ที่หายไป มีเพียงผู้สร้างเท่านั้นที่แก้ไขได้ (นำเข้าไอคอนหรือแก้พาธให้ถูกต้อง)",
+ "{0} script file carries a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "ไฟล์สคริปต์ {0} ไฟล์มีบล็อกคอมเมนต์ที่เครื่องมือรู้จัก จะลบเฉพาะบรรทัดคอมเมนต์เหล่านั้น ส่วนที่เหลือของแต่ละไฟล์คงอยู่เหมือนเดิมทุกไบต์",
+ "{0} script files carry a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "ไฟล์สคริปต์ {0} ไฟล์มีบล็อกคอมเมนต์ที่เครื่องมือรู้จัก จะลบเฉพาะบรรทัดคอมเมนต์เหล่านั้น ส่วนที่เหลือของแต่ละไฟล์คงอยู่เหมือนเดิมทุกไบต์"
 }
