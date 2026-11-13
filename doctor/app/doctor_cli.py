@@ -23,7 +23,7 @@ a .w3mod): a package is read as data, never run; diag, files and extract work on
   port <map> [--to=<version>] [--package=<name>] [--icons] [--textures] [--keep-memory] [--balance-numbers]
        [--strip-indent]
        (the icons and the textures are on, as in the window: --no-icons, --no-textures)
-       [--remove-game-files] [--lossy] [--classic-effects] [--start-on-loading-screen]
+       [--remove-game-files] [--lossy] [--classic-effects] [--start-on-loading-screen] [--keep-b0]
                                   Port to Reforged (KK and M16 maps): saves <map>_reforged.w3x and the report;
                                   --to=<version>: to another version of the classic game instead (1.24a to
                                   1.29.2; newer or older than the map, a Reforged map included; no platform, no
@@ -34,6 +34,8 @@ a .w3mod): a package is read as data, never run; diag, files and extract work on
                                   map read from the game folder with "Allow Local Files");
                                   --remove-game-files: the map's images and models with the path of a game file
                                   (they replace the game's own; counted in the report either way) come out;
+                                  --keep-b0: a map with the B0 loader keeps it (by default the loader is turned
+                                  off and the report lists its encrypted Lua modules);
                                   --lossy: a map still above 512 MiB after the lossless shrink gets its biggest
                                   textures halved and its WAV sounds mono at 22 kHz until it fits;
                                   --classic-effects: the game's own effect models the map uses keep their classic
@@ -99,11 +101,12 @@ Steps of fix / editor (none given: the defaults the window ticks for this map; -
   --gui-triggers --script-objects --safe-units
 Extras of fix / editor (fix turns on by itself the ones the window ticks when its check finds them: --models
   --model-names --data-pointers --kk-textures --green-icons --console-sides --fix-attributes --fix-graphics-modes
-  --fix-requirements --fix-model-paths --fix-fdf; --no-<extra> leaves one out; the others are off unless given):
+  --fix-requirements --fix-model-paths --fix-fdf --strip-comment-blocks; --no-<extra> leaves one out; the others are
+  off unless given):
   --models --model-names --portraits --data-pointers --kk-textures --green-icons --console-sides --uabi --preload
   --single-player --shrink --shrink-lossy --translation=<file> --translation-keep --strip-indent
   --fix-attributes --remove-game-files --remove-game-copies --fix-requirements --fix-model-paths --fix-fdf
-  --null-handles --minify
+  --null-handles --minify --strip-comment-blocks
   --slk-objects --fix-graphics-modes
   --portraits=stamp|upgrade --shrink-models --shrink-models-lossy --lobby-image=<picture>
   --fix-attributes         redo the file checksums
@@ -114,6 +117,7 @@ Extras of fix / editor (fix turns on by itself the ones the window ticks when it
   --fix-fdf                fix frame file lists
   --null-handles           null handle locals (JASS)
   --minify                 shrink the JASS script
+  --strip-comment-blocks   remove the comment blocks the tool recognizes from the scripts (the rest byte for byte)
   --slk-objects            make the editor object files from the SLK tables of an optimized map (needs the game)
   --fix-graphics-modes     copy into the map the game files that only some graphics modes have (Classic,
                            Reforged, Definitive Edition), as many as fit below 512 MB (needs the game)
@@ -159,6 +163,7 @@ EXTRA_FLAGS = {
     'slk-objects': 'slk_objects',
     'fix-graphics-modes': 'graphics_modes',
     'fix-model-paths': 'model_paths',
+    'strip-comment-blocks': 'aviso_ia',
 }
 EDITOR_EXTRAS = ('single-player', 'translation', 'strip-indent')
 OUTCOME_CODE = {'ok': 0, 'nothing': 0, 'partial': 3, 'failed': 1}
@@ -248,6 +253,7 @@ DEFAULT_EXTRAS = (
     ('fix-requirements', 'requirements', 'requirements'),
     ('fix-model-paths', 'model_paths', 'model_paths'),
     ('fix-fdf', 'fdf', 'fdf'),
+    ('strip-comment-blocks', 'aviso_ia', 'aviso_ia'),
 )
 
 
@@ -629,6 +635,7 @@ def build_job(command, pos, opts, run):
                         'game_files': bool(opts.get('remove-game-files')), 'lossy': bool(opts.get('lossy')),
                         'classic': bool(opts.get('classic-effects')),
                         'on_load': bool(opts.get('start-on-loading-screen')),
+                        'b0': not opts.get('keep-b0'),
                         'to': opts.get('to') if isinstance(opts.get('to'), str) else ''}
     if command == 'check':
         need(pos, 2, '<map>')
@@ -879,7 +886,7 @@ CONTRACT = (
      dict(_WRITES, changes='object')),
     ('port', 'port <map> [options]',
      dict(_flags('icons', 'textures', 'keep-memory', 'balance-numbers', 'strip-indent', 'remove-game-files', 'lossy',
-                 'classic-effects', 'start-on-loading-screen'),
+                 'classic-effects', 'start-on-loading-screen', 'keep-b0'),
           to=_value('a game version: 1.24a to 1.29.2, 2.0.4 (none: Reforged 3.0)'),
           package=_value('art packages, comma separated')),
      dict(_WRITES, report='string', port='object')),
