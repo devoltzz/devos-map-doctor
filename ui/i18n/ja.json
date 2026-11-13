@@ -3531,5 +3531,14 @@
  "Loading numpy and Pillow...": "numpyとPillowを読み込み中...",
  "Loading the engine...": "エンジンを読み込み中...",
  "an initial value longer than this editor reads": "このエディターが読み取れる長さを超える初期値",
- "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "{0}バイトのテキスト(このエディターがトリガーのパラメーターで読み取れるのは最大{1}バイト)"
+ "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "{0}バイトのテキスト(このエディターがトリガーのパラメーターで読み取れるのは最大{1}バイト)",
+ "B0 loader: present and left in place (the option was off): the ported map waits for the author's server it cannot reach, and its Lua modules stay encrypted.": "B0ローダー: 存在しますが、そのまま残されました(オプションがオフでした)。移植したマップは接続できない作者のサーバーを待ち続け、Luaモジュールは暗号化されたままです。",
+ "Remove the B0 loader and inventory the Lua modules": "B0ローダーを削除し、Luaモジュールを一覧化する",
+ "Remove the recognized comment blocks": "認識されたコメントブロックを削除する",
+ "Removed the comment blocks the tool recognizes from the scripts.": "スクリプトから、ツールが認識するコメントブロックを削除しました。",
+ "the comment blocks": "コメントブロック",
+ "The map loads {0} encrypted Lua modules through a DLL that needs the author's server. The port turns the loader off and lists each module in the report: the ones whose plain text is not found stay out. Nothing is decrypted.": "このマップは、作者のサーバーを必要とするDLLを通じて、暗号化されたLuaモジュールを{0}個読み込みます。移植ではローダーをオフにし、各モジュールをレポートに一覧表示します。平文が見つからないものは含まれません。復号は行われません。",
+ "{0} icon paths in the object data name a file that neither the map nor the game has: the game draws those buttons with the missing texture. Only the author can fix it (import the icon or correct the path).": "オブジェクトデータ内の{0}個のアイコンパスが、マップにもゲームにも存在しないファイルを指しています。ゲームはそれらのボタンを欠落テクスチャで描画します。修正できるのは作者だけです(アイコンをインポートするか、パスを修正してください)。",
+ "{0} script file carries a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "{0}個のスクリプトファイルに、ツールが認識するコメントブロックがあります。削除されるのはそのコメント行だけで、各ファイルの残りはバイト単位でそのまま保たれます。",
+ "{0} script files carry a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "{0}個のスクリプトファイルに、ツールが認識するコメントブロックがあります。削除されるのはそのコメント行だけで、各ファイルの残りはバイト単位でそのまま保たれます。"
 }
