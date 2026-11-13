@@ -3531,5 +3531,14 @@
  "Loading numpy and Pillow...": "Chargement de numpy et Pillow...",
  "Loading the engine...": "Chargement du moteur...",
  "an initial value longer than this editor reads": "une valeur initiale plus longue que ce que cet éditeur lit",
- "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "un texte de {0} octets, alors que cet éditeur en lit au plus {1} dans un paramètre de déclencheur"
+ "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "un texte de {0} octets, alors que cet éditeur en lit au plus {1} dans un paramètre de déclencheur",
+ "B0 loader: present and left in place (the option was off): the ported map waits for the author's server it cannot reach, and its Lua modules stay encrypted.": "Chargeur B0 : présent et laissé en place (l'option était désactivée) : la carte portée attend le serveur de l'auteur, qu'elle ne peut pas joindre, et ses modules Lua restent chiffrés.",
+ "Remove the B0 loader and inventory the Lua modules": "Supprimer le chargeur B0 et inventorier les modules Lua",
+ "Remove the recognized comment blocks": "Supprimer les blocs de commentaires reconnus",
+ "Removed the comment blocks the tool recognizes from the scripts.": "Blocs de commentaires reconnus par l'outil supprimés des scripts.",
+ "the comment blocks": "les blocs de commentaires",
+ "The map loads {0} encrypted Lua modules through a DLL that needs the author's server. The port turns the loader off and lists each module in the report: the ones whose plain text is not found stay out. Nothing is decrypted.": "La carte charge {0} modules Lua chiffrés via une DLL qui a besoin du serveur de l'auteur. Le portage désactive le chargeur et liste chaque module dans le rapport : ceux dont le texte en clair est introuvable restent exclus. Rien n'est déchiffré.",
+ "{0} icon paths in the object data name a file that neither the map nor the game has: the game draws those buttons with the missing texture. Only the author can fix it (import the icon or correct the path).": "{0} chemins d'icônes dans les données des objets désignent un fichier que ni la carte ni le jeu ne possèdent : le jeu affiche ces boutons avec la texture manquante. Seul l'auteur peut le corriger (importer l'icône ou corriger le chemin).",
+ "{0} script file carries a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "{0} fichier de script contient un bloc de commentaires reconnu par l'outil. Seules ces lignes de commentaires sont supprimées ; le reste de chaque fichier reste identique octet par octet.",
+ "{0} script files carry a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "{0} fichiers de script contiennent un bloc de commentaires reconnu par l'outil. Seules ces lignes de commentaires sont supprimées ; le reste de chaque fichier reste identique octet par octet."
 }
