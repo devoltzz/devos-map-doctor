@@ -3531,5 +3531,14 @@
  "Loading numpy and Pillow...": "numpy와 Pillow 불러오는 중...",
  "Loading the engine...": "엔진 불러오는 중...",
  "an initial value longer than this editor reads": "이 에디터가 읽을 수 있는 길이를 초과하는 초기값",
- "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "{0}바이트의 텍스트이며, 이 에디터는 트리거 매개변수에서 최대 {1}까지만 읽습니다"
+ "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "{0}바이트의 텍스트이며, 이 에디터는 트리거 매개변수에서 최대 {1}까지만 읽습니다",
+ "B0 loader: present and left in place (the option was off): the ported map waits for the author's server it cannot reach, and its Lua modules stay encrypted.": "B0 로더: 있으며 그대로 둠 (옵션이 꺼져 있었음): 포팅된 맵은 연결할 수 없는 제작자의 서버를 기다리며, Lua 모듈은 암호화된 상태로 남습니다.",
+ "Remove the B0 loader and inventory the Lua modules": "B0 로더를 제거하고 Lua 모듈 목록 작성",
+ "Remove the recognized comment blocks": "인식된 주석 블록 제거",
+ "Removed the comment blocks the tool recognizes from the scripts.": "스크립트에서 도구가 인식하는 주석 블록을 제거했습니다.",
+ "the comment blocks": "주석 블록",
+ "The map loads {0} encrypted Lua modules through a DLL that needs the author's server. The port turns the loader off and lists each module in the report: the ones whose plain text is not found stay out. Nothing is decrypted.": "이 맵은 제작자의 서버가 필요한 DLL을 통해 암호화된 Lua 모듈 {0}개를 불러옵니다. 포팅 시 로더를 끄고 각 모듈을 보고서에 나열합니다. 평문을 찾지 못한 모듈은 제외됩니다. 복호화는 전혀 하지 않습니다.",
+ "{0} icon paths in the object data name a file that neither the map nor the game has: the game draws those buttons with the missing texture. Only the author can fix it (import the icon or correct the path).": "오브젝트 데이터의 아이콘 경로 {0}개가 맵과 게임 어디에도 없는 파일을 가리킵니다. 게임은 해당 버튼을 누락된 텍스처로 표시합니다. 제작자만 고칠 수 있습니다 (아이콘을 가져오거나 경로를 수정).",
+ "{0} script file carries a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "스크립트 파일 {0}개에 도구가 인식하는 주석 블록이 있습니다. 해당 주석 줄만 제거되며, 각 파일의 나머지는 바이트 단위로 그대로 유지됩니다.",
+ "{0} script files carry a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "스크립트 파일 {0}개에 도구가 인식하는 주석 블록이 있습니다. 해당 주석 줄만 제거되며, 각 파일의 나머지는 바이트 단위로 그대로 유지됩니다."
 }
