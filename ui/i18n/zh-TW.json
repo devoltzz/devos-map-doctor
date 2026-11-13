@@ -3530,5 +3530,14 @@
  "Loading numpy and Pillow...": "正在載入 numpy 和 Pillow...",
  "Loading the engine...": "正在載入引擎...",
  "an initial value longer than this editor reads": "初始值的長度超過此編輯器所能讀取的範圍",
- "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "長度為 {0} 位元組的文字，而此編輯器在觸發器參數中最多只能讀取 {1}"
+ "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "長度為 {0} 位元組的文字，而此編輯器在觸發器參數中最多只能讀取 {1}",
+ "B0 loader: present and left in place (the option was off): the ported map waits for the author's server it cannot reach, and its Lua modules stay encrypted.": "B0 載入器：存在且保留原樣（該選項已關閉）：移植後的地圖會等待無法連線的作者伺服器，其 Lua 模組仍保持加密。",
+ "Remove the B0 loader and inventory the Lua modules": "移除 B0 載入器並列出 Lua 模組清單",
+ "Remove the recognized comment blocks": "移除已識別的註解區塊",
+ "Removed the comment blocks the tool recognizes from the scripts.": "已從腳本中移除工具所識別的註解區塊。",
+ "the comment blocks": "註解區塊",
+ "The map loads {0} encrypted Lua modules through a DLL that needs the author's server. The port turns the loader off and lists each module in the report: the ones whose plain text is not found stay out. Nothing is decrypted.": "此地圖透過需要作者伺服器的 DLL 載入 {0} 個加密的 Lua 模組。移植時會關閉載入器，並在報告中列出每個模組：找不到明文的模組不會納入。不會解密任何內容。",
+ "{0} icon paths in the object data name a file that neither the map nor the game has: the game draws those buttons with the missing texture. Only the author can fix it (import the icon or correct the path).": "物件資料中有 {0} 個圖示路徑所指的檔案，地圖和遊戲中都不存在：遊戲會用缺失材質繪製這些按鈕。只有作者能修正（匯入圖示或更正路徑）。",
+ "{0} script file carries a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "{0} 個腳本檔案含有工具所識別的註解區塊。只會移除那些註解行；每個檔案的其餘內容保持逐位元組不變。",
+ "{0} script files carry a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "{0} 個腳本檔案含有工具所識別的註解區塊。只會移除那些註解行；每個檔案的其餘內容保持逐位元組不變。"
 }
