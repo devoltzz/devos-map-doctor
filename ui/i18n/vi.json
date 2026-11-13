@@ -3530,5 +3530,14 @@
  "Loading numpy and Pillow...": "Đang tải numpy và Pillow...",
  "Loading the engine...": "Đang tải engine...",
  "an initial value longer than this editor reads": "giá trị khởi tạo dài hơn mức editor này đọc được",
- "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "một văn bản dài {0} byte, trong khi editor này chỉ đọc tối đa {1} trong một tham số trigger"
+ "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "một văn bản dài {0} byte, trong khi editor này chỉ đọc tối đa {1} trong một tham số trigger",
+ "B0 loader: present and left in place (the option was off): the ported map waits for the author's server it cannot reach, and its Lua modules stay encrypted.": "Trình tải B0: có mặt và được giữ nguyên (tùy chọn đã tắt): bản đồ đã chuyển đổi chờ máy chủ của tác giả mà nó không thể kết nối, và các module Lua của nó vẫn bị mã hóa.",
+ "Remove the B0 loader and inventory the Lua modules": "Gỡ trình tải B0 và lập danh sách các module Lua",
+ "Remove the recognized comment blocks": "Xóa các khối chú thích được nhận diện",
+ "Removed the comment blocks the tool recognizes from the scripts.": "Đã xóa khỏi các script những khối chú thích mà công cụ nhận diện được.",
+ "the comment blocks": "các khối chú thích",
+ "The map loads {0} encrypted Lua modules through a DLL that needs the author's server. The port turns the loader off and lists each module in the report: the ones whose plain text is not found stay out. Nothing is decrypted.": "Bản đồ tải {0} module Lua được mã hóa thông qua một DLL cần máy chủ của tác giả. Bản chuyển đổi tắt trình tải và liệt kê từng module trong báo cáo: những module không tìm thấy văn bản gốc sẽ bị loại ra. Không có gì được giải mã.",
+ "{0} icon paths in the object data name a file that neither the map nor the game has: the game draws those buttons with the missing texture. Only the author can fix it (import the icon or correct the path).": "{0} đường dẫn biểu tượng trong dữ liệu đối tượng trỏ tới một tệp mà cả bản đồ lẫn game đều không có: game vẽ các nút đó bằng texture bị thiếu. Chỉ tác giả mới sửa được (nhập biểu tượng hoặc sửa đường dẫn).",
+ "{0} script file carries a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "{0} tệp script có một khối chú thích mà công cụ nhận diện được. Chỉ các dòng chú thích đó bị xóa; phần còn lại của mỗi tệp được giữ nguyên từng byte.",
+ "{0} script files carry a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "{0} tệp script có một khối chú thích mà công cụ nhận diện được. Chỉ các dòng chú thích đó bị xóa; phần còn lại của mỗi tệp được giữ nguyên từng byte."
 }
