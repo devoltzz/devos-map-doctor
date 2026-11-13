@@ -6,6 +6,17 @@ TAM = 512
 OFF_NAME = 8
 
 
+def _only_padding(file_path):
+    try:
+        from doctor.mpq import mpqread
+        a = mpqread.Archive(file_path)
+        if a.h.offset < TAM:
+            return False
+        return all(cs == 0 or ((a.h.offset + off) & 0xFFFFFFFF) >= TAM for off, cs, _fs, _fl in a.blocks)
+    except Exception:
+        return False
+
+
 def renomeia(file_path, fname, do_write=True):
     with open(file_path, 'r+b') as f:
         header = f.read(TAM)
@@ -24,7 +35,7 @@ def renomeia(file_path, fname, do_write=True):
         end_new = OFF_NAME + len(new) + 9
         if end_new > TAM:
             raise ValueError('the name %r leaves no room for flags/max_players' % fname)
-        if end_new > end_old and any(header[end_old:end_new]):
+        if end_new > end_old and any(header[end_old:end_new]) and not _only_padding(file_path):
             raise ValueError('the name %r would push nonzero bytes out of the HM3W' % fname)
         body = header[:OFF_NAME] + new + fields
         body += b'\x00' * max(0, end_old - end_new)
