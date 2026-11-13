@@ -3,6 +3,13 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 2.3.1 (2026-11-13)
+
+### Fixed
+
+- **Linux, the window did not open on Arch Linux (and other systems newer than the build's):** the program carried its own copies of some libraries that only the system's GTK and WebKitGTK use (brotli, fribidi, libthai, graphite2, libbsd...). A newer system's libsoup then got the old brotli and WebKitGTK failed to load ("undefined symbol: BrotliDecoderAttachDictionary"). Those libraries now stay the system's; what Python itself needs is still inside, so the command line runs on a bare system as before. Reported in issue #84.
+- **Windows, the command line is now a file of the release:** `doctor.exe`, the console launcher, now comes with every release next to `DevosMapDoctor.exe` (and in `SHA256SUMS.txt`), so the command line works without opening the window first. Keep both in the same folder. The program still puts its own copy next to itself when the window opens.
+
 ## 2.3.0 (2026-11-12)
 
 ### Added
