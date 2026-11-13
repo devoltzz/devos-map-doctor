@@ -3531,5 +3531,14 @@
  "Loading numpy and Pillow...": "numpy und Pillow werden geladen...",
  "Loading the engine...": "Die Engine wird geladen...",
  "an initial value longer than this editor reads": "ein Anfangswert, der länger ist, als dieser Editor lesen kann",
- "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "ein Text mit {0} Bytes, und dieser Editor liest in einem Trigger-Parameter höchstens {1}"
+ "a text of {0} bytes, and this editor reads at most {1} in a trigger parameter": "ein Text mit {0} Bytes, und dieser Editor liest in einem Trigger-Parameter höchstens {1}",
+ "B0 loader: present and left in place (the option was off): the ported map waits for the author's server it cannot reach, and its Lua modules stay encrypted.": "B0-Loader: vorhanden und unverändert belassen (die Option war deaktiviert): Die portierte Karte wartet auf den Server des Autors, den sie nicht erreichen kann, und ihre Lua-Module bleiben verschlüsselt.",
+ "Remove the B0 loader and inventory the Lua modules": "B0-Loader entfernen und die Lua-Module auflisten",
+ "Remove the recognized comment blocks": "Erkannte Kommentarblöcke entfernen",
+ "Removed the comment blocks the tool recognizes from the scripts.": "Die vom Tool erkannten Kommentarblöcke wurden aus den Skripten entfernt.",
+ "the comment blocks": "die Kommentarblöcke",
+ "The map loads {0} encrypted Lua modules through a DLL that needs the author's server. The port turns the loader off and lists each module in the report: the ones whose plain text is not found stay out. Nothing is decrypted.": "Die Karte lädt {0} verschlüsselte Lua-Module über eine DLL, die den Server des Autors benötigt. Der Port schaltet den Loader ab und listet jedes Modul im Bericht auf: Die Module, deren Klartext nicht gefunden wird, bleiben draußen. Nichts wird entschlüsselt.",
+ "{0} icon paths in the object data name a file that neither the map nor the game has: the game draws those buttons with the missing texture. Only the author can fix it (import the icon or correct the path).": "{0} Symbolpfade in den Objektdaten nennen eine Datei, die weder die Karte noch das Spiel besitzt: Das Spiel zeichnet diese Schaltflächen mit der fehlenden Textur. Nur der Autor kann das beheben (das Symbol importieren oder den Pfad korrigieren).",
+ "{0} script file carries a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "{0} Skriptdatei enthält einen vom Tool erkannten Kommentarblock. Nur diese Kommentarzeilen werden entfernt; der Rest jeder Datei bleibt Byte für Byte erhalten.",
+ "{0} script files carry a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "{0} Skriptdateien enthalten einen vom Tool erkannten Kommentarblock. Nur diese Kommentarzeilen werden entfernt; der Rest jeder Datei bleibt Byte für Byte erhalten."
 }
