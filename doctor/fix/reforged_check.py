@@ -648,13 +648,31 @@ def texture_items(path):
 
 def icon_items(path):
     from doctor.fix import disabled_icons
+    items = []
+    try:
+        m = disabled_icons.missing_icons(path)
+    except Exception:
+        m = {}
+    if m.get('missing'):
+        items.append(_item('icon_path_missing', 'info', '%d icon paths in the object data name a file that neither '
+                           'the map nor the game has: the game draws those buttons with the missing texture. Only '
+                           'the author can fix it (import the icon or correct the path).' % len(m['missing']), 'none',
+                           icons=[x['icon'] for x in m['missing'][:30]], count=len(m['missing'])))
     r = disabled_icons.scan(path)
     if r.get('error') or not r['missing']:
-        return []
-    return [_item('disabled_icons', 'info', '%d of the %d imported icons have no disabled art: the game draws them '
-                  'green where the button is disabled (a dead hero, the items of another unit, an ability not yet '
-                  'available). The Doctor makes it from each icon.' % (len(r['missing']), r['icons']), 'doctor',
-                  icons=[x['icon'] for x in r['missing'][:30]], count=len(r['missing']))]
+        return items
+    return items + [
+        _item(
+            'disabled_icons',
+            'info',
+            '%d of the %d imported icons have no disabled art: the game draws them '
+            'green where the button is disabled (a dead hero, the items of another unit, an ability not yet '
+            'available). The Doctor makes it from each icon.' % (len(r['missing']), r['icons']),
+            'doctor',
+            icons=[x['icon'] for x in r['missing'][:30]],
+            count=len(r['missing']),
+        )
+    ]
 
 
 def console_items(path):
