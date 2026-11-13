@@ -174,6 +174,63 @@ def _plan(a, names, casc):
     return missing, counts, collisions, unreadable
 
 
+LAYERS = ('war3.w3mod:', 'war3.w3mod:_hd.w3mod:', 'war3.w3mod:_de.w3mod:')
+PLACEHOLDERS = ('', 'none', '.blp', '.mdl', '.mdx', '_', '.')
+
+
+def _in_any_layer(casc, path):
+    try:
+        files = casc.file_set
+    except AttributeError:
+        return _in_game(casc, path)
+    base = os.path.splitext(path.replace('/', '\\').lower())[0]
+    return any((layer + base + ext) in files for layer in LAYERS for ext in ('.blp', '.dds'))
+
+
+def missing_icons(path, casc=None):
+    out = {'missing': [], 'checked': 0, 'game': False, 'error': None}
+    from doctor.models import model_check
+    a, err = model_check._open(path)
+    if a is None:
+        out['error'] = err
+        return out
+    casc = casc if casc is not None else game_storage()
+    if casc is None:
+        return out
+    out['game'] = True
+    values = {}
+    for base in ('war3map', 'war3mapSkin'):
+        for ext, fields in OBJECT_FIELDS.items():
+            name = '%s.%s' % (base, ext)
+            data = unprotect._read(a, name)
+            if not data:
+                continue
+            seen = {}
+            try:
+                for ident, field, value in object_strings(data, ext in LEVELLED):
+                    if field in fields:
+                        seen.setdefault((ext, ident, field), []).append(
+                            (value, '%s %s %s' % (name, ident, field.decode('latin-1'))))
+            except (ValueError, struct.error):
+                continue
+            values.update(seen)
+    cited = {}
+    for entries in values.values():
+        for value, where in entries:
+            for icon in _paths(value):
+                stem, ext = os.path.splitext(icon)
+                if ext.lower() not in IMAGE_EXTS or os.path.basename(stem).strip().lower() in PLACEHOLDERS:
+                    continue
+                cited.setdefault(icon, []).append(where)
+    for icon in sorted(cited, key=str.lower):
+        out['checked'] += 1
+        stem = os.path.splitext(icon)[0]
+        if a.find(icon) or any(a.find(stem + e) for e in ('.blp', '.dds', '.tga')) or _in_any_layer(casc, icon):
+            continue
+        out['missing'].append({'icon': icon, 'uses': cited[icon]})
+    return out
+
+
 def scan(path):
     out = {'missing': [], 'icons': 0, 'present': 0, 'game': 0, 'collisions': [], 'unreadable': [], 'error': None}
     from doctor.models import model_check
