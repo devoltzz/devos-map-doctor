@@ -143,6 +143,7 @@ EXTRAS = (
     'null_handles',
     'minify',
     'strip_indent',
+    'aviso_ia',
     'shrink_models',
     'shrink',
     'lobby_image',
@@ -242,6 +243,9 @@ def apply_extras(entry, output, extras, progress=None):
                         details = translation_io.import_(
                             src, param, t, None, bool((extras or {}).get('translation_keep'))
                         )
+                    elif extra == 'aviso_ia':
+                        from doctor.fix import ai_notice
+                        details = ai_notice.fix(src, t, p)
                     elif extra == 'strip_indent':
                         from doctor.fix import script_indent
                         details = script_indent.fix(src, t, compact=not (extras or {}).get('shrink'))
