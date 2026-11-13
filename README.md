@@ -30,11 +30,12 @@ your computer. Chrome, Edge or Firefox on a computer, maps up to 450 MB.
 
 **Windows:**
 
-1. Download `DevosMapDoctor.exe` and `names.npz` from [Releases](https://github.com/devoltzz/devos-map-doctor/releases/latest).
+1. Download `DevosMapDoctor.exe` and `names.npz` from [Releases](https://github.com/devoltzz/devos-map-doctor/releases/latest)
+   (and `doctor.exe` for the command line).
 2. Keep them in the same folder.
 3. Open `DevosMapDoctor.exe` and drop a map on the window.
 
-**Linux** (x86-64, glibc 2.35 or newer: Ubuntu 22.04+, Debian 12+, Fedora 36+, Mint 21+):
+**Linux** (x86-64, glibc 2.35 or newer: Ubuntu 22.04+, Debian 12+, Fedora 36+, Mint 21+, Arch):
 
 1. Download `DevosMapDoctor-linux-x86_64` and `names.npz` into the same folder.
 2. `chmod +x DevosMapDoctor-linux-x86_64`
@@ -59,7 +60,7 @@ The tabs show the rest: the map card, "Runs on Reforged?", the files and the scr
 the comparison of two versions, cheat packs and quality of life edits. How to translate a map:
 [README-translation.md](README-translation.md).
 
-**Command line:** the same jobs from a terminal (`doctor.exe` appears next to the program the first time you open it;
+**Command line:** the same jobs from a terminal (`doctor.exe`, in the release beside the program, which also puts it there when it opens;
 on Linux the program itself takes the commands):
 
 ```
