@@ -160,6 +160,74 @@ def launcher(work):
     return out
 
 
+ONLY_THE_WINDOWS = r"""
+import struct as _struct
+
+
+def _needed(path):
+    # the libraries this file names itself (DT_NEEDED), not ldd's list: ldd also lists what they need in turn, and
+    # PyGObject would reach brotli through GTK
+    try:
+        with open(path, 'rb') as f:
+            data = f.read()
+    except OSError:
+        return []
+    if data[:4] != b'\x7fELF' or data[4] != 2 or data[5] != 1:
+        return []
+    phoff, = _struct.unpack_from('<Q', data, 32)
+    phentsize, phnum = _struct.unpack_from('<HH', data, 54)
+    loads, dynamic = [], None
+    for i in range(phnum):
+        kind, _flags, offset, vaddr, _paddr, filesz = _struct.unpack_from('<IIQQQQ', data, phoff + i * phentsize)
+        if kind == 1:
+            loads.append((vaddr, offset, filesz))
+        elif kind == 2:
+            dynamic = (offset, filesz)
+    if dynamic is None:
+        return []
+
+    def at(vaddr):
+        for start, offset, size in loads:
+            if start <= vaddr < start + size:
+                return offset + vaddr - start
+        return None
+    names, strtab = [], None
+    for i in range(dynamic[1] // 16):
+        tag, value = _struct.unpack_from('<qQ', data, dynamic[0] + i * 16)
+        if tag == 0:
+            break
+        if tag == 1:
+            names.append(value)
+        elif tag == 5:
+            strtab = at(value)
+    if strtab is None:
+        return []
+    return [data[strtab + n:data.index(b'\0', strtab + n)].decode('utf-8', 'replace') for n in names]
+
+
+def _system_lib(b):
+    name = str(b[0])
+    return (str(b[1]).startswith(%r) and '/' not in name and name.startswith('lib')
+            and not name.startswith('libpython'))
+
+
+_by_name = dict((os.path.basename(str(b[0])), b) for b in a.binaries)
+_reached, _todo = set(), [b for b in a.binaries if not _system_lib(b)]
+while _todo:
+    _b = _todo.pop()
+    if str(_b[0]) in _reached:
+        continue
+    _reached.add(str(_b[0]))
+    for _name in _needed(str(_b[1])):
+        _d = _by_name.get(_name)
+        if _d is not None and str(_d[0]) not in _reached:
+            _todo.append(_d)
+_left = sorted(str(b[0]) for b in a.binaries if _system_lib(b) and str(b[0]) not in _reached)
+print('left to the system (only the window libraries need them): ' + (', '.join(_left) or 'none'))
+a.binaries = [b for b in a.binaries if not _system_lib(b) or str(b[0]) in _reached]
+""" % (SYSTEM_LIBS,)
+
+
 def linux_spec(args, work):
     from PyInstaller.utils.cliutils import makespec
     spec_args, skip = [], False
@@ -179,7 +247,7 @@ def linux_spec(args, work):
            'a.binaries = [b for b in a.binaries if not (str(b[1]).startswith(%r) and '
            '_re.match(%r, os.path.basename(str(b[0]))))]\n'
            'a.datas = [d for d in a.datas if not str(d[0]).startswith(\'gi_typelibs\')]\n'
-           % (SYSTEM_LIBS, GUI_LIBS.pattern))
+           % (SYSTEM_LIBS, GUI_LIBS.pattern)) + ONLY_THE_WINDOWS
     text = text.replace('\npyz = PYZ(', cut + 'pyz = PYZ(', 1)
     if 'a.binaries = [b for b' not in text:
         raise SystemExit('the spec PyInstaller wrote has no PYZ line: cannot take the window libraries out')
@@ -269,6 +337,10 @@ def main():
                                   '--distpath', os.path.join(ROOT, 'dist')])
     else:
         PyInstaller.__main__.run(args)
+        if doctor:
+            shutil.copyfile(doctor, os.path.join(ROOT, 'dist', 'doctor.exe'))
+        else:
+            print('doctor.exe is not in dist: the release would go without its command line')
     notices_name = 'THIRD_PARTY_NOTICES-linux.txt' if LINUX else 'THIRD_PARTY_NOTICES.txt'
     with open(os.path.join(ROOT, 'dist', notices_name), 'w', encoding='utf-8') as f:
         f.write(notices())
