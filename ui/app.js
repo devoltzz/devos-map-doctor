@@ -144,13 +144,14 @@ function mapState() {
     newNames: null,
     gameCheck: null,
     extras: { card: null, translation: null, models: null, modelNames: null, singlePlayer: null, portraits: null,
-      dataPointers: null, kkTextures: null, disabledIcons: null, consoleSides: null, uabi: null, preload: null, attributes: null, gameOverrides: null, graphicsModes: null, requirements: null, modelPaths: null, fdf: null, slkObjects: null, lobbyImage: null },
+      dataPointers: null, kkTextures: null, disabledIcons: null, consoleSides: null, uabi: null, preload: null, attributes: null, gameOverrides: null, graphicsModes: null, requirements: null, modelPaths: null, fdf: null, slkObjects: null, lobbyImage: null, avisoIa: null },
     trGroups: null, trSkip: new Set(), trReview: null, trOverride: null,
     cheatpacks: null, cheatPack: { id: null, options: {}, result: null },
     qol: null, qolOpt: {}, qolResult: null,
     rawcodes: null, recipes: null,
     editorVersion: 'reforged',
     portResult: null, portPackages: [], portTargets: null, portTarget: '',
+    portB0: null,
     diag: { mode: 'entry', result: null, logs: null, log: null, crashes: null, crash: null, replays: null, replay: null,
       checkMap: true },
   };
@@ -795,6 +796,7 @@ async function checkReforgedQuietly(gen) {
     if (r.fdf && r.fdf.fixable) { state.extras.fdf = r.fdf; renderActions(); }
     if (r.slk_objects && r.slk_objects.fixable) { state.extras.slkObjects = r.slk_objects; renderActions(); }
     if (r.lobby_image && r.lobby_image.ready) { state.extras.lobbyImage = r.lobby_image; renderActions(); }
+    if (r.aviso_ia && r.aviso_ia.fixable) { state.extras.avisoIa = r.aviso_ia; renderActions(); }
   } catch (e) {
     if (gen !== state.gen) return;
     const badge = $('#reforgedBadge');
@@ -813,7 +815,7 @@ const ACTIONS = {
 const EXTRA_STEPS = {
   fix: ['attributes', 'gameOverrides', 'graphicsModes', 'models', 'modelNames', 'portraits', 'dataPointers', 'kkTextures',
     'disabledIcons', 'consoleSides', 'uabi', 'preload', 'singlePlayer', 'card', 'translation', 'requirements', 'modelPaths', 'fdf', 'nullHandles',
-    'minify', 'stripIndent', 'shrinkModels', 'shrinkModelsLossy', 'shrink', 'shrinkLossy', 'slkObjects',
+    'minify', 'stripIndent', 'avisoIa', 'shrinkModels', 'shrinkModelsLossy', 'shrink', 'shrinkLossy', 'slkObjects',
     'lobbyImage'],
   editor: ['singlePlayer', 'card', 'translation', 'stripIndent'],
 };
@@ -932,6 +934,10 @@ function extraSteps(action) {
     if (k === 'minify' && jass) out.push({ key: 'x:minify', label: 'Minify script',
       detail: 'Shrinks war3map.j: no comments, short names, dead functions and globals removed, constants written in ' +
         'place (pjass checks the result). Readable names are lost.', on: false, applies: true, group: 'extra' });
+    if (k === 'avisoIa' && x.avisoIa) out.push({ key: 'x:avisoIa', label: 'Remove the recognized comment blocks',
+      detail: x.avisoIa.files + ' script ' + (x.avisoIa.files === 1 ? 'file carries' : 'files carry') +
+        ' a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.',
+      on: true, applies: true, group: 'extra' });
     if (k === 'shrinkModels') out.push({ key: 'x:shrinkModels', label: 'Shrink models (lossless)',
       detail: 'Removes repeated animation keys from the imported models; each model is read back and compared.', on: false, applies: true, group: 'extra' });
     if (k === 'shrinkModelsLossy') out.push({ key: 'x:shrinkModelsLossy', label: 'Shrink models (lossy)',
@@ -973,7 +979,7 @@ const FLAGS = { mpq: 'unprotect', falsos: 'fake-files', fake_list: 'fake-files',
   'x:uabi': 'uabi', 'x:preload': 'preload', 'x:singlePlayer': 'single-player', 'x:card': 'card',
   'x:translation': 'translation', 'x:stripIndent': 'strip-indent', 'x:shrink': 'shrink',
   'x:shrinkLossy': 'shrink-lossy', 'x:attributes': 'fix-attributes', 'x:gameOverrides': 'remove-game-files', 'x:gameOverridesIdentical': 'remove-game-copies',
-  'x:graphicsModes': 'fix-graphics-modes', 'x:requirements': 'fix-requirements', 'x:modelPaths': 'fix-model-paths', 'x:fdf': 'fix-fdf', 'x:nullHandles': 'null-handles', 'x:minify': 'minify',
+  'x:graphicsModes': 'fix-graphics-modes', 'x:requirements': 'fix-requirements', 'x:modelPaths': 'fix-model-paths', 'x:fdf': 'fix-fdf', 'x:nullHandles': 'null-handles', 'x:minify': 'minify', 'x:avisoIa': 'strip-comment-blocks',
   'x:slkObjects': 'slk-objects', 'x:lobbyImage': 'lobby-image', 'x:shrinkModels': 'shrink-models',
   'x:shrinkModelsLossy': 'shrink-models-lossy', 'x:portraitStamp': 'portraits=stamp',
   'x:portraitUpgrade': 'portraits=upgrade' };
@@ -1179,6 +1185,7 @@ async function runAction(action) {
   if (extras.fdf) params.extras.fdf = true;
   if (extras.nullHandles) params.extras.null_handles = true;
   if (extras.minify) params.extras.minify = true;
+  if (extras.avisoIa) params.extras.aviso_ia = true;
   if (extras.slkObjects) params.extras.slk_objects = true;
   if (extras.shrinkModels || extras.shrinkModelsLossy) params.extras.shrink_models = { lossy: !!extras.shrinkModelsLossy };
   if (extras.portraits && extras.portraitUpgrade) params.extras.portraits = 'upgrade';
@@ -2906,7 +2913,8 @@ function renderPort() {
           onchange: e => { state.portTextures = e.target.checked; } }),
         optionItem({ checked: state.portIcons !== false, title: 'Fix the green icons',
           detail: 'Makes the disabled art of the imported icons (a dead hero, another unit\'s items).',
-          onchange: e => { state.portIcons = e.target.checked; } })),
+          onchange: e => { state.portIcons = e.target.checked; } }),
+        b0Item()),
       foldedGroup('port', 'more', 'More options', [
         optionItem({ checked: state.portClassic === true, title: 'Classic look of the game effects',
           detail: 'The game\'s own effect models the map uses keep their classic (SD) look: copied into the map under ' +
@@ -3143,6 +3151,16 @@ function packagesBox() {
     } }));
 }
 
+function b0Item() {
+  const b = state.open && state.open.summary && state.open.summary.b0;
+  if (!b) return null;
+  return optionItem({ checked: state.portB0 !== false, title: 'Remove the B0 loader and inventory the Lua modules',
+    detail: 'The map loads ' + b.modules + ' encrypted Lua modules through a DLL that needs the author\'s server. The ' +
+      'port turns the loader off and lists each module in the report: the ones whose plain text is not found stay ' +
+      'out. Nothing is decrypted.',
+    onchange: e => { state.portB0 = e.target.checked; } });
+}
+
 async function runPort() {
   if (state.running) return;
   status('Porting the map...');
@@ -3150,7 +3168,8 @@ async function runPort() {
     const r = await run('port', { packages: state.portPackages || [], memory: state.portMemory !== false,
       icons: state.portIcons !== false, textures: state.portTextures !== false, balance: state.portBalance === true,
       game_files: state.portGameFiles === true, lossy: state.portLossy === true, strip_indent: stripIndentOn(),
-      classic: state.portClassic === true, on_load: state.portOnLoad === true, to: state.portTarget || '' },
+      classic: state.portClassic === true, on_load: state.portOnLoad === true, to: state.portTarget || '',
+      b0: state.portB0 !== false },
       { label: state.portTarget ? 'Porting the map to ' + state.portTarget + '...' : 'Porting the map to Reforged...' });
     state.portResult = r;
     state.results.port = r;
