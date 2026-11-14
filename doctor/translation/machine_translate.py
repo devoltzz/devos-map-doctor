@@ -262,7 +262,8 @@ CLAUSE = re.compile(r'(\s*[，,、：:]\s*)')
 OPENING = '([<'
 CLOSING = ')]>.,!?;:'
 RX_MULT_ZH = re.compile(r'(\d+(?:\.\d+)?)[ \t]*([\u767e\u5343\u4e07\u4ebf])')
-MULT_ZH = {'\u767e': 100, '\u5343': 1000, '\u4e07': 10000, '\u4ebf': 100000000}
+MULT_ZH = {'\u767e': 100, '\u5343': 1000, '\u4e07': 10000, '\u4ebf': 100000000, 'w': 10000, 'W': 10000}
+RX_MULT_W = re.compile(r'(\d+(?:\.\d+)?)[ \t]*([wW])(?![A-Za-z])')
 
 
 def _ascii_punct(s):
@@ -370,6 +371,7 @@ def plan(text, lang):
         if s:
             pl.add_text(s)
         i += 1
+    pl.parts = [('lit', RX_MULT_W.sub(_expand_mult, p[1])) if p[0] == 'lit' else p for p in pl.parts]
     return pl
 
 
@@ -387,6 +389,7 @@ def model_input(s, lang):
 
 def expand_numbers(s, lang):
     s = unicodedata.normalize('NFKC', s)
+    s = RX_MULT_W.sub(_expand_mult, s)
     if lang in ('zh', 'ja'):
         s = RX_MULT_ZH.sub(_expand_mult, s)
     if lang == 'ko':
