@@ -3,6 +3,12 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 2.3.2 (2026-11-14)
+
+### Fixed
+
+- **Translate, Chinese numbers written with "w" stayed untranslated:** Chinese maps often write `5w` or `10W` for 5万 or 10万 (50,000 and 100,000). The translation check already read `5w` as 50,000, but the machine translation passed `5w` on as it was, so the check saw a number that did not match and left the whole text in Chinese. On the reported map that was about 375 item, ability and quest texts, every time it ran. The machine translation now writes these numbers out (`+15w` becomes `+150000`), like it already did for `5万`. Reported in issue #85.
+
 ## 2.3.1 (2026-11-13)
 
 ### Fixed
