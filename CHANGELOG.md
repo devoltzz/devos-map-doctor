@@ -3,6 +3,18 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 2.3.3 (2026-11-16)
+
+### Fixed
+
+- **Open in World Editor (Reforged), the World Editor 3.0 could not save maps with memory hacks:** some old maps read the memory of the 1.2x game (the `SmartCastSystem` library of many JassNative Editor maps reads an array as its address). The World Editor 3.0 refuses that when it saves ("Index missing for array variable"), and Reforged has no such memory anyway. The custom script now gets the same change Port to Reforged already makes to it: the array read becomes 0, the typecast functions use the Reforged equivalent or a neutral value, and the report says what changed so you can check those features in game. Reported in issue #86.
+- **Open in World Editor (Reforged), abilities from SLK tables lost their empty values:** in a map that keeps its objects in SLK tables, an empty cell means 0 to the game. When the editor files were made from the tables for Reforged, an empty cell was left out, so a new ability got its parent's value instead. After a save in the World Editor the game used it: on the reported map the hero pick wisp could not pick because its ability now cost the 75 mana of Storm Bolt. Empty cells are now written as the game reads them, as the classic editors already got. Reported in issue #86.
+- **Translate, object data of newer Reforged maps:** the object files in format 3 (Reforged 2.0 and newer) are now read and written back, so their names and tooltips can be translated.
+- **Translate, small things that broke a map:** object TXT files with mixed line endings come back as they were; file paths with Chinese, Korean or Japanese names and raw codes split by a line break are no longer taken as text (a translated path made the sound or model vanish); the keys of `StringHashBJ` and of the YDWE `...ByString` tables are no longer translated.
+- **Translate, images:** translated BLP images keep their colors closer to the original, the new text is aligned to the left like the old one, and the old text is erased in its box.
+- **File list, unnamed button images:** a button image without a name can now be named from its twins (the same icon with the game's other prefixes: passive, disabled). The idea comes from wc3ctl's name recovery (Apache-2.0); the code is new.
+- **Port to Reforged:** a fake MPQ format version in the map header no longer stops the port; maps whose editor rewrote the game's functions to avoid leaks are recognized again; the platform's mouse frame native reads the player of the event.
+
 ## 2.3.2 (2026-11-14)
 
 ### Fixed
