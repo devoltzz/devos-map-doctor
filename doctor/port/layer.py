@@ -13,6 +13,12 @@ REF_30 = os.path.normpath(os.path.join(HERE, '..', 'ref', '3.0'))
 RX_PARAM = re.compile(r'\{\{(KK_[A-Z0-9_]+)\}\}')
 RX_INCLUDE = re.compile(r'(?m)^[ \t]*//\{\{KK_INCLUI:([a-z0-9_]+)\}\}[ \t]*\r?\n')
 RX_IF = re.compile(r'(?m)^[ \t]*//\{\{KK_(SE|FIMSE):(KK_[A-Z0-9_]+)\}\}[ \t]*\r?\n')
+RX_REQUIRE = re.compile(r'(?m)^[ \t]*//@REQUER\b([^\r\n]*)\r?\n?')
+RX_REQUIRE_ARGS = re.compile(r'^[ \t]+(\S+)(?:[ \t]+(KK_[A-Z0-9_]+))?[ \t]*$')
+REQUIRE_HINT = (
+    '(the recipe lists the panel without the UI kit: create port/ui.json, list KK:kk_ui.j and out_ui_dados.j and turn on '
+    'KK_UI_KIT)'
+)
 
 ROOT = None
 PARTS = []
@@ -223,6 +229,42 @@ def apply_conditionals(body_text, origin, params, in_use=None):
     if '{{KK_SE:' in t or '{{KK_FIMSE:' in t:
         raise SystemExit('ABORT: %s: conditional block marker outside a line of its own' % origin)
     return t
+
+
+REQUIRE_FIX_FILE = ('(make the file before the build -- the UI kit data come from ui.py with the '
+                    'port/ui.json of the project -- or take the part off the list)')
+
+
+def _part_file(fname):
+    return fname.replace('\\', '/').rsplit('/', 1)[-1].rsplit(':', 1)[-1]
+
+
+def apply_require(body_text, origin, listing, params, in_use=None):
+    if '//@REQUER' not in body_text:
+        return body_text
+    listed_parts = {}
+    for p in listing:
+        for n in part_names(p):
+            listed_parts.setdefault(_part_file(n), []).append(n)
+
+    def swap(m):
+        a = RX_REQUIRE_ARGS.match(m.group(1))
+        if not a:
+            raise SystemExit('ABORT: %s: bad //@REQUER line (%s): use //@REQUER <part> [<KK_PARAMETER>]'
+                             % (origin, m.group(0).strip()))
+        requested, param = a.group(1), a.group(2)
+        if param and in_use is not None and param in params:
+            in_use.add(param)
+        if _part_file(requested) not in listed_parts:
+            raise SystemExit('ABORT: %s requires %s %s' % (origin, requested, REQUIRE_HINT))
+        paths = [part_path(n) for n in listed_parts[_part_file(requested)]]
+        if not any(os.path.isfile(c) for c in paths):
+            raise SystemExit('ABORT: %s requires %s: the part is listed but the file %s does not exist %s'
+                             % (origin, requested, ' / '.join(paths), REQUIRE_FIX_FILE))
+        if param and params.get(param) != 'true':
+            raise SystemExit('ABORT: %s requires %s with %s on %s' % (origin, requested, param, REQUIRE_HINT))
+        return ''
+    return RX_REQUIRE.sub(swap, body_text)
 
 
 def layer_files():
@@ -520,6 +562,7 @@ def read_parts(argv=None):
                 continue
             body_text = apply_includes(read_latin1(file_path), file_path, read_latin1)
             body_text = apply_conditionals(body_text, file_path, params, in_use)
+            body_text = apply_require(body_text, n, listing, params, in_use)
             body_text = apply_parameters(body_text, file_path, params, in_use)
             if n.startswith('KKN:'):
                 if map_decl is None:
