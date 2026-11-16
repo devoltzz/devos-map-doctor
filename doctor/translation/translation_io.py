@@ -116,6 +116,23 @@ REASONS = (('empty', 'empty translation'), ('CJK restante', 'Chinese, Japanese o
 
 KEEPABLE = ('numbers changed', 'much longer than the original', 'Chinese, Japanese or Korean text left')
 
+TRANSLATION_CREDIT = 'Translated by devotranslate - devoltz.party'
+
+
+def is_map_description(e):
+    return e.get('id') == 'w3i:description' or 'w3i map description' in (e.get('context') or '')
+
+
+def without_credit(text):
+    t = text.rstrip()
+    if not t.endswith(TRANSLATION_CREDIT):
+        return text
+    t = t[:-len(TRANSLATION_CREDIT)]
+    for sep in (' | ', '\r\n\r\n', '\n\n'):
+        if t.endswith(sep):
+            return t[:-len(sep)]
+    return t.rstrip()
+
 
 def _nothing(*_a, **_k):
     pass
@@ -374,7 +391,7 @@ def _collect_profiles(mt, read, names):
         text = _decode(files[name])
         found = []
         tr_extract.extract_txt_text(name, text, found, collections.Counter(), collections.Counter(), is_text, set())
-        lines = tr_extract.line_break(text)[0]
+        lines = tr_extract.misc_parts(text)[0]
         sections = _sections(lines)
         for ln, line in enumerate(lines):
             m = RX_KEY.match(line)
@@ -1212,6 +1229,8 @@ def unglue(text, translation, language=''):
 def check_entry(e, translation, language=''):
     if not isinstance(translation, str):
         return ['not a string']
+    if is_map_description(e) and translation.rstrip().endswith(TRANSLATION_CREDIT):
+        translation = without_credit(translation) or e['text']
     tx = e.get('_tx') or {}
     entry_ = {'text': e['text'], 'kind': e['_kind'], 'src': e['file'], 'quoted': tx.get('quoted', False),
                'comma': tx.get('comma', False)}
@@ -1253,6 +1272,9 @@ def check_entry(e, translation, language=''):
         out.append('a real line break in a profile value')
     if e['source'] == 'fdf' and re.search(r'(?<!\\)(?:\\\\)*\\$', translation):
         out.append('a backslash at the end (it would escape the quote of the FDF text)')
+    if e['source'] not in ('script', 'fdf') and translation.count('\\') != e['text'].count('\\'):
+        out.append('backslashes changed (%d -> %d): this file reads no escape, a backslash shows as it is'
+                   % (e['text'].count('\\'), translation.count('\\')))
     if _bad_utf8(translation):
         out.append('not valid UTF-8')
     if e.get('_limit') and len(_encode(_written(e, translation))) > e['_limit']:
@@ -1354,7 +1376,7 @@ def _build(mt, wanted, linked):
             text = _decode(orig)
             lines = tr_extract.line_break(text)[0]
             seps = separators(text, lines)
-            misto = items[0][0].get('_misc') and not tr_extract.misc_parts(text)[1]
+            misto = not tr_extract.misc_parts(text)[1]
             if misto:
                 lines = tr_extract.misc_parts(text)[0]
             for e, tr in items:
@@ -1434,7 +1456,7 @@ def _readback(a, mt, wanted, linked, script):
             elif e['source'] == 'fdf':
                 v = tr_extract.line_break(_decode(b))[0]
             else:
-                v = tr_extract.line_break(_decode(b))[0]
+                v = tr_extract.misc_parts(_decode(b))[0]
             parsed[e['file']] = v
         return parsed[e['file']]
     missing += _lua_readback(mt, wanted, script.get('lua') or {}, data)
