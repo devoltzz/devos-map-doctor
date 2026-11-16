@@ -2596,12 +2596,23 @@ function DzGetMouseY takes nothing returns integer
     return DzGetMouseYRelative()
 endfunction
 
+function DB_mouse_id takes nothing returns integer
+    local player p=GetTriggerPlayer()
+    local integer i
+    if p==null then
+        set p=GetLocalPlayer()
+    endif
+    set i=GetPlayerId(p)
+    set p=null
+    return i
+endfunction
+
 function DzGetMouseTerrainX takes nothing returns real
-    return DB_mouse_wx[GetPlayerId(GetLocalPlayer())]
+    return DB_mouse_wx[DB_mouse_id()]
 endfunction
 
 function DzGetMouseTerrainY takes nothing returns real
-    return DB_mouse_wy[GetPlayerId(GetLocalPlayer())]
+    return DB_mouse_wy[DB_mouse_id()]
 endfunction
 
 function DB_mouse_mundo takes nothing returns nothing
