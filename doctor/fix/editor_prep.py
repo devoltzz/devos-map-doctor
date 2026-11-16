@@ -795,7 +795,24 @@ def locals_without_clash(body_text, log=print, kept=None):
     return '\n'.join(line_list), replacements
 
 
-PRAGMA_ON, PRAGMA_OFF = '//# +nosemanticerror', '//# -nosemanticerror'
+def memory_reforged(body_text, log=print):
+    try:
+        from doctor.port import lbkkapi
+        from doctor.port import memory_hacks
+        new, info = memory_hacks.applies(body_text, lbkkapi.read_reference(), equivalents=True, neutralize=True)
+    except Exception as e:
+        log('memory hacks: not checked (%s: %s)' % (type(e).__name__, e))
+        return body_text, {}
+    bridge = info.get('bridge') or {}
+    done = {'arrays': sum(info['arrays'].values()), 'names': sorted(info['arrays'])[:10],
+            'codes': len(info['codes']), 'neutral': len(info['neutrals']) + len(bridge.get('neutral_expr') or []),
+            'casts': len(info['conversions']), 'effects': len(info['effects'])}
+    if new == body_text or not any(v for k, v in done.items() if k != 'names'):
+        return body_text, {}
+    return new, done
+
+
+PRAGMA_ON, PRAGMA_OFF ='//# +nosemanticerror', '//# -nosemanticerror'
 
 
 def typecast_for_jasshelper(body_text, kept, compiled=False):
@@ -950,6 +967,8 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
             body_text, details['typecast_jasshelper'] = typecast_for_jasshelper(body_text, details['kept_locals'])
             from doctor.fix import editor_version
             body_text, details['jassnative'] = editor_version.without_jassnative_mark(body_text)
+        else:
+            body_text, details['memory_hacks'] = memory_reforged(body_text, log)
     expected_len = body_text
     counts = inflated_counts.analyze_map(a)
     broken = dict((x['file_name'], x) for x in counts)
