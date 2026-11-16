@@ -20,7 +20,7 @@ if _restart:
     sys.exit(0)
 from doctor.fix import unprotect as D
 
-VERSION = '2.3.2'
+VERSION = '2.3.3'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -821,6 +821,25 @@ def editor_text(r):
                     ),
                 )
             )
+    mem = (r.get('editor') or {}).get('memory_hacks') or {}
+    if mem:
+        out.append(
+            (
+                'warning',
+                '  - The script reads the memory of the old 1.2x game (memory hacks), which Reforged does '
+                'not have and the World Editor 3.0 refuses when it saves ("Index missing for array '
+                'variable"). In the custom script they were changed as Port to Reforged changes them: %d '
+                'array read(s) as an address became 0%s, %d typecast function(s) use the Reforged '
+                'equivalent, %d return a neutral value. What depended on that memory does not work; '
+                'check those features in game.'
+                % (
+                    mem.get('arrays') or 0,
+                    (' (' + ', '.join(mem.get('names') or []) + ')') if mem.get('names') else '',
+                    mem.get('casts') or 0,
+                    (mem.get('neutral') or 0) + (mem.get('codes') or 0),
+                ),
+            )
+        )
     pot = (r.get('editor') or {}).get('textures_power_of_two') or []
     if pot:
         out.append(
