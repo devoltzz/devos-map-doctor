@@ -61,7 +61,7 @@ NODE_AFTER_SIZE = (b'LITE', b'ATCH', b'PREM', b'PRE2', b'RIBB', b'CORN')
 CLID_SIZE = {0: 24, 1: 24, 2: 16, 3: 28}
 
 
-def _nodes(data, chunks):
+def _entries(data, chunks):
     out = []
     for tag, size, off in chunks:
         if tag not in NODE_AT_START and tag not in NODE_AFTER_SIZE:
@@ -70,15 +70,15 @@ def _nodes(data, chunks):
         while q < end:
             if tag in NODE_AFTER_SIZE:
                 total = struct.unpack_from('<I', data, q)[0]
-                out.append((tag, q + 4))
                 if total < 4 + 96:
                     raise ValueError('a %s entry of %d bytes' % (tag.decode(), total))
+                out.append((tag, q, q + 4, q + total))
                 q += total
                 continue
             nsz = struct.unpack_from('<I', data, q)[0]
             if nsz < 96:
                 raise ValueError('a %s node of %d bytes' % (tag.decode(), nsz))
-            out.append((tag, q))
+            e0 = q
             q += nsz
             if tag == b'BONE':
                 q += 8
@@ -89,9 +89,14 @@ def _nodes(data, chunks):
                 if kind not in CLID_SIZE:
                     raise ValueError('a collision shape of type %d' % kind)
                 q += 4 + CLID_SIZE[kind]
+            out.append((tag, e0, e0, q))
         if q != end:
             raise ValueError('the %s chunk does not close on its entries' % tag.decode())
     return out
+
+
+def _nodes(data, chunks):
+    return [(tag, no) for tag, _e0, no, _e1 in _entries(data, chunks)]
 
 
 def view_matrix(direction):
@@ -137,9 +142,15 @@ def _extent(buf, p, m):
     struct.pack_into('<3f', buf, p + 16, *(max(c[i] for c in rot) for i in range(3)))
 
 
-def facing_screen(data, direction=(1.0, 0.0, 0.0), name='DevoUIRoot'):
+def facing_screen(data, direction=(1.0, 0.0, 0.0), name='DevoUIRoot', make_bone=False):
     chunks = _walk(data)
     tags = [c[0] for c in chunks]
+    if make_bone and b'BONE' not in tags and b'PIVT' in tags:
+        after_diag = (b'LITE', b'HELP', b'ATCH', b'PIVT', b'PREM', b'PRE2', b'RIBB', b'EVTS', b'CAMS', b'CLID', b'CORN')
+        where = next(off - 8 for tag, _size, off in chunks if tag in after_diag)
+        data = data[:where] + b'BONE' + struct.pack('<I', 0) + data[where:]
+        chunks = _walk(data)
+        tags = [c[0] for c in chunks]
     if b'BONE' not in tags or b'PIVT' not in tags:
         raise ValueError('a model with no bones or pivots')
     m = view_matrix(direction)
@@ -223,7 +234,14 @@ def is_world_model(data, limit=2.0):
     return False
 
 
+NODE_FLAGS_KEPT = {b'BONE': 0x100 | 0x8 | 0x40, b'HELP': 0x8}
 def empty(name='DevoEmpty'):
     modl = name.encode('ascii')[:79].ljust(80, b'\0') + b''.ljust(260, b'\0') + struct.pack('<7fI', *([0.0] * 7), 150)
     return b'MDLX' + b'VERS' + struct.pack('<II', 4, 800) + b'MODL' + struct.pack('<I', len(modl)) + modl
+
+
+EFFECT_FLAGS_KEPT = dict(NODE_FLAGS_KEPT)
+EFFECT_FLAGS_KEPT.update({b'PRE2': 0x1000 | 0x8000 | 0x10000 | 0x20000 | 0x40000 | 0x80000 | 0x100000, b'RIBB': 0x4000})
+def _bad(v):
+    return v != v or v in (float('inf'), float('-inf'))
 
