@@ -141,8 +141,8 @@ def classifica_occurrence(line_str, pos, lit, caution_as_screen=False, script_fl
             if tgt is not None and _find(tgt, lit):
                 return 'caution:' + fn
         return 'screen:' + fn
-    if fn == 'StringHash':
-        return 'hash_key:StringHash'
+    if fn in ('StringHash', 'StringHashBJ'):
+        return 'hash_key:' + fn
     if fn in FUNCTIONS_CAUTION:
         return 'caution:' + fn
     if fn in ARGUMENTS_KEY:
@@ -746,7 +746,7 @@ class ScriptFlow(object):
 
 
 def classify_call_occurrence(fn, idx):
-    if fn == 'StringHash':
+    if fn in ('StringHash', 'StringHashBJ'):
         return 'hash_key'
     if fn in FUNCTIONS_CAUTION:
         return 'caution'
@@ -821,8 +821,7 @@ def apply_txt(root, entries, tr, stats):
             by_file.setdefault(e['src'], {})[e['line']] = (e, tr[e['id']])
     for details, lines_map in by_file.items():
         src = tx.read_text(os.path.join(root, details))
-        lines, sep = (tx.misc_parts(src) if os.path.basename(details) in ('war3mapMisc.txt', 'war3mapSkin.txt')
-                      else tx.line_break(src))
+        lines, sep = tx.misc_parts(src)
         n = 0
         for line_no, (e, en) in lines_map.items():
             mk = re.match(r'^([A-Za-z0-9_]+)=(.*)$', lines[line_no])
