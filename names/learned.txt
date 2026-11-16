@@ -7485,6 +7485,7 @@ ReplaceableTextures\CommandButtonsDisabled\DISBTNDownTier 1.blp
 ReplaceableTextures\CommandButtonsDisabled\DISBTNDownTier+1.blp
 ReplaceableTextures\CommandButtonsDisabled\DISBTNEvoAvailable.blp
 ReplaceableTextures\CommandButtonsDisabled\DISBTNfengchidianche.blp
+ReplaceableTextures\CommandButtonsDisabled\DISBTNForkedlightningRED.tga
 ReplaceableTextures\CommandButtonsDisabled\DISBTNGoldGeneratorUpgrade.blp
 ReplaceableTextures\CommandButtonsDisabled\DISBTNguanchuandan.blp
 ReplaceableTextures\CommandButtonsDisabled\DISBTNGxinhao.blp
@@ -8845,6 +8846,7 @@ ReplaceableTextures\CommandButtons\BTNDeathRevenant.dds
 ReplaceableTextures\CommandButtons\BTNDetheroc.dds
 ReplaceableTextures\CommandButtons\BTNDownTier 1.blp
 ReplaceableTextures\CommandButtons\BTNEvoAvailable.blp
+ReplaceableTextures\CommandButtons\BTNForkedlightningRED.tga
 ReplaceableTextures\CommandButtons\BTNGoldGeneratorUpgrade.blp
 ReplaceableTextures\CommandButtons\BTNIceBoxIcon.blp
 ReplaceableTextures\CommandButtons\BTNJN206GRADE0000.blp
@@ -10806,6 +10808,8 @@ war3mapImported\by_wood_huoyanchongji_1_2_1.blp
 war3mapImported\by_wood_huoyanchongji_1_2_2.blp
 war3mapImported\Cantarella_Desert_kit01.blp
 war3mapImported\Cave-claw.blp
+war3mapImported\cominginclearly louder.mp3
+war3mapImported\cominginclearly.mp3
 war3mapImported\CoralofLife.blp
 war3mapImported\core_bg_1.blp
 war3mapImported\core_bg_2.blp
@@ -11710,6 +11714,8 @@ war3mapImported\NFS_Icon_number_6.mdx
 war3mapImported\NFS_Icon_number_7.mdx
 war3mapImported\NFS_Icon_number_8.mdx
 war3mapImported\NFS_Icon_number_9.mdx
+war3mapImported\nhiennnnn louder.mp3
+war3mapImported\nhiennnnn.mp3
 war3mapImported\NiceSoundEffect.mp3
 war3mapImported\NL_UI_JL_mapsVIP25.blp
 war3mapImported\NPC_bachtamdaonhan.mdx
@@ -11940,6 +11946,10 @@ war3mapImported\ui_button_wuzicang.blp
 war3mapImported\Unit_loluyendon.mdx
 war3mapImported\Unit_ruongdonew.mdx
 war3mapImported\Unit_tranhondang.mdx
+war3mapImported\upinhere louder.mp3
+war3mapImported\upinhere.mp3
+war3mapImported\verypowerful louder.mp3
+war3mapImported\verypowerful.mp3
 war3mapImported\WarHorse_v2.0.blp
 war3mapImported\warlockunlock.mp3
 war3mapImported\Wings_37.blp
