@@ -72,10 +72,18 @@ def decode(name, data):
     return im.convert('RGBA')
 
 
-def encode(name, im, original):
+def encode(name, im, original, fiel=False):
     low = name.lower()
     if low.endswith('.blp'):
         from doctor.models import blpwrite
+        if fiel:
+            try:
+                tabela = blpwrite.qtable_from_bytes(original) if original[:4] == b'BLP1' else None
+            except Exception:
+                tabela = None
+            if tabela:
+                alpha = 8 if im.getextrema()[3][0] < 255 else 0
+                return blpwrite.blp_jpeg_bytes(im, 100, alpha, qtable=tabela)[1]
         fd, tmp = tempfile.mkstemp(suffix='.blp')
         os.close(fd)
         try:
