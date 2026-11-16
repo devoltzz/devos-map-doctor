@@ -84,6 +84,148 @@ def normalize(body_text):
     return [name_list.get(t, t) if isinstance(t, str) else t for t in toks]
 
 
+RX_SET_NULL = re.compile(r'^set (\w+) = null$')
+RX_LOCAL = re.compile(r'^local (\w+) (?:array )?(\w+)(?: = (.+))?$')
+RX_SET = re.compile(r'^set (\w+) = (.+)$')
+EQUIVALENTS = {
+    'BJDebugMsg': ['function BJDebugMsg takes string msg returns nothing\n'
+                   'call DisplayTimedTextToPlayer(GetLocalPlayer(),0,0,60,msg)\nendfunction'],
+}
+
+
+def _code(body_text):
+    output = []
+    for line in body_text.split('\n'):
+        toks = [t for t in RX_TOK.findall(line) if not t.startswith('//')]
+        if toks:
+            output.append(' '.join(toks))
+    return output
+
+
+def _quote_it(ln, fname):
+    return re.search(r'(?<!\w)%s(?!\w)' % re.escape(fname), ln) is not None
+
+
+def _null_of(ln, name_list):
+    m = RX_SET_NULL.match(ln)
+    return m.group(1) if m and m.group(1) in name_list else None
+
+
+def free_temporaries(mv, mf, extra_v, script):
+    cited = set(RX_IDENT.findall(script))
+    cand = dict((g, RX_DECL_LINE.match(extra_v[g]).group(1)) for g in extra_v
+                if g not in cited and RX_DECL_LINE.match(extra_v[g]))
+    if not cand:
+        return {}
+    for f in mf.values():
+        line_list = _code(f)[1:]
+        for g in [x for x in set(RX_IDENT.findall(f)) if x in cand]:
+            first = next((line for line in line_list if _quote_it(line, g)), None)
+            s = RX_SET.match(first) if first else None
+            if not (s and s.group(1) == g and not _quote_it(s.group(2), g)):
+                cand.pop(g, None)
+    return cand
+
+
+def undo_leak_fix(func, free_slots=None):
+    free_slots = free_slots or {}
+    line_list = _code(func)
+    if len(line_list) < 2:
+        return func
+    local_vars = set()
+    m = re.search(r'(?<!\w)takes (.*?) returns(?!\w)', line_list[0])
+    if m and m.group(1).strip() != 'nothing':
+        for p in m.group(1).split(','):
+            ps = p.split()
+            if len(ps) == 2:
+                local_vars.add(ps[1])
+    for line in line_list:
+        d = RX_LOCAL.match(line)
+        if d:
+            local_vars.add(d.group(2))
+    changed = True
+    while changed:
+        changed = False
+        max_depth, profs = 0, []
+        for line in line_list:
+            if line == 'loop':
+                max_depth += 1
+            profs.append(max_depth)
+            if line == 'endloop':
+                max_depth -= 1
+        for i in range(len(line_list) - 1, 0, -1):
+            fname = _null_of(line_list[i], local_vars)
+            if not fname:
+                continue
+            j = i + 1
+            while j < len(line_list) and _null_of(line_list[j], local_vars):
+                j += 1
+            next_item = line_list[j] if j < len(line_list) else 'endfunction'
+            out_path = (
+                next_item == 'endfunction' or next_item == 'return' or next_item.startswith('return ')
+            ) and not _quote_it(next_item, fname)
+            after_diag = [x for x in line_list[i + 1:] if _null_of(x, local_vars) != fname]
+            if out_path or (profs[i] == 0 and not any(_quote_it(x, fname) for x in after_diag)):
+                del line_list[i]
+                changed = True
+        for i in range(len(line_list) - 2, 0, -1):
+            s = RX_SET.match(line_list[i])
+            if not s or line_list[i + 1] != 'return ' + s.group(1) or _quote_it(s.group(2), s.group(1)):
+                continue
+            t = s.group(1)
+            if t in free_slots:
+                line_list[i:i + 2] = ['return ' + s.group(2)]
+                changed = True
+            elif t in local_vars:
+                decl = [k for k, x in enumerate(line_list) if RX_LOCAL.match(x) and RX_LOCAL.match(x).group(2) == t]
+                pairs = [k for k in range(1, len(line_list) - 1) if RX_SET.match(line_list[k]) and
+                         RX_SET.match(line_list[k]).group(1) == t and line_list[k + 1] == 'return ' + t and
+                         not _quote_it(RX_SET.match(line_list[k]).group(2), t)]
+                in_use = set(decl) | set(pairs) | set(k + 1 for k in pairs)
+                if len(decl) == 1 and RX_LOCAL.match(line_list[decl[0]]).group(3) is None and \
+                        not any(_quote_it(x, t) for k, x in enumerate(line_list) if k not in in_use):
+                    for k in sorted(pairs, reverse=True):
+                        line_list[k:k + 2] = ['return ' + RX_SET.match(line_list[k]).group(2)]
+                    del line_list[decl[0]]
+                    local_vars.discard(t)
+                    changed = True
+                    break
+        for i in range(len(line_list) - 2, 0, -1):
+            d = RX_LOCAL.match(line_list[i])
+            if d and d.group(3) is not None and line_list[i + 1] == 'return ' + d.group(2) and \
+                    not any(_quote_it(x, d.group(2)) for k, x in enumerate(line_list) if k not in (i, i + 1)):
+                line_list[i:i + 2] = ['return ' + d.group(3)]
+                local_vars.discard(d.group(2))
+                changed = True
+        k = 1
+        while k < len(line_list) and RX_LOCAL.match(line_list[k]):
+            k += 1
+        s = RX_SET.match(line_list[k]) if k < len(line_list) else None
+        if s and s.group(1) in free_slots and s.group(1) not in local_vars and not _quote_it(s.group(2), s.group(1)):
+            line_list[k] = 'local %s %s = %s' % (free_slots[s.group(1)], s.group(1), s.group(2))
+            local_vars.add(s.group(1))
+            changed = True
+        for i in range(len(line_list) - 2, 0, -1):
+            s = RX_SET.match(line_list[i])
+            if (
+                s
+                and s.group(2) in local_vars
+                and s.group(1) not in local_vars
+                and line_list[i + 1] == 'return ' + s.group(1)
+            ):
+                line_list[i + 1] = 'return ' + s.group(2)
+                changed = True
+    return '\n'.join(line_list)
+
+
+def leak_only(fname, map_func, game_func, free_slots=None):
+    tgt = normalize(game_func)
+    if normalize(undo_leak_fix(map_func, free_slots)) == tgt:
+        return True
+    map_n = normalize(map_func)
+    return any(normalize(v) == map_n for v in EQUIVALENTS.get(fname, ()))
+
+
 def reference_names(ref):
     name_list = set()
     for file_ in ('common.j', 'blizzard.j'):
@@ -104,7 +246,10 @@ def extract_parts(map_bj, script, vanilla=None, ref=None):
     extra_f = {k: v for k, v in mf.items() if k not in vf}
     info['extra_functions'] = len(extra_f)
     info['extra_variables'] = len(extra_v)
-    info['changed_functions'] = sorted(k for k in mf if k in vf and normalize(mf[k]) != normalize(vf[k]))
+    changed_textures = sorted(k for k in mf if k in vf and normalize(mf[k]) != normalize(vf[k]))
+    free_slots = free_temporaries(mv, mf, extra_v, scr) if changed_textures else {}
+    info['leak_functions'] = [k for k in changed_textures if leak_only(k, mf[k], vf[k], free_slots)]
+    info['changed_functions'] = [k for k in changed_textures if k not in set(info['leak_functions'])]
     info['changed_variables'] = sorted(k for k in mv if k in vv and normalize(mv[k]) != normalize(vv[k]))
     info['missing_from_game'] = sorted(set(vf) - set(mf))
     info['colisoes'] = sorted((set(extra_v) | set(extra_f)) & reference_names(ref or REF_30))
