@@ -596,6 +596,11 @@ DISABLED_FOLDER = 'ReplaceableTextures\\CommandButtonsDisabled\\'
 IMAGE_EXT = ('.blp', '.tga', '.dds')
 MODEL_EXT = ('.mdx', '.mdl')
 IMPORTED_FOLDERS = ('', 'war3mapImported\\')
+ICON_FOLDERS = ('', 'ReplaceableTextures\\CommandButtons\\', DISABLED_FOLDER,
+                'ReplaceableTextures\\PassiveButtons\\', 'war3mapImported\\')
+ICON_PREFIXES = ('', 'BTN', 'DISBTN', 'PASBTN', 'PAS', 'ATC', 'DISPAS', 'DISATC')
+_LONG_ICON_PREFIXES = ('DISBTN', 'DISPAS', 'DISATC', 'PASBTN', 'BTN', 'PAS', 'ATC')
+TWINS_CAP = 2000000
 DERIVED_LIMIT = 3000000
 UNNAMED_TEXT_MAX = 8 << 20
 
@@ -610,6 +615,32 @@ def mdx_inner_name(data_bytes):
             return data_bytes[p + 8:p + 88].split(b'\0')[0].decode('latin-1', 'replace').strip()
         p += 8 + sz
     return ''
+
+
+def _icon_core(root):
+    up = root.upper()
+    for p in _LONG_ICON_PREFIXES:
+        if up.startswith(p) and len(root) > len(p):
+            return p, root[len(p):]
+    return '', root
+
+
+def icon_twins(fname):
+    base = fname.replace('/', '\\').rsplit('\\', 1)[-1]
+    root, ext = os.path.splitext(base)
+    if len(root) < 2 or ext.lower() not in IMAGE_EXT:
+        return []
+    _p, core = _icon_core(root)
+    cores = (root,) if core == root else (root, core)
+    exts = (ext,) if ext.lower() == '.blp' else (ext, '.blp')
+    return list(dict.fromkeys(folder + p + c + e for c in cores for p in ICON_PREFIXES
+                              for folder in ICON_FOLDERS for e in exts))
+
+
+def _looks_like_icon(fname):
+    n = fname.replace('/', '\\')
+    folder, _s, base = n.rpartition('\\')
+    return bool(_icon_core(os.path.splitext(base)[0])[0]) or 'BUTTONS' in folder.upper()
 
 
 RX_LITERAL = re.compile(rb'"((?:[^"\\\n]|\\.){1,160})"')
@@ -869,7 +900,22 @@ def derived_names(a, name_list, log=None, crossed=True):
             log('unnamed, round %d: %d candidates, +%d (total %d, %d left)' % (round_num, len(set(cand)), len(new_ones),
                                                                                   len(matches), len(nameless)))
         if not new_ones:
-            return matches
+            break
+    images = sorted(n for n in list(known) + list(matches) if n.lower().endswith(IMAGE_EXT))
+    seen_g = set()
+    while images and nameless:
+        if len(images) * len(ICON_PREFIXES) * len(ICON_FOLDERS) * 2 > TWINS_CAP:
+            images = [n for n in images if _looks_like_icon(n)]
+        twin = []
+        for n in images:
+            twin.extend(icon_twins(n))
+        seen_g.update(images)
+        gained = try_names(twin[:TWINS_CAP])
+        if log:
+            log('unnamed, icon twins: %d candidates, +%d (total %d, %d left)' % (len(twin), len(gained),
+                                                                                       len(matches), len(nameless)))
+        images = sorted(n for n in gained if n not in seen_g)
+    return matches
 
 
 def full_closure(a, seeds=None, log=None):
