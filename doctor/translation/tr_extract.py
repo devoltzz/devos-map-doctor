@@ -70,8 +70,12 @@ STRING_FILES += [s.strip() for s in os.environ.get('TR_TXT_EXTRA', '').split(','
 RX_PROTECTED_PATH = re.compile(r'^[^\r\n"|]*[\x1c-\x1f][^\r\n"|]*\.(?:mdx|mdl|blp|tga|dds|mp3|wav|ogg|flac)$', re.I)
 
 
+RX_CJK_PATH = re.compile(r'^[^\r\n"|:]*[\\/][^\r\n"|:]*\.(?:mdx|mdl|blp|tga|dds|mp3|wav|ogg|flac)$', re.I)
+
+
 def cjk_text(s):
-    return bool(CJK.search(s)) and not RX_PROTECTED_PATH.match(s.replace('\\\\', '\\'))
+    s = s.replace('\\\\', '\\')
+    return bool(CJK.search(s)) and not RX_PROTECTED_PATH.match(s) and not RX_CJK_PATH.match(s)
 
 
 def read_text(path):
@@ -162,7 +166,7 @@ def extract_txt_text(details, body_text, entries, stats, unknown, tem_text=None,
     present = tem_text or cjk_text
     outside = objects_out() if outside is None else outside
     obj = None
-    for txt_ln, line_text in enumerate(line_break(body_text)[0]):
+    for txt_ln, line_text in misc_lines(body_text):
         mo = re.match(r'^\[(.+)\]\s*$', line_text)
         if mo:
             obj = mo.group(1)
