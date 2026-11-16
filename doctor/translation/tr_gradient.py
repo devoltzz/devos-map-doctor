@@ -1,7 +1,13 @@
 # Writes a text with a color gradient, one color code per character.
+import collections
+import glob
+import json
+import os
 import re
+import sys
 
 
+RX_COLOR = re.compile(r'\|[cC][0-9a-fA-F]{8}|\|[rR]')
 RX_COD = re.compile(r'\|[cC][0-9a-fA-F]{8}|\|[rRnN]')
 RX_SHORT_SEGMENT = re.compile(r'\|[cC][0-9a-fA-F]{8}([^|]{0,4})\|[rR]')
 RX_NOT_CUT = re.compile(r'\d+(?:\.\d+)?%?|\\.')
@@ -87,3 +93,47 @@ def recolore(original, translation):
             out.append(chunks[k])
             k += 1
     return ''.join(out)
+
+
+def without_color(body_text):
+    return RX_COLOR.sub('', body_text)
+
+
+def for_agent(work, dest, from_=0, cap=800):
+    os.makedirs(dest, exist_ok=True)
+    old_streams, gl, n = [], {}, 0
+    for p in sorted(glob.glob(os.path.join(work, 'b_*.json'))):
+        doc = json.load(open(p, encoding='utf-8'), object_pairs_hook=collections.OrderedDict)
+        for it in doc['item_entries']:
+            if e_gradient(it['t']):
+                it['t'] = without_color(it['t'])
+                it['gradient'] = True
+        if int(os.path.basename(p)[2:-5]) >= from_:
+            json.dump(
+                doc, open(os.path.join(dest, os.path.basename(p)), 'w', encoding='utf-8'), ensure_ascii=False, indent=1
+            )
+            n += 1
+        else:
+            old_streams += [it for it in doc['item_entries'] if it.get('gradient')]
+            gl.update(doc['glossary'])
+    slices = [old_streams[i:i + cap] for i in range(0, len(old_streams), cap)]
+    for i, f in enumerate(slices):
+        doc = collections.OrderedDict(glossary=gl, item_entries=f)
+        json.dump(doc, open(os.path.join(dest, 'g_%03d.json' % i), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+    return n, len(slices)
+
+
+if __name__ == '__main__' and sys.argv[1:2] == ['para-agente']:
+    _of_it = int(next((a.split('=', 1)[1] for a in sys.argv[2:] if a.startswith('--de=')), 0))
+    print('blocks, g files:', for_agent(sys.argv[2], sys.argv[3], _of_it))
+elif __name__ == '__main__':
+    zh = '|cffff0000这|r|cfffd060a一|r|cfffb0c14切|r|cfff9121e.|r'
+    en = '|cffff0000Th|r|cfffd060ais is|r|cfffb0c14 al|r|cfff9121el.|r'
+    new = recolore(zh, 'All of |cffff0000this|r 10000.')
+    assert RX_COD.findall(new) == RX_COD.findall(zh), new
+    assert '10000' in RX_COD.sub('', new) and RX_COD.sub('', new) == 'All of this 10000.', new
+    assert e_gradient('|cffff0000a|r' * 6) and not e_gradient('|cffff0000abcdefgh|r' * 6)
+    header = '|CffFF9900[S]: dif --|r|cffffff00A|r|cffedff12B|r|cffdbff24C|r |cffc9ff36D|r'
+    new = recolore(header, '[System Fairy]: Current difficulty -- Holy Fairy')
+    assert RX_COD.findall(new) == RX_COD.findall(header), new
+    print('ok:', new)
