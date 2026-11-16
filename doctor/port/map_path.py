@@ -34,9 +34,34 @@ def classify_items(item_entries, original):
     return output
 
 
+def _fix_mpq_header(map_path):
+    import contextlib
+    import io
+    from doctor.mpq import mpqdoctor
+    from doctor.mpq import mpqlib
+    h, _skipped = mpqlib.file_header(map_path)
+    if h is None or h.version == 0:
+        return False
+    details = {}
+    tmp = map_path + '.cab'
+    with contextlib.redirect_stdout(io.StringIO()):
+        done = mpqdoctor.fix(map_path, tmp, report=details)
+    h2 = mpqlib.file_header(tmp)[0] if os.path.exists(tmp) else None
+    tally = details.get('content') or {}
+    if done is None or h2 is None or h2.version != 0 or tally.get('different'):
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise SystemExit('ERROR: the MPQ header of %s (version %d) is not fixed by `mpqdoctor.fix` (%r): '
+                         'unprotect the map first (Fix map)'
+                         % (os.path.basename(map_path), h.version, tally))
+    os.replace(tmp, map_path)
+    return True
+
+
 def attach(original, output, file_set, to_delete=(), reset=False, all_entries=False, fake_count=False, log=print):
     if os.path.abspath(original) != os.path.abspath(output):
         shutil.copyfile(original, output)
+    _fix_mpq_header(output)
     repl = [(n, content(v)) for n, v in file_set]
     return mpqadd.add_files(
         output, repl, list(to_delete), reset=reset, all_entries=all_entries, fake_count=fake_count, log=log
