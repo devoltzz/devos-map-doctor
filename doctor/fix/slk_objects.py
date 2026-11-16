@@ -519,6 +519,7 @@ def fix(path_in, path_out, progress=None, base=None, species=SPECIES, version=No
     game_line = None
     gv, why = game_of(path_in, version)
     leave = gv is not None
+    complete = True
     if base is None:
         try:
             base = game_base(gv, read('war3map.w3i'))
@@ -533,7 +534,7 @@ def fix(path_in, path_out, progress=None, base=None, species=SPECIES, version=No
         rep['lines'].append(game_line)
     for s in todo:
         try:
-            r = convert(read, names, s, base, progress=p, complete=leave)
+            r = convert(read, names, s, base, progress=p, complete=complete)
         except Exception as e:
             rep['lines'].append(('bad', '%s: not converted (%s).' % (s, str(e)[:100])))
             continue
@@ -570,7 +571,7 @@ def fix(path_in, path_out, progress=None, base=None, species=SPECIES, version=No
         try:
             _v, had, _p = ob.read_objects_bytes(read(fname), ob.uses_levels(fname), fname, True)
             file_parents = dict((o[2].lower(), o[1]) for o in had if o[0] == 1)
-            r = convert(read, names, s, base, progress=p, complete=leave, parents=file_parents)
+            r = convert(read, names, s, base, progress=p, complete=complete, parents=file_parents)
             m = merge_new(read(fname), fname, r['objects'])
             other_parent = any(o[0] == 1 and o[2].lower() in file_parents and
                                o[1].lower() != file_parents[o[2].lower()].lower() for o in r['objects'])
