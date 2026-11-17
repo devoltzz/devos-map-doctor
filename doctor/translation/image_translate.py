@@ -4,7 +4,6 @@ import io
 import os
 import re
 import sys
-import tempfile
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -72,27 +71,32 @@ def decode(name, data):
     return im.convert('RGBA')
 
 
+# the worst JPEG quality a redrawn image is saved at: IJG quality 90 (its base table x 0.2). blpwrite's default table
+# is the base x 2.5 (about quality 20): the thick strokes of Chinese survive it, while thin Latin letters, serifs and
+# outlines break into blocks (the English looked low-res next to the art around it)
+MIN_QUALITY = 0.2
+
+
+def _quality_table(original, fiel=False):
+    from doctor.models import blpwrite
+    try:
+        own = blpwrite.qtable_from_bytes(original) if original[:4] == b'BLP1' else None
+    except Exception:
+        own = None
+    if fiel and own:
+        return own
+    cap = [max(1, int(round(v / 2.5 * MIN_QUALITY))) for v in blpwrite.QTABLE]
+    # the original's own table where it is finer (most KK images are better than quality 90)
+    return [min(a, b) for a, b in zip(own, cap)] if own else cap
+
+
 def encode(name, im, original, fiel=False):
     low = name.lower()
     if low.endswith('.blp'):
         from doctor.models import blpwrite
-        if fiel:
-            try:
-                tabela = blpwrite.qtable_from_bytes(original) if original[:4] == b'BLP1' else None
-            except Exception:
-                tabela = None
-            if tabela:
-                alpha = 8 if im.getextrema()[3][0] < 255 else 0
-                return blpwrite.blp_jpeg_bytes(im, 100, alpha, qtable=tabela)[1]
-        fd, tmp = tempfile.mkstemp(suffix='.blp')
-        os.close(fd)
-        try:
-            alpha = 8 if im.getextrema()[3][0] < 255 else 0
-            blpwrite.save_blp(im, tmp, 100, alpha)
-            with open(tmp, 'rb') as f:
-                return f.read()
-        finally:
-            os.remove(tmp)
+        alpha = 8 if im.getextrema()[3][0] < 255 else 0
+        # palette originals too: the redrawn text's smooth edges have more colours than a palette holds
+        return blpwrite.blp_jpeg_bytes(im, 100, alpha, qtable=_quality_table(original, fiel))[1]
     buf = io.BytesIO()
     if low.endswith('.tga'):
         old = Image.open(io.BytesIO(original))
