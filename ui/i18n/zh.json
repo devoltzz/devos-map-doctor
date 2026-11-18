@@ -3540,5 +3540,14 @@
  "The map loads {0} encrypted Lua modules through a DLL that needs the author's server. The port turns the loader off and lists each module in the report: the ones whose plain text is not found stay out. Nothing is decrypted.": "该地图通过需要作者服务器的 DLL 加载 {0} 个加密的 Lua 模块。移植时会关闭该加载器，并在报告中列出每个模块：找不到明文的模块将不会包含在内。不会解密任何内容。",
  "{0} icon paths in the object data name a file that neither the map nor the game has: the game draws those buttons with the missing texture. Only the author can fix it (import the icon or correct the path).": "对象数据中有 {0} 个图标路径指向的文件，地图和游戏中都不存在：游戏会用缺失贴图绘制这些按钮。只有作者才能修复（导入图标或更正路径）。",
  "{0} script file carries a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "{0} 个脚本文件含有工具识别出的注释块。只会移除这些注释行；每个文件的其余部分逐字节保持不变。",
- "{0} script files carry a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "{0} 个脚本文件含有工具识别出的注释块。只会移除这些注释行；每个文件的其余部分逐字节保持不变。"
+ "{0} script files carry a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "{0} 个脚本文件含有工具识别出的注释块。只会移除这些注释行；每个文件的其余部分逐字节保持不变。",
+ "a custom script line of {0} bytes, and the World Editor cuts it at {1} when it saves": "一行 {0} 字节的自定义脚本,而 World Editor 保存时会在 {1} 处截断它",
+ "The script reads the memory of the old 1.2x game (memory hacks), which Reforged does not have and the World Editor 3.0 refuses when it saves (\"Index missing for array variable\"). In the custom script they were changed as Port to Reforged changes them: {0} array read(s) as an address became 0{1}, {2} typecast function(s) use the Reforged equivalent, {3} return a neutral value. What depended on that memory does not work; check those features in game.": "脚本会读取旧版 1.2x 游戏的内存(内存修改),而 Reforged 没有这块内存,World Editor 3.0 保存时也会拒绝(\"Index missing for array variable\")。自定义脚本中已按 Port to Reforged 的方式修改:{0} 处把数组读取当作地址的地方改为 0{1},{2} 个类型转换函数改用 Reforged 中的对应方法,{3} 个返回中性值。依赖这块内存的功能将无法使用;请在游戏中检查这些功能。",
+ "Japanese text left": "残留日文文本",
+ "Korean text left": "残留韩文文本",
+ "Russian text left": "残留俄文文本",
+ "Vietnamese text left": "残留越南文文本",
+ "Translated by devotranslate - devoltz.party": "Translated by devotranslate - devoltz.party",
+ "w3i map description": "w3i 中的地图描述",
+ "backslashes changed ({0} -> {1}): this file reads no escape, a backslash shows as it is": "反斜杠已更改 ({0} -> {1}):此文件不读取转义,反斜杠按原样显示"
 }
