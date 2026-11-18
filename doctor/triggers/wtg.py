@@ -1,6 +1,7 @@
 # Reads and writes war3map.wtg and war3map.wct.
 import collections
 import os
+import re
 import struct
 from dataclasses import dataclass, field, replace
 from typing import Dict, List, Optional, Tuple
@@ -500,6 +501,28 @@ CLASSIC_MAX_VALUE = 299
 
 def fits_classic(text):
     return len(text.encode('utf-8', 'surrogateescape')) <= CLASSIC_MAX_VALUE
+
+
+REFORGED_MAX_CUSTOM_SCRIPT = 259
+
+
+RX_JASS_STRING_OR_COMMENT = re.compile(r'("(?:[^"\\\n]|\\.)*")|//[^\n]*')
+
+
+def double_percents(text):
+    if '%' not in text:
+        return text
+    return RX_JASS_STRING_OR_COMMENT.sub(
+        lambda m: m.group(1).replace('%', '%%') if m.group(1) else m.group(0), text)
+
+
+def longest_custom_script(functions):
+    longest = 0
+    for f in iter_functions(functions):
+        if f.name == 'CustomScriptCode':
+            for p in f.params:
+                longest = max(longest, len(p.value.encode('utf-8', 'surrogateescape')))
+    return longest
 
 
 def longest_parameter(functions):
