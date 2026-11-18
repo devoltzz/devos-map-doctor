@@ -1579,6 +1579,9 @@ def _gui(ctx, d, obfuscated):
     if TARGET['editor'] is not None and wtg.longest_parameter(t.functions) > wtg.CLASSIC_MAX_VALUE:
         return 'a text of %d bytes, and this editor reads at most %d in a trigger parameter' % (
             wtg.longest_parameter(t.functions), wtg.CLASSIC_MAX_VALUE)
+    if TARGET['editor'] is None and wtg.longest_custom_script(t.functions) > wtg.REFORGED_MAX_CUSTOM_SCRIPT:
+        return 'a custom script line of %d bytes, and the World Editor cuts it at %d when it saves' % (
+            wtg.longest_custom_script(t.functions), wtg.REFORGED_MAX_CUSTOM_SCRIPT)
     t.name = d.name
     banner_desc = _banner(src, d.own)[1]
     t.description = (m.trigger.description or banner_desc or (NOTE_RENAMED if obfuscated else ''))
@@ -2635,7 +2638,8 @@ def _assemble(res, src, td, mt, texts, header_text, decisions, editor_files=None
                 used |= set(RX_WORD.findall(_code_only(src.texts[f], LUA))) & locals_
         proofs['lua_locals'] = (not used, 'no trigger uses a local of the custom script' if not used else
                                 'the triggers use locals of the custom script: %s' % ', '.join(sorted(used)[:5]))
-    ct = wtg.CustomText(False, '', _crlf(res.header), [None if t is None else _crlf(t) for t in texts], 1)
+    header_wct = wtg.double_percents(res.header) if lang == JASS and TARGET['editor'] is None else res.header
+    ct = wtg.CustomText(False, '', _crlf(header_wct), [None if t is None else _crlf(t) for t in texts], 1)
     res.wct = wtg.write_wct(ct)
     rep['percent_lines'] = 0 if lang != JASS else sum(
         1 for line in RX_STRING_OR_COMMENT.sub(lambda m: m.group(1) or '', res.header).split('\n') if '%' in line)
