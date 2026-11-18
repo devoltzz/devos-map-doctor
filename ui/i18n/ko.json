@@ -3540,5 +3540,14 @@
  "The map loads {0} encrypted Lua modules through a DLL that needs the author's server. The port turns the loader off and lists each module in the report: the ones whose plain text is not found stay out. Nothing is decrypted.": "이 맵은 제작자의 서버가 필요한 DLL을 통해 암호화된 Lua 모듈 {0}개를 불러옵니다. 포팅 시 로더를 끄고 각 모듈을 보고서에 나열합니다. 평문을 찾지 못한 모듈은 제외됩니다. 복호화는 전혀 하지 않습니다.",
  "{0} icon paths in the object data name a file that neither the map nor the game has: the game draws those buttons with the missing texture. Only the author can fix it (import the icon or correct the path).": "오브젝트 데이터의 아이콘 경로 {0}개가 맵과 게임 어디에도 없는 파일을 가리킵니다. 게임은 해당 버튼을 누락된 텍스처로 표시합니다. 제작자만 고칠 수 있습니다 (아이콘을 가져오거나 경로를 수정).",
  "{0} script file carries a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "스크립트 파일 {0}개에 도구가 인식하는 주석 블록이 있습니다. 해당 주석 줄만 제거되며, 각 파일의 나머지는 바이트 단위로 그대로 유지됩니다.",
- "{0} script files carry a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "스크립트 파일 {0}개에 도구가 인식하는 주석 블록이 있습니다. 해당 주석 줄만 제거되며, 각 파일의 나머지는 바이트 단위로 그대로 유지됩니다."
+ "{0} script files carry a comment block the tool recognizes. Only those comment lines go; the rest of each file stays byte for byte.": "스크립트 파일 {0}개에 도구가 인식하는 주석 블록이 있습니다. 해당 주석 줄만 제거되며, 각 파일의 나머지는 바이트 단위로 그대로 유지됩니다.",
+ "a custom script line of {0} bytes, and the World Editor cuts it at {1} when it saves": "{0}바이트짜리 사용자 지정 스크립트 줄이 있으며, World Editor는 저장할 때 이를 {1}에서 자릅니다",
+ "The script reads the memory of the old 1.2x game (memory hacks), which Reforged does not have and the World Editor 3.0 refuses when it saves (\"Index missing for array variable\"). In the custom script they were changed as Port to Reforged changes them: {0} array read(s) as an address became 0{1}, {2} typecast function(s) use the Reforged equivalent, {3} return a neutral value. What depended on that memory does not work; check those features in game.": "스크립트가 옛 1.2x 게임의 메모리를 읽습니다(메모리 핵). Reforged에는 이 메모리가 없고 World Editor 3.0은 저장할 때 이를 거부합니다(\"Index missing for array variable\"). 사용자 지정 스크립트에서는 Port to Reforged가 바꾸는 방식대로 바꿨습니다: 주소로 쓰인 배열 읽기 {0}개가 0{1}이 되었고, 타입캐스트 함수 {2}개는 Reforged의 대응 기능을 쓰며, {3}개는 중립 값을 반환합니다. 그 메모리에 의존하던 기능은 작동하지 않으니 게임에서 확인하세요.",
+ "Japanese text left": "일본어 텍스트가 남음",
+ "Korean text left": "한국어 텍스트가 남음",
+ "Russian text left": "러시아어 텍스트가 남음",
+ "Vietnamese text left": "베트남어 텍스트가 남음",
+ "Translated by devotranslate - devoltz.party": "Translated by devotranslate - devoltz.party",
+ "w3i map description": "w3i 맵 설명",
+ "backslashes changed ({0} -> {1}): this file reads no escape, a backslash shows as it is": "백슬래시가 바뀜 ({0} -> {1}): 이 파일은 이스케이프를 읽지 않으며, 백슬래시는 그대로 표시됩니다"
 }
