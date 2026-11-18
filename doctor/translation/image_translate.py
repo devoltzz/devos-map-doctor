@@ -71,9 +71,6 @@ def decode(name, data):
     return im.convert('RGBA')
 
 
-# the worst JPEG quality a redrawn image is saved at: IJG quality 90 (its base table x 0.2). blpwrite's default table
-# is the base x 2.5 (about quality 20): the thick strokes of Chinese survive it, while thin Latin letters, serifs and
-# outlines break into blocks (the English looked low-res next to the art around it)
 MIN_QUALITY = 0.2
 
 
@@ -86,7 +83,6 @@ def _quality_table(original, fiel=False):
     if fiel and own:
         return own
     cap = [max(1, int(round(v / 2.5 * MIN_QUALITY))) for v in blpwrite.QTABLE]
-    # the original's own table where it is finer (most KK images are better than quality 90)
     return [min(a, b) for a, b in zip(own, cap)] if own else cap
 
 
@@ -95,7 +91,6 @@ def encode(name, im, original, fiel=False):
     if low.endswith('.blp'):
         from doctor.models import blpwrite
         alpha = 8 if im.getextrema()[3][0] < 255 else 0
-        # palette originals too: the redrawn text's smooth edges have more colours than a palette holds
         return blpwrite.blp_jpeg_bytes(im, 100, alpha, qtable=_quality_table(original, fiel))[1]
     buf = io.BytesIO()
     if low.endswith('.tga'):
@@ -193,12 +188,10 @@ def split_text(text, widths):
 
 
 OCR_PARALLEL = 2
-OCR_SIDE = 256  # small images (64x64 icons, 128x32 labels) are read enlarged to this: the reader misses small letters
+OCR_SIDE = 256
 
 
 def read_image(ocr, pic):
-    # the reader sees the image over a dark background (light letters on a transparent image are invisible on the
-    # black the alpha would leave) and, when it is small, enlarged; the boxes come back in the image's own pixels
     w, h = pic.size
     k = max(1, min(4, OCR_SIDE // max(1, max(w, h))))
     big = pic.resize((w * k, h * k), Image.LANCZOS) if k > 1 else pic
@@ -272,10 +265,6 @@ MIN_FRAMES = 3
 
 
 def frame_sets(found, names, read):
-    # an animation kept as numbered images (an overhead title: thwj_00000.blp .. thwj_00007.blp, "GHWJ (1).blp" ..):
-    # its text is the same on every frame, so every frame gets the reading most frames agree on (the effects make the
-    # reader see 骨女 for 骨灰 now and then), and the frames it missed get that text at the box most frames had;
-    # otherwise the title would flicker between the translation and the original. Only frames with one block of text.
     groups = {}
     for n in names:
         m = RX_FRAME.match(n)
@@ -296,7 +285,7 @@ def frame_sets(found, names, read):
         texts = [''.join(ln['text'] for ln in r['lines']) for r in single]
         text = max(set(texts), key=texts.count)
         if texts.count(text) * 5 < len(texts) * 3:
-            continue  # numbered images that say different things (icons T302, T304, ...) are not an animation
+            continue
         boxes = [tuple(r['lines'][0]['box']) for r in single if len(r['lines']) == 1]
         if not boxes:
             continue
@@ -447,9 +436,8 @@ def preview(read, entries):
 
 
 FONT_MIN = 6
-SS = 4  # the text is drawn this many times larger, then reduced (smooth edges at small sizes)
-MIN_SQUEEZE = 0.78  # English is longer than Chinese: letters are narrowed down to this before the size drops
-# fonts a map may carry for its own UI; the text is redrawn in it when it has Latin letters, so it matches the map
+SS = 4
+MIN_SQUEEZE = 0.78
 MAP_FONTS = ('fonts.ttf', 'Fonts\\FRIZQT__.TTF', 'Fonts\\frizqt__.ttf', 'Fonts\\FZXS12.TTF')
 _fonts = {}
 
@@ -496,11 +484,8 @@ def _dilate(m, r):
 
 
 def _diffuse(a, m, rounds=None):
-    # fills the masked pixels from the pixels around them (each step averages the four neighbours): the ornaments
-    # around the text stay as they are, the hole takes their colours smoothly
     if not m.any():
         return a.copy()
-    # premultiplied: the colour of transparent pixels (often white) must not bleed into the fill
     a = a.copy()
     a[..., :3] *= a[..., 3:] / 255.0
     ring = _dilate(m, 2) & ~m
@@ -517,8 +502,6 @@ def _diffuse(a, m, rounds=None):
 
 
 def _glyphs_by_tone(sub, inner):
-    # light letters (the usual: white or gold with a dark rim): the brightest opaque pixels in the box, and the rim
-    # around them, which is darker than the plate under the text
     L = _lum(sub)
     opaque = inner & (sub[..., 3] > 128)
     if opaque.sum() < 16:
@@ -526,7 +509,6 @@ def _glyphs_by_tone(sub, inner):
     base = np.median(L[opaque])
     fill = opaque & (L >= max(np.percentile(L[opaque], 80), base + 50))
     if fill.sum() >= 8:
-        # only the letters' own colour (a bright icon next to the text is another colour)
         c = np.median(sub[fill][:, :3], axis=0)
         fill &= np.abs(sub[..., :3] - c).sum(-1) < 90
     near = _dilate(fill, 3) & inner
@@ -535,19 +517,15 @@ def _glyphs_by_tone(sub, inner):
 
 
 def _lettering_only(sub, inner):
-    # an image whose opaque part is only letters: see-through around and between them, and most opaque pixels near
-    # a see-through one (strokes), unlike a button or plate (one solid shape with see-through corners)
     opaque = inner & (sub[..., 3] >= 30)
     n = opaque.sum()
     if n < 16 or n > 0.85 * inner.sum():
         return False
     edge = opaque & _dilate(inner & ~opaque, 2)
-    return edge.sum() > 0.2 * n   # strokes: 王牌数码 tags 0.27; buttons and plates 0.07-0.09
+    return edge.sum() > 0.2 * n
 
 
 def _glyphs(a, box, pad=4):
-    # the pixels of the letters (fill and outline) in the box: those far from what the box would be without them
-    # (the box filled from its border)
     h, w = a.shape[:2]
     x0, y0, x1, y1 = box
     X0, Y0, X1, Y1 = max(0, x0 - pad), max(0, y0 - pad), min(w, x1 + pad), min(h, y1 + pad)
@@ -556,26 +534,18 @@ def _glyphs(a, box, pad=4):
     inner[max(0, y0 - Y0):y1 - Y0, max(0, x0 - X0):x1 - X0] = True
     plain = _diffuse(sub, inner, 300)
     d = np.abs(sub[..., :3] - plain[..., :3]).sum(-1) + np.abs(sub[..., 3] - plain[..., 3])
-    # and far from the image smoothed by a median wider than a stroke: strokes vanish under it, while shapes larger
-    # than the letters (a band, a frame line the box happens to cross) stay and are not taken for letters
     from PIL import ImageFilter
     k = int(np.clip((y1 - y0) // 3, 5, 15)) | 1
     med = np.asarray(Image.fromarray(np.clip(sub, 0, 255).astype(np.uint8), 'RGBA').filter(
         ImageFilter.MedianFilter(k))).astype(np.float32)
     dm = np.abs(sub[..., :3] - med[..., :3]).sum(-1) + np.abs(sub[..., 3] - med[..., 3])
     core = (d > 70) & (dm > 50) & inner
-    # the letters are the strokes found that way plus what touches them (a stroke's middle can equal its median)
     found = _dilate(core, 2) & (d > 70) & inner
     if (~inner).sum() >= 0.1 * inner.size and found.sum() > 0.6 * inner.sum() and (y1 - y0) < 0.45 * h:
-        # a band of text across part of an icon (a card's name at its foot), letters over most of it: the band goes
         found = inner.copy()
     elif (~inner).sum() < 0.1 * inner.size and _lettering_only(sub, inner):
-        # the whole image is a label cut out of a see-through background (王牌数码's difficulty tags): all that shows
-        # is lettering, fill and outline alike
         found = inner & (sub[..., 3] >= 30)
     elif (~inner).sum() < 0.1 * inner.size or found.sum() > 0.6 * inner.sum():
-        # no border to fill the box from (it is the whole image), or "letters" over most of it (a plate barely taller
-        # than its text): the letters by their tone instead
         found = _glyphs_by_tone(sub, inner)
     m = np.zeros((h, w), bool)
     m[Y0:Y1, X0:X1] = found
@@ -585,11 +555,9 @@ def _glyphs(a, box, pad=4):
 
 
 def _style(a, m):
-    # the original's look: fill colour at the top and at the bottom of the letters (gradients), outline colour and width
     vis = m & (a[..., 3] >= 30)
     if vis.sum() >= 4:
-        m = vis  # see-through pixels have no colour one can see (lettering on a transparent sheet: they are white at
-        # alpha 0, and measuring them gave an invisible fill)
+        m = vis
     L = _lum(a)
     px = L[m]
     rows = np.arange(a.shape[0])[:, None]
@@ -597,7 +565,7 @@ def _style(a, m):
     lo = m & (L <= np.percentile(px, 15))
     solid = lo & (a[..., 3] > 128)
     if solid.sum() >= 4:
-        lo = solid  # the rim's colour from its opaque pixels (see-through ones would make the outline vanish)
+        lo = solid
     ys = np.where(hi.any(1))[0]
     mid = (ys.min() + ys.max()) / 2.0 if len(ys) else a.shape[0] / 2.0
     up, dn = a[hi & (rows < mid)], a[hi & (rows >= mid)]
@@ -607,8 +575,6 @@ def _style(a, m):
     outline = a[lo].mean(0) if lo.any() else np.array([0, 0, 0, 255], np.float32)
     has_outline = float(_lum(allhi.mean(0)[None])[0] - _lum(outline[None])[0]) > 60
     if not has_outline:
-        # light letters with no dark rim of their own (or dark letters): a thin rim of the opposite tone keeps them
-        # readable over the filled-in background
         outline = np.array([0, 0, 0, 255] if _lum(top[None])[0] > 110 else [255, 255, 255, 255], np.float32)
     dark = m & (L < np.percentile(px, 50) - 40)
     bright = m & (L >= np.percentile(px, 50))
@@ -620,9 +586,6 @@ def _style(a, m):
 
 
 def _layout(text, font, avail, ink_h):
-    # a wide, short place (a plate, a title bar) takes one narrowed line rather than two small ones
-    # the largest size whose letters are as tall as the original's (squeezed sideways before shrinking), on 1 or 2
-    # lines; returns (size, lines, squeeze)
     words = text.split()
     best = None
     for n in range(1, min(2, len(words)) + 1):
@@ -647,7 +610,6 @@ def _layout(text, font, avail, ink_h):
 
 
 def _draw(out, plan, size, font):
-    # draws one text in the style measured from the original: outline layer, then the fill with its gradient
     h, w = out.shape[:2]
     st, lines, sq, (bx0, bx1), (r0, r1) = plan['style'], plan['lines'], plan['sq'], plan['span'], plan['rows']
     f = _font(size, font)
@@ -657,8 +619,6 @@ def _draw(out, plan, size, font):
     total = cap * len(lines) + gap * (len(lines) - 1)
     top = (r0 + r1) / 2.0 * SS - total / 2.0
     ow = int(round(st['width'] * SS))
-    # the text stays inside the image (two lines centred on letters near an edge would be cut): descenders and the
-    # outline included
     below = max(0, f.getbbox('gjpqy')[3] - hb[3]) if any(c in 'gjpqy' for c in lines[-1]) else 0
     top = min(top, h * SS - (total + below + ow + SS))
     top = max(top, ow + SS)
@@ -691,8 +651,6 @@ def _draw(out, plan, size, font):
 
 
 def _room(a, span, rows, hole=None):
-    # how wide the new text may be: the letters' own span, widened on each side while the background (already without
-    # the letters) stays plain along their rows; it stops at a frame's edge or an ornament, up to 1.5 letter heights out
     h, w = a.shape[:2]
     r0, r1 = rows
     band = a[r0:r1]
@@ -704,11 +662,8 @@ def _room(a, span, rows, hole=None):
     e[:-1] += gx.mean(0)
     e += gy.mean(0)
     if hole is not None:
-        # the erased letters' place (and the faint seam at its edge) is room by definition
         cols = _dilate(hole[r0:r1].any(0)[None, :].repeat(3, 0), 2)[1]
         e[cols] = 0
-    # empty (transparent) columns are not room: whatever the game shows there (a tick box, the screen's edge) is not
-    # in the picture
     e[band[..., 3].mean(0) < 30] = np.inf
     x0, x1 = span
     inside = e[x0:x1]
@@ -728,9 +683,6 @@ def _room(a, span, rows, hole=None):
 
 
 def render(im, items, font=None):
-    # items: (box, text, group). Each box loses its letters (filled from around them) and gets the text in the same
-    # look (fill gradient, outline), in `font` (a map's own font file) or the default one; lines of one group share
-    # the smallest size among them
     a = np.asarray(im.convert('RGBA')).astype(np.float32).copy()
     h, w = a.shape[:2]
     plans = []
@@ -750,14 +702,20 @@ def render(im, items, font=None):
         ring = np.ones((Y1 - Y0, X1 - X0), bool)
         ring[2:-2, 2:-2] = False
         if (a[Y0:Y1, X0:X1, 3][ring] < 30).mean() > 0.8:
-            # lettering on a transparent sheet: everything one can see in the box is lettering (its shadow and rim
-            # too, which the glyph mask can miss and which would show under the new text)
             hole = hole | (a[Y0:Y1, X0:X1, 3] > 0)
         a[Y0:Y1, X0:X1] = _diffuse(a[Y0:Y1, X0:X1], hole)
         full_hole = np.zeros((h, w), bool)
         full_hole[Y0:Y1, X0:X1] = hole
-        plans.append({'hole': full_hole, 'text': text, 'style': st, 'rows': rows, 'span': (max(1, cols[0] - 1), min(w - 1, cols[1] + 1)),
-                      'group': it[2] if len(it) > 2 else k})
+        plans.append(
+            {
+                'hole': full_hole,
+                'text': text,
+                'style': st,
+                'rows': rows,
+                'span': (max(1, cols[0] - 1), min(w - 1, cols[1] + 1)),
+                'group': it[2] if len(it) > 2 else k,
+            }
+        )
     for p in plans:
         p['span'] = _room(a, p['span'], p['rows'], p.pop('hole'))
     sizes = {}
