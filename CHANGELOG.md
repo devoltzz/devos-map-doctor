@@ -3,6 +3,17 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 2.4.0 (2026-11-17)
+
+### New
+
+- **Translate, text in images redrawn like the original:** the translated text now looks like the text it replaces. Only the letters are erased (the band, frame or ornament behind them stays), and the new text copies the original's fill gradient, outline color and width, uses the map's own font when it has Latin letters, and is sized to the original letter height, narrowed before it shrinks. The text reader also sees light letters on transparent images and small labels and icons, and an animated title kept as numbered frames gets the same reading on every frame, so it no longer flickers between the translation and the original. Translated images are saved at a better quality, so thin Latin letters no longer break into blocks. Contributed by caiohsr14 in pull request #88.
+
+### Fixed
+
+- **Fix map and Open in World Editor, files that replace the game's own were lost on save:** some maps replace game files that the game reads by their path and that no file of the map cites, like empty ability tables (a map in SLK mode blanks the game's own so its tables are the only ones) or a terrain texture. Those files had no name in the file list, so they were left out of the editor's import list, and the World Editor dropped them when it saved: on the reported map the abilities got the game's icons and effects back on top of their own, and the custom terrain turned into Ashenvale leaves. They are now named and listed, and the World Editor keeps them. Reported in issue #86.
+- **Open in World Editor (Reforged), a ported map now saves in the World Editor 3.0 and keeps working:** the custom script the World Editor gets from a ported map stopped it from saving or broke the map after the save, and each case is now handled. A comment at the end of a line no longer fails the check that the code stays the same. A name of the map that clashes with the editor's own skeleton gets a different prefix. A local variable with the name of a function or a global is renamed, since JassHelper refuses it. A trigger with a custom script line longer than the 259 characters the World Editor keeps is sent to text instead of being cut. The World Editor reads the custom script like a format string and drops every `%`, which broke the save and load codes of the ported map, so the `%` inside texts is now written twice and comes back as one. Reported in issue #86.
+
 ## 2.3.3 (2026-11-16)
 
 ### Fixed
