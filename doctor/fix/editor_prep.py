@@ -341,11 +341,24 @@ def skeleton_names(body_text):
 
 
 def rename_skeleton(body_text, name_list=None):
-    defined = skeleton_names(body_text) if name_list is None else list(name_list)
-    if not defined:
+    map_path = name_list if isinstance(name_list, dict) else skeleton_map(
+        body_text, skeleton_names(body_text) if name_list is None else name_list)
+    if not map_path:
         return body_text
-    rx = re.compile(r'\b(' + '|'.join(re.escape(n) for n in sorted(defined, key=len, reverse=True)) + r')\b')
-    return rx.sub(lambda m: SKELETON_PREFIX + m.group(1), body_text)
+    rx = re.compile(r'\b(' + '|'.join(re.escape(n) for n in sorted(map_path, key=len, reverse=True)) + r')\b')
+    return rx.sub(lambda m: map_path[m.group(1)], body_text)
+
+
+RX_LOCAL = re.compile(r'(?m)^[ \t]*local[ \t]+\w+[ \t]+(?:array[ \t]+)?(\w+)')
+def skeleton_map(body_text, name_list):
+    map_path = {}
+    for n in name_list:
+        k, new = 1, SKELETON_PREFIX + n
+        while re.search(r'\b%s\b' % re.escape(new), body_text) or new in map_path.values():
+            k += 1
+            new = 'devo%d_%s' % (k, n)
+        map_path[n] = new
+    return map_path
 
 
 def split_comment(body_text):
@@ -356,7 +369,7 @@ def split_comment(body_text):
 def custom_script(body_text, inject=True):
     prefix, body_text = split_comment(body_text)
     globals_block, functions, main, config = split_script(body_text)
-    defined = skeleton_names(body_text)
+    defined = skeleton_map(body_text, skeleton_names(body_text))
     functions, main, config = (rename_skeleton(functions, defined), rename_skeleton(main, defined),
                                rename_skeleton(config, defined))
     warning = jass_warning(main)
@@ -436,9 +449,30 @@ def compile_lua(code):
     return f(code)
 
 
+def _without_trailing_comment(ln):
+    if '//' not in ln:
+        return ln
+    quoted = None
+    i, n = 0, len(ln)
+    while i < n:
+        c = ln[i]
+        if quoted:
+            if c == '\\' and quoted == '"':
+                i += 2
+                continue
+            if c == quoted:
+                quoted = None
+        elif c in '"\'':
+            quoted = c
+        elif c == '/' and ln.startswith('//', i):
+            return ln[:i].rstrip()
+        i += 1
+    return ln
+
+
 def _code(body_text):
     prefix, body_text = split_comment(body_text)
-    line_list = [line.strip() for line in body_text.split('\n')]
+    line_list = [_without_trailing_comment(line.strip()) for line in body_text.split('\n')]
     code_part = [line for line in line_list if line.strip() and not line.strip().startswith('//')]
     globals_block, functions, current = [], [], None
     inside_globals = False
@@ -969,6 +1003,8 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
             body_text, details['jassnative'] = editor_version.without_jassnative_mark(body_text)
         else:
             body_text, details['memory_hacks'] = memory_reforged(body_text, log)
+            details['kept_locals'] = []
+            body_text, details['renamed_locals'] = locals_without_clash(body_text, log, kept=details['kept_locals'])
     expected_len = body_text
     counts = inflated_counts.analyze_map(a)
     broken = dict((x['file_name'], x) for x in counts)
@@ -1246,8 +1282,10 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
         if restored:
             pair = (('war3map.wtg', restoration[1]), ('war3map.wct', restoration[2]))
         else:
+            from doctor.triggers import wtg as _wtg
+            cs_wct = _wtg.double_percents(cs) if tgt is None and not is_lua else cs
             pair = (('war3map.wtg', fit_wtg or single_category_wtg()),
-                    ('war3map.wct', wct(cs.replace('\r\n', '\n').replace('\n', CRLF),
+                    ('war3map.wct', wct(cs_wct.replace('\r\n', '\n').replace('\n', CRLF),
                                         n_triggers=1 if fit_wtg else 0)))
         for n, data_bytes in pair:
             if a.find(n):
