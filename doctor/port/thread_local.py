@@ -1,4 +1,5 @@
 # Finds the threads and the handle-creating calls reached from code that runs on one machine only (they desync).
+import os
 import re
 
 
@@ -22,6 +23,133 @@ CREATES = re.compile(
 )
 RX_LOCAL_BODY = re.compile(r'\b(?:call|return)[ \t]+(\w+)[ \t]*\(')
 RX_COMMENT = re.compile(r'//[^\r\n]*')
+
+BLIZZARD_REF = os.path.normpath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'ref', '3.0', 'blizzard.j')
+)
+RX_GROUPENUM = re.compile(r'\b(GroupEnumUnits\w*)[ \t]*\(')
+RX_PARAMS = re.compile(r'\btakes[ \t]+(.*?)[ \t]+returns\b')
+_BJ_CACHE = {}
+
+
+def _args(body_text, i):
+    out, max_depth, begin, k, n = [], 0, i, i, len(body_text)
+    while k < n:
+        ch = body_text[k]
+        if ch in '"\'':
+            k += 1
+            while k < n and body_text[k] != ch:
+                k += 2 if body_text[k] == '\\' else 1
+        elif ch in '([':
+            max_depth += 1
+        elif ch in ')]':
+            if max_depth == 0:
+                break
+            max_depth -= 1
+        elif ch == ',' and max_depth == 0:
+            out.append(body_text[begin:k].strip())
+            begin = k + 1
+        elif ch in '\r\n':
+            break
+        k += 1
+    last_pos = body_text[begin:k].strip()
+    if out or last_pos:
+        out.append(last_pos)
+    return out
+
+
+def _bj_table(file_path=None):
+    file_path = os.path.abspath(file_path or BLIZZARD_REF)
+    if file_path in _BJ_CACHE:
+        return _BJ_CACHE[file_path]
+    if not os.path.isfile(file_path):
+        raise SystemExit('ABORTS: the reference %s is missing (thread_local.bj_dirty)' % file_path)
+    body_text = open(file_path, 'rb').read().decode('latin-1').replace('\r\n', '\n').replace('\r', '\n')
+    fs = functions(body_text)
+    params, th, cr, cond, calls = {}, {}, {}, {}, {}
+    for f, c in fs.items():
+        m = RX_PARAMS.search(c[:c.find('\n') if '\n' in c else len(c)])
+        ps = m.group(1).strip() if m else 'nothing'
+        params[f] = [] if ps == 'nothing' else [p.split()[-1] for p in ps.split(',')]
+        cond[f] = {}
+        for t in sorted(set(x.group(1) for x in THREAD.finditer(c) if x.group(1) not in fs)):
+            th.setdefault(f, f + '>' + t)
+        for t in sorted(set(x.group(1) for x in CREATES.finditer(c) if x.group(1) not in fs)):
+            cr.setdefault(f, f + '>' + t)
+        for x in RX_GROUPENUM.finditer(c):
+            a = _args(c, x.end())
+            filtro = (a[-2] if x.group(1).endswith('Counted') else a[-1]) if len(a) >= 2 else ''
+            if filtro == 'null':
+                continue
+            if filtro in params[f]:
+                cond[f].setdefault(params[f].index(filtro), f + '>' + x.group(1))
+            else:
+                th.setdefault(f, f + '>' + x.group(1))
+        calls[f] = [(x.group(1), x.end()) for x in RX_CALL.finditer(c) if x.group(1) in fs and x.group(1) != f]
+    change = True
+    while change:
+        change = False
+        for f in sorted(fs):
+            for g, pos in calls[f]:
+                if g in th and f not in th:
+                    th[f] = f + '>' + th[g]
+                    change = True
+                if g in cr and f not in cr:
+                    cr[f] = f + '>' + cr[g]
+                    change = True
+                if cond[g]:
+                    a = _args(fs[f], pos)
+                    for k, chain in sorted(cond[g].items()):
+                        arg = a[k] if k < len(a) else ''
+                        if arg == 'null':
+                            continue
+                        if arg in params[f]:
+                            j = params[f].index(arg)
+                            if j not in cond[f]:
+                                cond[f][j] = f + '>' + chain
+                                change = True
+                        elif f not in th:
+                            th[f] = f + '>' + chain
+                            change = True
+    dirty = dict((f, ('thread', th[f]) if f in th else ('cria', cr[f])) for f in fs if f in th or f in cr)
+    cond = dict((f, d) for f, d in cond.items() if d and f not in th)
+    _BJ_CACHE[file_path] = (dirty, cond)
+    return dirty, cond
+
+
+def _bj_in_span(segment, fs, creation):
+    dirty, cond = _bj_table()
+    out = []
+    for m in RX_CALL.finditer(segment):
+        g = m.group(1)
+        if (
+            g in fs
+            or (g not in dirty and g not in cond)
+            or THREAD.match(g + '(')
+            or (creation and CREATES.match(g + '('))
+        ):
+            continue
+        s = dirty.get(g)
+        if s and s[0] == 'thread':
+            out.append((g, 'thread', s[1]))
+            continue
+        a = _args(segment, m.end())
+        chain = next((c for k, c in sorted(cond.get(g, {}).items()) if (a[k] if k < len(a) else '') != 'null'), None)
+        if chain:
+            out.append((g, 'thread', chain))
+        elif s:
+            out.append((g, 'cria', s[1]))
+    return out
+
+
+def _bj_found(segment, fs, creation):
+    th, cr = set(), set()
+    for _g, classe, chain in _bj_in_span(segment, fs, creation):
+        if classe == 'thread':
+            th.add(chain)
+        elif creation:
+            cr.add('+' + chain)
+    return th, cr
 
 
 def functions(body_text):
@@ -101,7 +229,7 @@ def _roots_of(fs, branches, extra_roots=None, elseif_local=False):
     return roots
 
 
-def audit(body_text, creation=False, branches=False, roots=None, elseif_local=False):
+def audit(body_text, creation=False, branches=False, roots=None, elseif_local=False, bj=False):
     fs = functions(body_text)
     roots = _roots_of(fs, branches, roots, elseif_local)
     file_path = {}
@@ -118,10 +246,17 @@ def audit(body_text, creation=False, branches=False, roots=None, elseif_local=Fa
             if g in fs and g not in file_path:
                 work_queue.append((g, cpath + [f]))
     matches = []
+
+    def _find(c):
+        th = set(m.group(1) for m in THREAD.finditer(c))
+        cr = set('+' + m.group(1) for m in CREATES.finditer(c)) if creation else set()
+        if bj:
+            a, b = _bj_found(c, fs, creation)
+            th |= a
+            cr |= b
+        return sorted(th) + sorted(cr)
     for f in sorted(file_path):
-        ths = sorted(set(m.group(1) for m in THREAD.finditer(fs[f])))
-        if creation:
-            ths += sorted(set('+' + m.group(1) for m in CREATES.finditer(fs[f])))
+        ths = _find(fs[f])
         if ths:
             matches.append((f, ths, ' <- '.join([f] + list(reversed(file_path[f])))))
     if branches:
@@ -129,15 +264,13 @@ def audit(body_text, creation=False, branches=False, roots=None, elseif_local=Fa
             if f in file_path or not RX_LOCAL.search(fs[f]):
                 continue
             segments = ''.join(fs[f][a:b] for a, b in local_regions(fs[f], elseif_local))
-            ths = sorted(set(m.group(1) for m in THREAD.finditer(segments)))
-            if creation:
-                ths += sorted(set('+' + m.group(1) for m in CREATES.finditer(segments)))
+            ths = _find(segments)
             if ths:
                 matches.append((f, ths, f + ' (local branch)'))
     return matches
 
 
-def local_closure(body_text, branches=False, roots=None, elseif_local=False):
+def local_closure(body_text, branches=False, roots=None, elseif_local=False, bj=False):
     fs = functions(body_text)
     seen = set()
     work_queue = [g for g, _q in _roots_of(fs, branches, roots, elseif_local)]
@@ -147,7 +280,27 @@ def local_closure(body_text, branches=False, roots=None, elseif_local=False):
             continue
         seen.add(f)
         work_queue.extend(g for g in set(RX_CALL.findall(fs[f])) | set(RX_EXEC.findall(fs[f])) if g not in seen)
+    if bj:
+        segments = [fs[f] for f in seen]
+        if branches:
+            segments += [fs[f][a:b] for f in sorted(fs) if RX_LOCAL.search(fs[f])
+                         for a, b in local_regions(fs[f], elseif_local)]
+        seen |= set(g for t in segments for g, _c, _k in _bj_in_span(t, fs, True))
     return seen
+
+
+def bj_new(body_text, branches=False, roots=None, elseif_local=False):
+    before = set(
+        (f, x)
+        for f, ths, _c in audit(body_text, creation=True, branches=branches, roots=roots, elseif_local=elseif_local)
+        for x in ths
+    )
+    out = []
+    for f, ths, cpath in audit(
+        body_text, creation=True, branches=branches, roots=roots, elseif_local=elseif_local, bj=True
+    ):
+        out += [(f, x, cpath) for x in ths if (f, x) not in before]
+    return out
 
 
 RX_SLOT = re.compile(
