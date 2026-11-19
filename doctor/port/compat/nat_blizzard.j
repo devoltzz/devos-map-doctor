@@ -112,6 +112,9 @@ endfunction
 
 function DzFrameIsVisible takes integer frame returns boolean
     local framehandle f=DB_fh(frame)
+    if DB_simples_tipo(frame)!=0 then
+        return not LoadBoolean(DB_frame_ht, frame, 2)
+    endif
     if f==null then
         return false
     endif
