@@ -429,7 +429,7 @@ def check_interface(file_path, fields, failures):
 
 
 def run_action(ext, output, fields, sitios=None, interface=None, texts=None, data_bytes=None, method='auto',
-               w3u=None, controle=False, total_label=None, extras=None, by_name=False):
+               w3u=None, controle=False, total_label=None, extras=None, by_name=False, units_w3u=None):
     fields = normalize_fields(fields)
     print('source: %s' % ext)
     details = {}
@@ -438,7 +438,7 @@ def run_action(ext, output, fields, sitios=None, interface=None, texts=None, dat
         data_bytes = data_bytes()
     if data_bytes is None:
         mode_used, units, abils, items = slk_tables.build_auto_tables(
-            ext, method=method, extras=fields, stats=details, **(w3u or {}))
+            ext, method=method, extras=fields, stats=details, units_w3u=units_w3u, **(w3u or {}))
         data_bytes = {'unit': units, 'ability': abils, 'item': items}
         if mode_used == 'w3u':
             source = ('w3u mode: the game base through CASC %s, layer %s, language %s, with war3map.w3u/w3t/w3a '
@@ -458,6 +458,10 @@ def run_action(ext, output, fields, sitios=None, interface=None, texts=None, dat
                      dict(details['unknown_fields'].most_common(6))))
         else:
             source = 'SLK mode: the Units/*.slk of the data folder + *Strings/Func/Skin.txt + war3map.w3a/w3u'
+            if details.get('units_w3u'):
+                source += ('; the UNITS (none in the SLK) by the w3u mode: the game base from CASC + the war3map.w3u '
+                           'of the map (%d)' % details['units_w3u'])
+                print('units: none in the SLK; %d by the w3u mode (the game base + war3map.w3u)' % details['units_w3u'])
     print(
         'records: unit %d  ability %d  item %d'
         % (len(data_bytes['unit']), len(data_bytes['ability']), len(data_bytes['item']))
