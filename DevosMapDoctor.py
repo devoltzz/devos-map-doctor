@@ -20,7 +20,7 @@ if _restart:
     sys.exit(0)
 from doctor.fix import unprotect as D
 
-VERSION = '2.4.0'
+VERSION = '2.5.0'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -215,6 +215,9 @@ def describe(p):
                 % mb(p.get('outside', 0)))
     if c == 'xm_package':
         return 'Encrypted package game.pkg (xmload maps): "Fix map" unpacks its models, textures and scripts.'
+    if c == 'xm_loose':
+        return ('Encrypted files of an xmload map (no game.pkg): "Fix map" opens its Lua modules, models and textures '
+                'in place and puts the real script back.')
     if c == 'kk_came':
         sdk = p.get('sdk') or {}
         return (
@@ -573,7 +576,11 @@ def _fixes_done(details, steps, before):
         extra = ', %s unnamed' % num(name_list['unnamed']) if name_list.get('unnamed') else ''
         out.append('Rebuilt the map from its files: %s found by content%s.'
                    % (pluralize(cv.get('file_set') or 0, 'file', 'files'), extra))
-    if steps.get('xm'):
+    if steps.get('xm') and steps['xm'].get('loose'):
+        out.append('Opened the encrypted xmload files: %s in place%s.'
+                   % (pluralize(steps['xm'].get('files') or 0, 'file', 'files'),
+                      ', the real script is back' if steps['xm'].get('real_script') else ''))
+    elif steps.get('xm'):
         out.append('Unpacked game.pkg: %s into the map (%s).'
                    % (pluralize(steps['xm'].get('files') or 0, 'file', 'files'),
                       'the package was kept' if steps['xm'].get('package_kept') else 'the package was removed'))
