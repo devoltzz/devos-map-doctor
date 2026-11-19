@@ -983,7 +983,7 @@ def script_of(a):
     if a.find(LUA_FILE) and (lang == 1 or j is None):
         out.update({'language': 'lua', 'file': LUA_FILE, 'bytes': unprotect._read(a, LUA_FILE)})
     elif j is not None:
-        compiled = (len(j) < 450 and bool(a.find('kkmap.jc'))) or unprotect.script_j2b(a, j)
+        compiled = (len(j) < 450 and bool((a.find('kkmap.jc') or a.find('kkmap.jc1')))) or unprotect.script_j2b(a, j)
         copies = [n for n in JASS_FILES if n != j_name and a.find(n) and unprotect._read(a, n) == j]
         out.update({'language': 'jass', 'file': j_name, 'bytes': j, 'copies': copies, 'compiled': bool(compiled)})
     return out
