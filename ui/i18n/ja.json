@@ -3549,5 +3549,10 @@
  "Vietnamese text left": "ベトナム語のテキストが残っています",
  "Translated by devotranslate - devoltz.party": "Translated by devotranslate - devoltz.party",
  "w3i map description": "w3i のマップ説明",
- "backslashes changed ({0} -> {1}): this file reads no escape, a backslash shows as it is": "バックスラッシュが変更されました ({0} -> {1}): このファイルはエスケープを読み取らず、バックスラッシュはそのまま表示されます"
+ "backslashes changed ({0} -> {1}): this file reads no escape, a backslash shows as it is": "バックスラッシュが変更されました ({0} -> {1}): このファイルはエスケープを読み取らず、バックスラッシュはそのまま表示されます",
+ ", the real script is back": "、本物のスクリプトが元に戻りました",
+ "Encrypted files of an xmload map (no game.pkg): \"Fix map\" opens its Lua modules, models and textures in place and puts the real script back.": "xmloadマップ(game.pkgなし)の暗号化されたファイル: 「マップを修正」をクリックすると、Luaモジュール、モデル、テクスチャがその場で開かれ、本物のスクリプトが元に戻ります。",
+ "Its Lua modules, models and textures become normal files in place.": "Luaモジュール、モデル、テクスチャがその場で通常のファイルになります。",
+ "Open the encrypted xmload files": "暗号化されたxmloadファイルを開く",
+ "Opened the encrypted xmload files: {0} in place{1}.": "暗号化されたxmloadファイルを開きました: {0}をその場で{1}。"
 }
