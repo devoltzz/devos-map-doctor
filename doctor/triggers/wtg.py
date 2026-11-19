@@ -525,6 +525,41 @@ def longest_custom_script(functions):
     return longest
 
 
+RX_JASS_PIECE = re.compile(r'"(?:[^"\\\n]|\\.)*"|\'[^\'\n]*\'|//.*|[ \t]+|[A-Za-z0-9_.$]+|.', re.S)
+RX_JASS_WORD = re.compile(r'[A-Za-z0-9_.$\'"]')
+
+
+def compact_jass_line(line):
+    out = []
+    pending = False
+    for m in RX_JASS_PIECE.finditer(line):
+        piece = m.group(0)
+        if piece[0] in ' \t':
+            pending = bool(out)
+            continue
+        if pending and out:
+            a, b = out[-1][-1], piece[0]
+            words = RX_JASS_WORD.match(a) and RX_JASS_WORD.match(b)
+            if words or (not RX_JASS_WORD.match(a) and not RX_JASS_WORD.match(b) and a not in '()[],' and
+                         b not in '()[],') or piece.startswith('//'):
+                out.append(' ')
+        pending = False
+        out.append(piece)
+    return ''.join(out)
+
+
+def compact_custom_script(functions, limit=REFORGED_MAX_CUSTOM_SCRIPT):
+    changed = 0
+    for f in iter_functions(functions):
+        if f.name == 'CustomScriptCode':
+            for p in f.params:
+                if len(p.value.encode('utf-8', 'surrogateescape')) > limit:
+                    new = compact_jass_line(p.value)
+                    if new != p.value:
+                        p.value, changed = new, changed + 1
+    return changed
+
+
 def longest_parameter(functions):
     longest = 0
     for f in iter_functions(functions):
