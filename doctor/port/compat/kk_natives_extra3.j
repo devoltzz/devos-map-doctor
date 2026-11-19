@@ -107,18 +107,18 @@ function DzSimpleFontStringFindByName takes string name,integer id returns integ
     //{{KK_SE:KK_UI_PAINEL}}
     local integer f=DzFrameFindByName(name, id)
     call DB_painel_grava(f, name, id)
-    return f
+    return DB_simples_marca(f, 1)
     //{{KK_FIMSE:KK_UI_PAINEL}}
-    return DzFrameFindByName(name, id)
+    return DB_simples_marca(DzFrameFindByName(name, id), 1)
 endfunction
 
 function DzSimpleTextureFindByName takes string name,integer id returns integer
     //{{KK_SE:KK_UI_PAINEL}}
     local integer f=DzFrameFindByName(name, id)
     call DB_painel_grava(f, name, id)
-    return f
+    return DB_simples_marca(f, 2)
     //{{KK_FIMSE:KK_UI_PAINEL}}
-    return DzFrameFindByName(name, id)
+    return DB_simples_marca(DzFrameFindByName(name, id), 2)
 endfunction
 
 function DzFrameGetHeroHPBar takes integer buttonId returns integer
@@ -244,6 +244,9 @@ endfunction
 function DzFrameSetParent takes integer frame,integer parent returns nothing
     local framehandle f=DB_fh(frame)
     local framehandle p=DB_fh(parent)
+    if DB_simples_tipo(frame)!=0 then
+        return
+    endif
     if f!=null and p!=null then
         call BlzFrameSetParent(f, p)
     endif
@@ -251,6 +254,9 @@ endfunction
 
 function DzFrameSetPriority takes integer frame,integer priority returns nothing
     local framehandle f=DB_fh(frame)
+    if DB_simples_tipo(frame)!=0 then
+        return
+    endif
     if f!=null then
         call BlzFrameSetLevel(f, priority)
     endif
