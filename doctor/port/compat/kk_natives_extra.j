@@ -100,6 +100,9 @@ endfunction
 
 function DzFrameSetAlpha takes integer frame,integer alpha returns nothing
     local framehandle f=DB_fh(frame)
+    if DB_simples_tipo(frame)!=0 then
+        return
+    endif
     if f==null then
         return
     endif
