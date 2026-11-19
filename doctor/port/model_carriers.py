@@ -140,7 +140,7 @@ def template_unit(tables):
     return next((u for u in plain if field(u, 'movetp') == 'foot'), None) or next(iter(plain), None)
 
 
-def add(units, body_text, extract=None, write=True, extra_models=()):
+def add(units, body_text, extract=None, write=True, extra_models=(), skin_txt=False):
     info = {'carriers': [], 'models': 0, 'template': None}
     files = _files(units)
     if 'unitui.slk' not in files or 'unitdata.slk' not in files:
@@ -155,7 +155,10 @@ def add(units, body_text, extract=None, write=True, extra_models=()):
         tables[name] = (path, line_list, crlf) + _rows(line_list, ID_COLUMNS[name])
     ui = tables['unitui.slk']
     col_ui = dict((n.lower(), x) for x, n in ui[3].items())
-    if 'file' not in col_ui or ui[4] is None:
+    skin_path = None
+    if 'file' not in col_ui and skin_txt:
+        skin_path = next((os.path.join(units, f) for f in os.listdir(units) if f.lower() == 'unitskin.txt'), None)
+    if ('file' not in col_ui and skin_path is None) or ui[4] is None:
         return info
     template = template_unit(tables)
     if template is None:
@@ -193,14 +196,96 @@ def add(units, body_text, extract=None, write=True, extra_models=()):
             row = dict(template_cells)
             row[x_id] = '"%s"' % new_id
             row.update(over)
-            if name == 'unitui.slk':
+            if name == 'unitui.slk' and 'file' in col_ui:
                 row[col_ui['file']] = '"%s"' % model
             for x in sorted(row):
                 extra.append('C;X%d;Y%d;K%s' % (x, y, row[x]))
         line_list = line_list[:end_pos] + extra + line_list[end_pos:]
         line_list[bi[0]] = 'B;X%d;Y%d;D0' % (mx, y)
         io.open(path, 'wb').write(C.join_lines(line_list, crlf))
+    if skin_path is not None:
+        _skin_sections(skin_path, template, pairs)
     return info
+
+
+def _skin_sections(path, template, pairs):
+    raw = io.open(path, 'rb').read()
+    eol = b'\r\n' if b'\r\n' in raw else b'\n'
+    lines = raw.split(eol)
+    head = ('[%s]' % template).encode('latin-1').lower()
+    body, inside = [], False
+    for ln in lines:
+        if ln.strip().startswith(b'['):
+            if inside:
+                break
+            inside = ln.strip().lower() == head
+            continue
+        if inside and ln.strip() and not ln.lower().startswith(b'file='):
+            body.append(ln)
+    out = raw if raw.endswith(eol) or not raw else raw + eol
+    for new_id, model in pairs:
+        out += ('[%s]' % new_id).encode('latin-1') + eol
+        out += b''.join(x + eol for x in body)
+        out += b'file=' + model.encode('utf-8') + eol
+    io.open(path, 'wb').write(out)
+
+
+W3U_BASE = 'hfoo'
+RX_W3U_CARRIER = re.compile(r'^' + PREFIX + r'[0-9A-Z]{3}$')
+
+
+def add_w3u(dest, w3u_src, body_text, extract=None, extra_models=(), write=True):
+    from doctor.data import objects
+    info = {'carriers': [], 'models': 0, 'template': None}
+    if not w3u_src or not os.path.isfile(w3u_src):
+        return info
+    models = list(dict.fromkeys(script_models(body_text) + list(extra_models or ())))
+    info['models'] = len(models)
+    if not models:
+        return info
+    ver, objs, _ = objects.read_objects(w3u_src, with_levels=False, with_end=True)
+    taken = taken_ids(dest, body_text, extract)
+    taken |= set(o[2] for o in objs) | set(o[1] for o in objs)
+    seen, wanted = set(), []
+    for p in models:
+        k = key(p)
+        if k not in seen:
+            seen.add(k)
+            wanted.append(p)
+    pairs = list(zip(_new_ids(len(wanted), taken), wanted))
+    info['carriers'] = pairs
+    info['template'] = W3U_BASE
+    if not write:
+        return info
+    novos = []
+    for cid, model in pairs:
+        mods = [('umdl', 3, 0, 0, model.encode('utf-8'), b'\0\0\0\0')]
+        if ver >= 3:
+            m = objects.Mods(mods)
+            m.conjuntos = [(0, 1)]
+            mods = m
+        novos.append((1, W3U_BASE, cid, mods))
+    data = objects.write_objects_bytes(ver, list(objs) + novos, False)
+    if not os.path.isdir(dest):
+        os.makedirs(dest)
+    io.open(os.path.join(dest, 'war3map.w3u'), 'wb').write(data)
+    return info
+
+
+def w3u_carriers(path):
+    from doctor.data import objects
+    out = {}
+    if not path or not os.path.isfile(path):
+        return out
+    _ver, objs, _ = objects.read_objects(path, with_levels=False)
+    for tabela, orig, novo, mods in objs:
+        if tabela != 1 or orig != W3U_BASE or not RX_W3U_CARRIER.match(novo):
+            continue
+        for m in mods:
+            if m[0] == 'umdl':
+                v = m[4]
+                out[novo] = v.decode('utf-8', 'replace') if isinstance(v, bytes) else str(v)
+    return out
 
 
 EFFECT_CARRIER = 'eLqP'
