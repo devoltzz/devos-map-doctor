@@ -3548,5 +3548,10 @@
  "Vietnamese text left": "ยังมีข้อความภาษาเวียดนามเหลืออยู่",
  "Translated by devotranslate - devoltz.party": "Translated by devotranslate - devoltz.party",
  "w3i map description": "คำอธิบายแผนที่ใน w3i",
- "backslashes changed ({0} -> {1}): this file reads no escape, a backslash shows as it is": "แบ็กสแลชเปลี่ยนแล้ว ({0} -> {1}): ไฟล์นี้ไม่อ่านอักขระหลีก แบ็กสแลชจะแสดงตามที่เป็น"
+ "backslashes changed ({0} -> {1}): this file reads no escape, a backslash shows as it is": "แบ็กสแลชเปลี่ยนแล้ว ({0} -> {1}): ไฟล์นี้ไม่อ่านอักขระหลีก แบ็กสแลชจะแสดงตามที่เป็น",
+ ", the real script is back": " และสคริปต์จริงกลับมาแล้ว",
+ "Encrypted files of an xmload map (no game.pkg): \"Fix map\" opens its Lua modules, models and textures in place and puts the real script back.": "ไฟล์เข้ารหัสของแมพ xmload (ไม่มี game.pkg): \"ซ่อมแมพ\" จะเปิดโมดูล Lua โมเดล และเท็กซ์เจอร์ในที่เดิม และคืนสคริปต์จริงกลับมา",
+ "Its Lua modules, models and textures become normal files in place.": "โมดูล Lua โมเดล และเท็กซ์เจอร์ของมันจะกลายเป็นไฟล์ปกติในที่เดิม",
+ "Open the encrypted xmload files": "เปิดไฟล์ xmload ที่เข้ารหัส",
+ "Opened the encrypted xmload files: {0} in place{1}.": "เปิดไฟล์ xmload ที่เข้ารหัสแล้ว: {0} ในที่เดิม{1}"
 }
