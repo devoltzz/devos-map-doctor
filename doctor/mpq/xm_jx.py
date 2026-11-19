@@ -76,13 +76,23 @@ def parse(data):
     size = struct.unpack_from('<I', data, 4)[0]
     try:
         table = zlib.decompress(data[8:8 + size])
+        count = struct.unpack_from('<I', table, 0)[0]
+        names = table[4:].split(b'\0')[:count]
+        r = data[8 + size:]
     except zlib.error as e:
-        raise JxError('the names do not inflate: %s' % e)
-    count = struct.unpack_from('<I', table, 0)[0]
-    names = table[4:].split(b'\0')[:count]
+        if data[8:9] == b'\x78':
+            raise JxError('the names do not inflate: %s' % e)
+        count, p = size, 8
+        names = []
+        for _k in range(count):
+            q = data.find(b'\0', p)
+            if q < 0:
+                break
+            names.append(data[p:q])
+            p = q + 1
+        r = data[p:]
     if len(names) != count:
         raise JxError('names: %d of %d' % (len(names), count))
-    r = data[8 + size:]
     p, n, out = 0, len(r), []
 
     def boolean_after_comma(q):
