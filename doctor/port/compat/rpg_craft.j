@@ -1,3 +1,5 @@
+//{{KK_SE:KK_RPGK_SOLTA}}
+//{{KK_FIMSE:KK_RPGK_SOLTA}}
 //@GLOBALS
 constant integer RPGK_MAXR=1024
 constant integer RPGK_MAXI=8
@@ -157,6 +159,9 @@ function RPGK_tira_inv takes unit h, integer tipo, integer id, integer n returns
                     set maior=RPGK_nivel(it)
                 endif
                 call FlushChildHashtable(RPGK_ht, GetHandleId(it))
+//{{KK_SE:KK_RPGK_SOLTA}}
+                call UnitRemoveItem(h, it)
+//{{KK_FIMSE:KK_RPGK_SOLTA}}
                 call RemoveItem(it)
                 set n=n-1
             endif
