@@ -75,7 +75,9 @@ def steps(diag):
     xm = 'xm_package' in code_part
     place('fix', 'xm_unpack', xm, reason=None if xm else 'no_package')
     place('fix', 'xm_keep_package', xm, reason=None if xm else 'no_package', default_on=False)
-    place('fix', 'xm_script', xm, reason=None if xm else 'no_package')
+    xs = 'xm_loose' in code_part
+    place('fix', 'xm_open', xs, reason=None if xs else 'no_package')
+    place('fix', 'xm_script', xm or xs, reason=None if xm or xs else 'no_package')
     place(
         'fix',
         'lua_reforged',
@@ -664,10 +666,11 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True, doodad
     elif j and script_j2b(a, j):
         r['script'] = 'j2b'
         prot('script_j2b', byte_size=a.blocks[a.find(J2B_FILE)[1]][2])
-    elif j is not None and len(j) < 450 and a.find('kkmap.jc'):
+    elif j is not None and len(j) < 450 and (a.find('kkmap.jc') or a.find('kkmap.jc1')):
         from doctor.script import kkwe
+        jc_name = kkwe.file_in_map(a)
         try:
-            loader = kkwe.is_loader(kkwe.Bytecode(kkwe.read_container(_read(a, 'kkmap.jc'))))[0]
+            loader = kkwe.is_loader(kkwe.bytecode(_read(a, jc_name)))[0]
         except Exception:
             loader = False
         if loader:
@@ -685,7 +688,7 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True, doodad
                 pass
         else:
             r['script'] = 'kkwe'
-            prot('script_kkwe', byte_size=a.blocks[a.find('kkmap.jc')[1]][2])
+            prot('script_kkwe', byte_size=a.blocks[a.find(jc_name)[1]][2])
     elif j:
         r['script'] = 'jass'
         from doctor.fix import editor_version
@@ -807,6 +810,8 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True, doodad
         from doctor.mpq import xm_pkg
         if xm_pkg.opens(a):
             prot('xm_package')
+        elif xm_pkg.opens_loose(a):
+            prot('xm_loose')
     except Exception:
         pass
     r['lua_engine'] = _lua_engine(a, r)
@@ -1294,7 +1299,7 @@ def _unprotect_came(file_path, output, p, diag, res, all_items=True):
 
 def _lua_engine(a, r):
     try:
-        if r.get('script') in ('kkwe', 'j2b') or any(x['code'] == 'xm_package' for x in r['protections']):
+        if r.get('script') in ('kkwe', 'j2b') or any(x['code'] in ('xm_package', 'xm_loose') for x in r['protections']):
             return True
         from doctor.script import ydwe_lua
         for fname in ('war3map.j', 'scripts\\war3map.j'):
@@ -1329,26 +1334,26 @@ def _rewrite_lua(file_path, output, res):
     return res
 
 
-def _unpack_xm_package(file_path, output, p, res, options):
+def _unpack_xm_package(file_path, output, p, res, options, loose=False):
     from doctor.mpq import xm_pkg
     part = _part(output)
     aberto = part + '.xm.w3x'
     try:
         p('is_pack')
-        rx = xm_pkg.unpack_to_map(
-            file_path,
-            aberto,
-            bool(options and options.get('xm_keep_package') is True),
-            log=_nothing,
-            real_script=step_on(options, 'xm_script'),
-        )
-        r2 = unprotect(aberto, part, p, None, dict(options or {}, xm_unpack=False))
+        if loose:
+            rx = xm_pkg.loose_to_map(file_path, aberto, log=_nothing, real_script=step_on(options, 'xm_script'))
+            rx = {'files': rx['files'], 'by_type': rx['by_type'], 'loose': True, 'real_script': rx['real_script'],
+                  'bytes': rx['bytes']}
+        else:
+            rx = xm_pkg.unpack_to_map(file_path, aberto, bool(options and options.get('xm_keep_package') is True),
+                                      log=_nothing, real_script=step_on(options, 'xm_script'))
+        r2 = unprotect(aberto, part, p, None, dict(options or {}, xm_unpack=False, xm_open=False))
         if r2['status'] == 'nothing_to_do':
             os.replace(aberto, part)
             r2 = dict(r2, status='done', output=part, after_diag=diagnose(part))
         elif r2['status'] not in ('done', 'partial'):
             raise RuntimeError(r2.get('err') or r2['status'])
-        if r2['status'] == 'partial' and all(x['code'] == 'xm_package' or x['code'] in BUTTON3_ONLY
+        if r2['status'] == 'partial' and all(x['code'] in ('xm_package', 'xm_loose') or x['code'] in BUTTON3_ONLY
                                           for x in (r2.get('after_diag') or {}).get('protections') or []):
             r2 = dict(r2, status='done')
         os.replace(part, output)
@@ -1396,6 +1401,8 @@ def unprotect(file_path, output, progress=None, diag=None, options=None):
     res['for_button3'] = sorted(codes & set(BUTTON3_ONLY))
     if 'xm_package' in codes and step_on(options, 'xm_unpack'):
         return _unpack_xm_package(file_path, output, p, res, options)
+    if 'xm_loose' in codes and step_on(options, 'xm_open'):
+        return _unpack_xm_package(file_path, output, p, res, options, loose=True)
     if 'kk_came' in codes:
         if not step_on(options, 'mpq'):
             res['status'] = 'nothing_selected'
