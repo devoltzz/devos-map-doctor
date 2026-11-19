@@ -6,6 +6,7 @@ from doctor.mpq import mpqadd
 from doctor.mpq import mpqread
 from doctor.mpq import mpq_rebuild
 from doctor.mpq import hm3w_names
+from doctor.port import forsaken_skin
 
 
 TETO = 512 * 1024 * 1024
@@ -19,7 +20,9 @@ def content(v):
         return f.read()
 
 
-def classify_items(item_entries, original):
+def classify_items(item_entries, original, forsaken=True):
+    if forsaken:
+        item_entries = forsaken_skin.with_item(original, list(item_entries))
     a = mpqread.Archive(original)
     output = []
     for n, p in item_entries:
@@ -58,13 +61,15 @@ def _fix_mpq_header(map_path):
     return True
 
 
-def attach(original, output, file_set, to_delete=(), reset=False, all_entries=False, fake_count=False, log=print):
+def attach(
+    original, output, file_set, to_delete=(), reset=False, all_entries=False, fake_count=False, log=print, grow=None
+):
     if os.path.abspath(original) != os.path.abspath(output):
         shutil.copyfile(original, output)
     _fix_mpq_header(output)
     repl = [(n, content(v)) for n, v in file_set]
     return mpqadd.add_files(
-        output, repl, list(to_delete), reset=reset, all_entries=all_entries, fake_count=fake_count, log=log
+        output, repl, list(to_delete), reset=reset, all_entries=all_entries, fake_count=fake_count, log=log, grow=grow
     )
 
 
@@ -79,7 +84,17 @@ def rebuild(
     level=6,
     hash_factor=1,
     log=print,
+    forsaken=True,
 ):
+    if forsaken:
+        replacements, new_ones = dict(replacements or {}), dict(new_ones or {})
+        base = list((replacements or {}).items()) + list((new_ones or {}).items())
+        it = forsaken_skin.item(original, base)
+        if it is not None:
+            for d in (replacements, new_ones):
+                for k in [k for k in d if k.lower() == forsaken_skin.NOME.lower()]:
+                    del d[k]
+            (replacements if forsaken_skin.from_original(original) is not None else new_ones)[it[0]] = it[1]
     return mpq_rebuild.rebuild(
         original,
         output,
