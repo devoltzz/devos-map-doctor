@@ -114,7 +114,13 @@ REASONS = (('empty', 'empty translation'), ('CJK restante', 'Chinese, Japanese o
                                 'value)'))
 
 
-KEEPABLE = ('numbers changed', 'much longer than the original', 'Chinese, Japanese or Korean text left')
+KEEPABLE = ('numbers changed', 'much longer than the original', 'Chinese, Japanese or Korean text left',
+            'Russian text left', 'Vietnamese text left', 'Korean text left', 'Japanese text left')
+
+
+def tr_validate_fala_de_ia(texto):
+    from doctor.translation import tr_validate
+    return any(x in texto for x in tr_validate.SOURCE_SPEAKS) or bool(tr_validate.RX_SOURCE_SPEAKS.search(texto))
 
 TRANSLATION_CREDIT = 'Translated by devotranslate - devoltz.party'
 
@@ -175,6 +181,18 @@ def path_like(s, script=False):
 
 def _cjk(s):
     return bool(tr_extract.CJK.search(s))
+
+
+ORIGENS_EXTRA = ()
+
+
+def _de_origem(s):
+    if _cjk(s):
+        return True
+    if not ORIGENS_EXTRA:
+        return False
+    from doctor.translation import writing_systems
+    return writing_systems.lang(s) in ORIGENS_EXTRA
 
 
 def _short(s, n=160):
@@ -419,7 +437,7 @@ def _collect_profiles(mt, read, names):
             if m:
                 _ref(mt, m.group(2), '%s [%s] %s' % (name, sections[ln], m.group(1)))
         kept = [e for e in found if sections[e['line']].lower() == 'framedef' or
-                (_cjk(e['text']) and not path_like(e['text']))]
+                (_de_origem(e['text']) and not path_like(e['text']))]
         if kept:
             mt.files[name] = b
         for e in kept:
@@ -583,7 +601,7 @@ def script_language(a, read):
         return 'none', None, None
     if unprotect.script_j2b(a, j):
         return 'j2b', name, j
-    if len(j) < 450 and a.find('kkmap.jc'):
+    if len(j) < 450 and (a.find('kkmap.jc') or a.find('kkmap.jc1')):
         return 'kkwe', name, j
     return 'jass', name, j
 
@@ -642,9 +660,9 @@ def _collect_script(mt, a, read):
             reason = 'used as a key only'
         elif all(f.startswith(NOT_TEXT_CALLS) for f in calls):
             reason = 'not screen text'
-        elif not _cjk(lit) and RX_COMPILER_DEBUG.match(lit):
+        elif not _de_origem(lit) and RX_COMPILER_DEBUG.match(lit):
             reason = 'a compiler debug message'
-        elif not _cjk(lit) and not ('exibicao' in e['uses'] or any(f.startswith(DISPLAY_CALLS) for f in calls) or
+        elif not _de_origem(lit) and not ('exibicao' in e['uses'] or any(f.startswith(DISPLAY_CALLS) for f in calls) or
                                     ' ' in RX_COLOR.sub('', lit).strip() or RX_COLOR.search(lit)):
             reason = 'not screen text'
         else:
@@ -748,7 +766,7 @@ def _collect_lua(mt, a, read, script_entries):
             reason = 'a Lua pattern'
         elif all(f.startswith(NOT_TEXT_CALLS) or tr_lua._last(f).startswith(NOT_TEXT_CALLS) for f in calls[value]):
             reason = 'not screen text'
-        elif not _cjk(value) and not (any(tr_lua._last(f).startswith(DISPLAY_CALLS) for f in calls[value]) or
+        elif not _de_origem(value) and not (any(tr_lua._last(f).startswith(DISPLAY_CALLS) for f in calls[value]) or
                                       ' ' in RX_COLOR.sub('', value).strip() or RX_COLOR.search(value)):
             reason = 'not screen text'
         else:
@@ -1250,6 +1268,13 @@ def check_entry(e, translation, language=''):
         errs.append(LEVELS_QUOTES % (translation.count('"'), e['text'].count('"')))
     if not _cjk(e['text']) or _is_cjk_language(language):
         errs = [x for x in errs if not x.startswith('CJK restante')]
+    from doctor.translation import writing_systems
+    alvo = writing_systems.target_of(language)
+    sobra = writing_systems.sobrou(e['text'], translation, alvo)
+    if sobra:
+        errs.append(sobra)
+    if writing_systems.new_ai(e['text'], translation, alvo) and not tr_validate_fala_de_ia(e['text']):
+        errs.append('mencao a IA/traducao')
     if _is_cjk_language(language) and any(x.startswith(NUMBERS) for x in errs):
         def numbers(s):
             return collections.Counter(
