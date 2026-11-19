@@ -55,8 +55,9 @@ def rebuild(
     listfile=True,
     log=print,
     hash_factor=1,
+    transform=None,
 ):
-    replacements = {_norm(k): v for k, v in (replacements or {}).items()}
+    replacements ={_norm(k): v for k, v in (replacements or {}).items()}
     new_ones = {_norm(k): v for k, v in (new_ones or {}).items()}
     to_remove = {_norm(n) for n in to_remove}
     a = mpqread.Archive(entry)
@@ -148,7 +149,7 @@ def rebuild(
                 raise RebuildError('slot %d (%s): block %d did not read (%s)' % (slot, fname, bi, e))
             if d is None:
                 raise RebuildError('slot %d (%s): block %d could not be read' % (slot, fname, bi))
-            content[slot] = d
+            content[slot] = transform(bi, d) if transform else d
     already_present = sorted(n for n in new_ones if n in keep.values())
     if already_present:
         raise RebuildError('new file(s) that the map already has (use trocar): %s' % already_present)
