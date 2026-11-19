@@ -386,6 +386,8 @@ def map_script(a, extract, scripts_dir, log):
     raw_bytes = open(ext_j, 'rb').read()
     j2b = b'"war3map.bin"' in raw_bytes and b'do_script' in raw_bytes
     kkmap = os.path.join(extract, 'kkmap.jc')
+    if not os.path.isfile(kkmap) and os.path.isfile(kkmap + '1'):
+        kkmap += '1'
     kkwe = not j2b and len(raw_bytes) < 4096 and (b'KKWE' in raw_bytes or os.path.isfile(kkmap))
     if not j2b and not kkwe:
         from doctor.fix import editor_version
@@ -427,12 +429,11 @@ def map_script(a, extract, scripts_dir, log):
     else:
         if not os.path.isfile(kkmap):
             raise Aborts('the war3map.j is the KKWE stub and kkmap.jc is missing')
-        container = _kkwe.read_container(open(kkmap, 'rb').read())
-        loader, hook = _kkwe.is_loader(_kkwe.load_data(kkmap))
+        bc = _kkwe.load_data(kkmap)
+        loader, hook = _kkwe.is_loader(bc)
         if loader:
             raise Aborts('the map is ENCRYPTED by the KK platform: kkmap.jc is only the loader (Preloader(%r)); the '
                          'real map is outside the MPQ and cannot be ported' % hook)
-        bc = _kkwe.Bytecode(container)
         map_own = ''
         forma = 'kkwe'
     try:
@@ -734,6 +735,8 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
     pair['KK_UI_RETRATO'] = new.ui_portrait(body_text)
     pair['KK_UI_MINI'] = new.ui_mini(body_text)
     pair['KK_UI_PAI'] = new.ui_parent(body_text)
+    from doctor.mpq import xm_porta
+    pair.update(xm_porta.ui_flags())
     atk = new.covered_attack(extract)
     pair['KK_CMD_ATAQUE'] = 'true' if atk else 'false'
     if atk:
@@ -2005,7 +2008,11 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
         except Exception as e:
             WARNINGS.append('the console pieces that the game draws beside the map\'s own console could not be made '
                             'transparent (%s: %s): they may show over the map\'s interface' % (type(e).__name__, e))
-        to_remove = ['kkmap.jc'] if forma == 'kkwe' else (['war3map.bin'] if forma == 'j2b' else [])
+        to_remove = (
+            ([n for n in ('kkmap.jc', 'kkmap.jc1') if a.find(n)] or ['kkmap.jc'])
+            if forma == 'kkwe'
+            else (['war3map.bin'] if forma == 'j2b' else [])
+        )
         if ht and ht['dlls']:
             to_remove += ht['dlls']
             log('6. the platform DLL disguised as a texture removed: %s' % ', '.join(ht['dlls']))
