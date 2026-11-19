@@ -53,7 +53,8 @@ def read_container(data_bytes):
     return bytes(output[:decomp_size])
 
 
-SOURCE_ORDER, REVERSE_ORDER = 'source', 'reverse'
+SOURCE_ORDER, REVERSE_ORDER, JC1_ORDER = 'source', 'reverse', 'jc1'
+JC1_KEY = 0x58
 
 
 class Bytecode(object):
@@ -164,7 +165,89 @@ def is_loader(bc):
     return not main_calls and literal is not None, literal
 
 
+def is_jc(payload):
+    if len(payload) < 12:
+        return False
+    rest, dw = struct.unpack_from('<II', payload, 0)
+    return rest + 4 == len(payload) and dw % 2 == 0 and 8 + dw * 4 + 4 <= len(payload)
+
+
+def decipher_jc1(payload, hash_key=JC1_KEY):
+    c = payload[4:]
+    if not c:
+        return bytes(payload)
+    prev_item = bytes([hash_key]) + c[:-1]
+    p = bytearray((int.from_bytes(c, 'little') ^ int.from_bytes(prev_item, 'little')).to_bytes(len(c), 'little'))
+    i = c.find(b'\x00')
+    while i != -1:
+        j = i
+        while j < len(c) and c[j] == 0:
+            j += 1
+        if i == 0:
+            k = hash_key
+            for m in range(0, min(j + 1, len(c))):
+                p[m] = c[m] ^ k
+        else:
+            k = c[i - 1]
+            for m in range(i + 1, min(j + 1, len(c))):
+                p[m] = c[m] ^ k
+        i = c.find(b'\x00', j)
+    return payload[:4] + bytes(p)
+
+
+def jc1_to_jc(plaintext):
+    if len(plaintext) < 8:
+        raise ValueError('kkmap.jc1: %d B are not enough for the header' % len(plaintext))
+    rest, n = struct.unpack_from('<II', plaintext, 0)
+    if rest + 4 != len(plaintext):
+        raise ValueError('kkmap.jc1: the header says %d B, the plain data has %d' % (rest + 4, len(plaintext)))
+    name_list = [None] * n
+    p = 8
+    for _ in range(n):
+        if p + 4 > len(plaintext):
+            raise ValueError('kkmap.jc1: the name table runs past the end')
+        i = struct.unpack_from('<I', plaintext, p)[0]
+        f = plaintext.find(b'\x00', p + 4)
+        if f < 0 or not 1 <= i <= n or name_list[i - 1] is not None:
+            raise ValueError('kkmap.jc1: the name entry at %d does not end (id %d of %d)' % (p, i, n))
+        name_list[i - 1] = plaintext[p + 4:f]
+        p = f + 1
+    code_part = plaintext[p:]
+    if len(code_part) % 8:
+        raise ValueError('kkmap.jc1: the code has %d B, not a multiple of 8' % len(code_part))
+    body = (
+        struct.pack('<I', len(code_part) // 4)
+        + code_part
+        + struct.pack('<I', n)
+        + b''.join(x + b'\x00' for x in name_list)
+    )
+    return struct.pack('<I', len(body)) + body
+
+
+def bytecode(data_bytes):
+    d = read_container(data_bytes) if data_bytes.startswith(MARK) else data_bytes
+    if is_jc(d):
+        try:
+            return Bytecode(d)
+        except ValueError:
+            pass
+    try:
+        conv = jc1_to_jc(decipher_jc1(d))
+    except ValueError as e:
+        raise ValueError('neither kkmap.jc nor kkmap.jc1 (%s)' % e)
+    return Bytecode(conv, JC1_ORDER)
+
+
 def load_data(file_path):
     with open(file_path, 'rb') as fh:
-        d = fh.read()
-    return Bytecode(read_container(d) if d.startswith(MARK) else d)
+        return bytecode(fh.read())
+
+
+FILES = ('kkmap.jc', 'kkmap.jc1')
+
+
+def file_in_map(a):
+    for n in FILES:
+        if a.find(n):
+            return n
+    return None
