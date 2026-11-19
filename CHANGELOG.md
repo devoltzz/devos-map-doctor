@@ -3,6 +3,24 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 2.5.0 (2026-11-19)
+
+### New
+
+- **Port to Reforged, xmload maps without game.pkg:** some maps of the xmload framework keep their Lua modules, models and textures encrypted inside the map itself, with no `game.pkg`, and the Port stopped with "native code in a DLL". These maps now port and play. Their encrypted files are opened in the ported map, the framework runs on Reforged, and the platform DLL's own functions (frames, unit and item attributes, damage and missile events, big numbers) now have a Lua version. The server save works locally, and the framework's interface replaces the game's, laid out for a wide screen.
+- **Fix map, xmload maps without game.pkg:** the new "Open the encrypted xmload files" step turns their Lua modules, models and textures into normal files in place, and puts the real script back as `war3map.j`.
+- **KKWE maps with `kkmap.jc1`:** the newer KKWE compiled script file, `kkmap.jc1`, is now read like `kkmap.jc`. Fix map, Open in World Editor, Port to Reforged and the script, card and translation tabs all handle it.
+
+### Fixed
+
+- **Fix map and Open in World Editor, more triggers come back as GUI:** a trigger with its own events or conditions now stays a GUI trigger even when all its actions are custom script lines, as the author made it. Before, it went to text. A custom script line is compacted before the World Editor's 259-character limit is checked, so fewer triggers go to text for it. JassHelper's renamed locals (`l__`) are read back to the author's names. On the hardest test map, 386 of the author's 390 GUI triggers now come back the same, against 368 before.
+- **Port to Reforged, the Forsaken interface could crash online:** Reforged does not load the Forsaken interface files for a map in the classic format. On a ported map hosted online, a player with the Forsaken interface closed the game while the map loaded. The ported map's `war3mapSkin.txt` now points the Forsaken interface at the Human files.
+- **Port to Reforged, KK maps:** the `DzBitSet` native of the platform now works (newer saves use it). A button looked up by name no longer desyncs the first time the mouse passes over it.
+- **Port to Reforged, maps with ability and item tables but no unit table:** the unit data now comes from the map's object data, so the units are no longer missing from the port's table.
+- **Port to Reforged, maps on the YDWE Lua route, Chinese names:** the compiler stores many `StringHash("text")` calls as numbers worked out with the 1.28 algorithm, and Reforged returns a different number for non-English text. Lookups by Chinese text then failed without any error (a button that did nothing). The port now uses the 1.28 algorithm.
+- **Port to Reforged, Lua maps with large numbers:** Reforged's Lua integers are 32-bit, so 64-bit limits in a map's code wrapped around. The save check of a map failed because of it. Those numbers are now kept as real numbers where the code allows it.
+- **Port to Reforged, KK maps that hide the game's resource bar:** showing, hiding, moving or destroying a text or texture of the game's own bar, found by its name, closed the game. The port now hides it through its color and leaves the rest alone.
+
 ## 2.4.0 (2026-11-17)
 
 ### New
