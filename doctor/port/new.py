@@ -31,7 +31,7 @@ ALWAYS_NAMES = ['(listfile)', 'war3map.j', 'war3map.lua', 'scripts\\war3map.j', 
                 'war3map.w3e', 'war3map.w3u', 'war3map.w3t', 'war3map.w3a', 'war3map.w3b', 'war3map.w3d',
                 'war3map.w3h', 'war3map.w3q', 'war3map.doo', 'war3mapUnits.doo', 'war3map.imp', 'war3map.mmp',
                 'war3map.shd', 'war3map.wpm', 'war3mapMisc.txt', 'war3mapSkin.txt', 'war3mapExtra.txt',
-                'war3mapMap.blp', 'war3mapPreview.tga', 'kkmap.jc', 'UI\\template.fdf',
+                'war3mapMap.blp', 'war3mapPreview.tga', 'kkmap.jc', 'kkmap.jc1', 'UI\\template.fdf',
                 'Scripts\\Blizzard.j', 'Scripts\\common.j']
 
 
@@ -54,6 +54,7 @@ def run_action(label, cmd, cwd, log_file):
 
 def model(fname, value_list):
     t = open(os.path.join(TEMPLATE, fname + '.template'), encoding='utf-8').read()
+    value_list = dict(TEMPLATE_DEFAULTS, **value_list)
 
     def swap(m):
         if m.group(1) not in value_list:
@@ -68,7 +69,11 @@ def save(file_path, body_text):
         f.write(body_text)
 
 
-def layer_parts(jn=False, blizzard=False, ujapi=False):
+PANEL_PARTS = ('KK:kk_ui.j', 'out/out_ui_dados.j', 'KK:kk_painel.j', 'out/out_painel_dados.j')
+TEMPLATE_DEFAULTS = {'REPO_REL': "'..', '..'"}
+
+
+def layer_parts(jn=False, blizzard=False, ujapi=False, panel=False):
     return (
         [
             'KK:part_0_natives.j',
@@ -96,6 +101,7 @@ def layer_parts(jn=False, blizzard=False, ujapi=False):
         + (['KK:kk_jn.j', 'KKN:nat_jn.j'] if jn else [])
         + ['KKN:nat_blizzard.j', 'KKN:nat_shop.j', 'KKN:nat_dzapi.j', 'KKN:nat_relatives.j', 'KKN:nat_emulated.j']
         + (['KKN:nat_ujapi.j', 'KKN:nat_ujapi_eq.j'] if ujapi else [])
+        + (list(PANEL_PARTS) if panel else [])
         + (['out_blizzard_mapa.j'] if blizzard else [])
     )
 
