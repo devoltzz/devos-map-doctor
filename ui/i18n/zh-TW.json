@@ -3548,5 +3548,10 @@
  "Vietnamese text left": "殘留越南文文字",
  "Translated by devotranslate - devoltz.party": "Translated by devotranslate - devoltz.party",
  "w3i map description": "w3i 中的地圖描述",
- "backslashes changed ({0} -> {1}): this file reads no escape, a backslash shows as it is": "反斜線已變更 ({0} -> {1}):此檔案不讀取跳脫字元,反斜線依原樣顯示"
+ "backslashes changed ({0} -> {1}): this file reads no escape, a backslash shows as it is": "反斜線已變更 ({0} -> {1}):此檔案不讀取跳脫字元,反斜線依原樣顯示",
+ ", the real script is back": "，並已還原真正的腳本",
+ "Encrypted files of an xmload map (no game.pkg): \"Fix map\" opens its Lua modules, models and textures in place and puts the real script back.": "xmload 地圖的加密檔案（沒有 game.pkg）：「修復地圖」會就地開啟其 Lua 模組、模型和貼圖，並還原真正的腳本。",
+ "Its Lua modules, models and textures become normal files in place.": "其 Lua 模組、模型和貼圖會就地變成一般檔案。",
+ "Open the encrypted xmload files": "開啟加密的 xmload 檔案",
+ "Opened the encrypted xmload files: {0} in place{1}.": "已開啟加密的 xmload 檔案：就地開啟 {0}{1}。"
 }
