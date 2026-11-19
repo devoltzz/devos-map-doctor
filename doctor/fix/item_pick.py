@@ -264,11 +264,11 @@ def new_names(spelled):
     return out
 
 
-def rewrite_objects(data, new, field='ifil', ids=None):
+def rewrite_objects(data, new, field='ifil', ids=None, levels=False):
     from doctor.data import objbin
     order = None
     if ids is not None:
-        _v, tables, _n = objbin.read_data(data, False)
+        _v, tables, _n = objbin.read_data(data, levels)
         order = [[(nw if nw.strip('\0') else o) for o, nw, _m in objs] for objs in tables]
 
     def change(t, o, _m, f, value):
@@ -276,7 +276,7 @@ def rewrite_objects(data, new, field='ifil', ids=None):
             return None
         k = norm(_text(value)) if _text(value).strip() else None
         return new[k].encode('ascii') if k in new else None
-    return objbin.rewrite(data, False, change)
+    return objbin.rewrite(data, levels, change)
 
 
 def rewrite_text(text, new, ids=None):
@@ -354,3 +354,4 @@ def fix(read, has_in_map, casc=None, log=_nothing):
     rel['items'] = [(kind, s, i, norm(w)) for kind, s, i, w in found if norm(w) in copies]
     rel['state'] = 'done'
     return rel
+
