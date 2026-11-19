@@ -870,6 +870,11 @@ def compare(bc, ins, begin=0, maximum=10, real_blocks=None, where=None):
             real_blocks.append((k, orig[4], arg))
             identical += 1
             continue
+        if (op == 12 and b1 == 5 and orig[3] == 12 and orig[1] == 4 and orig[0] == b0 and orig[2] == b2 and
+                k + 1 < bc.n and bc.op[k + 1] == 13 and bc.b2[k + 1] == 0 and bc.b1[k + 1] == b2 and
+                struct.unpack('<i', struct.pack('<f', float(orig[4])))[0] == arg):
+            identical += 1
+            continue
         diffs.append((k, orig, mine))
         if len(diffs) >= maximum:
             break
