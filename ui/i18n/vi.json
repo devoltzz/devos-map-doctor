@@ -3548,5 +3548,10 @@
  "Vietnamese text left": "Còn sót văn bản tiếng Việt",
  "Translated by devotranslate - devoltz.party": "Translated by devotranslate - devoltz.party",
  "w3i map description": "mô tả bản đồ trong w3i",
- "backslashes changed ({0} -> {1}): this file reads no escape, a backslash shows as it is": "dấu gạch chéo ngược đã đổi ({0} -> {1}): tệp này không đọc ký tự thoát, dấu gạch chéo ngược hiển thị nguyên dạng"
+ "backslashes changed ({0} -> {1}): this file reads no escape, a backslash shows as it is": "dấu gạch chéo ngược đã đổi ({0} -> {1}): tệp này không đọc ký tự thoát, dấu gạch chéo ngược hiển thị nguyên dạng",
+ ", the real script is back": ", script thật đã được khôi phục",
+ "Encrypted files of an xmload map (no game.pkg): \"Fix map\" opens its Lua modules, models and textures in place and puts the real script back.": "Các tệp đã mã hóa của bản đồ xmload (không có game.pkg): \"Sửa bản đồ\" mở các module Lua, mô hình và texture của nó tại chỗ và khôi phục script thật.",
+ "Its Lua modules, models and textures become normal files in place.": "Các module Lua, mô hình và texture của nó trở thành tệp bình thường tại chỗ.",
+ "Open the encrypted xmload files": "Mở các tệp xmload đã mã hóa",
+ "Opened the encrypted xmload files: {0} in place{1}.": "Đã mở các tệp xmload đã mã hóa: {0} tại chỗ{1}."
 }
