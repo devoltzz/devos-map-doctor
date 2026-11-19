@@ -546,7 +546,7 @@ def _script(a, m):
     kind = 'jass'
     if unprotect.script_j2b(a, j):
         kind = 'j2b'
-    elif len(j) < 450 and a.find('kkmap.jc'):
+    elif len(j) < 450 and (a.find('kkmap.jc') or a.find('kkmap.jc1')):
         kind = 'kkwe'
     return kind, j_name, _script_text(j)
 
