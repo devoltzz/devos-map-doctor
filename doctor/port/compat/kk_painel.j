@@ -111,6 +111,60 @@ boolean array KKP_g_trava
 boolean array KKP_g_ok
 integer array KKP_g_eb
 integer array KKP_g_val
+//{{KK_SE:KK_PAINEL_IMG}}
+string array KKP_g_img
+real array KKP_g_img_l
+real array KKP_g_img_a
+integer KKP_g_dimg=0
+integer KKP_k_dimg=0
+real array KKP_im_x
+real array KKP_im_y
+real array KKP_im_w
+real array KKP_im_h
+//{{KK_FIMSE:KK_PAINEL_IMG}}
+//{{KK_SE:KK_PAINEL_EXTRA}}
+constant integer KKP_G_PRONTO=7
+constant integer KKP_G_DADOS=8
+constant integer KKP_G_ITEM=9
+trigger KKP_t_g9=CreateTrigger()
+constant integer KKP_DADOS_MAX=64
+integer KKP_arg_x=0
+integer KKP_dados_k=0
+string KKP_b3_rot=""
+boolean array KKP_it_b3ok
+boolean array KKP_b3_fora
+boolean KKP_com_link=false
+integer array KKP_f_link
+string array KKP_f_link_tx
+integer KKP_f_lico=0
+integer KKP_f_ltxt=0
+integer KKP_f_lbt=0
+string array KKP_dm_s
+integer array KKP_dm_k
+integer KKP_x_qi=0
+integer KKP_x_qc=0
+integer KKP_t1_pid=0
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
+//{{KK_SE:KK_PAINEL_CHEFE_BT}}
+//@REQUER KK:kk_painel.j KK_PAINEL_EXTRA
+constant integer KKP_G_CHEFE=10
+trigger KKP_t_g10=CreateTrigger()
+string KKP_bb_rot=""
+boolean array KKP_bs_bok
+boolean array KKP_bb_fora
+integer KKP_g_quer_i=-1
+//{{KK_FIMSE:KK_PAINEL_CHEFE_BT}}
+//{{KK_SE:KK_PAINEL_DROPS}}
+//@REQUER KK:kk_painel.j KK_PAINEL_EXTRA
+constant integer KKP_DR_TETO=96
+integer KKP_b_dtop=0
+integer KKP_b_dsel=0
+integer KKP_b_dpag=0
+//{{KK_FIMSE:KK_PAINEL_DROPS}}
+//{{KK_SE:KK_PAINEL_PADRAO}}
+group KKP_g_auto=null
+unit KKP_au_u=null
+//{{KK_FIMSE:KK_PAINEL_PADRAO}}
 hashtable KKP_ht=null
 boolean KKP_pronto=false
 boolean KKP_iniciado=false
@@ -439,6 +493,17 @@ function KKP_ico_item takes integer x returns string
     return s
 endfunction
 
+function KKP_tem_ico takes string s returns boolean
+    return s!=null and s!=""
+endfunction
+
+function KKP_ico_vale takes string s returns string
+    if KKP_tem_ico(s) then
+        return s
+    endif
+    return "ReplaceableTextures\\CommandButtons\\BTNSelectHeroOn.blp"
+endfunction
+
 function KKP_nome_item takes integer x returns string
     local string s=GetObjectName(x)
     if s==null or s=="" then
@@ -512,13 +577,33 @@ function KKP_tg takes integer qual returns trigger
         return KKP_t_g6
     elseif qual==7 then
         return KKP_t_g7
+//{{KK_SE:KK_PAINEL_EXTRA}}
+    elseif qual==9 then
+        return KKP_t_g9
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
+//{{KK_SE:KK_PAINEL_CHEFE_BT}}
+    elseif qual==10 then
+        return KKP_t_g10
+//{{KK_FIMSE:KK_PAINEL_CHEFE_BT}}
     endif
     return KKP_t_g8
 endfunction
 
 function KKP_gancho takes integer qual,code f returns nothing
     if qual<1 or qual>8 then
+//{{KK_SE:KK_PAINEL_EXTRA}}
+        if qual!=KKP_G_ITEM then
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
+//{{KK_SE:KK_PAINEL_CHEFE_BT}}
+        if qual!=KKP_G_CHEFE then
+//{{KK_FIMSE:KK_PAINEL_CHEFE_BT}}
         return
+//{{KK_SE:KK_PAINEL_CHEFE_BT}}
+        endif
+//{{KK_FIMSE:KK_PAINEL_CHEFE_BT}}
+//{{KK_SE:KK_PAINEL_EXTRA}}
+        endif
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
     endif
     call TriggerAddCondition(KKP_tg(qual), Condition(f))
     set KKP_g_tem[qual]=true
@@ -526,15 +611,53 @@ endfunction
 
 function KKP_chama takes integer qual returns boolean
     if qual<1 or qual>8 or not KKP_g_tem[qual] then
+//{{KK_SE:KK_PAINEL_EXTRA}}
+        if qual!=KKP_G_ITEM or not KKP_g_tem[qual] then
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
+//{{KK_SE:KK_PAINEL_CHEFE_BT}}
+        if qual!=KKP_G_CHEFE or not KKP_g_tem[qual] then
+//{{KK_FIMSE:KK_PAINEL_CHEFE_BT}}
         return false
+//{{KK_SE:KK_PAINEL_CHEFE_BT}}
+        endif
+//{{KK_FIMSE:KK_PAINEL_CHEFE_BT}}
+//{{KK_SE:KK_PAINEL_EXTRA}}
+        endif
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
     endif
     call TriggerEvaluate(KKP_tg(qual))
     return true
 endfunction
+//{{KK_SE:KK_PAINEL_PADRAO}}
+
+function KKP_heroi_auto takes integer pid returns unit
+    local unit u
+    local integer n=-1
+    set KKP_au_u=null
+    if pid<0 or pid>=KKP_jogadores or KKP_g_auto==null then
+        return null
+    endif
+    call GroupEnumUnitsOfPlayer(KKP_g_auto, Player(pid), null)
+    loop
+        set u=FirstOfGroup(KKP_g_auto)
+        exitwhen u==null
+        call GroupRemoveUnit(KKP_g_auto, u)
+        if IsUnitType(u, UNIT_TYPE_HERO) and not IsUnitType(u, UNIT_TYPE_DEAD) and not IsUnitIllusion(u) and GetHeroLevel(u)>n then
+            set KKP_au_u=u
+            set n=GetHeroLevel(u)
+        endif
+    endloop
+    return KKP_au_u
+endfunction
+//{{KK_FIMSE:KK_PAINEL_PADRAO}}
 
 function KKP_amostra takes integer pid returns nothing
     local unit h
     set KKP_arg_pid=pid
+//{{KK_SE:KK_PAINEL_EXTRA}}
+    set KKP_f_link[pid]=0
+    set KKP_f_link_tx[pid]=""
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
     set KKP_h_pv[pid]=0
     call KKP_chama(KKP_G_FICHA)
     set h=KKP_heroi[pid]
@@ -585,6 +708,11 @@ function KKP_amostra_grade takes integer pid returns nothing
         loop
             exitwhen i>=n
             set KKP_g_tit[b*KKP_GE+i]=""
+//{{KK_SE:KK_PAINEL_IMG}}
+            set KKP_g_img[b*KKP_GE+i]=""
+            set KKP_g_img_l[b*KKP_GE+i]=0.0
+            set KKP_g_img_a[b*KKP_GE+i]=0.0
+//{{KK_FIMSE:KK_PAINEL_IMG}}
             if KKU_PV_N>0 then
                 set KKP_g_pv[b*KKP_GE+i]=0
             endif
@@ -805,6 +933,9 @@ function KKP_lin takes integer cod,boolean v,string s,string ico,boolean ativa,b
         call KKU_linha_icone(l, ico)
     endif
     call KKU_linha_mostra(l, v, KKP_l_at[l], KKP_l_tr[l])
+    if v and KKU_lin_ico[l]>0 and not KKP_tem_ico(ico) then
+        call KKU_vis(KKU_lin_ico[l], false)
+    endif
     if KKP_l_at[l] and KKP_l_tr[l] and KKU_lin_txt[l]>0 then
         call KKU_texto(KKU_lin_txt[l], KKU_cor_ativo+KKU_cor_travado+KKU_rot[KKU_lin_txt[l]]+"|r|r")
     endif
@@ -837,6 +968,11 @@ endfunction
 function KKP_seta_k takes integer cod returns integer
     local integer g=cod/1000
     local integer k
+//{{KK_SE:KK_PAINEL_DROPS}}
+    if cod==13003 or cod==13004 then
+        return cod-12992
+    endif
+//{{KK_FIMSE:KK_PAINEL_DROPS}}
     if g==5 then
         set k=0
     elseif g==11 then
@@ -869,6 +1005,34 @@ function KKP_seta takes integer cod,boolean ativa returns nothing
     endif
 endfunction
 
+//{{KK_SE:KK_PAINEL_DROPS}}
+function KKP_seta_um takes integer k returns nothing
+    local integer b
+    local string rot
+        if KKP_st_cod[k]!=0 then
+            set b=LoadInteger(KKP_ht, KKP_st_cod[k], 0)
+            if ModuloInteger(k, 2)==1 then
+                set rot=KKU_ROT_SETA_ESQ
+            else
+                set rot=KKU_ROT_SETA_DIR
+            endif
+            if b>0 and b+2<KKU_MAX then
+                if rot=="" then
+                    if KKP_st_at[k] then
+                        call KKU_alfa(b, 255)
+                    else
+                        call KKU_alfa(b, KKP_SETA_ALFA)
+                    endif
+                elseif KKP_st_at[k] then
+                    call KKU_texto(b+2, rot)
+                else
+                    call KKU_texto(b+2, KKU_cor_travado+rot+"|r")
+                endif
+            endif
+        endif
+endfunction
+
+//{{KK_FIMSE:KK_PAINEL_DROPS}}
 function KKP_setas_aplica takes nothing returns nothing
     local integer k=1
     local integer b
@@ -899,14 +1063,65 @@ function KKP_setas_aplica takes nothing returns nothing
         endif
         set k=k+1
     endloop
+//{{KK_SE:KK_PAINEL_DROPS}}
+    call KKP_seta_um(11)
+    call KKP_seta_um(12)
+//{{KK_FIMSE:KK_PAINEL_DROPS}}
 endfunction
 
+//{{KK_SE:KK_PAINEL_BOLSA}}
+function KKP_tem_bolsa takes integer pid,integer x returns integer
+    local integer n=0
+    local integer k=0
+    local integer s
+    local integer ns
+    local unit u
+    local item it
+    loop
+        exitwhen k>4
+        if k==0 then
+            set u=KKP_heroi[pid]
+        else
+            set u=KKP_inv_u[pid*4+k-1]
+        endif
+        if u!=null then
+            set ns=6+UnitExtendedInventorySize(u)
+            set s=0
+            loop
+                exitwhen s>=ns
+                if s<6 then
+                    set it=UnitItemInSlot(u, s)
+                else
+                    set it=UnitItemInBagSlot(u, s-6)
+                endif
+                if it!=null and GetItemTypeId(it)==x then
+                    if GetItemCharges(it)>1 then
+                        set n=n+GetItemCharges(it)
+                    else
+                        set n=n+1
+                    endif
+                endif
+                set s=s+1
+            endloop
+        endif
+        set k=k+1
+    endloop
+    set u=null
+    set it=null
+    return n
+endfunction
+
+//{{KK_FIMSE:KK_PAINEL_BOLSA}}
 function KKP_tem takes integer pid,integer x returns integer
     local integer n=0
     local integer k=0
     local integer s
     local unit u
     local item it
+//{{KK_SE:KK_PAINEL_BOLSA}}
+    set n=KKP_tem_bolsa(pid, x)
+    set k=5
+//{{KK_FIMSE:KK_PAINEL_BOLSA}}
     loop
         exitwhen k>4
         if k==0 then
@@ -976,16 +1191,21 @@ endfunction
 function KKP_des_ficha takes integer pid returns nothing
     local string s
     local integer chave=0
+//{{KK_SE:KK_PAINEL_EXTRA}}
+    local integer lk=KKP_f_link[pid]
+    local boolean lv=false
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
     if KKP_h_ok[pid] then
         set chave=KKP_h_pv[pid]
     endif
-    call KKP_vis(KKP_f_ico, not KKP_pv_desenha(KKP_pv_ficha, KKP_pv_cx_ficha, KKP_pv_rot_ficha, KKP_pv_al_ficha, KKP_pv_alb_ficha, chave, KKP_gx(KKP_PV_FX), KKP_gy(KKP_PV_FY), KKP_gs(KKP_PV_FH)))
+    call KKP_pv_desenha(KKP_pv_ficha, KKP_pv_cx_ficha, KKP_pv_rot_ficha, KKP_pv_al_ficha, KKP_pv_alb_ficha, chave, KKP_gx(KKP_PV_FX), KKP_gy(KKP_PV_FY), KKP_gs(KKP_PV_FH))
+    call KKP_vis(KKP_f_ico, true)
     if not KKP_h_ok[pid] then
         call KKU_tex(KKP_f_ico, "ReplaceableTextures\\CommandButtons\\BTNSelectHeroOn.blp")
         call KKU_texto(KKP_f_nome, "|cffffcc00"+KKP_txt_sem_heroi+"|r")
         call KKU_texto(KKP_f_stat, "")
     else
-        call KKU_tex(KKP_f_ico, BlzGetAbilityIcon(KKP_h_tipo[pid]))
+        call KKU_tex(KKP_f_ico, KKP_ico_vale(BlzGetAbilityIcon(KKP_h_tipo[pid])))
         call KKU_texto(KKP_f_nome, "|cffffcc00"+KKP_h_nome[pid]+"|r|nLevel "+I2S(KKP_h_nivel[pid]))
         set s="|cffffcc00Strength:|r "+KKP_mil(KKP_h_forb[pid])+"|n|cff999999   base "+KKP_mil(KKP_h_for[pid])+"|r"
         set s=s+"|n|cffffcc00Agility:|r "+KKP_mil(KKP_h_agib[pid])+"|n|cff999999   base "+KKP_mil(KKP_h_agi[pid])+"|r"
@@ -1003,6 +1223,22 @@ function KKP_des_ficha takes integer pid returns nothing
         set s=""
     endif
     call KKU_texto(KKP_f_mapa, s)
+//{{KK_SE:KK_PAINEL_EXTRA}}
+    if KKP_f_lico>0 then
+        set lv=KKP_h_ok[pid] and lk!=0 and KKP_idx(lk)>0
+        call KKP_vis(KKP_f_lico, lv)
+        call KKP_vis(KKP_f_ltxt, lv)
+        call KKU_alvo_vis(KKP_f_lbt, lv)
+        if lv then
+            set s=KKP_f_link_tx[pid]
+            if s==null then
+                set s=""
+            endif
+            call KKU_tex(KKP_f_lico, KKP_ico_item(lk))
+            call KKU_texto(KKP_f_ltxt, s+KKP_nome_item(lk))
+        endif
+    endif
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
 endfunction
 
 function KKP_c_tam takes integer pid returns integer
@@ -1122,6 +1358,9 @@ function KKP_des_codex_det takes nothing returns nothing
 //{{KK_SE:KK_PAINEL_CRAFT}}
     call KKP_bvis(6007, false)
 //{{KK_FIMSE:KK_PAINEL_CRAFT}}
+//{{KK_SE:KK_PAINEL_EXTRA}}
+    call KKP_bvis(6008, false)
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
     if not vis then
         call KKU_texto(KKP_c_desc, "|cffffcc00"+KKP_titulo+"|r|n|n"+KKP_txt_codex)
         return
@@ -1138,6 +1377,9 @@ function KKP_des_codex_det takes nothing returns nothing
 //{{KK_SE:KK_PAINEL_CRAFT}}
     call KKP_bvis(6007, KKP_g_tem[KKP_G_CRAFT] and KKP_it_rc[x]>0)
 //{{KK_FIMSE:KK_PAINEL_CRAFT}}
+//{{KK_SE:KK_PAINEL_EXTRA}}
+    call KKP_bvis(6008, KKP_b3_rot!="" and KKP_it_b3ok[x] and not KKP_b3_fora[pid])
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
     set r=KKP_it_rc[x]
     if r>0 then
         set n=IMinBJ(KKP_rc_ingn[r], 8)
@@ -1225,6 +1467,15 @@ function KKP_des_codex_det takes nothing returns nothing
         set s=s+"|n|n"
     endif
     set s=s+BlzGetAbilityExtendedTooltip(id, 0)
+//{{KK_SE:KK_PAINEL_EXTRA}}
+    if id!=0 and KKP_dm_k[1]==id then
+        if KKP_dm_s[1]!=null and KKP_dm_s[1]!="" then
+            set s=s+"|n|n|r"+KKP_dm_s[1]
+        endif
+        call KKU_texto(KKP_c_desc, s)
+        return
+    endif
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
     set m=1
     if KKP_it_dpn[x]>0 then
         set s=s+"|n|n|r|cffffcc00Dropped by|r |cff999999(chance per kill, "+KKP_txt_taxa+")|r"
@@ -1278,6 +1529,54 @@ function KKP_des_chefe_lista takes nothing returns nothing
     call KKP_seta(11002, KKP_b_top+11<n)
 endfunction
 
+//{{KK_SE:KK_PAINEL_DROPS}}
+function KKP_des_chefe_dpag takes integer j,integer pid returns nothing
+    local integer n=IMinBJ(KKP_bs_drn[j], KKP_DR_TETO)
+    local integer m=1
+    local integer d
+    local integer s
+    local integer k
+    local integer it
+    local string t
+    if KKP_b_dtop>((n-1)/10)*10 then
+        set KKP_b_dtop=((n-1)/10)*10
+    endif
+    if KKP_b_dtop<0 then
+        set KKP_b_dtop=0
+    endif
+    loop
+        exitwhen m>10 or KKP_b_dtop+m>n
+        set d=KKP_b_dtop+m
+        set s=m
+        if m>5 then
+            set s=m+1
+        endif
+        set k=KKP_bs_dr[j]+d-1
+        set it=KKP_dr_it[k]
+        set KKP_b_drop[s]=it
+        call KKU_tex(KKP_b_dico2[s], KKP_ico_item(it))
+        call KKP_vis(KKP_b_dico2[s], true)
+        call KKU_alvo_vis(KKP_b_dbt[s], KKP_idx(it)>0)
+        set t=KKP_nome_item(it)+"|r|n"+KKP_taxa_txt(KKP_dr_tipo[k], KKP_dr_taxa[k], pid)
+        if KKP_dr_qt[k]>1 then
+            set t=t+" x"+I2S(KKP_dr_qt[k])
+        endif
+        call KKU_texto(KKP_b_dtx[s], t)
+        if KKP_dm_k[2+d]!=0 and KKP_dm_k[2+d]==KKP_bs_unid[j] then
+            call KKU_texto(KKP_b_dtx[s], KKP_dm_s[2+d])
+        endif
+        call KKP_vis(KKP_b_dtx[s], true)
+        set m=m+1
+    endloop
+    call KKU_texto(KKP_b_dpag, "Drops "+I2S(KKP_b_dtop+1)+"-"+I2S(IMinBJ(KKP_b_dtop+10, n))+" of "+I2S(n))
+    call KKP_vis(KKP_b_dpag, true)
+    call KKP_bvis(13003, true)
+    call KKP_bvis(13004, true)
+    call KKP_seta(13003, KKP_b_dtop>0)
+    call KKP_seta(13004, KKP_b_dtop+10<n)
+endfunction
+
+//{{KK_FIMSE:KK_PAINEL_DROPS}}
 function KKP_des_chefe_det takes nothing returns nothing
     local integer pid=GetPlayerId(GetLocalPlayer())
     local integer j=KKP_b_sel
@@ -1291,6 +1590,9 @@ function KKP_des_chefe_det takes nothing returns nothing
     call KKP_vis(KKP_b_dinfo, vis)
     call KKP_vis(KKP_b_dtit, vis)
     call KKP_bvis(13001, vis and KKP_bs_pos[j])
+//{{KK_SE:KK_PAINEL_CHEFE_BT}}
+    call KKP_bvis(13002, vis and KKP_bb_rot!="" and KKP_bs_bok[j] and not KKP_bb_fora[pid])
+//{{KK_FIMSE:KK_PAINEL_CHEFE_BT}}
     loop
         exitwhen s>12
         set KKP_b_drop[s]=0
@@ -1299,6 +1601,15 @@ function KKP_des_chefe_det takes nothing returns nothing
         call KKP_vis(KKP_b_dtx[s], false)
         set s=s+1
     endloop
+//{{KK_SE:KK_PAINEL_DROPS}}
+    call KKP_bvis(13003, false)
+    call KKP_bvis(13004, false)
+    call KKP_vis(KKP_b_dpag, false)
+    if KKP_b_dsel!=j then
+        set KKP_b_dsel=j
+        set KKP_b_dtop=0
+    endif
+//{{KK_FIMSE:KK_PAINEL_DROPS}}
     if not vis then
         call KKU_texto(KKP_b_dnota, KKP_txt_chefes)
         return
@@ -1319,6 +1630,17 @@ function KKP_des_chefe_det takes nothing returns nothing
         call KKU_texto(KKP_b_dnota, "")
     endif
     call KKU_texto(KKP_b_dtit, "|cffffcc00Drops|r  "+I2S(KKP_bs_drn[j])+" |cff999999(chance per kill, "+KKP_txt_taxa+")|r")
+//{{KK_SE:KK_PAINEL_EXTRA}}
+    if KKP_dm_k[2]!=0 and KKP_dm_k[2]==KKP_bs_unid[j] then
+        call KKU_texto(KKP_b_dtit, KKP_dm_s[2])
+    endif
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
+//{{KK_SE:KK_PAINEL_DROPS}}
+    if KKP_bs_drn[j]>12 then
+        call KKP_des_chefe_dpag(j, pid)
+        return
+    endif
+//{{KK_FIMSE:KK_PAINEL_DROPS}}
     set s=1
     loop
         exitwhen s>12 or s>KKP_bs_drn[j]
@@ -1333,6 +1655,11 @@ function KKP_des_chefe_det takes nothing returns nothing
             set t=t+" x"+I2S(KKP_dr_qt[k])
         endif
         call KKU_texto(KKP_b_dtx[s], t)
+//{{KK_SE:KK_PAINEL_EXTRA}}
+        if KKP_dm_k[2+s]!=0 and KKP_dm_k[2+s]==KKP_bs_unid[j] then
+            call KKU_texto(KKP_b_dtx[s], KKP_dm_s[2+s])
+        endif
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
         call KKP_vis(KKP_b_dtx[s], true)
         set s=s+1
     endloop
@@ -1345,6 +1672,52 @@ function KKP_bit takes integer x,integer k returns boolean
     return ModuloInteger(x, 2)==1
 endfunction
 
+//{{KK_SE:KK_PAINEL_IMG}}
+function KKP_des_img takes boolean k3,boolean ok,integer e,integer dtxt returns nothing
+    local integer q=1
+    local integer img=KKP_g_dimg
+    local real w=0.0
+    local real h=0.0
+    local string s=""
+    if k3 then
+        set q=2
+        set img=KKP_k_dimg
+        call KKP_vis(KKP_g_dimg, false)
+    else
+        call KKP_vis(KKP_k_dimg, false)
+    endif
+    if img<=0 or img>=KKU_MAX or dtxt<=0 or dtxt>=KKU_MAX then
+        return
+    endif
+    if ok then
+        set s=KKP_g_img[e]
+    endif
+    if s!=null and s!="" then
+        set w=KKP_im_w[q]
+        if KKP_g_img_l[e]>0.0 then
+            set w=RMinBJ(KKP_gw(KKP_g_img_l[e]), KKP_im_w[q])
+        endif
+        if KKP_g_img_a[e]<=0.0 then
+            set h=w*9.0/16.0
+        elseif KKP_g_img_l[e]>0.0 then
+            set h=KKP_gh(KKP_g_img_a[e])*w/KKP_gw(KKP_g_img_l[e])
+        else
+            set h=KKP_gh(KKP_g_img_a[e])
+        endif
+        set h=RMinBJ(h, KKP_im_h[q]-KKP_gh(0.040))
+    endif
+    if h>0.0 then
+        call KKU_tex(img, s)
+        call KKU_poe(img, KKP_im_x[q], KKP_im_y[q], w, h)
+        call KKP_vis(img, true)
+        call KKU_poe(dtxt, KKP_im_x[q], KKP_im_y[q]-h-KKP_gh(0.006), KKP_im_w[q], KKP_im_h[q]-h-KKP_gh(0.006))
+    else
+        call KKP_vis(img, false)
+        call KKU_poe(dtxt, KKP_im_x[q], KKP_im_y[q], KKP_im_w[q], KKP_im_h[q])
+    endif
+endfunction
+
+//{{KK_FIMSE:KK_PAINEL_IMG}}
 function KKP_des_mapa takes nothing returns nothing
     local integer pid=GetPlayerId(GetLocalPlayer())
     local integer a=KKP_aba[pid]
@@ -1361,7 +1734,6 @@ function KKP_des_mapa takes nothing returns nothing
     local boolean ok
     local string t
     local integer chave=0
-    local boolean pv
     local boolean k3=lay==3
     local integer dico=KKP_g_dico
     local integer dnome=KKP_g_dnome
@@ -1478,6 +1850,11 @@ function KKP_des_mapa takes nothing returns nothing
                 set KKP_g_lin[s]=i
                 call KKU_tex(c, KKP_g_ico[e])
                 call KKP_vis(c, true)
+                if KKP_tem_ico(KKP_g_ico[e]) then
+                    call KKU_alfa(c, 255)
+                else
+                    call KKU_alfa(c, 0)
+                endif
                 call KKU_alvo_vis(KKP_g_bt[s], true)
                 call KKP_vis(KKP_g_dim[s], KKP_g_trava[e])
                 call KKP_vis(KKP_g_cur[s], KKP_g_ok[e])
@@ -1510,13 +1887,13 @@ function KKP_des_mapa takes nothing returns nothing
     endif
     if k3 then
         call KKP_pv_desenha(KKP_pv_det, KKP_pv_cx_det, KKP_pv_rot_det, KKP_pv_al_det, KKP_pv_alb_det, 0, 0.0, 0.0, 0.0)
-        set pv=KKP_pv_desenha(KKP_pv_k, KKP_pv_cx_k, KKP_pv_rot_k, KKP_pv_al_k, KKP_pv_alb_k, chave, KKP_gx(KKP_PV_DX), KKP_gy(KKP_PV_KY), KKP_gs(KKP_PV_KH))
+        call KKP_pv_desenha(KKP_pv_k, KKP_pv_cx_k, KKP_pv_rot_k, KKP_pv_al_k, KKP_pv_alb_k, chave, KKP_gx(KKP_PV_DX), KKP_gy(KKP_PV_KY), KKP_gs(KKP_PV_KH))
     else
-        set pv=KKP_pv_desenha(KKP_pv_det, KKP_pv_cx_det, KKP_pv_rot_det, KKP_pv_al_det, KKP_pv_alb_det, chave, KKP_gx(KKP_PV_DX), KKP_gy(KKP_PV_DY), KKP_gs(KKP_PV_DH))
+        call KKP_pv_desenha(KKP_pv_det, KKP_pv_cx_det, KKP_pv_rot_det, KKP_pv_al_det, KKP_pv_alb_det, chave, KKP_gx(KKP_PV_DX), KKP_gy(KKP_PV_DY), KKP_gs(KKP_PV_DH))
     endif
     if ok then
         call KKU_tex(dico, KKP_g_ico[e])
-        call KKP_vis(dico, not pv)
+        call KKP_vis(dico, KKP_tem_ico(KKP_g_ico[e]))
         set t=KKP_g_tit[e]
         if t==null or t=="" then
             set t=KKP_g_nome[e]
@@ -1543,6 +1920,9 @@ function KKP_des_mapa takes nothing returns nothing
         set t=t+"|n|n"+KKP_g_det[b]
     endif
     call KKU_texto(dtxt, t)
+//{{KK_SE:KK_PAINEL_IMG}}
+    call KKP_des_img(k3, ok, e, dtxt)
+//{{KK_FIMSE:KK_PAINEL_IMG}}
     set k=1
     loop
         exitwhen k>2
@@ -1587,6 +1967,28 @@ function KKP_des_abas takes integer pid returns nothing
     endloop
 endfunction
 
+//{{KK_SE:KK_PAINEL_CHEFE_BT}}
+function KKP_entrada_aplica takes integer pid returns nothing
+    local integer i=KKP_g_quer_i
+    local integer lay=KKP_ab_lay[KKP_aba[pid]*16+KKP_g_sub]
+    if i<0 then
+        return
+    endif
+    if i>=IMinBJ(KKP_g_n[pid*16+KKP_g_sub], KKP_GE) then
+        set KKP_g_sel=-1
+        return
+    endif
+    set KKP_g_sel=i
+    if lay==2 then
+        set KKP_g_top=i-KKP_GL/2
+    elseif lay==3 then
+        set KKP_g_top=i-KKP_KL/2
+    else
+        set KKP_g_top=(i/40)*40
+    endif
+endfunction
+
+//{{KK_FIMSE:KK_PAINEL_CHEFE_BT}}
 function KKP_desenha takes boolean detalhe returns nothing
     local integer pid=GetPlayerId(GetLocalPlayer())
     local integer t
@@ -1622,8 +2024,14 @@ function KKP_desenha takes boolean detalhe returns nothing
             set KKP_g_top=0
             set KKP_g_sel=-1
         endif
+//{{KK_SE:KK_PAINEL_CHEFE_BT}}
+        call KKP_entrada_aplica(pid)
+//{{KK_FIMSE:KK_PAINEL_CHEFE_BT}}
         call KKP_des_mapa()
     endif
+//{{KK_SE:KK_PAINEL_CHEFE_BT}}
+    set KKP_g_quer_i=-1
+//{{KK_FIMSE:KK_PAINEL_CHEFE_BT}}
     set KKP_g_quer=0
     call KKU_aplica()
 endfunction
@@ -1830,6 +2238,83 @@ endfunction
 function KKP_mostra_id takes player p,string id returns nothing
     call KKP_mostra(p, KKP_aba_de_id(id))
 endfunction
+//{{KK_SE:KK_PAINEL_EXTRA}}
+
+function KKP_mostra_item takes player p,integer x returns nothing
+    local integer pid=GetPlayerId(p)
+    local integer k=KKP_idx(x)
+    local integer aba=KKP_aba_do_tipo(2)
+    if pid<0 or pid>=KKP_jogadores or k<1 or aba<1 then
+        return
+    endif
+    if not KKP_pronto then
+        call DisplayTextToPlayer(p, 0, 0, "|cffffcc00The "+KKP_titulo+" opens a moment after the game starts.|r")
+        return
+    endif
+    if not KKP_pode(pid) then
+        return
+    endif
+    set KKP_ped_aba[pid]=0
+    call KKP_vai(p, aba)
+    if GetLocalPlayer()==p then
+        set KKP_x_qi=k
+        set KKP_x_qc=0
+        set KKP_des_pend=true
+    endif
+endfunction
+
+function KKP_mostra_chefe takes player p,integer u returns nothing
+    local integer pid=GetPlayerId(p)
+    local integer aba=KKP_aba_do_tipo(3)
+    local integer j=1
+    if pid<0 or pid>=KKP_jogadores or u==0 or aba<1 then
+        return
+    endif
+    loop
+        exitwhen j>KKP_bs_n or KKP_bs_unid[j]==u
+        set j=j+1
+    endloop
+    if j>KKP_bs_n then
+        return
+    endif
+    if not KKP_pronto then
+        call DisplayTextToPlayer(p, 0, 0, "|cffffcc00The "+KKP_titulo+" opens a moment after the game starts.|r")
+        return
+    endif
+    if not KKP_pode(pid) then
+        return
+    endif
+    set KKP_ped_aba[pid]=0
+    call KKP_vai(p, aba)
+    if GetLocalPlayer()==p then
+        set KKP_x_qc=j
+        set KKP_x_qi=0
+        set KKP_des_pend=true
+    endif
+endfunction
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
+//{{KK_SE:KK_PAINEL_CHEFE_BT}}
+
+function KKP_mostra_entrada takes player p,integer aba,integer sub,integer i returns nothing
+    local integer pid=GetPlayerId(p)
+    if pid<0 or pid>=KKP_jogadores or aba<1 or aba>KKP_aba_n then
+        return
+    endif
+    call KKP_mostra_em(p, aba, sub)
+    if KKP_aba_tipo[aba]!=4 or sub<1 or sub>KKP_ab_subn[aba] or not KKP_aberto[pid] or KKP_aba[pid]!=aba then
+        return
+    endif
+    if GetLocalPlayer()==p then
+        set KKP_g_quer_i=i
+    endif
+endfunction
+
+function KKP_abre_entrada takes integer pid,string id,integer sub,integer i returns nothing
+    if pid>=0 and pid<KKP_jogadores then
+        call KKP_mostra_entrada(Player(pid), KKP_aba_de_id(id), sub, i)
+    endif
+endfunction
+//{{KK_FIMSE:KK_PAINEL_CHEFE_BT}}
 
 function KKP_ao_menu takes nothing returns boolean
     local integer pid=KKU_c_pid
@@ -1874,6 +2359,10 @@ function KKP_clique_local takes integer g,integer i returns nothing
     elseif g==6 then
         if i==3 and KKP_c_sel>0 then
             call BlzSendSyncData("kkp", "F"+KKP_id2s(KKP_it[KKP_c_sel]))
+//{{KK_SE:KK_PAINEL_EXTRA}}
+        elseif i==8 and KKP_c_sel>0 then
+            call BlzSendSyncData("kkp", "W"+KKP_id2s(KKP_it[KKP_c_sel]))
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
 //{{KK_SE:KK_PAINEL_CRAFT}}
         elseif i==7 and KKP_c_sel>0 then
             call BlzSendSyncData("kkp", "C"+KKP_id2s(KKP_it[KKP_c_sel]))
@@ -1920,6 +2409,20 @@ function KKP_clique_local takes integer g,integer i returns nothing
         if i==1 and KKP_b_sel>0 and KKP_bs_pos[KKP_b_sel] then
             call PingMinimap(KKP_bs_x[KKP_b_sel], KKP_bs_y[KKP_b_sel], 4.00)
         endif
+//{{KK_SE:KK_PAINEL_CHEFE_BT}}
+        if i==2 and KKP_b_sel>0 and KKP_b_sel<=KKP_bs_n then
+            call BlzSendSyncData("kkp", "B"+KKP_id2s(KKP_bs_unid[KKP_b_sel]))
+        endif
+//{{KK_FIMSE:KK_PAINEL_CHEFE_BT}}
+//{{KK_SE:KK_PAINEL_DROPS}}
+        if i==3 then
+            set KKP_b_dtop=KKP_b_dtop-10
+            set KKP_b_pend=true
+        elseif i==4 then
+            set KKP_b_dtop=KKP_b_dtop+10
+            set KKP_b_pend=true
+        endif
+//{{KK_FIMSE:KK_PAINEL_DROPS}}
     elseif g==14 or g==20 then
         if KKP_g_lin[i]>=0 then
             set KKP_g_sel=KKP_g_lin[i]
@@ -2022,6 +2525,10 @@ function KKP_ao_clique takes nothing returns boolean
             set KKP_pv_espera=false
             call KKP_desenha(false)
         endif
+//{{KK_SE:KK_PAINEL_EXTRA}}
+    elseif c==6009 then
+        call KKP_mostra_item(p, KKP_f_link[pid])
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
     elseif GetLocalPlayer()==p then
         call KKP_clique_local(g, i)
         call KKU_aplica()
@@ -2134,6 +2641,20 @@ function KKP_ao_texto takes nothing returns boolean
     return false
 endfunction
 
+//{{KK_SE:KK_PAINEL_CHEFE_BT}}
+function KKP_chefe_bb takes integer u returns integer
+    local integer j=1
+    loop
+        exitwhen j>KKP_bs_n
+        if KKP_bs_unid[j]==u and KKP_bs_bok[j] then
+            return j
+        endif
+        set j=j+1
+    endloop
+    return 0
+endfunction
+
+//{{KK_FIMSE:KK_PAINEL_CHEFE_BT}}
 function KKP_sync takes nothing returns nothing
     local player p=GetTriggerPlayer()
     local string v=BlzGetTriggerSyncData()
@@ -2162,6 +2683,28 @@ function KKP_sync takes nothing returns nothing
             set KKP_c_pend=true
         endif
 //{{KK_FIMSE:KK_PAINEL_CRAFT}}
+//{{KK_SE:KK_PAINEL_EXTRA}}
+    elseif c=="W" and StringLength(v)==5 then
+        set KKP_arg_x=KKP_s2id(SubString(v, 1, 5))
+        if KKP_b3_rot!="" and KKP_idx(KKP_arg_x)>0 and not KKP_b3_fora[pid] then
+            if KKP_it_b3ok[KKP_idx(KKP_arg_x)] then
+                set KKP_arg_pid=pid
+                call KKP_chama(KKP_G_ITEM)
+                if GetLocalPlayer()==p and KKU_rc_fase==0 then
+                    set KKP_c_pend=true
+                endif
+            endif
+        endif
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
+//{{KK_SE:KK_PAINEL_CHEFE_BT}}
+    elseif c=="B" and StringLength(v)==5 then
+        if KKP_bb_rot!="" and not KKP_bb_fora[pid] and KKP_aberto[pid] and KKP_aba_tipo[KKP_aba[pid]]==3 and KKP_chefe_bb(KKP_s2id(SubString(v, 1, 5)))>0 then
+            set KKP_arg_x=KKP_s2id(SubString(v, 1, 5))
+            set KKP_arg_i=KKP_chefe_bb(KKP_arg_x)
+            set KKP_arg_pid=pid
+            call KKP_chama(KKP_G_CHEFE)
+        endif
+//{{KK_FIMSE:KK_PAINEL_CHEFE_BT}}
     elseif c=="O" then
         set v=SubString(v, 1, StringLength(v))
         if S2I(KKP_campo(v, 1))>0 then
@@ -2191,12 +2734,138 @@ function KKP_sync takes nothing returns nothing
     set p=null
 endfunction
 
+//{{KK_SE:KK_PAINEL_EXTRA}}
+function KKP_local_item takes nothing returns integer
+    local integer pid=GetPlayerId(GetLocalPlayer())
+    if not KKP_pronto or pid<0 or pid>=KKP_jogadores then
+        return 0
+    endif
+    if not KKP_aberto[pid] or KKP_aba_tipo[KKP_aba[pid]]!=2 or KKP_c_sel<1 or KKP_c_sel>KKP_it_n then
+        return 0
+    endif
+    return KKP_it[KKP_c_sel]
+endfunction
+
+function KKP_local_chefe takes nothing returns integer
+    local integer pid=GetPlayerId(GetLocalPlayer())
+    if not KKP_pronto or pid<0 or pid>=KKP_jogadores then
+        return 0
+    endif
+    if not KKP_aberto[pid] or KKP_aba_tipo[KKP_aba[pid]]!=3 or KKP_b_sel<1 or KKP_b_sel>KKP_bs_n then
+        return 0
+    endif
+    return KKP_bs_unid[KKP_b_sel]
+endfunction
+
+function KKP_local_drop takes integer s returns integer
+    local integer j=KKP_b_sel
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
+//{{KK_SE:KK_PAINEL_DROPS}}
+    if s>12 and s<=KKP_DR_TETO and KKP_local_chefe()!=0 and s<=KKP_bs_drn[j] then
+        return KKP_dr_it[KKP_bs_dr[j]+s-1]
+    endif
+//{{KK_FIMSE:KK_PAINEL_DROPS}}
+//{{KK_SE:KK_PAINEL_EXTRA}}
+    if KKP_local_chefe()==0 or s<1 or s>12 or s>KKP_bs_drn[j] then
+        return 0
+    endif
+    return KKP_dr_it[KKP_bs_dr[j]+s-1]
+endfunction
+
+function KKP_det_mapa takes integer qual,string s returns nothing
+    local integer k
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
+//{{KK_SE:KK_PAINEL_DROPS}}
+    if qual>14 and qual<=2+KKP_DR_TETO then
+        set k=KKP_local_chefe()
+        if s==null then
+            set s=""
+        endif
+        if KKP_dm_k[qual]==k and KKP_dm_s[qual]==s then
+            return
+        endif
+        set KKP_dm_k[qual]=k
+        set KKP_dm_s[qual]=s
+        if k!=0 then
+            set KKP_b_pend=true
+        endif
+        return
+    endif
+//{{KK_FIMSE:KK_PAINEL_DROPS}}
+//{{KK_SE:KK_PAINEL_EXTRA}}
+    if qual<1 or qual>14 then
+        return
+    endif
+    if qual==1 then
+        set k=KKP_local_item()
+    else
+        set k=KKP_local_chefe()
+    endif
+    if s==null then
+        set s=""
+    endif
+    if KKP_dm_k[qual]==k and KKP_dm_s[qual]==s then
+        return
+    endif
+    set KKP_dm_k[qual]=k
+    set KKP_dm_s[qual]=s
+    if k!=0 then
+        if qual==1 then
+            set KKP_c_pend=true
+        else
+            set KKP_b_pend=true
+        endif
+    endif
+endfunction
+
+function KKP_tique1_um takes nothing returns nothing
+    local integer pid=KKP_t1_pid
+    if not KKP_fav_ok[pid] and GetPlayerSlotState(Player(pid))==PLAYER_SLOT_STATE_PLAYING then
+        call KKP_fav_le(pid)
+    endif
+    if KKP_aberto[pid] then
+        call KKP_amostra(pid)
+        if KKP_aba_tipo[KKP_aba[pid]]==4 then
+            call KKP_amostra_grade(pid)
+        endif
+    endif
+endfunction
+
+function KKP_tique1_fios takes nothing returns nothing
+    local integer pid=0
+    local integer t
+    loop
+        exitwhen pid>=KKP_jogadores
+        if KKP_aberto[pid] or (not KKP_fav_ok[pid] and GetPlayerSlotState(Player(pid))==PLAYER_SLOT_STATE_PLAYING) then
+            set KKP_t1_pid=pid
+            call ExecuteFunc("KKP_tique1_um")
+        endif
+        set pid=pid+1
+    endloop
+    set pid=GetPlayerId(GetLocalPlayer())
+    if pid>=0 and pid<KKP_jogadores and KKP_aberto[pid] and KKU_rc_fase==0 then
+        set t=KKP_aba_tipo[KKP_aba[pid]]
+        if t==1 then
+            call KKP_des_ficha(pid)
+            call KKU_aplica()
+        elseif t==4 and KKP_g_aba==KKP_aba[pid] then
+            call KKP_des_mapa()
+            call KKU_aplica()
+        endif
+    endif
+endfunction
+
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
 function KKP_tique1 takes nothing returns nothing
     local integer pid=0
     local integer t
     if not KKP_pronto then
         return
     endif
+//{{KK_SE:KK_PAINEL_EXTRA}}
+    call KKP_tique1_fios()
+    return
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
     loop
         exitwhen pid>=KKP_jogadores
         if not KKP_fav_ok[pid] and GetPlayerSlotState(Player(pid))==PLAYER_SLOT_STATE_PLAYING then
@@ -2240,6 +2909,18 @@ function KKP_tique_local takes nothing returns nothing
             set KKP_c_eco=false
         endif
     endif
+//{{KK_SE:KK_PAINEL_EXTRA}}
+    if KKP_x_qi>0 then
+        call KKP_abre_item(KKP_x_qi)
+        set KKP_x_qi=0
+    elseif KKP_x_qc>0 then
+        set KKP_b_grupo=KKP_bs_grupo[KKP_x_qc]
+        set KKP_b_top=KKP_x_qc-KKP_gr_ini[KKP_b_grupo]-5
+        set KKP_b_sel=KKP_x_qc
+        set KKP_b_pend=true
+        set KKP_x_qc=0
+    endif
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
     if KKP_des_pend then
         set KKP_des_pend=false
         call KKP_desenha(true)
@@ -2331,6 +3012,19 @@ function KKP_ao_carga takes nothing returns boolean
     set KKP_av_novo=false
     set KKP_des_pend=false
     set KKP_c_foco=false
+//{{KK_SE:KK_PAINEL_EXTRA}}
+    set KKP_x_qi=0
+    set KKP_x_qc=0
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
+//{{KK_SE:KK_PAINEL_CHEFE_BT}}
+    set KKP_g_quer_i=-1
+//{{KK_FIMSE:KK_PAINEL_CHEFE_BT}}
+//{{KK_SE:KK_PAINEL_DROPS}}
+    set KKP_st_cod[11]=0
+    set KKP_st_cod[12]=0
+    set KKP_b_dtop=0
+    set KKP_b_dsel=0
+//{{KK_FIMSE:KK_PAINEL_DROPS}}
     set KKP_st_pend=false
     loop
         exitwhen k>10
@@ -2454,6 +3148,17 @@ function KKP_cria_ficha takes nothing returns nothing
     set KKP_f_ico=KKP_quad(pg, KKU_P_ICONE_PADRAO, 0.110, 0.512, 0.042)
     set KKP_f_nome=KKP_txt(pg, KKU_F_NORMAL, 0.158, 0.512, 0.156, 0.042)
     set KKP_f_stat=KKP_txt(pg, KKU_F_PEQUENA, 0.110, 0.462, 0.204, 0.292)
+//{{KK_SE:KK_PAINEL_EXTRA}}
+    if KKP_com_link then
+        set KKP_f_lico=KKP_quad(pg, KKU_P_ICONE_PADRAO, 0.110, 0.205, 0.030)
+        set KKP_f_ltxt=KKP_txt(pg, KKU_F_PEQUENA, 0.146, 0.205, 0.168, 0.030)
+        call KKU_alinha(KKP_f_ltxt, KKU_AL_MEIO_ESQ)
+        set KKP_f_lbt=KKP_bt(pg, KKP_f_lico, 6009, false)
+        call KKU_esconde(KKP_f_lico)
+        call KKU_esconde(KKP_f_ltxt)
+        call KKU_alvo_vis(KKP_f_lbt, false)
+    endif
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
     if KKU_PV_N<=0 then
         set KKP_f_mapa=KKU_area(pg, KKP_gx(0.330), KKP_gy(0.516), KKP_gw(0.435), KKP_gh(0.345))
         return
@@ -2498,6 +3203,12 @@ function KKP_cria_codex takes nothing returns nothing
     call KKP_btxt(pg, "Craft", 0.580, 0.496, 0.090, 0.024, 6007)
     call KKU_poe(KKP_c_dsub, KKU_x[KKP_c_dsub], KKU_y[KKP_c_dsub], KKP_gw(0.125), KKP_gh(0.014))
 //{{KK_FIMSE:KK_PAINEL_CRAFT}}
+//{{KK_SE:KK_PAINEL_EXTRA}}
+    if KKP_b3_rot!="" then
+        call KKP_btxt(pg, KKP_b3_rot, 0.674, 0.520, 0.090, 0.022, 6008)
+        call KKU_poe(KKP_c_dnome, KKU_x[KKP_c_dnome], KKU_y[KKP_c_dnome], KKP_gw(0.220), KKP_gh(0.020))
+    endif
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
     set KKP_c_rtit=KKP_txt(pg, KKU_F_PEQUENA, 0.408, 0.468, 0.356, 0.014)
     set s=1
     loop
@@ -2524,6 +3235,54 @@ function KKP_cria_codex takes nothing returns nothing
     set KKP_c_desc=KKU_area(pg, KKP_gx(0.404), KKP_gy(0.354), KKP_gw(0.362), KKP_gh(0.186))
 endfunction
 
+//{{KK_SE:KK_PAINEL_GRUPOS8}}
+function KKP_cria_chefes8 takes nothing returns nothing
+    local integer pg=KKP_pag[3]
+    local integer s=1
+    local integer c
+    local integer r
+    local real x
+    local real y
+    if KKP_gr_n>8 then
+        set KKP_gr_n=8
+    endif
+    loop
+        exitwhen s>KKP_gr_n
+        call KKP_btxt(pg, KKP_gr_nome[s], 0.100+ModuloInteger(s-1, 4)*0.074, 0.526-((s-1)/4)*0.022, 0.071, 0.020, 9000+s)
+        set s=s+1
+    endloop
+    set s=1
+    loop
+        exitwhen s>11
+        call KKP_linha(pg, 0.100, 0.482-(s-1)*0.0262, 0.292, 0.025, 10000+s, true, false)
+        set s=s+1
+    endloop
+    call KKP_bpapel(pg, KKU_P_SETA_ESQ, KKU_ROT_SETA_ESQ, 0.100, 0.193, 0.030, 0.024, 11001)
+    set KKP_b_pag=KKP_txt(pg, KKU_F_PEQUENA, 0.132, 0.193, 0.228, 0.024)
+    call KKU_alinha(KKP_b_pag, KKU_AL_MEIO_CENTRO)
+    call KKP_bpapel(pg, KKU_P_SETA_DIR, KKU_ROT_SETA_DIR, 0.362, 0.193, 0.030, 0.024, 11002)
+    call KKP_caixa_nova(pg, false, 0.400, 0.522, 0.370, 0.357)
+    set KKP_b_dico=KKP_quad(pg, KKU_P_ICONE_PADRAO, 0.408, 0.514, 0.040)
+    set KKP_b_dnome=KKP_txt(pg, KKU_F_NORMAL, 0.454, 0.514, 0.310, 0.020)
+    set KKP_b_dinfo=KKP_txt(pg, KKU_F_PEQUENA, 0.454, 0.493, 0.310, 0.020)
+    set KKP_b_dnota=KKP_txt(pg, KKU_F_PEQUENA, 0.408, 0.470, 0.356, 0.046)
+    call KKP_btxt(pg, "Show on map", 0.648, 0.420, 0.116, 0.024, 13001)
+    set KKP_b_dtit=KKP_txt(pg, KKU_F_PEQUENA, 0.408, 0.414, 0.238, 0.026)
+    set s=1
+    loop
+        exitwhen s>12
+        set c=(s-1)/6
+        set r=(s-1)-c*6
+        set x=0.408+c*0.181
+        set y=0.386-r*0.0362
+        set KKP_b_dico2[s]=KKP_quad(pg, KKU_P_ICONE_PADRAO, x, y, 0.030)
+        set KKP_b_dtx[s]=KKP_txt(pg, KKU_F_PEQUENA, x+0.034, y+0.001, 0.145, 0.032)
+        set KKP_b_dbt[s]=KKP_bt(pg, KKP_b_dico2[s], 12000+s, false)
+        set s=s+1
+    endloop
+endfunction
+
+//{{KK_FIMSE:KK_PAINEL_GRUPOS8}}
 function KKP_cria_chefes takes nothing returns nothing
     local integer pg=KKP_pag[3]
     local integer s=1
@@ -2531,6 +3290,12 @@ function KKP_cria_chefes takes nothing returns nothing
     local integer r
     local real x
     local real y
+//{{KK_SE:KK_PAINEL_GRUPOS8}}
+    if KKP_gr_n>4 then
+        call KKP_cria_chefes8()
+        return
+    endif
+//{{KK_FIMSE:KK_PAINEL_GRUPOS8}}
     loop
         exitwhen s>KKP_gr_n
         call KKP_btxt(pg, KKP_gr_nome[s], 0.100+(s-1)*0.074, 0.524, 0.071, 0.026, 9000+s)
@@ -2718,25 +3483,158 @@ function KKP_carga_busca takes nothing returns nothing
     endloop
 endfunction
 
+//{{KK_SE:KK_PAINEL_EXTRA}}
+function KKP_dados_parte takes nothing returns nothing
+    set KKP_arg_i=KKP_dados_k
+    set KKP_arg_ok=false
+    call KKP_chama(KKP_G_DADOS)
+endfunction
+
+function KKP_dados_mapa takes nothing returns nothing
+    local integer i=1
+    loop
+        exitwhen i>KKP_it_n
+        call RemoveSavedInteger(KKP_ht, KKP_it[i], 1)
+        set i=i+1
+    endloop
+    set KKP_dados_k=1
+    loop
+        exitwhen KKP_dados_k>KKP_DADOS_MAX
+        call ExecuteFunc("KKP_dados_parte")
+        exitwhen not KKP_arg_ok
+        set KKP_dados_k=KKP_dados_k+1
+    endloop
+    set i=1
+    loop
+        exitwhen i>16
+        set KKP_gr_qt[i]=0
+        set KKP_gr_ini[i]=0
+        set i=i+1
+    endloop
+    call ExecuteFunc("KKP_carga_indice")
+    set KKP_carga_k=1
+    loop
+        exitwhen KKP_carga_k>KKP_it_n
+        call ExecuteFunc("KKP_carga_busca")
+        set KKP_carga_k=KKP_carga_k+120
+    endloop
+endfunction
+
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
+//{{KK_SE:KK_PAINEL_IMG}}
+function KKP_cria_img takes nothing returns nothing
+    local integer pg=KKP_pag[4]
+    if pg<=0 or pg>=KKU_MAX or KKP_g_dtxt<=0 or KKP_g_dtxt>=KKU_MAX then
+        return
+    endif
+    set KKP_im_x[1]=KKU_x[KKP_g_dtxt]
+    set KKP_im_y[1]=KKU_y[KKP_g_dtxt]
+    set KKP_im_w[1]=KKU_w[KKP_g_dtxt]
+    set KKP_im_h[1]=KKU_h[KKP_g_dtxt]
+    set KKP_g_dimg=KKU_img(pg, KKU_P_ICONE_PADRAO, KKP_im_x[1], KKP_im_y[1], KKP_im_w[1], KKP_gh(0.010))
+    call KKU_esconde(KKP_g_dimg)
+    if KKP_tem3 and KKP_g_corpo3>0 and KKP_g_corpo3<KKU_MAX and KKP_k_dtxt>0 and KKP_k_dtxt<KKU_MAX then
+        set KKP_im_x[2]=KKU_x[KKP_k_dtxt]
+        set KKP_im_y[2]=KKU_y[KKP_k_dtxt]
+        set KKP_im_w[2]=KKU_w[KKP_k_dtxt]
+        set KKP_im_h[2]=KKU_h[KKP_k_dtxt]
+        set KKP_k_dimg=KKU_img(KKP_g_corpo3, KKU_P_ICONE_PADRAO, KKP_im_x[2], KKP_im_y[2], KKP_im_w[2], KKP_gh(0.010))
+        call KKU_esconde(KKP_k_dimg)
+    endif
+endfunction
+
+//{{KK_FIMSE:KK_PAINEL_IMG}}
+//{{KK_SE:KK_PAINEL_CHEFE_BT}}
+function KKP_cria_chefes_bb takes nothing returns nothing
+    local integer pg=KKP_pag[3]
+    if KKP_bb_rot=="" or pg<=0 or pg>=KKU_MAX then
+        return
+    endif
+    call KKP_btxt(pg, KKP_bb_rot, 0.674, 0.520, 0.090, 0.022, 13002)
+    call KKU_poe(KKP_b_dnome, KKU_x[KKP_b_dnome], KKU_y[KKP_b_dnome], KKP_gw(0.215), KKP_gh(0.020))
+endfunction
+
+//{{KK_FIMSE:KK_PAINEL_CHEFE_BT}}
+//{{KK_SE:KK_PAINEL_DROPS}}
+function KKP_cria_chefes_dpag takes nothing returns nothing
+    local integer pg=KKP_pag[3]
+    if pg<=0 or pg>=KKU_MAX then
+        return
+    endif
+    call KKP_bpapel(pg, KKU_P_SETA_ESQ, KKU_ROT_SETA_ESQ, 0.408, 0.205, 0.026, 0.024, 13003)
+    set KKP_b_dpag=KKP_txt(pg, KKU_F_PEQUENA, 0.436, 0.205, 0.300, 0.024)
+    call KKU_alinha(KKP_b_dpag, KKU_AL_MEIO_CENTRO)
+    call KKP_bpapel(pg, KKU_P_SETA_DIR, KKU_ROT_SETA_DIR, 0.740, 0.205, 0.026, 0.024, 13004)
+    call KKU_esconde(LoadInteger(KKP_ht, 13003, 0))
+    call KKU_esconde(LoadInteger(KKP_ht, 13004, 0))
+    call KKU_esconde(KKP_b_dpag)
+endfunction
+
+//{{KK_FIMSE:KK_PAINEL_DROPS}}
 function KKP_espera takes nothing returns nothing
     if KKP_iniciado then
         call PauseTimer(GetExpiredTimer())
         return
     endif
+//{{KK_SE:KK_PAINEL_EXTRA}}
+    if KKP_g_tem[KKP_G_PRONTO] then
+        set KKP_arg_ok=true
+        call KKP_chama(KKP_G_PRONTO)
+        if not KKP_arg_ok then
+            return
+        endif
+    endif
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
     set KKP_iniciado=true
     call PauseTimer(GetExpiredTimer())
+//{{KK_SE:KK_PAINEL_EXTRA}}
+    if KKP_g_tem[KKP_G_DADOS] then
+        call KKP_dados_mapa()
+    endif
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
     call ExecuteFunc("KKP_cria_base")
     call ExecuteFunc("KKP_cria_ficha")
     call ExecuteFunc("KKP_cria_codex")
     call ExecuteFunc("KKP_cria_chefes")
     call ExecuteFunc("KKP_cria_mapa")
     call ExecuteFunc("KKP_cria_mapa3")
+//{{KK_SE:KK_PAINEL_IMG}}
+    call ExecuteFunc("KKP_cria_img")
+//{{KK_FIMSE:KK_PAINEL_IMG}}
+//{{KK_SE:KK_PAINEL_CHEFE_BT}}
+    call ExecuteFunc("KKP_cria_chefes_bb")
+//{{KK_FIMSE:KK_PAINEL_CHEFE_BT}}
+//{{KK_SE:KK_PAINEL_DROPS}}
+    call ExecuteFunc("KKP_cria_chefes_dpag")
+//{{KK_FIMSE:KK_PAINEL_DROPS}}
     set KKP_nq=KKU_n
     set KKP_pronto=KKP_raiz>0 and KKP_raiz<KKU_MAX and KKP_pag[4]>0 and KKP_pag[4]<KKU_MAX
     set KKP_pronto=KKP_pronto and KKP_f_mapa>0 and KKP_f_mapa<KKU_MAX and KKP_c_desc>0 and KKP_c_desc<KKU_MAX
     set KKP_pronto=KKP_pronto and KKP_b_dtx[12]>0 and KKP_b_dtx[12]<KKU_MAX and KKP_g_dtxt>0 and KKP_g_dtxt<KKU_MAX
     set KKP_pronto=KKP_pronto and LoadInteger(KKP_ht, 17002, 0)>0 and KKP_f_titulo>0 and KKP_f_titulo<KKU_MAX
     set KKP_pronto=KKP_pronto and KKP_f_aviso>0 and KKP_f_aviso<KKU_MAX and KKP_g_dcx>0 and KKP_g_dcx<KKU_MAX
+//{{KK_SE:KK_PAINEL_EXTRA}}
+    if KKP_b3_rot!="" then
+        set KKP_pronto=KKP_pronto and LoadInteger(KKP_ht, 6008, 0)>0
+    endif
+    if KKP_com_link then
+        set KKP_pronto=KKP_pronto and KKP_f_lico>0 and KKP_f_lico<KKU_MAX and KKP_f_ltxt>0 and KKP_f_lbt>0
+    endif
+//{{KK_FIMSE:KK_PAINEL_EXTRA}}
+//{{KK_SE:KK_PAINEL_IMG}}
+    set KKP_pronto=KKP_pronto and KKP_g_dimg>0 and KKP_g_dimg<KKU_MAX
+    if KKP_tem3 then
+        set KKP_pronto=KKP_pronto and KKP_k_dimg>0 and KKP_k_dimg<KKU_MAX
+    endif
+//{{KK_FIMSE:KK_PAINEL_IMG}}
+//{{KK_SE:KK_PAINEL_CHEFE_BT}}
+    if KKP_bb_rot!="" then
+        set KKP_pronto=KKP_pronto and LoadInteger(KKP_ht, 13002, 0)>0
+    endif
+//{{KK_FIMSE:KK_PAINEL_CHEFE_BT}}
+//{{KK_SE:KK_PAINEL_DROPS}}
+    set KKP_pronto=KKP_pronto and KKP_b_dpag>0 and KKP_b_dpag<KKU_MAX and LoadInteger(KKP_ht, 13004, 0)>0
+//{{KK_FIMSE:KK_PAINEL_DROPS}}
     if KKP_tem3 then
         set KKP_pronto=KKP_pronto and KKP_g_corpo3>0 and KKP_g_corpo3<KKU_MAX and KKP_k_topo>0 and KKP_k_pag>0 and KKP_k_dico>0
         set KKP_pronto=KKP_pronto and KKP_k_dnome>0 and KKP_k_dtxt>0 and KKP_k_dtxt<KKU_MAX and LoadInteger(KKP_ht, 18162, 0)>0
@@ -2756,6 +3654,9 @@ function KKP_init takes nothing returns nothing
     local integer i=1
     call KKU_init()
     set KKP_ht=InitHashtable()
+//{{KK_SE:KK_PAINEL_PADRAO}}
+    set KKP_g_auto=CreateGroup()
+//{{KK_FIMSE:KK_PAINEL_PADRAO}}
     call KKP_dados_todos()
     call ExecuteFunc("KKP_carga_indice")
     set KKP_carga_k=1
