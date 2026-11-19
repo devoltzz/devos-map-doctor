@@ -105,7 +105,7 @@ def drop_empty_art(units):
 
 
 def applies(extract, data_bytes, raw_data, segment, tr_dir=None, expected_count=None, no_dot=None, tolerant_mode=False,
-            added_models=(), carrier=False, doodads=False, empty_art=False):
+            added_models=(), carrier=False, doodads=False, empty_art=False, w3u_bearers=None):
     exp_len = dict((k, None) for k in KEY_NAMES)
     exp_len.update(expected_count or {})
     failures = []
@@ -139,6 +139,16 @@ def applies(extract, data_bytes, raw_data, segment, tr_dir=None, expected_count=
                                 extra_models=added_models)
         info['model_carriers'] = len(mc['carriers'])
         info['model_carriers_template'] = mc['template']
+        if not mc['carriers'] and w3u_bearers:
+            mc = model_carriers.add_w3u(
+                data_bytes,
+                w3u_bearers,
+                open(raw_data, 'rb').read().decode('utf-8', 'surrogateescape'),
+                extract=extract,
+                extra_models=added_models,
+            )
+            info['model_carriers'] = len(mc['carriers'])
+            info['model_carriers_template'] = mc['template']
     except (ValueError, OSError) as e:
         failures.append('model_carriers: %s' % e)
         info['model_carriers'] = 0
