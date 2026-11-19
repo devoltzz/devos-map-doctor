@@ -501,6 +501,11 @@ def _breaks(bc, order):
     return n
 
 
+def _game_init(bc, ref, segment):
+    name_list = [bc.fname(bc.arg[k]) for k in range(segment[0], segment[1]) if bc.op[k] in (GLOBAL, CONSTANT)]
+    return bool(name_list) and all(n in ref.globals_block for n in name_list)
+
+
 def _reversed_functions(bc, ref):
     fs = bc.functions()
     program_end = bc.n - 1 if bc.n and bc.op[bc.n - 1] == ENDPROGRAM else bc.n
@@ -509,6 +514,9 @@ def _reversed_functions(bc, ref):
     while cut > 0 and fs[cut - 1][1] in ref.funcs:
         cut -= 1
     map_path = bounds[:cut]
+    if bc.order == kkwe.JC1_ORDER:
+        while map_path and bc.fname(bc.arg[map_path[0][0]]) == '<init>' and _game_init(bc, ref, map_path[0]):
+            map_path = map_path[1:]
     if not map_path:
         raise DecompileError('the bytecode has no function of the map (only the Blizzard.j ones)')
     of_globals = [t for t in map_path if t[0] + 1 < t[1] and bc.op[t[0] + 1] in (GLOBAL, CONSTANT)]
@@ -538,7 +546,7 @@ def stray_i2r(bc, k):
 
 
 def map_functions(bc, ref):
-    if bc.order == kkwe.REVERSE_ORDER:
+    if bc.order in (kkwe.REVERSE_ORDER, kkwe.JC1_ORDER):
         return _reversed_functions(bc, ref)
     begin, end_pos = map_region(bc, ref)
     segments = []
@@ -946,7 +954,10 @@ class Printer(object):
             elif k == 'call':
                 line_list.append('%scall %s(%s)' % (pad, c[1], ', '.join(expr_text(a) for a in c[2])))
             elif k == 'return':
-                line_list.append('%sreturn%s' % (pad, (' ' + expr_text(c[1])) if c[1] is not None else ''))
+                e = c[1]
+                if e is not None and f.ret == 5 and e[0] == 'int':
+                    e = ('realbits', struct.unpack('<i', struct.pack('<f', float(e[1])))[0])
+                line_list.append('%sreturn%s' % (pad, (' ' + expr_text(e)) if e is not None else ''))
             elif k == 'exitwhen':
                 line_list.append('%sexitwhen %s' % (pad, expr_text(c[1])))
             elif k == 'loop':
