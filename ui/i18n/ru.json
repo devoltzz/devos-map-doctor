@@ -3549,5 +3549,10 @@
  "Vietnamese text left": "Остался вьетнамский текст",
  "Translated by devotranslate - devoltz.party": "Translated by devotranslate - devoltz.party",
  "w3i map description": "описание карты в w3i",
- "backslashes changed ({0} -> {1}): this file reads no escape, a backslash shows as it is": "обратные слэши изменены ({0} -> {1}): этот файл не читает экранирование, обратный слэш показывается как есть"
+ "backslashes changed ({0} -> {1}): this file reads no escape, a backslash shows as it is": "обратные слэши изменены ({0} -> {1}): этот файл не читает экранирование, обратный слэш показывается как есть",
+ ", the real script is back": ", настоящий скрипт возвращён",
+ "Encrypted files of an xmload map (no game.pkg): \"Fix map\" opens its Lua modules, models and textures in place and puts the real script back.": "Зашифрованные файлы карты xmload (без game.pkg): «Починить карту» открывает её модули Lua, модели и текстуры на месте и возвращает настоящий скрипт.",
+ "Its Lua modules, models and textures become normal files in place.": "Её модули Lua, модели и текстуры становятся обычными файлами на месте.",
+ "Open the encrypted xmload files": "Открыть зашифрованные файлы xmload",
+ "Opened the encrypted xmload files: {0} in place{1}.": "Зашифрованные файлы xmload открыты: {0} на месте{1}."
 }
