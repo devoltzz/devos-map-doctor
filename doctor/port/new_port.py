@@ -24,6 +24,8 @@ KNOWN_NAMES = (
     'units\\undeadunitstrings.txt', 'units\\undeadabilitystrings.txt',
     'units\\neutralunitstrings.txt', 'units\\neutralabilitystrings.txt',
     'units\\commandstrings.txt', 'units\\commonabilitystrings.txt',
+    'units\\unitskin.txt', 'units\\itemskin.txt', 'units\\abilityskin.txt', 'units\\abilitybuffskin.txt',
+    'units\\destructableskin.txt', 'units\\upgradeskin.txt',
 )
 
 FAMILIES = [
