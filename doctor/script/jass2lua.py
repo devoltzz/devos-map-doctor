@@ -13,6 +13,11 @@ LUA_KEYWORDS = {
     'and', 'break', 'do', 'else', 'elseif', 'end', 'false', 'for', 'function', 'goto', 'if', 'in', 'local',
     'nil', 'not', 'or', 'repeat', 'return', 'then', 'true', 'until', 'while',
 }
+LUA_PROTECTED = {
+    'io', 'os', 'table', 'math', 'coroutine', 'utf8', 'package', 'print', 'pairs', 'ipairs', 'tostring', 'tonumber',
+    'error', 'assert', 'select', 'next', 'require', 'load', 'dofile', 'rawget', 'rawset', 'rawequal', 'rawlen',
+    'setmetatable', 'getmetatable', 'pcall', 'xpcall', 'unpack', 'collectgarbage', '_G', '_ENV', 'arg', 'python',
+}
 PRIMITIVES = {'integer', 'real', 'string', 'boolean', 'code', 'nothing'}
 REAL_OR_INT = ('real', 'integer', 'null')
 LOCALS_IN_LUA = 180
@@ -573,7 +578,9 @@ def real_literal(text):
 class Transpiler(object):
     CAT_MAX = 50
 
-    def __init__(self, common_src, blizzard_src, map_src, overrides=None, drop_functions=None, translate=None):
+    def __init__(self, common_src, blizzard_src, map_src, overrides=None, drop_functions=None, translate=None,
+                 protect_lua=False):
+        self.protect_lua = protect_lua
         self.common_src = common_src
         self.blizzard_src = blizzard_src
         self.map_src = map_src
@@ -627,6 +634,11 @@ class Transpiler(object):
         for g in p.globals:
             self.gtypes[g.name] = (g.type, g.is_array)
             self.map_globals[g.name] = g
+        if self.protect_lua:
+            name_list = set(self.map_globals) | set(f.name for f in p.functions) | set(p.natives)
+            for n in sorted(name_list & LUA_PROTECTED):
+                if n + '__j' in name_list:
+                    self.warn('protect_lua: %s becomes %s__j, which the map already defines' % (n, n))
         funcs_out = []
         for f in p.functions:
             if f.name in self.drop_functions:
@@ -737,6 +749,8 @@ class Transpiler(object):
 
     def name(self, n):
         base = n + '_' if n in LUA_KEYWORDS else n
+        if self.protect_lua and n in LUA_PROTECTED and n not in getattr(self, 'scope', ()):
+            base = n + '__j'
         if n in getattr(self, 'spill', ()):
             return '__L.' + base
         return base
