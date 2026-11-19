@@ -14,6 +14,10 @@ endfunction
 
 function DzFrameSetScale takes integer frame,real scale returns nothing
     local framehandle f=DB_fh(frame)
+    if DB_simples_tipo(frame)!=0 then
+        set f=null
+        return
+    endif
     if f!=null then
         call BlzFrameSetScale(f, scale)
     endif
