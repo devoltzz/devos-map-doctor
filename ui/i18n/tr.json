@@ -3548,5 +3548,10 @@
  "Vietnamese text left": "Vietnamca metin kaldı",
  "Translated by devotranslate - devoltz.party": "Translated by devotranslate - devoltz.party",
  "w3i map description": "w3i harita açıklaması",
- "backslashes changed ({0} -> {1}): this file reads no escape, a backslash shows as it is": "ters eğik çizgiler değişti ({0} -> {1}): bu dosya kaçış karakteri okumaz, ters eğik çizgi olduğu gibi görünür"
+ "backslashes changed ({0} -> {1}): this file reads no escape, a backslash shows as it is": "ters eğik çizgiler değişti ({0} -> {1}): bu dosya kaçış karakteri okumaz, ters eğik çizgi olduğu gibi görünür",
+ ", the real script is back": ", gerçek script geri geldi",
+ "Encrypted files of an xmload map (no game.pkg): \"Fix map\" opens its Lua modules, models and textures in place and puts the real script back.": "Bir xmload haritasının şifreli dosyaları (game.pkg yok): \"Haritayı onar\" Lua modüllerini, modellerini ve dokularını yerinde açar ve gerçek script'i geri koyar.",
+ "Its Lua modules, models and textures become normal files in place.": "Lua modülleri, modelleri ve dokuları yerinde normal dosyalara dönüşür.",
+ "Open the encrypted xmload files": "Şifreli xmload dosyalarını aç",
+ "Opened the encrypted xmload files: {0} in place{1}.": "Şifreli xmload dosyaları açıldı: {0} yerinde{1}."
 }
