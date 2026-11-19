@@ -3549,5 +3549,10 @@
  "Vietnamese text left": "베트남어 텍스트가 남음",
  "Translated by devotranslate - devoltz.party": "Translated by devotranslate - devoltz.party",
  "w3i map description": "w3i 맵 설명",
- "backslashes changed ({0} -> {1}): this file reads no escape, a backslash shows as it is": "백슬래시가 바뀜 ({0} -> {1}): 이 파일은 이스케이프를 읽지 않으며, 백슬래시는 그대로 표시됩니다"
+ "backslashes changed ({0} -> {1}): this file reads no escape, a backslash shows as it is": "백슬래시가 바뀜 ({0} -> {1}): 이 파일은 이스케이프를 읽지 않으며, 백슬래시는 그대로 표시됩니다",
+ ", the real script is back": ", 실제 스크립트가 복원되었습니다",
+ "Encrypted files of an xmload map (no game.pkg): \"Fix map\" opens its Lua modules, models and textures in place and puts the real script back.": "xmload 맵의 암호화된 파일(game.pkg 없음): \"맵 수정\"이 Lua 모듈, 모델, 텍스처를 그 자리에서 열고 실제 스크립트를 복원합니다.",
+ "Its Lua modules, models and textures become normal files in place.": "Lua 모듈, 모델, 텍스처가 그 자리에서 일반 파일이 됩니다.",
+ "Open the encrypted xmload files": "암호화된 xmload 파일 열기",
+ "Opened the encrypted xmload files: {0} in place{1}.": "암호화된 xmload 파일을 열었습니다: {0}개를 그 자리에서{1}."
 }
