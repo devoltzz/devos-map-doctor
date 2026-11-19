@@ -681,6 +681,8 @@ def script_restore(entry, output, kind, log=print, classic=False):
         raise ScriptNotRestored('the decompiler is not part of this build (%s)' % e)
     compiled = COMPILED_SCRIPT[kind]
     a = mpqread.Archive(entry)
+    if kind == 'kkwe':
+        compiled = kkwe.file_in_map(a) or compiled
     j_name = 'war3map.j' if a.find('war3map.j') else 'scripts\\war3map.j'
     try:
         shell = a.read(j_name) or b''
@@ -701,7 +703,7 @@ def script_restore(entry, output, kind, log=print, classic=False):
             bc = j2b.bytecode(data_bytes, reference=j2b_calls.reference_texts(common, blizzard, shell))
             map_own = shell.decode('utf-8', 'surrogateescape')
         else:
-            bc = kkwe.Bytecode(kkwe.read_container(data_bytes))
+            bc = kkwe.bytecode(data_bytes)
             map_own = ''
         body_text, details = kkwe_decompile.recover(bc, common, blizzard, None, map_own, no_clash=True,
                                                     classic_reals=classic)
