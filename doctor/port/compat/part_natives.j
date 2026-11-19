@@ -868,6 +868,10 @@ endfunction
 
 function DzFrameShow takes integer frame,boolean enable returns nothing
     local framehandle f=DB_fh(frame)
+    if DB_simples_tipo(frame)!=0 then
+        call DB_simples_mostra(frame, enable)
+        return
+    endif
     if f!=null then
         if DB_ui_ht!=null and HaveSavedHandle(DB_ui_ht, frame, DB_MUNDO_TT) then
             call SetTextTagVisibility(LoadTextTagHandle(DB_ui_ht, frame, DB_MUNDO_TT), enable)
@@ -900,6 +904,9 @@ endfunction
 
 function DzFrameSetEnable takes integer name,boolean enable returns nothing
     local framehandle f=DB_fh(name)
+    if DB_simples_tipo(name)!=0 then
+        return
+    endif
     if f!=null then
         call BlzFrameSetEnable(f, enable)
     endif
@@ -1815,7 +1822,7 @@ function DzDestroyFrame takes integer frame returns nothing
     local framehandle f=DB_fh(frame)
     local integer ev=1
     local trigger t
-    if f==null then
+    if f==null or DB_simples_tipo(frame)!=0 then
         return
     endif
     loop
@@ -2361,6 +2368,7 @@ function DB_ui_pos_init takes nothing returns nothing
     loop
         exitwhen i>11
         call DB_origin(ORIGIN_FRAME_COMMAND_BUTTON, i)
+        call DB_comando_nome(i)
         set i=i+1
     endloop
     set i=0
@@ -2516,6 +2524,20 @@ endfunction
 
 function DzBitGet takes integer i,integer byteIndex returns integer
     return DB_bit(i, byteIndex)
+endfunction
+
+function DzBitSet takes integer i,integer byteIndex,integer byteValue returns integer
+    local integer quero=0
+    if byteIndex<0 or byteIndex>31 then
+        return i
+    endif
+    if byteValue!=0 then
+        set quero=1
+    endif
+    if DB_bit(i, byteIndex)==quero then
+        return i
+    endif
+    return DB_bit_op(i, DzBitShiftLeft(1, byteIndex), 3)
 endfunction
 
 function DzGetWindowWidth takes nothing returns integer
