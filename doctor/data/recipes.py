@@ -23,6 +23,7 @@ MAX_DEPTH = 4
 MAX_CALL_WALKS = 20000
 MAX_FACT_WALKS = 400000
 MAX_TURNS = 24
+PARAMS_KEY = '#params'
 KINDS_SHOWN = ('recipe', 'upgrade')
 
 EVENTS = {'EVENT_PLAYER_UNIT_PICKUP_ITEM': 'acquires an item', 'EVENT_UNIT_PICKUP_ITEM': 'acquires an item',
@@ -419,10 +420,11 @@ def _player_state(e):
 
 
 class Analysis(object):
-    def __init__(self, funcs, consts, known_ids=None):
+    def __init__(self, funcs, consts, known_ids=None, helpers=None):
         self.funcs = funcs
         self.consts = consts
         self.known = known_ids
+        self.find_helpers, self.has_helpers = self._helpers(helpers)
         self.sites = []
         self.others = {}
         self.walks = 0
@@ -438,11 +440,35 @@ class Analysis(object):
         self._touch_memo = {}
         self.touches, self.makes = self._reach()
 
+    def _helpers(self, helpers):
+        finds, has = {}, {}
+        if not helpers:
+            return finds, has
+        pares = helpers.items() if isinstance(helpers, dict) else [(h, None) for h in helpers]
+        for name, idx in pares:
+            f = self.funcs.get(name)
+            if idx is None:
+                idx = f.types.index('integer') if f is not None and f.types and f.types.count('integer') == 1 else 1
+            if f is not None and f.returns == 'boolean':
+                has[name] = int(idx)
+            else:
+                finds[name] = int(idx)
+        return finds, has
+
     def _reach(self):
         direct, makes, callees = set(), set(), {}
         for f in self.funcs.values():
             mine = callees[f.name] = set()
             for s in _all_stmts(f.body):
+                if s[0] == 'if':
+                    for cond, _b in s[2]:
+                        if cond is not None:
+                            mine.update(
+                                e[1]
+                                for e in _walk_expr(cond)
+                                if e[0] == 'c' and e[1] in self.funcs and self.funcs[e[1]].params
+                            )
+                    continue
                 if s[0] not in ('call', 'set'):
                     continue
                 expr = s[2] if s[0] == 'call' else s[3]
@@ -494,14 +520,19 @@ class Analysis(object):
     def _bind_triggers(self):
         by_trigger = {}
         for f in self.funcs.values():
+            proprios = set(s[2][1] for s in _all_stmts(f.body) if s[0] == 'set' and s[2][0] == 'n'
+                           and not s[2][1].startswith('gg_trg_') and s[3][0] == 'c' and s[3][1] == 'CreateTrigger')
             for s in _all_stmts(f.body):
                 if s[0] != 'call' or s[2][0] != 'c' or not s[2][2]:
                     continue
                 name, args = s[2][1], s[2][2]
                 if not (name.startswith('TriggerRegister') or name in ('TriggerAddAction', 'TriggerAddCondition')):
                     continue
-                t = by_trigger.setdefault(_key(args[0]), {'conditions': [], 'actions': [], 'events': [],
-                                                          'var': args[0]})
+                chave = _key(args[0])
+                if args[0][0] == 'n' and args[0][1] in proprios:
+                    chave = (f.name, chave)
+                t = by_trigger.setdefault(chave, {'conditions': [], 'actions': [], 'events': [],
+                                                  'var': args[0]})
                 if name == 'TriggerAddAction' and len(args) == 2:
                     fn = self._fn_value(args[1])
                     if fn:
@@ -606,6 +637,9 @@ class Analysis(object):
         name, args = e[1], e[2]
         if name in ITEM_OF_TYPE and len(args) == 2:
             return self.item_id(args[1], env)
+        if name in self.find_helpers:
+            k = self.find_helpers[name]
+            return self.item_id(args[k], env) if k < len(args) else None
         if name in MANIPULATED:
             return next(iter(facts.manip)) if len(facts.manip) == 1 else None
         if name in SLOT_CALLS and len(args) == 2:
@@ -687,6 +721,12 @@ class Analysis(object):
             if t is not None:
                 out.need(t)
             return
+        if name in self.has_helpers:
+            k = self.has_helpers[name]
+            t = self.item_id(args[k], env) if k < len(args) else None
+            if t is not None:
+                out.need(t)
+            return
         if name == 'UnitHasItem' and len(args) == 2:
             t = self.item_of(args[1], env, out)
             if t is not None:
@@ -720,6 +760,20 @@ class Analysis(object):
                     if t is not None:
                         out.need(t)
                     return
+            if xv[0] == 'c' and xv[1] in self.find_helpers:
+                yv = self.value(y, env)
+                if op == '!=' and yv[0] == 'k' and yv[2] == 'null':
+                    t = self.item_of(xv, env, out)
+                    if t is not None:
+                        out.need(t)
+                    return
+            if op == '==' and self.find_helpers and xv[0] == 'c' and xv[1] == 'GetItemType' and len(xv[2]) == 1:
+                inner = self.value(xv[2][0], env)
+                if inner[0] == 'c' and inner[1] in self.find_helpers:
+                    t = self.item_of(inner, env, out)
+                    if t is not None:
+                        out.need(t)
+                        return
         if op not in ('>', '>=', '=='):
             return
         n = self.number(b, env)
@@ -876,7 +930,9 @@ class Analysis(object):
         self.walks += 1
         self._call_memo[key] = Effects()
         info = {'function': f.name, 'line': f.line, 'via_line': line}
-        eff = self.block(f.body, self.bind(f, vals, {}), Facts(), depth, info)
+        env = self.bind(f, vals, {})
+        env[PARAMS_KEY] = frozenset(f.params)
+        eff = self.block(f.body, env, Facts(), depth, info)
         self._call_memo[key] = eff
         return eff
 
@@ -929,6 +985,10 @@ class Analysis(object):
         return out
 
     def truth(self, cond, env):
+        if cond[0] == 'n' and cond[1] in env.get(PARAMS_KEY, ()):
+            v = self.value(cond, env)
+            if v[0] == 'k' and v[2] == 'bool':
+                return bool(v[1])
         if cond[0] != 'b' or cond[1] not in COMPARE:
             return None
         a, b = self.const(cond[2], env), self.const(cond[3], env)
@@ -957,6 +1017,19 @@ class Analysis(object):
                 continue
             elif k == 'if':
                 branches = s[2]
+                for cond, _b in branches:
+                    if cond is None or depth >= MAX_DEPTH:
+                        continue
+                    for e in _walk_expr(cond):
+                        if e[0] == 'c' and e[1] in self.makes and e[1] in self.funcs and self.funcs[e[1]].params:
+                            ce = self.call_effects(
+                                self.funcs[e[1]], [self.value(a, env) for a in e[2]], depth + 1, s[1]
+                            )
+                            if ce.creates and ce.removes:
+                                fa = facts.copy()
+                                if ce.facts is not None:
+                                    fa.update(ce.facts)
+                                self.site(ce, fa, dict(info, line=s[1], via=e[1], via_line=s[1]))
                 last = branches[0][1][-1] if branches[0][1] else None
                 if len(branches) == 1 and last is not None and last[0] == 'ret' and \
                         not any(x[0] == 'call' for x in branches[0][1][:-1]):
@@ -1290,10 +1363,10 @@ def parse_script(text, language):
     return _Jass(jass_ast).script(jass_ast.parse(text, vjass=True))
 
 
-def find_text(text, language='jass', names=None, known_ids=None, all_kinds=False):
+def find_text(text, language='jass', names=None, known_ids=None, all_kinds=False, helpers=None):
     names = names or {}
     funcs, consts = parse_script(text, language)
-    an = Analysis(funcs, consts, known_ids if known_ids is not None else (set(names) or None))
+    an = Analysis(funcs, consts, known_ids if known_ids is not None else (set(names) or None), helpers)
     sites = an.run()
     reg = Registrations(an)
     reg.run()
@@ -1314,7 +1387,7 @@ def _nothing(*_a):
     pass
 
 
-def find(path, progress=None, game_names=True, all_kinds=False):
+def find(path, progress=None, game_names=True, all_kinds=False, helpers=None):
     p = progress or _nothing
     out = {'map': os.path.abspath(path), 'recipes': [], 'counts': {}, 'kinds': {}, 'others': {}, 'language': None,
            'note': '', 'error': None}
@@ -1352,7 +1425,7 @@ def find(path, progress=None, game_names=True, all_kinds=False):
         text = data.decode('utf-8', 'surrogateescape')
         if text[:1] == '﻿':
             text = text[1:]
-        r = find_text(text, language, names, set(names) or None, all_kinds)
+        r = find_text(text, language, names, set(names) or None, all_kinds, helpers)
         r.update(map=out['map'], note=note)
         return r
     except (Exception, SystemExit) as e:
