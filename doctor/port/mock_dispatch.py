@@ -589,7 +589,7 @@ def run_action(variante, args, common_src, blizz_src, layer):
     import lupa.lua53 as L
     t0 = time.time()
     src, info = build_jass(layer, variante)
-    tr = jass2lua.Transpiler(common_src, blizz_src, src, overrides={})
+    tr = jass2lua.Transpiler(common_src, blizz_src, src, overrides={}, protect_lua=True)
     res = tr.run()
     lua = load_engine(L, common_src, blizz_src, 'ignora' if variante == 'timer' else args['outside'])
     g = lua.globals()
