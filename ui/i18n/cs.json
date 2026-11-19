@@ -3549,5 +3549,10 @@
  "Vietnamese text left": "Zůstal vietnamský text",
  "Translated by devotranslate - devoltz.party": "Translated by devotranslate - devoltz.party",
  "w3i map description": "popis mapy ve w3i",
- "backslashes changed ({0} -> {1}): this file reads no escape, a backslash shows as it is": "změněna zpětná lomítka ({0} -> {1}): tento soubor nečte escape sekvence, zpětné lomítko se zobrazí tak, jak je"
+ "backslashes changed ({0} -> {1}): this file reads no escape, a backslash shows as it is": "změněna zpětná lomítka ({0} -> {1}): tento soubor nečte escape sekvence, zpětné lomítko se zobrazí tak, jak je",
+ ", the real script is back": ", skutečný skript je zpět",
+ "Encrypted files of an xmload map (no game.pkg): \"Fix map\" opens its Lua modules, models and textures in place and puts the real script back.": "Zašifrované soubory mapy xmload (bez game.pkg): \"Opravit mapu\" otevře její moduly Lua, modely a textury přímo na místě a vrátí skutečný skript.",
+ "Its Lua modules, models and textures become normal files in place.": "Její moduly Lua, modely a textury se na místě stanou běžnými soubory.",
+ "Open the encrypted xmload files": "Otevřít zašifrované soubory xmload",
+ "Opened the encrypted xmload files: {0} in place{1}.": "Zašifrované soubory xmload byly otevřeny: {0} na místě{1}."
 }
