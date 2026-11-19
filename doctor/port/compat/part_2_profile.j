@@ -875,6 +875,45 @@ function DB_fh takes integer id returns framehandle
     return LoadFrameHandle(DB_frame_ht,id,0)
 endfunction
 
+function DB_simples_marca takes integer id,integer tipo returns integer
+    if id!=0 and DB_frame_ht!=null then
+        call SaveInteger(DB_frame_ht,id,1,tipo)
+    endif
+    return id
+endfunction
+
+function DB_simples_tipo takes integer id returns integer
+    if id==0 or DB_frame_ht==null then
+        return 0
+    endif
+    return LoadInteger(DB_frame_ht,id,1)
+endfunction
+
+function DB_simples_mostra takes integer id,boolean enable returns nothing
+    local framehandle f=DB_fh(id)
+    local integer t=DB_simples_tipo(id)
+    if f==null or t==0 then
+        return
+    endif
+    if enable and not LoadBoolean(DB_frame_ht,id,2) then
+        return
+    endif
+    if t==1 then
+        if enable then
+            call BlzFrameSetTextColor(f, BlzConvertColor(255, 255, 255, 255))
+        else
+            call BlzFrameSetTextColor(f, BlzConvertColor(0, 255, 255, 255))
+        endif
+    else
+        if enable then
+            call BlzFrameSetVertexColor(f, BlzConvertColor(255, 255, 255, 255))
+        else
+            call BlzFrameSetVertexColor(f, BlzConvertColor(0, 255, 255, 255))
+        endif
+    endif
+    call SaveBoolean(DB_frame_ht,id,2,not enable)
+endfunction
+
 function DB_init_pontos takes nothing returns nothing
     set DB_ponto[0]=FRAMEPOINT_TOPLEFT
     set DB_ponto[1]=FRAMEPOINT_TOP
