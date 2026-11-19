@@ -161,6 +161,11 @@ def has_slk(ext):
     return os.path.isdir(U) and any(f.lower().endswith('.slk') for f in os.listdir(U))
 
 
+def has_unit_slk(ext):
+    U = objects.no_box(ext, 'units')
+    return os.path.isdir(U) and any(f.lower() in ('unitdata.slk', 'unitui.slk') for f in os.listdir(U))
+
+
 def _slk_or_empty(U, fn):
     p = objects.no_box(U, fn)
     if not os.path.isfile(p):
@@ -234,12 +239,24 @@ def allowed_with(extras=None):
     return out
 
 
-def build_auto_tables(ext, method='auto', extras=None, stats=None, legacy_key=False, **w3u):
+def build_auto_tables(ext, method='auto', extras=None, stats=None, legacy_key=False, units_w3u=None, **w3u):
     if method == 'auto':
         method = 'slk' if has_slk(ext) else 'w3u'
     if method == 'slk':
         u, a, i = build_tables(ext, legacy_key=legacy_key,
                                allowed=allowed_with(extras) if extras else None)
+        if units_w3u and not has_unit_slk(ext) and os.path.isfile(os.path.join(units_w3u, 'war3map.w3u')):
+            rep_u = {}
+            u, _a, _i = objects.w3u_tables(units_w3u, allowed=allowed_with(extras), stats=rep_u, **w3u)
+            from doctor.port import model_carriers
+            for cid, model in model_carriers.w3u_carriers(os.path.join(ext, 'war3map.w3u')).items():
+                rec = dict(u.get(model_carriers.W3U_BASE) or {})
+                rec['file'] = model
+                if 'modelscale' in rec:
+                    rec['modelscale'] = '1'
+                u[cid] = rec
+            if stats is not None:
+                stats['units_w3u'] = len(u)
         return 'slk', u, a, i
     if method != 'w3u':
         raise ValueError('unknown mode: %r (slk, w3u or auto)' % method)
