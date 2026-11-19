@@ -104,21 +104,34 @@ def lz4_block(src, size):
 
 
 def undo_blx(data):
+    return b'BLP1' + _unchain(data[4:], (len(data) ^ BLX_SEED) & 0xFFFFFFFF)
+
+
+def _unchain(body, seed):
     import numpy as np
-    n = (len(data) - 4) >> 2
-    cipher = np.frombuffer(data, dtype='<u4', count=n, offset=4)
+    n = len(body) >> 2
+    cipher = np.frombuffer(body, dtype='<u4', count=n)
     turns = np.arange(n, dtype=np.uint32) * 2 % 32
-    seed = np.uint32((len(data) ^ BLX_SEED) & 0xFFFFFFFF)
+    seed = np.uint32(seed)
     keys_ = np.where(turns == 0, seed, (seed << turns) | (seed >> ((32 - turns) % 32)))
     plain = np.bitwise_xor.accumulate(cipher ^ keys_)
     out = plain.astype('<u4').tobytes()
-    tail = data[4 + n * 4:]
+    tail = body[n * 4:]
     if tail:
         last = int(plain[-1]) if n else 0
         key = _rotl_n(int(seed), 2 * n % 32)
         word = int.from_bytes(tail + bytes(4 - len(tail)), 'little') ^ last ^ key
         out += word.to_bytes(4, 'little')[:len(tail)]
-    return b'BLP1' + out
+    return out
+
+
+def undo_luab(data):
+    if len(data) < 9 or data[:4] != b'LuaB':
+        raise PackError('not LuaB')
+    out = _unchain(data[8:], struct.unpack_from('<I', data, 4)[0])
+    if out[:4] != b'\x1bLua':
+        raise PackError('LuaB: not bytecode after the chain')
+    return out
 
 
 def _rotl_n(x, n):
@@ -301,6 +314,94 @@ def opens(archive):
         return True
     except (PackError, struct.error):
         return False
+
+
+def opens_loose(archive):
+    try:
+        return (not archive.find('game.pkg') and all(archive.find(n) for n in LOADER_FILES))
+    except (PackError, struct.error):
+        return False
+
+
+def open_loose(data):
+    if data[:4] == b'LuaB':
+        return undo_luab(data)
+    if data[:4] == b'BLX1':
+        return undo_blx(data)
+    if data[:4] == b'MDB3':
+        from doctor.mpq import xm_mdb3
+        try:
+            return xm_mdb3.convert(data)
+        except (xm_mdb3.Mdb3Error, struct.error):
+            return None
+    return None
+
+
+def lua_source(code):
+    if code[:5] != b'\x1bLuaS' or len(code) < 35:
+        return ''
+    size_t = code[13]
+    p = 34
+    n = code[p]
+    p += 1
+    if n == 0xFF:
+        n = int.from_bytes(code[p:p + size_t], 'little')
+        p += size_t
+    return code[p:p + n - 1].decode('utf-8', 'surrogateescape') if n else ''
+
+
+def module_name(source):
+    s = source.lstrip('@=').replace('/', chr(92))
+    low = s.lower()
+    for mark in (r'\map\map' + chr(92), r'\map' + chr(92)):
+        k = low.rfind(mark)
+        if k >= 0:
+            s = s[k + len(mark):]
+            break
+    else:
+        return ''
+    return s[8:] if s.lower().startswith('scripts' + chr(92)) else s
+
+
+def loose_to_map(map_path, out, log=print, real_script=True):
+    import collections
+    from doctor.mpq import mpq_rebuild
+    from doctor.mpq import mpqread
+    a = mpqread.Archive(map_path)
+    if not opens_loose(a):
+        raise PackError('the map has not the loose form of the xmload pack')
+    lua, by_type, unnamed = {}, collections.Counter(), []
+
+    def opened(bi, data):
+        try:
+            plain = open_loose(data)
+        except PackError:
+            return data
+        if plain is None:
+            return data
+        by_type[data[:4].decode('latin-1')] += 1
+        if data[:4] == b'LuaB':
+            name = module_name(lua_source(plain))
+            if name:
+                lua[name] = plain
+            else:
+                unnamed.append(bi)
+        return plain
+
+    mpq_rebuild.rebuild(map_path, out, list(LOADER_FILES) + ['war3map.j'], log=lambda s: None, transform=opened)
+    if not lua:
+        raise PackError('no LuaB module opens: the game is not in the loose pack')
+    script = None
+    if real_script:
+        from doctor.mpq import mpqadd
+        from doctor.mpq import xm_jx
+        b = mpqread.Archive(out)
+        script = xm_jx.map_script(a.read('war3map.jx'), a.read('war3map.j'))
+        mpqadd.add_files(
+            out, [('war3map.j', script)], to_delete=[n for n in LOADER_FILES if b.find(n)], log=lambda s: None
+        )
+    return {'files': sum(by_type.values()), 'lua': lua, 'unnamed': unnamed, 'by_type': dict(by_type),
+            'bytes': os.path.getsize(out), 'real_script': len(script) if script else 0}
 
 
 def unpack_to_map(map_path, out, keep_package=False, log=print, real_script=False):
