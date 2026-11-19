@@ -633,6 +633,21 @@ local function perf_fecha(t0, itens, agora)
   end
 end
 -- [R1F2:stutter] fim
+-- [16/11/2026] a fila do `__MOCK_ENTRADA_ADIADA` (opt-in): os eventos de entrada RE-ENTRANTES, na ordem; o gatilho entregue fica
+-- marcado como ativo enquanto roda (o que ele criar na propria regiao vai para o tique SEGUINTE)
+function __mock_entrada_entrega()
+  local fila = M.entrada_fila
+  M.entrada_fila = {}
+  M.entrada_ativa = M.entrada_ativa or {}
+  for _, e in ipairs(fila) do
+    if e[2] and e[2].typeid ~= 0 then
+      local antes = M.entrada_ativa[e[1]]
+      M.entrada_ativa[e[1]] = true
+      __mock_fire(e[1], e[2], e[3])
+      M.entrada_ativa[e[1]] = antes
+    end
+  end
+end
 function __mock_advance(seconds, step)
   local target = M.now + seconds
   while M.now < target do
@@ -641,6 +656,7 @@ function __mock_advance(seconds, step)
     local perf_t0, perf_itens                                   -- [R1F2:stutter]
     if __PERF_ON then perf_t0 = __wall() perf_itens = {} end     -- [R1F2:stutter]
     __mock_deliver_sync()
+    if M.entrada_fila and #M.entrada_fila > 0 then __mock_entrada_entrega() end   -- [16/11/2026] so' com __MOCK_ENTRADA_ADIADA
     if __mock_decay_tick then __mock_decay_tick() end
     local fired = {}
     for t in pairs(M.timers) do if t.due and t.due <= M.now then fired[#fired + 1] = t end end
@@ -1206,7 +1222,24 @@ function CreateUnit(p, id, x, y, face)
       end
       if pass and f and f.fn then local ok, v = pcall(f.fn) if not ok then __logerr("enter filter: " .. tostring(v)) end pass = v ~= false end
       __filter_unit = pu
-      if pass then __mock_fire(t, u, p) end
+      -- [16/11/2026, Masin2 F2 panel] `__MOCK_ENTRADA_ADIADA = true` (OPT-IN, padrao desligado: o de sempre). So' o evento
+      -- RE-ENTRANTE muda: o de entrar na regiao cujo GATILHO ja' esta' disparando por entrada na pilha atual (o gatilho criou
+      -- uma unidade dentro da propria regiao) vai para a fila que o tique seguinte entrega (`__mock_entrada_entrega`); todo
+      -- outro evento de entrada segue disparando na hora, dentro do CreateUnit, como sempre. O caso: o Masin cria o deposito
+      -- h482 DENTRO do retangulo que dispara a criacao e so' marca o "ja' criado" depois; na hora, o Lua recursa ate' o "C
+      -- stack overflow" numa profundidade que varia por maquina. MODELO DO SIMULADOR, nao fato medido: o que o jogo faz com
+      -- essa recursao (quantos depositos nascem) so' o jogo diz
+      if pass and __MOCK_ENTRADA_ADIADA then
+        M.entrada_ativa = M.entrada_ativa or {}
+        if M.entrada_ativa[t] then
+          M.entrada_fila = M.entrada_fila or {}
+          M.entrada_fila[#M.entrada_fila + 1] = { t, u, p }
+        else
+          M.entrada_ativa[t] = true
+          __mock_fire(t, u, p)
+          M.entrada_ativa[t] = nil
+        end
+      elseif pass then __mock_fire(t, u, p) end
     end
   end
   return u
