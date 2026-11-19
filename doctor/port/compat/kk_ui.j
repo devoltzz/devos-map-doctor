@@ -166,6 +166,12 @@ integer array KKU_alvo_seg
 integer array KKU_alvo_de
 boolean array KKU_alvo_on
 integer KKU_nalvo=0
+boolean array KKU_alvo_solto
+integer KKU_n_solto=0
+constant integer KKU_JR=128
+boolean array KKU_e_jan
+integer array KKU_jr
+integer KKU_njr=0
 integer KKU_ult_alvo=0
 integer array KKU_campos
 integer KKU_ncampo=0
@@ -183,6 +189,9 @@ boolean KKU_mouse_tent=false
 constant integer KKU_COD_MENU=-1
 integer KKU_i_borda=0
 integer KKU_i_menu=0
+integer KKU_menu_ancora=0
+real KKU_menu_dx=0.0
+real KKU_menu_dy=0.004
 integer KKU_dica_ver=0
 timer KKU_tm_local=null
 integer KKU_m_ult=0
@@ -269,6 +278,19 @@ real KKU_c_valor=0.0
 integer KKU_c_id=0
 string KKU_c_txt=""
 integer KKU_c_alvo=0
+//{{KK_FIMSE:KK_UI_KIT}}
+//{{KK_SE:KK_UI_PADRAO}}
+constant integer KKU_ES_MAX=8
+constant integer KKU_ES_PASSO=32
+integer KKU_es_n=0
+integer array KKU_es_jan
+boolean array KKU_es_na
+boolean KKU_es_carregou=false
+trigger KKU_es_t=null
+integer KKU_dg_pid=0
+integer KKU_dg_jan=0
+//{{KK_FIMSE:KK_UI_PADRAO}}
+//{{KK_SE:KK_UI_KIT}}
 //@ENDGLOBALS
 
 function KKU_ao takes integer qual, code f returns nothing
@@ -1028,8 +1050,19 @@ function KKU_alvo_em takes boolean so_pos returns integer
     local real my=0.0
     local integer t=KKU_nalvo
     local integer i=0
+    local integer k=1
     if BlzGetLocalClientWidth() <= 0 or BlzGetLocalClientHeight() <= 0 then
         return 0
+    endif
+    if KKU_n_solto == 0 then
+        loop
+            exitwhen k > KKU_njr
+            exitwhen KKU_q_vis[KKU_jr[k]]
+            set k=k + 1
+        endloop
+        if k > KKU_njr then
+            return 0
+        endif
     endif
     set mx=BlzPixelToFrameX(BlzGetMouseScreenPosX())
     set my=BlzPixelToFrameY(BlzGetMouseScreenPosY())
@@ -1353,6 +1386,28 @@ function KKU_alvo_segue takes integer t, integer v returns nothing
     set KKU_pr_q[KKU_npr]=q
 endfunction
 
+function KKU_topo takes integer i returns integer
+    local integer k=0
+    if i <= 0 or i >= KKU_MAX then
+        return 0
+    endif
+    loop
+        exitwhen KKU_pai[i] <= 0 or k > 64
+        set i=KKU_pai[i]
+        set k=k + 1
+    endloop
+    return i
+endfunction
+
+function KKU_marca_jan takes integer j returns nothing
+    if j <= 0 or j >= KKU_MAX or KKU_e_jan[j] or KKU_njr >= KKU_JR then
+        return
+    endif
+    set KKU_e_jan[j]=true
+    set KKU_njr=KKU_njr + 1
+    set KKU_jr[KKU_njr]=j
+endfunction
+
 function KKU_alvo_modo takes integer pai, integer i_desenho, integer cod, boolean roda, integer modo returns integer
     local integer t
     local integer q=0
@@ -1411,6 +1466,10 @@ function KKU_alvo_modo takes integer pai, integer i_desenho, integer cod, boolea
     else
         call KKU_alvo_segue(t, i_desenho)
     endif
+    if not KKU_e_jan[KKU_topo(KKU_alvo_v[t])] then
+        set KKU_alvo_solto[t]=true
+        set KKU_n_solto=KKU_n_solto + 1
+    endif
     set KKU_ult_alvo=t
     set f=null
     return t
@@ -1423,6 +1482,9 @@ endfunction
 function KKU_janela_cobre takes integer j, real x, real y, real w, real h returns nothing
     if j < 1 or j >= KKU_MAX then
         return
+    endif
+    if KKU_pai[j] == 0 then
+        call KKU_marca_jan(j)
     endif
     set KKU_cob_x[j]=x
     set KKU_cob_y[j]=y
@@ -1548,7 +1610,13 @@ function KKU_menu_prende takes framehandle h returns nothing
         return
     endif
     call BlzFrameClearAllPoints(c)
-    call BlzFrameSetPoint(c, FRAMEPOINT_TOPLEFT, h, FRAMEPOINT_BOTTOMLEFT, 0.0, -0.004)
+    if KKU_menu_ancora == 1 then
+        call BlzFrameSetPoint(c, FRAMEPOINT_BOTTOMLEFT, h, FRAMEPOINT_TOPLEFT, KKU_menu_dx, KKU_menu_dy)
+    elseif KKU_menu_ancora == 2 then
+        call BlzFrameSetPoint(c, FRAMEPOINT_TOPLEFT, h, FRAMEPOINT_BOTTOMLEFT, KKU_menu_dx, -0.004 + KKU_menu_dy)
+    else
+        call BlzFrameSetPoint(c, FRAMEPOINT_TOPLEFT, h, FRAMEPOINT_BOTTOMLEFT, 0.0, -0.004)
+    endif
     call BlzFrameSetSize(c, KKU_w[b], KKU_h[b])
     set KKU_nat=KKU_nat + 3
     set k=1
@@ -1593,7 +1661,15 @@ function KKU_menu_botao takes nothing returns integer
     endif
     set KKU_i_menu=b
     set KKU_preso[b]=true
-    call KKU_menu_prende(BlzGetOriginFrame(ORIGIN_FRAME_HERO_BUTTON, IMaxBJ(IMinBJ(KKU_HEROIS_NA_BARRA, 7), 1) - 1))
+    if KKU_alvo_solto[KKU_ult_alvo] then
+        set KKU_alvo_solto[KKU_ult_alvo]=false
+        set KKU_n_solto=KKU_n_solto - 1
+    endif
+    if KKU_menu_ancora == 1 then
+        call KKU_menu_prende(BlzGetOriginFrame(ORIGIN_FRAME_MINIMAP, 0))
+    else
+        call KKU_menu_prende(BlzGetOriginFrame(ORIGIN_FRAME_HERO_BUTTON, IMaxBJ(IMinBJ(KKU_HEROIS_NA_BARRA, 7), 1) - 1))
+    endif
     return b
 endfunction
 
@@ -2024,6 +2100,7 @@ function KKU_janela_abre takes integer pid, integer j returns nothing
     endif
     set KKU_pilha[pid * KKU_PILHA + KKU_npilha[pid]]=j
     set KKU_npilha[pid]=KKU_npilha[pid] + 1
+    call KKU_marca_jan(j)
     set KKU_jan_quem=pid
     call KKU_janela_vis(j)
 endfunction
@@ -2339,7 +2416,11 @@ function KKU_recria takes nothing returns nothing
         set KKU_rc_fh=null
         if KKU_i_borda > 0 then
             set KKU_rc_fb=BlzGetFrameByName("ConsoleUIBackdrop", 0)
-            set KKU_rc_fh=BlzGetOriginFrame(ORIGIN_FRAME_HERO_BUTTON, IMaxBJ(IMinBJ(KKU_HEROIS_NA_BARRA, 7), 1) - 1)
+            if KKU_menu_ancora == 1 then
+                set KKU_rc_fh=BlzGetOriginFrame(ORIGIN_FRAME_MINIMAP, 0)
+            else
+                set KKU_rc_fh=BlzGetOriginFrame(ORIGIN_FRAME_HERO_BUTTON, IMaxBJ(IMinBJ(KKU_HEROIS_NA_BARRA, 7), 1) - 1)
+            endif
         endif
         set KKU_rc_i=1
         set KKU_rc_fase=2
@@ -2455,6 +2536,140 @@ function KKU_readota takes integer i, framehandle f returns nothing
     call KKU_marca(i)
     call KKU_aplica()
 endfunction
+//{{KK_FIMSE:KK_UI_KIT}}
+//{{KK_SE:KK_UI_PADRAO}}
+
+function KKU_es_k takes integer j returns integer
+    local integer k=1
+    if j <= 0 then
+        return 0
+    endif
+    loop
+        exitwhen k > KKU_es_n
+        if KKU_es_jan[k] == j then
+            return k
+        endif
+        set k=k + 1
+    endloop
+    return 0
+endfunction
+
+function KKU_es_carga takes nothing returns nothing
+    local integer k=1
+    local integer p
+    local integer a
+    set KKU_es_carregou=true
+    loop
+        exitwhen k > KKU_es_n
+        set p=0
+        loop
+            exitwhen p >= KKU_JOGADORES
+            set KKU_es_na[k * KKU_ES_PASSO + p]=false
+            set a=KKU_na_pilha(p, KKU_es_jan[k])
+            if a >= 0 then
+                call KKU_tira(p, a)
+            endif
+            set p=p + 1
+        endloop
+        set k=k + 1
+    endloop
+endfunction
+
+function KKU_espelho_novo takes nothing returns integer
+    local integer j
+    if not KKU_pronto or KKU_rc_fase != 0 or KKU_es_carregou or KKU_es_n >= KKU_ES_MAX then
+        return 0
+    endif
+    set j=KKU_pagina(0)
+    if j <= 0 or j >= KKU_MAX then
+        return 0
+    endif
+    call KKU_poe(j, KKU_x[j], KKU_y[j], 0.0, 0.0)
+    call KKU_esconde(j)
+    set KKU_es_n=KKU_es_n + 1
+    set KKU_es_jan[KKU_es_n]=j
+    return j
+endfunction
+
+function KKU_espelho takes integer pid, integer j, boolean aberto returns nothing
+    local integer k=KKU_es_k(j)
+    if k <= 0 or KKU_es_carregou or KKU_rc_fase != 0 or not KKU_pid_ok(pid) then
+        return
+    endif
+    if aberto then
+        if KKU_na_pilha(pid, j) >= 0 or KKU_npilha[pid] < KKU_PILHA then
+            set KKU_es_na[k * KKU_ES_PASSO + pid]=true
+            call KKU_janela_abre(pid, j)
+        endif
+    elseif KKU_es_na[k * KKU_ES_PASSO + pid] then
+        set KKU_es_na[k * KKU_ES_PASSO + pid]=false
+        call KKU_janela_fecha(pid, j)
+    endif
+endfunction
+
+function KKU_espelho_esc takes integer pid, integer j returns boolean
+    local integer k=KKU_es_k(j)
+    if k <= 0 or not KKU_pid_ok(pid) then
+        return false
+    endif
+    if not KKU_es_na[k * KKU_ES_PASSO + pid] or KKU_na_pilha(pid, j) >= 0 then
+        return false
+    endif
+    set KKU_es_na[k * KKU_ES_PASSO + pid]=false
+    return not KKU_es_carregou and KKU_rc_fase == 0
+endfunction
+
+function KKU_espelho_na takes integer pid, integer j returns boolean
+    local integer k=KKU_es_k(j)
+    if k <= 0 or not KKU_pid_ok(pid) then
+        return false
+    endif
+    return KKU_es_na[k * KKU_ES_PASSO + pid] and KKU_na_pilha(pid, j) >= 0
+endfunction
+
+function KKU_dialogo_fecha takes nothing returns nothing
+    call KKU_janela_fecha(KKU_dg_pid, KKU_dg_jan)
+endfunction
+
+function KKU_dialogo takes boolean mostra, dialog d, player p returns nothing
+    local integer pid
+    local integer k
+    local integer j
+    if mostra and p != null and KKU_pronto then
+        set pid=GetPlayerId(p)
+        if KKU_pid_ok(pid) then
+            set k=KKU_npilha[pid] - 1
+            loop
+                exitwhen k < 0
+                if k < KKU_npilha[pid] then
+                    set j=KKU_pilha[pid * KKU_PILHA + k]
+                    if KKU_es_k(j) == 0 then
+                        set KKU_dg_pid=pid
+                        set KKU_dg_jan=j
+                        call ExecuteFunc("KKU_dialogo_fecha")
+                    endif
+                endif
+                set k=k - 1
+            endloop
+        endif
+    endif
+    call DialogDisplay(p, d, mostra)
+endfunction
+
+function KKU_dialogo_todos takes boolean mostra, dialog d returns nothing
+    local integer i=0
+    loop
+        exitwhen i >= bj_MAX_PLAYERS
+        if i < KKU_JOGADORES then
+            call KKU_dialogo(mostra, d, Player(i))
+        else
+            call DialogDisplay(Player(i), d, mostra)
+        endif
+        set i=i + 1
+    endloop
+endfunction
+//{{KK_FIMSE:KK_UI_PADRAO}}
+//{{KK_SE:KK_UI_KIT}}
 
 function KKU_init takes nothing returns nothing
     local integer p=0
@@ -2526,6 +2741,13 @@ function KKU_init takes nothing returns nothing
     set KKU_t_carga=CreateTrigger()
     call TriggerRegisterGameEvent(KKU_t_carga, EVENT_GAME_LOADED)
     call TriggerAddAction(KKU_t_carga, function KKU_carga_ev)
+//{{KK_FIMSE:KK_UI_KIT}}
+//{{KK_SE:KK_UI_PADRAO}}
+    set KKU_es_t=CreateTrigger()
+    call TriggerRegisterGameEvent(KKU_es_t, EVENT_GAME_LOADED)
+    call TriggerAddAction(KKU_es_t, function KKU_es_carga)
+//{{KK_FIMSE:KK_UI_PADRAO}}
+//{{KK_SE:KK_UI_KIT}}
     set KKU_tm_sinc=CreateTimer()
     call TimerStart(KKU_tm_sinc, 0.05, true, function KKU_tique_sinc)
     set KKU_tm_local=CreateTimer()
