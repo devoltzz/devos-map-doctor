@@ -1580,6 +1580,8 @@ def _gui(ctx, d, obfuscated):
         return 'a text of %d bytes, and this editor reads at most %d in a trigger parameter' % (
             wtg.longest_parameter(t.functions), wtg.CLASSIC_MAX_VALUE)
     if TARGET['editor'] is None and wtg.longest_custom_script(t.functions) > wtg.REFORGED_MAX_CUSTOM_SCRIPT:
+        wtg.compact_custom_script(t.functions)
+    if TARGET['editor'] is None and wtg.longest_custom_script(t.functions) > wtg.REFORGED_MAX_CUSTOM_SCRIPT:
         return 'a custom script line of %d bytes, and the World Editor cuts it at %d when it saves' % (
             wtg.longest_custom_script(t.functions), wtg.REFORGED_MAX_CUSTOM_SCRIPT)
     t.name = d.name
@@ -1587,9 +1589,6 @@ def _gui(ctx, d, obfuscated):
     t.description = (m.trigger.description or banner_desc or (NOTE_RENAMED if obfuscated else ''))
     t.enabled, t.is_comment, t.is_text, t.run_on_init, t.category_id = 1, 0, 0, 0, 0
     d.empty = _drop_empty_custom(t.functions)
-    actions = [f for f in t.functions if f.kind == wtg.ACTION]
-    if actions and all(f.name == 'CustomScriptCode' for f in actions):
-        return ONLY_CUSTOM
     covered = set(m.helpers) | {d.init}
     outside = sorted(covered - set(d.own))
     if outside:
@@ -2711,6 +2710,36 @@ def standard_script(text, players=None, say=None, doo=None, ref_dir=None):
     return new, rep
 
 
+def jasshelper_unshadow(text):
+    if 'l__' not in text:
+        return text, []
+    try:
+        tree = jass_ast.parse(text)
+    except Exception:
+        return text, []
+    globals_ = set(g.name for g in tree.globals)
+    lines = text.split('\n')
+    done = []
+    for name, start, end, params, locals_ in jass_ast.function_specs(tree):
+        if not name.startswith(('Trig_', 'InitTrig_')):
+            continue
+        taken = set(params) | set(locals_)
+        for local in locals_:
+            plain = local[3:]
+            if not local.startswith('l__') or plain not in globals_ or local in globals_ or plain in taken:
+                continue
+            rx = re.compile(r'"(?:[^"\\\n]|\\.)*"|\'[^\'\n]*\'|//[^\n]*|\b(?:%s|%s)\b' % (re.escape(local),
+                                                                                       re.escape(plain)))
+            body = range(start - 1, min(end, len(lines)))
+            if any(m.group(0) == plain for k in body for m in rx.finditer(lines[k])):
+                continue
+            for k in body:
+                lines[k] = rx.sub(lambda m: plain if m.group(0) == local else m.group(0), lines[k])
+            taken.add(plain)
+            done.append((name, plain))
+    return ('\n'.join(lines) if done else text), done
+
+
 def restore(script_text, lang=JASS, td=None, init_per_trigger=True, log=None, matcher=None, editor_files=None,
             players=None, standard=None, object_names=None, ref_dir=None, editor=None, jasshelper=True,
             sound_labels=None):
@@ -2732,6 +2761,16 @@ def restore(script_text, lang=JASS, td=None, init_per_trigger=True, log=None, ma
                     '%d calls of %d copies of game functions renamed, %d neutral players by their constant; pjass: %s'
                     % (standard.get('calls', 0), len(standard.get('copies') or ()),
                        standard.get('neutral_players', 0), standard.get('pjass'))))
+            if editor is None and jasshelper:
+                new, unshadowed = jasshelper_unshadow(text)
+                if unshadowed:
+                    ok, detail = _pjass_proof(new, text, ref_dir)
+                    if ok:
+                        text = new
+                        res.report['unshadowed'] = len(unshadowed)
+                        res.proofs['jasshelper_shadow'] = (True, (
+                            '%d local(s) l__X of the trigger functions named X again, which JassHelper renames back; '
+                            'pjass: %s' % (len(unshadowed), detail)))
         return _restore(res, text, td, init_per_trigger, say, matcher, editor_files, object_names)
     except Exception as e:
         import traceback
