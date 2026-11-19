@@ -87,6 +87,27 @@ def verify(stage, expected_one, medida):
         aborts(stage, ['measured %s, expected %s' % (medida, expected_one)])
 
 
+def bj_local(t, exp_len, branches=False, roots=None, elseif_local=False):
+    exempt_sites = exp_len.get('bj_exempt') or {}
+    no_reason = sorted(f for f, m in exempt_sites.items() if not str(m or '').strip())
+    if no_reason:
+        aborts('8b (BJ in local code)', ["ESPERADAS['bj_exempt'] without a reason: %s" % ', '.join(no_reason)])
+    bj_n = thread_local.bj_new(t, branches=branches, roots=roots, elseif_local=elseif_local)
+    bj_open = [a for a in bj_n if a[0] not in exempt_sites]
+    if bj_open:
+        aborts('8b (BJ in local code)', ['%s calls %s  [%s]' % (f, chain, cpath[:200]) for f, chain, cpath in bj_open]
+               + ["the game BJ creates on one machine only (it desyncs): fix the map or, until the fix, exempt the "
+                  "function with the reason in ESPERADAS['bj_exempt']"])
+    for f, chain, _chain_path in bj_n:
+        print('WARNING 8b exempt BJ (%s): %s calls %s' % (exempt_sites[f], f, chain))
+    for f in sorted(set(exempt_sites) - set(a[0] for a in bj_n)):
+        print("WARNING 8b: ESPERADAS['bj_exempt'] %s no longer finds anything (take it out of the recipe)" % f)
+    print(
+        '8b BJ: %d call(s) of a game BJ that creates in local code (%d exempt)' % (len(bj_n), len(bj_n) - len(bj_open))
+    )
+    return {'calls': len(bj_n), 'exempt_count': len(bj_n) - len(bj_open)}
+
+
 def traduz(r, body_text, raw_data):
     tr_dir = getattr(r, 'TR_DIR', None)
     if not tr_dir or not os.path.isfile(os.path.join(tr_dir, 'strings.json')):
@@ -280,7 +301,8 @@ def assemble(r, argv=None):
     job_progress.step_size('1', 'Building the script: the field table')
     failures, _info, _pixel_data = field_table.run_action(r.TABLE_SOURCE, table, r.LEVEL_FIELDS,
                                                           controle=getattr(r, 'CONTROL_TABLE', True),
-                                                          by_name=getattr(r, 'SLK_BY_NAME', False))
+                                                          by_name=getattr(r, 'SLK_BY_NAME', False),
+                                                          units_w3u=getattr(r, 'EXTRACT', None))
     if failures:
         aborts('1 (3d table)', failures)
 
@@ -318,6 +340,14 @@ def assemble(r, argv=None):
         medidas['no_dot'] = n
 
     job_progress.step_size('4', 'Building the script: map fixes')
+    if getattr(r, 'UI_DEFAULT', False):
+        import ui_front
+        try:
+            t, rep_ui = ui_front.kk(r, t)
+        except ui_front.FrontFailed as e:
+            aborts('4 ui_front (the UI kit and the F2 panel)', [e])
+        if rep_ui.get('dialogs') is not None:
+            medidas['dialogs'] = rep_ui['dialogs']
     if hasattr(r, 'decisoes'):
         t, details = r.decisoes(t)
         print('user decisions and fixes of the original map: %s' % details)
@@ -407,6 +437,7 @@ def assemble(r, argv=None):
     elif found_t:
         print('WARNING 8b: a thread in local code (it desyncs; `common/kk/thread_local.py`): %s'
               % '; '.join('%s (%s)' % (a[0], ', '.join(a[1])) for a in found_t[:6]))
+    bj_local(t, exp_len, branches, roots_t, elseif_t)
 
     job_progress.step_size('9', 'Building the script: terrain and desync')
     cfg = {'ext': r.DESYNC_EXT, 'extract': r.EXTRACT, 'raw_data': r.CRU, 'copy': os.path.join(r.OUT, 'mapa_terreno.j'),
