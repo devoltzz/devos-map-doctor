@@ -856,20 +856,21 @@ def _script_file(a):
         return 'j2b', j_name, j, ('The real script is the compiled war3map.bin (%d bytes, encrypted bytecode); %s is '
                                   'the shell that loads it. Open in World Editor turns it back into JASS.'
                                   % (size, j_name)), {'name': unprotect.J2B_FILE, 'size': size}
-    if j is not None and len(j) < 450 and a.find('kkmap.jc'):
+    if j is not None and len(j) < 450 and (a.find('kkmap.jc') or a.find('kkmap.jc1')):
         from doctor.script import kkwe
+        jc_nome = kkwe.file_in_map(a)
         try:
-            loader = kkwe.is_loader(kkwe.Bytecode(kkwe.read_container(unprotect._read(a, 'kkmap.jc'))))[0]
+            loader = kkwe.is_loader(kkwe.bytecode(unprotect._read(a, jc_nome)))[0]
         except Exception:
             loader = False
-        size = a.blocks[a.find('kkmap.jc')[1]][2]
+        size = a.blocks[a.find(jc_nome)[1]][2]
         if loader:
             return 'none', j_name, j, ('The map is encrypted by the KK platform: kkmap.jc only loads the real map, '
                                        'which is outside the MPQ. There is no script to show.'), \
-                {'name': 'kkmap.jc', 'size': size}
+                {'name': jc_nome, 'size': size}
         return 'kkwe', j_name, j, ('The real script is the KKWE bytecode in kkmap.jc (%d bytes); %s is a stub. Open '
                                    'in World Editor turns it back into JASS.' % (size, j_name)), \
-            {'name': 'kkmap.jc', 'size': size}
+            {'name': jc_nome, 'size': size}
     if j:
         return 'jass', j_name, j, '', None
     if a.find('war3campaign.w3f'):
