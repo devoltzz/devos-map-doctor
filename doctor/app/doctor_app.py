@@ -159,6 +159,10 @@ STEP_TEXT = {
     'listing': ('Write a real file list', 'A (listfile) with every real name.'),
     'ids': ('Restore the object ids', 'The ids scrambled in the map data.'),
     'xm_unpack': ('Unpack game.pkg into the map', 'Its models, textures and scripts become normal files.'),
+    'xm_open': (
+        'Open the encrypted xmload files',
+        'Its Lua modules, models and textures become normal files in place.',
+    ),
     'xm_keep_package': ('Also keep game.pkg', 'The map stays playable with its own loader, but gets much bigger.'),
     'xm_script': (
         'Put the real script back',
