@@ -144,9 +144,26 @@ def _register_use(code, start, r):
     return None
 
 
-def _big_as_number(code, consts):
+def _packs_bits_only(protos):
+    for pr in protos:
+        consts = pr.f['consts']
+        for i in pr.f['code']:
+            op, a, b, c, bx, sbx, ax = _decode(i)
+            if op == BNOT:
+                return False
+            if op in BIT_OPS:
+                for x in (b, c):
+                    if x & 0x100:
+                        v = consts[x & 0xFF]
+                        if isinstance(v, bool) or not isinstance(v, int) or v not in (0, 1):
+                            return False
+    return True
+
+
+def _big_as_number(code, consts, loose=False):
     big = {k for k, v in enumerate(consts)
-           if isinstance(v, int) and not isinstance(v, bool) and v != -2 ** 63 and not -2 ** 31 < v < 2 ** 31}
+           if isinstance(v, int) and not isinstance(v, bool) and v != -2 ** 63
+           and (not -2 ** 31 < v < 2 ** 31 or loose and abs(v) >= 2 ** 30)}
     if not big:
         return set()
     num, bit = set(), set()
@@ -162,10 +179,12 @@ def _big_as_number(code, consts):
         elif op in (SETTABLE, SETTABUP, GETTABLE, GETTABUP, SELF):
             for x in (b, c) if op != GETTABUP else (c,):
                 if x & 0x100 and (x & 0xFF) in big:
-                    bit.add(x & 0xFF)
+                    (num if loose else bit).add(x & 0xFF)
         elif op == LOADK and bx in big:
             use = _register_use(code, pc + 1, a)
-            (num if use == 'num' else bit).add(bx)
+            (num if use == 'num' or (loose and use != 'bit') else bit).add(bx)
+    if loose:
+        num = {k for k in num if abs(consts[k]) <= 2 ** 53}
     return num - bit
 
 
@@ -179,7 +198,7 @@ def literal(v, as_float=False):
     if isinstance(v, int):
         if v == -2 ** 63:
             return 'math.mininteger'
-        if as_float and not -2 ** 31 < v < 2 ** 31:
+        if as_float:
             return literal(float(v))
         if not -2 ** 31 < v < 2 ** 31:
             return '0x%x' % (v & 0xFFFFFFFFFFFFFFFF)
@@ -239,7 +258,7 @@ def _number(main):
     return out
 
 
-def _function(pr):
+def _function(pr, loose=False):
     f = pr.f
     code = f['code']
     consts = f['consts']
@@ -261,7 +280,7 @@ def _function(pr):
             return 'X[%d]' % k
         return 'r%d' % k
 
-    as_float = _big_as_number(code, consts)
+    as_float = _big_as_number(code, consts, loose)
 
     def K(k):
         return literal(consts[k], k in as_float)
@@ -457,8 +476,9 @@ def translate(data, name='chunk'):
     renumber(main, table)
     protos = _number(main)
     parts = ['-- %s: translated from Lua 5.3 bytecode (%d functions)' % (name, len(protos)), PRELUDE]
+    loose = _packs_bits_only(protos)
     for pr in protos:
-        parts.append(_function(pr))
+        parts.append(_function(pr, loose))
     if len(main['upvals']) != 1:
         raise TranslateError(
             '%s: the main function has %d upvalues (one, _ENV, expected)' % (name, len(main['upvals']))
