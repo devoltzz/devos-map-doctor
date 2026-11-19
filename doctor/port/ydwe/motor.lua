@@ -16,6 +16,64 @@ local schar, sbyte = string.char, string.byte
 local function slower(s) return (sgsub(s, "[A-Z]", function(c) return schar(sbyte(c) + 32) end)) end
 __ydwe_minusculas = slower
 
+
+
+
+
+
+
+do
+  local M = 0xFFFFFFFF
+  local memo = {}
+  local function mix(a, b, c)
+    a = (a - b - c) & M; a = a ~ (c >> 13)
+    b = (b - c - a) & M; b = b ~ ((a << 8) & M)
+    c = (c - a - b) & M; c = c ~ (b >> 13)
+    a = (a - b - c) & M; a = a ~ (c >> 12)
+    b = (b - c - a) & M; b = b ~ ((a << 16) & M)
+    c = (c - a - b) & M; c = c ~ (b >> 5)
+    a = (a - b - c) & M; a = a ~ (c >> 3)
+    b = (b - c - a) & M; b = b ~ ((a << 10) & M)
+    c = (c - a - b) & M; c = c ~ (b >> 15)
+    return a, b, c
+  end
+  local function sh128(s)
+    if s == nil then s = "" end
+    local v = memo[s]
+    if v then return v end
+    local k = {}
+    for i = 1, #s do
+      local x = sbyte(s, i)
+      if x >= 0x61 and x <= 0x7A then x = x - 0x20 elseif x == 0x2F then x = 0x5C end
+      k[i] = x
+    end
+    local n = #s
+    local a, b, c = 0x9E3779B9, 0x9E3779B9, 0
+    local i = 1
+    while n - i + 1 >= 12 do
+      a = (a + (k[i] | (k[i + 1] << 8) | (k[i + 2] << 16) | (k[i + 3] << 24))) & M
+      b = (b + (k[i + 4] | (k[i + 5] << 8) | (k[i + 6] << 16) | (k[i + 7] << 24))) & M
+      c = (c + (k[i + 8] | (k[i + 9] << 8) | (k[i + 10] << 16) | (k[i + 11] << 24))) & M
+      a, b, c = mix(a, b, c)
+      i = i + 12
+    end
+    c = (c + n) & M
+    local desloc = { 0, 8, 16, 24, 0, 8, 16, 24, 8, 16, 24 }
+    for j = 0, n - i do
+      local x = k[i + j] << desloc[j + 1]
+      if j < 4 then a = (a + x) & M elseif j < 8 then b = (b + x) & M else c = (c + x) & M end
+    end
+    a, b, c = mix(a, b, c)
+    if c >= 0x80000000 then c = c - 0x100000000 end
+    memo[s] = c
+    return c
+  end
+  __ydwe_sh128 = sh128
+  rawset(G, "StringHash", sh128)
+  if __rawnat then __rawnat["StringHash"] = sh128 end
+  if __orig then __orig["StringHash"] = sh128 end
+end
+
 __ydwe_fonte = __ydwe_fonte or {}
 __ydwe_forma = __ydwe_forma or {}
 __ydwe_dados = __ydwe_dados or {}
@@ -130,7 +188,41 @@ LENV.load = lload
 LENV.loadstring = nil
 LENV.dofile = function(n) error("dofile: no file system", 2) end
 LENV.loadfile = function(n) return nil, "no file system" end
-LENV.io = { open = function() return nil, "no file system" end, lines = function() return function() return nil end end,
+
+
+local function arquivo_lido(d)
+  local pos = 1
+  local f = {}
+  function f:read(fmt)
+    fmt = fmt or "l"
+    if type(fmt) == "string" then fmt = sgsub(fmt, "^%*", "") end
+    if pos > #d then return nil end
+    if fmt == "a" then local r = ssub(d, pos) pos = #d + 1 return r end
+    if type(fmt) == "number" then local r = ssub(d, pos, pos + fmt - 1) pos = pos + fmt return r end
+    local fim = sfind(d, "\n", pos, true)
+    local r = ssub(d, pos, (fim or #d + 1) - 1)
+    pos = (fim or #d) + 1
+    if fmt == "L" and fim then r = r .. "\n" end
+    if fmt ~= "L" then r = sgsub(r, "\r$", "") end
+    return r
+  end
+  function f:lines(fmt) return function() return f:read(fmt) end end
+  function f:seek(base, off)
+    off = off or 0
+    if base == "set" then pos = off + 1 elseif base == "end" then pos = #d + off + 1 elseif base == "cur" then pos = pos + off end
+    return pos - 1
+  end
+  function f:close() return true end
+  function f:write() return nil, "read only" end
+  return f
+end
+LENV.io = { open = function(nome, modo)
+              if type(nome) ~= "string" or (type(modo) == "string" and sfind(modo, "[wa+]")) then return nil, "no file system" end
+              local d = __ydwe_dado_lido and __ydwe_dado_lido(nome)
+              if type(d) ~= "string" then return nil, nome .. ": No such file or directory" end
+              return arquivo_lido(d)
+            end,
+            lines = function() return function() return nil end end,
             write = function() end, read = function() return nil end, close = function() end,
             stdout = { write = function() end }, stderr = { write = function() end } }
 
@@ -868,6 +960,12 @@ local storm = {
   remove = function(nome) if type(nome) == "string" then salvos[chave(nome)] = nil end return true end,
 }
 storm.has = function(nome) return storm.load(nome) ~= nil end
+
+__ydwe_dado_lido = function(nome)
+  local k = chave(nome)
+  if salvos[k] ~= nil then return salvos[k] end
+  return __ydwe_dados[k]
+end
 storm.import = storm.load
 storm.extract = function() return false end
 
