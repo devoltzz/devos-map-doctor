@@ -3,6 +3,16 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 2.5.1 (2026-11-19)
+
+### Fixed
+
+- **Remove map files that replace the game's own, the map's own art stays:** a map can save its own icons and textures under the names of game files, like hero skill icons named after game icons or a terrain tile that the map changes. The option took them out with the old copies of game files, so the map lost its icons and tiles. It now compares each picture with the game's own and keeps the ones that differ. Only the real copies go. This works the same in Fix map and in Port to Reforged.
+- **Open in World Editor, effects and sounds of new abilities:** in a map that keeps its abilities in SLK tables, a new ability with no effect art has no effect in the game. Turned into World Editor objects, each new ability started as a copy of the ability it is based on, so it took that ability's effects and sounds. Towers got auras they never had, and default missiles and spell effects showed next to the map's own. These effects are now written as empty, as the tables had them.
+- **Open in World Editor, abilities with more levels than their base:** when the base ability has fewer levels, the World Editor filled the extra levels with the base's values. An ability with no mana cost then asked for mana at level 5. The levels past the base's own data are now written too.
+- **Open in World Editor, maps of a platform client:** a map that still declares the natives of its platform client (JN, KK, JAPI, YDWE) cannot be saved in the World Editor 3.0, because JassHelper refuses each of them. The report now says so, and that the map needs Port to Reforged first, then Open in World Editor on the ported map.
+- **Port to Reforged, opening the ported map in the World Editor:** the ported map keeps what the game reads, not the World Editor's files, so the editor refuses to open it. The port report now says to run Open in World Editor on the ported map and open that copy instead.
+
 ## 2.5.0 (2026-11-19)
 
 ### New
