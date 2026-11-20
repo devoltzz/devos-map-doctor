@@ -13,6 +13,7 @@ INT_TYPES = frozenset(('bool', 'int', 'attackBits', 'channelFlags', 'channelType
                        'spellDetail', 'stackFlags', 'teamColor', 'versionFlags', 'techAvail'))
 USE = {'unit': ('useunit', 'usehero', 'usebuilding', 'usecreep'), 'item': ('useitem',), 'ability': ()}
 RX_LEVEL = re.compile(r'^(.*?)(\d+)$')
+RX_EFFECT_KEY = re.compile(r'^(?:missile|caster|effect|target|special|areaeffect)art$|^effectsound(?:looped)?$')
 
 
 def _objetos():
@@ -266,7 +267,9 @@ def _mods_of(species, cols, meta, row, cru_row, base_row, base_cru, rep, code=No
                 btext = theirs[idx] if idx < len(theirs) else ''
             tipo = _tipo(mtype, part)
             if base_row is not None and _equal(part, btext, tipo):
-                continue
+                if not (levels is not None and level > _levels(base_row, None) and (btext is None or btext == '')
+                        and level >= 2):
+                    continue
             out.append((code, tipo, level, data, _value(tipo, part, (meta[code].get('slk') or '') == 'Profile')))
     final = []
     taken = set()
@@ -373,6 +376,9 @@ def convert(read, names, species, base, w3i=None, progress=None, complete=False,
                 rep['parent_columns'] += total
                 if parent is None:
                     continue
+            if complete and species == 'ability':
+                row = dict(dict((c, '') for c in sorted(base_cru.get(parent) or {}) if RX_EFFECT_KEY.match(c)),
+                           **row)
             mods = _mods_of(species, cols, meta, row, cru.get(rid), base_tab[parent], base_cru.get(parent), rep,
                             parent)
             objs.append((1, parent, rid, mods))
