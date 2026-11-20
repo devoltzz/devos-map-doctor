@@ -3555,5 +3555,12 @@
  "Encrypted files of an xmload map (no game.pkg): \"Fix map\" opens its Lua modules, models and textures in place and puts the real script back.": "Arquivos criptografados de um mapa xmload (sem game.pkg): \"Consertar mapa\" abre seus módulos Lua, modelos e texturas no lugar e coloca o script de verdade de volta.",
  "Its Lua modules, models and textures become normal files in place.": "Seus módulos Lua, modelos e texturas viram arquivos normais no lugar.",
  "Open the encrypted xmload files": "Abrir os arquivos criptografados do xmload",
- "Opened the encrypted xmload files: {0} in place{1}.": "Arquivos criptografados do xmload abertos: {0} no lugar{1}."
+ "Opened the encrypted xmload files: {0} in place{1}.": "Arquivos criptografados do xmload abertos: {0} no lugar{1}.",
+ "Comparing the pictures with the game's": "Comparando as imagens com as do jogo",
+ "Comparing the pictures with the game's...": "Comparando as imagens com as do jogo...",
+ "Trig_": "Trig_",
+ "The script declares {0} that Reforged does not have ({1}{2}): the natives of the map's platform client. The World Editor 3.0 refuses to save it (\"unregistered native function\"). Run Port to Reforged on the map first, then Open in World Editor on the ported map, and save that copy.": "O script declara {0} que o Reforged não tem ({1}{2}): os natives do cliente da plataforma do mapa. O World Editor 3.0 se recusa a salvá-lo (\"unregistered native function\"). Execute primeiro Portar para o Reforged no mapa, depois Abrir no World Editor no mapa portado, e salve essa cópia.",
+ "World Editor: the ported map does not open in the World Editor as it is (no {0}). To edit it, run Open in World Editor on the ported map, then open the copy it saves (_editor) in the World Editor.": "World Editor: o mapa portado não abre no World Editor do jeito que está (sem {0}). Para editá-lo, execute Abrir no World Editor no mapa portado e abra no World Editor a cópia que ele salva (_editor).",
+ "{0} images stayed: they are the map's own art under a game file's name (their picture is not the game's) ({1}).": "{0} imagens ficaram: são a arte própria do mapa com o nome de um arquivo do jogo (a imagem delas não é a do jogo) ({1}).",
+ "{0} local(s) l__X of the trigger functions named X again, which JassHelper renames back; pjass: {1}": "{0} local(is) l__X das funções de gatilho chamadas X de novo, que o JassHelper renomeia de volta; pjass: {1}"
 }
