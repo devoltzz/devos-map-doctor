@@ -3554,5 +3554,12 @@
  "Encrypted files of an xmload map (no game.pkg): \"Fix map\" opens its Lua modules, models and textures in place and puts the real script back.": "xmload 地图的加密文件（没有 game.pkg）：“修复地图”会就地打开其 Lua 模块、模型和贴图，并把真正的脚本放回去。",
  "Its Lua modules, models and textures become normal files in place.": "其 Lua 模块、模型和贴图会就地变为普通文件。",
  "Open the encrypted xmload files": "打开加密的 xmload 文件",
- "Opened the encrypted xmload files: {0} in place{1}.": "已打开加密的 xmload 文件：就地处理 {0}{1}。"
+ "Opened the encrypted xmload files: {0} in place{1}.": "已打开加密的 xmload 文件：就地处理 {0}{1}。",
+ "Comparing the pictures with the game's": "正在将图片与游戏自带的进行比较",
+ "Comparing the pictures with the game's...": "正在将图片与游戏自带的进行比较...",
+ "Trig_": "Trig_",
+ "The script declares {0} that Reforged does not have ({1}{2}): the natives of the map's platform client. The World Editor 3.0 refuses to save it (\"unregistered native function\"). Run Port to Reforged on the map first, then Open in World Editor on the ported map, and save that copy.": "脚本声明了 {0} 个 Reforged 没有的 native（{1}{2}）：即地图平台客户端的 native。World Editor 3.0 拒绝保存（\"unregistered native function\"）。请先对该地图运行“移植到 Reforged”，再对移植后的地图运行“在 World Editor 中打开”，并保存该副本。",
+ "World Editor: the ported map does not open in the World Editor as it is (no {0}). To edit it, run Open in World Editor on the ported map, then open the copy it saves (_editor) in the World Editor.": "World Editor：移植后的地图无法直接在 World Editor 中打开（没有 {0}）。要编辑它，请对移植后的地图运行“在 World Editor 中打开”，然后在 World Editor 中打开它保存的副本（_editor）。",
+ "{0} images stayed: they are the map's own art under a game file's name (their picture is not the game's) ({1}).": "{0} 张图片被保留：它们是地图自己的美术资源，只是用了游戏文件的名称（其画面与游戏自带的不同）（{1}）。",
+ "{0} local(s) l__X of the trigger functions named X again, which JassHelper renames back; pjass: {1}": "触发器函数中有 {0} 个局部变量 l__X 又被命名为 X，JassHelper 会将其改回；pjass：{1}"
 }
