@@ -76,6 +76,69 @@ def _game_forms(fname):
     return []
 
 
+PICTURE_SIDE = 32
+PICTURE_LIMIT = 10.0
+
+
+def _picture(data_bytes, fname):
+    import io
+    from PIL import Image
+    try:
+        if data_bytes[:4] == b'DDS ' or os.path.splitext(fname)[1].lower() in ('.dds', '.tga'):
+            im = Image.open(io.BytesIO(data_bytes))
+            im.load()
+        else:
+            from doctor.models import blpread
+            im, _info = blpread.read_bytes(data_bytes)
+        im = im.convert('RGBA').resize((PICTURE_SIDE, PICTURE_SIDE))
+    except Exception:
+        return None
+    px = []
+    for r, gr, b, al in im.getdata():
+        px.append((r * al // 255, gr * al // 255, b * al // 255, al))
+    return px
+
+
+def picture_difference(mine, game, map_file_name='', game_file_name=''):
+    a = _picture(mine, map_file_name)
+    b = _picture(game, game_file_name)
+    if a is None or b is None:
+        return None
+    total = 0
+    for p, q in zip(a, b):
+        total += abs(p[0] - q[0]) + abs(p[1] - q[1]) + abs(p[2] - q[2]) + abs(p[3] - q[3])
+    return total / (4.0 * len(a))
+
+
+def own_art(a, name_list, g):
+    from doctor.fix import unprotect
+    have = g.names()
+    own = []
+    for n in name_list:
+        if os.path.splitext(n)[1].lower() not in IMAGE_EXTS or classe(n) == 'ui':
+            continue
+        mine = unprotect._read(a, n)
+        if not mine:
+            continue
+        game = None
+        for f in _game_forms(n):
+            if f in have:
+                game = g.read(f)
+                if game:
+                    break
+        if not game:
+            continue
+        d = picture_difference(mine, game, n, f)
+        if d is not None and d > PICTURE_LIMIT:
+            own.append(n)
+    return own
+
+
+def kept_line(name_list):
+    return '%d images stayed: they are the map\'s own art under a game file\'s name (their picture is not the ' \
+           'game\'s) (%s).' % (len(name_list), ', '.join('%s %d' % (f, n) for f, n in count_by_folder(name_list)[:4]))
+
+
 def _all_modes(fname, g):
     try:
         from doctor.fix import gfx_modes
@@ -149,15 +212,30 @@ def fix(entry, output, progress=None, casc=None, scope='all'):
     if r.get('error'):
         res['error'] = r['error']
         return res
+    own = []
     if scope == 'identical':
         name_list = list(r.get('identical') or [])
     else:
         name_list = [n for n in r['files'] if scope != 'ui' or classe(n) == 'ui']
+        if scope == 'all' and name_list:
+            from doctor.fix import game_paths
+            p('Comparing the pictures with the game\'s')
+            a0, _err = model_check._open(entry)
+            g = game_paths.open_game(casc)
+            if a0 is not None and g is not None:
+                own = own_art(a0, name_list, g)
+            del a0
+            outside = set(own)
+            name_list = [n for n in name_list if n not in outside]
+    res['kept'] = len(own)
+    res['kept_folders'] = count_by_folder(own)[:6]
     if not name_list:
         res['state'] = 'nothing_to_do'
         res['reason'] = ('The map has no file that is a byte-for-byte copy of a game file.' if scope == 'identical' else
                          'The map has no UI file with the path of a game file.' if scope == 'ui' else
                          'The map has no file with the path of a game file.')
+        if own:
+            res['reason'] = kept_line(own)
         return res
     a, err = model_check._open(entry)
     if a is None:
@@ -207,4 +285,6 @@ def fix(entry, output, progress=None, casc=None, scope='all'):
             ', '.join('%s %d' % (f, n) for f, n in res['folders'][:4]),
         )
     ]
+    if own:
+        res['lines'].append(kept_line(own))
     return res
