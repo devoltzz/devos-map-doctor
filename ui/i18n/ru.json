@@ -3554,5 +3554,12 @@
  "Encrypted files of an xmload map (no game.pkg): \"Fix map\" opens its Lua modules, models and textures in place and puts the real script back.": "Зашифрованные файлы карты xmload (без game.pkg): «Починить карту» открывает её модули Lua, модели и текстуры на месте и возвращает настоящий скрипт.",
  "Its Lua modules, models and textures become normal files in place.": "Её модули Lua, модели и текстуры становятся обычными файлами на месте.",
  "Open the encrypted xmload files": "Открыть зашифрованные файлы xmload",
- "Opened the encrypted xmload files: {0} in place{1}.": "Зашифрованные файлы xmload открыты: {0} на месте{1}."
+ "Opened the encrypted xmload files: {0} in place{1}.": "Зашифрованные файлы xmload открыты: {0} на месте{1}.",
+ "Comparing the pictures with the game's": "Сравнение картинок с игровыми",
+ "Comparing the pictures with the game's...": "Сравнение картинок с игровыми...",
+ "Trig_": "Trig_",
+ "The script declares {0} that Reforged does not have ({1}{2}): the natives of the map's platform client. The World Editor 3.0 refuses to save it (\"unregistered native function\"). Run Port to Reforged on the map first, then Open in World Editor on the ported map, and save that copy.": "Скрипт объявляет {0}, которых нет в Reforged ({1}{2}): нативные функции клиента платформы карты. World Editor 3.0 отказывается его сохранять (\"unregistered native function\"). Сначала запустите «Портировать на Reforged» для карты, затем «Открыть в World Editor» для портированной карты и сохраните эту копию.",
+ "World Editor: the ported map does not open in the World Editor as it is (no {0}). To edit it, run Open in World Editor on the ported map, then open the copy it saves (_editor) in the World Editor.": "World Editor: портированная карта не открывается в World Editor как есть (нет {0}). Чтобы её редактировать, запустите «Открыть в World Editor» для портированной карты, затем откройте сохранённую копию (_editor) в World Editor.",
+ "{0} images stayed: they are the map's own art under a game file's name (their picture is not the game's) ({1}).": "Осталось изображений: {0}. Это собственная графика карты под именем игрового файла (их картинка не игровая) ({1}).",
+ "{0} local(s) l__X of the trigger functions named X again, which JassHelper renames back; pjass: {1}": "{0} локальных l__X функций триггеров снова названы X, и JassHelper переименовывает их обратно; pjass: {1}"
 }
