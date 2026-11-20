@@ -3554,5 +3554,12 @@
  "Encrypted files of an xmload map (no game.pkg): \"Fix map\" opens its Lua modules, models and textures in place and puts the real script back.": "xmload 맵의 암호화된 파일(game.pkg 없음): \"맵 수정\"이 Lua 모듈, 모델, 텍스처를 그 자리에서 열고 실제 스크립트를 복원합니다.",
  "Its Lua modules, models and textures become normal files in place.": "Lua 모듈, 모델, 텍스처가 그 자리에서 일반 파일이 됩니다.",
  "Open the encrypted xmload files": "암호화된 xmload 파일 열기",
- "Opened the encrypted xmload files: {0} in place{1}.": "암호화된 xmload 파일을 열었습니다: {0}개를 그 자리에서{1}."
+ "Opened the encrypted xmload files: {0} in place{1}.": "암호화된 xmload 파일을 열었습니다: {0}개를 그 자리에서{1}.",
+ "Comparing the pictures with the game's": "이미지를 게임의 것과 비교하는 중",
+ "Comparing the pictures with the game's...": "이미지를 게임의 것과 비교하는 중...",
+ "Trig_": "Trig_",
+ "The script declares {0} that Reforged does not have ({1}{2}): the natives of the map's platform client. The World Editor 3.0 refuses to save it (\"unregistered native function\"). Run Port to Reforged on the map first, then Open in World Editor on the ported map, and save that copy.": "스크립트가 Reforged에 없는 {0}을(를) 선언합니다 ({1}{2}): 맵 플랫폼 클라이언트의 native입니다. World Editor 3.0은 저장을 거부합니다 (\"unregistered native function\"). 먼저 맵에서 Reforged로 포팅을 실행한 다음, 포팅된 맵에서 월드 에디터에서 열기를 실행하고 그 복사본을 저장하세요.",
+ "World Editor: the ported map does not open in the World Editor as it is (no {0}). To edit it, run Open in World Editor on the ported map, then open the copy it saves (_editor) in the World Editor.": "World Editor: 포팅된 맵은 그대로는 World Editor에서 열리지 않습니다 ({0} 없음). 편집하려면 포팅된 맵에서 월드 에디터에서 열기를 실행한 다음, 저장된 복사본(_editor)을 World Editor에서 여세요.",
+ "{0} images stayed: they are the map's own art under a game file's name (their picture is not the game's) ({1}).": "이미지 {0}개가 남았습니다: 게임 파일 이름을 쓰는 맵 자체의 아트입니다 (그림이 게임의 것이 아닙니다) ({1}).",
+ "{0} local(s) l__X of the trigger functions named X again, which JassHelper renames back; pjass: {1}": "트리거 함수의 로컬 l__X {0}개가 다시 X로 명명되며, JassHelper가 이를 되돌려 이름을 바꿉니다; pjass: {1}"
 }
