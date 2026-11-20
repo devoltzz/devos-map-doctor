@@ -3554,5 +3554,12 @@
  "Encrypted files of an xmload map (no game.pkg): \"Fix map\" opens its Lua modules, models and textures in place and puts the real script back.": "xmloadマップ(game.pkgなし)の暗号化されたファイル: 「マップを修正」をクリックすると、Luaモジュール、モデル、テクスチャがその場で開かれ、本物のスクリプトが元に戻ります。",
  "Its Lua modules, models and textures become normal files in place.": "Luaモジュール、モデル、テクスチャがその場で通常のファイルになります。",
  "Open the encrypted xmload files": "暗号化されたxmloadファイルを開く",
- "Opened the encrypted xmload files: {0} in place{1}.": "暗号化されたxmloadファイルを開きました: {0}をその場で{1}。"
+ "Opened the encrypted xmload files: {0} in place{1}.": "暗号化されたxmloadファイルを開きました: {0}をその場で{1}。",
+ "Comparing the pictures with the game's": "ゲームの画像と比較中",
+ "Comparing the pictures with the game's...": "ゲームの画像と比較中...",
+ "Trig_": "Trig_",
+ "The script declares {0} that Reforged does not have ({1}{2}): the natives of the map's platform client. The World Editor 3.0 refuses to save it (\"unregistered native function\"). Run Port to Reforged on the map first, then Open in World Editor on the ported map, and save that copy.": "スクリプトが、Reforgedにないネイティブ関数を{0}個宣言しています({1}{2}): マッププラットフォームのクライアントのネイティブ関数です。World Editor 3.0は保存を拒否します(\"unregistered native function\")。先にマップに対して「Reforgedへ移植」を実行し、次に移植したマップで「ワールドエディターで開く」を実行して、そのコピーを保存してください。",
+ "World Editor: the ported map does not open in the World Editor as it is (no {0}). To edit it, run Open in World Editor on the ported map, then open the copy it saves (_editor) in the World Editor.": "World Editor: 移植したマップはそのままではWorld Editorで開けません({0}がありません)。編集するには、移植したマップで「ワールドエディターで開く」を実行し、保存されたコピー(_editor)をWorld Editorで開いてください。",
+ "{0} images stayed: they are the map's own art under a game file's name (their picture is not the game's) ({1}).": "ゲームのファイル名を持つ画像が{0}個残っています: マップ独自のアートです(画像はゲームのものではありません)({1})。",
+ "{0} local(s) l__X of the trigger functions named X again, which JassHelper renames back; pjass: {1}": "トリガー関数のローカル変数l__Xのうち{0}個が再びXという名前になっています。JassHelperが元の名前に戻します; pjass: {1}"
 }
