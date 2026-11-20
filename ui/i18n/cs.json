@@ -3554,5 +3554,12 @@
  "Encrypted files of an xmload map (no game.pkg): \"Fix map\" opens its Lua modules, models and textures in place and puts the real script back.": "Zašifrované soubory mapy xmload (bez game.pkg): \"Opravit mapu\" otevře její moduly Lua, modely a textury přímo na místě a vrátí skutečný skript.",
  "Its Lua modules, models and textures become normal files in place.": "Její moduly Lua, modely a textury se na místě stanou běžnými soubory.",
  "Open the encrypted xmload files": "Otevřít zašifrované soubory xmload",
- "Opened the encrypted xmload files: {0} in place{1}.": "Zašifrované soubory xmload byly otevřeny: {0} na místě{1}."
+ "Opened the encrypted xmload files: {0} in place{1}.": "Zašifrované soubory xmload byly otevřeny: {0} na místě{1}.",
+ "Comparing the pictures with the game's": "Porovnávání obrázků s obrázky hry",
+ "Comparing the pictures with the game's...": "Porovnávání obrázků s obrázky hry...",
+ "Trig_": "Trig_",
+ "The script declares {0} that Reforged does not have ({1}{2}): the natives of the map's platform client. The World Editor 3.0 refuses to save it (\"unregistered native function\"). Run Port to Reforged on the map first, then Open in World Editor on the ported map, and save that copy.": "Skript deklaruje {0}, které Reforged nemá ({1}{2}): nativní funkce klienta platformy mapy. World Editor 3.0 ji odmítne uložit (\"unregistered native function\"). Nejprve na mapě spusťte Portovat na Reforged, poté na portované mapě Otevřít ve World Editoru a uložte tu kopii.",
+ "World Editor: the ported map does not open in the World Editor as it is (no {0}). To edit it, run Open in World Editor on the ported map, then open the copy it saves (_editor) in the World Editor.": "World Editor: portovaná mapa se ve World Editoru tak, jak je, neotevře (chybí {0}). Pro úpravy na portované mapě spusťte Otevřít ve World Editoru a poté ve World Editoru otevřete kopii, kterou uloží (_editor).",
+ "{0} images stayed: they are the map's own art under a game file's name (their picture is not the game's) ({1}).": "Obrázků zůstalo: {0}. Jde o vlastní grafiku mapy pod názvem herního souboru (jejich obrázek není z hry) ({1}).",
+ "{0} local(s) l__X of the trigger functions named X again, which JassHelper renames back; pjass: {1}": "Lokálních proměnných l__X funkcí triggerů pojmenovaných znovu X: {0}, které JassHelper přejmenuje zpět; pjass: {1}"
 }
