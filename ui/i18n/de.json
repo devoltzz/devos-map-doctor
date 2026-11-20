@@ -3554,5 +3554,12 @@
  "Encrypted files of an xmload map (no game.pkg): \"Fix map\" opens its Lua modules, models and textures in place and puts the real script back.": "Verschlüsselte Dateien einer xmload-Karte (ohne game.pkg): \"Karte reparieren\" öffnet ihre Lua-Module, Modelle und Texturen an Ort und Stelle und setzt das echte Skript wieder ein.",
  "Its Lua modules, models and textures become normal files in place.": "Ihre Lua-Module, Modelle und Texturen werden an Ort und Stelle zu normalen Dateien.",
  "Open the encrypted xmload files": "Die verschlüsselten xmload-Dateien öffnen",
- "Opened the encrypted xmload files: {0} in place{1}.": "Die verschlüsselten xmload-Dateien wurden geöffnet: {0} an Ort und Stelle{1}."
+ "Opened the encrypted xmload files: {0} in place{1}.": "Die verschlüsselten xmload-Dateien wurden geöffnet: {0} an Ort und Stelle{1}.",
+ "Comparing the pictures with the game's": "Bilder werden mit denen des Spiels verglichen",
+ "Comparing the pictures with the game's...": "Bilder werden mit denen des Spiels verglichen...",
+ "Trig_": "Trig_",
+ "The script declares {0} that Reforged does not have ({1}{2}): the natives of the map's platform client. The World Editor 3.0 refuses to save it (\"unregistered native function\"). Run Port to Reforged on the map first, then Open in World Editor on the ported map, and save that copy.": "Das Skript deklariert {0}, die Reforged nicht hat ({1}{2}): die Natives des Plattform-Clients der Karte. Der World Editor 3.0 weigert sich, es zu speichern (\"unregistered native function\"). Führe zuerst Auf Reforged portieren für die Karte aus, dann Im World Editor öffnen für die portierte Karte, und speichere diese Kopie.",
+ "World Editor: the ported map does not open in the World Editor as it is (no {0}). To edit it, run Open in World Editor on the ported map, then open the copy it saves (_editor) in the World Editor.": "World Editor: Die portierte Karte lässt sich nicht unverändert im World Editor öffnen (kein {0}). Um sie zu bearbeiten, führe Im World Editor öffnen für die portierte Karte aus und öffne dann die gespeicherte Kopie (_editor) im World Editor.",
+ "{0} images stayed: they are the map's own art under a game file's name (their picture is not the game's) ({1}).": "{0} Bilder blieben erhalten: Es ist die eigene Grafik der Karte unter dem Namen einer Spieldatei (ihr Bild ist nicht das des Spiels) ({1}).",
+ "{0} local(s) l__X of the trigger functions named X again, which JassHelper renames back; pjass: {1}": "{0} Lokale(s) l__X der Trigger-Funktionen heißen wieder X, was JassHelper zurückbenennt; pjass: {1}"
 }
