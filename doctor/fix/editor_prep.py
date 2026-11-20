@@ -848,6 +848,18 @@ def memory_reforged(body_text, log=print):
     return new, done
 
 
+RX_DECLARED_NATIVE = re.compile(r'(?m)^[ \t]*(?:constant[ \t]+)?native[ \t]+([A-Za-z]\w*)')
+
+
+def natives_outside_game(body_text):
+    try:
+        from doctor.fix import editor_version
+        game = editor_version.game_names(None)
+    except Exception:
+        return []
+    return sorted(set(RX_DECLARED_NATIVE.findall(body_text or '')) - set(game))
+
+
 PRAGMA_ON, PRAGMA_OFF ='//# +nosemanticerror', '//# -nosemanticerror'
 
 
@@ -1005,6 +1017,7 @@ def prepare(entry, output, extra_names=(), log=print, method='attach', safe_unit
             body_text, details['jassnative'] = editor_version.without_jassnative_mark(body_text)
         else:
             body_text, details['memory_hacks'] = memory_reforged(body_text, log)
+            details['declared_platform_natives'] = natives_outside_game(body_text)
             details['kept_locals'] = []
             body_text, details['renamed_locals'] = locals_without_clash(body_text, log, kept=details['kept_locals'])
     expected_len = body_text
