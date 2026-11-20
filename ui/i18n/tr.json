@@ -3553,5 +3553,12 @@
  "Encrypted files of an xmload map (no game.pkg): \"Fix map\" opens its Lua modules, models and textures in place and puts the real script back.": "Bir xmload haritasının şifreli dosyaları (game.pkg yok): \"Haritayı onar\" Lua modüllerini, modellerini ve dokularını yerinde açar ve gerçek script'i geri koyar.",
  "Its Lua modules, models and textures become normal files in place.": "Lua modülleri, modelleri ve dokuları yerinde normal dosyalara dönüşür.",
  "Open the encrypted xmload files": "Şifreli xmload dosyalarını aç",
- "Opened the encrypted xmload files: {0} in place{1}.": "Şifreli xmload dosyaları açıldı: {0} yerinde{1}."
+ "Opened the encrypted xmload files: {0} in place{1}.": "Şifreli xmload dosyaları açıldı: {0} yerinde{1}.",
+ "Comparing the pictures with the game's": "Resimler oyunun resimleriyle karşılaştırılıyor",
+ "Comparing the pictures with the game's...": "Resimler oyunun resimleriyle karşılaştırılıyor...",
+ "Trig_": "Trig_",
+ "The script declares {0} that Reforged does not have ({1}{2}): the natives of the map's platform client. The World Editor 3.0 refuses to save it (\"unregistered native function\"). Run Port to Reforged on the map first, then Open in World Editor on the ported map, and save that copy.": "Script, Reforged'da bulunmayan {0} bildiriyor ({1}{2}): haritanın platform istemcisinin native'leri. World Editor 3.0 bunu kaydetmeyi reddeder (\"unregistered native function\"). Önce haritada Reforged'a port et'i çalıştırın, sonra port edilmiş haritada World Editor'da aç'ı çalıştırın ve o kopyayı kaydedin.",
+ "World Editor: the ported map does not open in the World Editor as it is (no {0}). To edit it, run Open in World Editor on the ported map, then open the copy it saves (_editor) in the World Editor.": "World Editor: port edilmiş harita World Editor'da olduğu gibi açılmaz ({0} yok). Düzenlemek için port edilmiş haritada World Editor'da aç'ı çalıştırın, ardından kaydettiği kopyayı (_editor) World Editor'da açın.",
+ "{0} images stayed: they are the map's own art under a game file's name (their picture is not the game's) ({1}).": "{0} resim kaldı: bunlar bir oyun dosyasının adını taşıyan haritanın kendi görselleri (resimleri oyunun resmi değil) ({1}).",
+ "{0} local(s) l__X of the trigger functions named X again, which JassHelper renames back; pjass: {1}": "Trigger fonksiyonlarının {0} adet l__X yereli yine X olarak adlandırıldı, JassHelper bunları geri adlandırır; pjass: {1}"
 }
