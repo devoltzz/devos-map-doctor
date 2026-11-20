@@ -523,11 +523,30 @@ def game_files_step(out, progress, remove):
     if not remove:
         return [['warn', '%d file(s) of the map replace the game\'s own (%s). If the game crashes on this map, port it '
                          'again with "Remove map files that replace the game\'s own".' % (len(names), folders)]]
+    kept = []
+    try:
+        from doctor.fix import game_paths
+        from doctor.models import model_check
+        progress('Comparing the pictures with the game\'s...')
+        a, _err = model_check._open(out)
+        g = game_paths.open_game()
+        if a is not None and g is not None:
+            kept = game_files.own_art(a, names, g)
+        del a
+    except Exception:
+        kept = []
+    if kept:
+        fora = set(kept)
+        names = [x for x in names if x not in fora]
+        folders = ', '.join('%s %d' % (f, n) for f, n in game_files.count_by_folder(names)[:4])
+    lines = [['info', game_files.kept_line(kept)]] if kept else []
+    if not names:
+        return lines
     try:
         n = game_files.remove(out, names)
     except Exception as e:
-        return [['warn', 'The game\'s own files were not removed: %s: %s' % (type(e).__name__, e)]]
-    return [['good', 'Removed %d file(s) that replaced the game\'s own (%s).' % (n, folders)]]
+        return lines + [['warn', 'The game\'s own files were not removed: %s: %s' % (type(e).__name__, e)]]
+    return [['good', 'Removed %d file(s) that replaced the game\'s own (%s).' % (n, folders)]] + lines
 
 
 def run_action(D, G, job, path, task, progress, emit):
@@ -672,6 +691,11 @@ def run_port(D, G, path, progress, emit, packages=(), memory=True, icons=False, 
         lines += game_files_step(r['output'], progress, game_files)
     if ported and strip_indent:
         lines += strip_indent_step(r['output'], progress)
+    if ported:
+        editor = editor_hint(r['output'])
+        if editor:
+            lines.append(['info', editor])
+            append_report(report, [editor])
     return {'lines': lines, 'file': r.get('output') if ported else None, 'report': report,
             'outcome': 'ok' if ported else 'failed',
             'port': {'g1': r.get('g1'), 'g2': r.get('g2'), 'stubs': [page_stub(s) for s in r.get('stubs') or []],
@@ -697,6 +721,27 @@ def b0_step(path, work, on, progress):
     r = b0_port.run(path, prepared, progress=progress)
     done = (r.get('prepare') or {}).get('state') == 'done'
     return (prepared if done else path), r['report']['lines']
+
+
+EDITOR_FILES = ('war3map.wtg', 'war3mapUnits.doo')
+
+
+def editor_hint(out):
+    try:
+        from doctor.fix import unprotect
+        from doctor.models import model_check
+        a, _err = model_check._open(out)
+        if a is None:
+            return None
+        missing = [n for n in EDITOR_FILES if unprotect._read(a, n) is None]
+        del a
+    except Exception:
+        return None
+    if not missing:
+        return None
+    return ('World Editor: the ported map does not open in the World Editor as it is (no %s). To edit it, run Open '
+            'in World Editor on the ported map, then open the copy it saves (_editor) in the World Editor.'
+            % ', '.join(missing))
 
 
 def append_report(report, lines):
@@ -1287,6 +1332,7 @@ TOOLS = {
 
 def _warm_up():
     try:
+        from doctor.fix import unprotect
         from doctor.viewers import map_files
         from doctor.app import job_progress
     except Exception:
