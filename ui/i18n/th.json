@@ -3553,5 +3553,12 @@
  "Encrypted files of an xmload map (no game.pkg): \"Fix map\" opens its Lua modules, models and textures in place and puts the real script back.": "ไฟล์เข้ารหัสของแมพ xmload (ไม่มี game.pkg): \"ซ่อมแมพ\" จะเปิดโมดูล Lua โมเดล และเท็กซ์เจอร์ในที่เดิม และคืนสคริปต์จริงกลับมา",
  "Its Lua modules, models and textures become normal files in place.": "โมดูล Lua โมเดล และเท็กซ์เจอร์ของมันจะกลายเป็นไฟล์ปกติในที่เดิม",
  "Open the encrypted xmload files": "เปิดไฟล์ xmload ที่เข้ารหัส",
- "Opened the encrypted xmload files: {0} in place{1}.": "เปิดไฟล์ xmload ที่เข้ารหัสแล้ว: {0} ในที่เดิม{1}"
+ "Opened the encrypted xmload files: {0} in place{1}.": "เปิดไฟล์ xmload ที่เข้ารหัสแล้ว: {0} ในที่เดิม{1}",
+ "Comparing the pictures with the game's": "กำลังเปรียบเทียบรูปภาพกับของเกม",
+ "Comparing the pictures with the game's...": "กำลังเปรียบเทียบรูปภาพกับของเกม...",
+ "Trig_": "Trig_",
+ "The script declares {0} that Reforged does not have ({1}{2}): the natives of the map's platform client. The World Editor 3.0 refuses to save it (\"unregistered native function\"). Run Port to Reforged on the map first, then Open in World Editor on the ported map, and save that copy.": "สคริปต์ประกาศ {0} ที่ Reforged ไม่มี ({1}{2}): native ของไคลเอนต์แพลตฟอร์มของแมพ World Editor 3.0 ปฏิเสธการเซฟ (\"unregistered native function\") ให้รัน พอร์ตไปยัง Reforged กับแมพก่อน แล้วรัน เปิดใน World Editor บนแมพที่พอร์ตแล้ว และเซฟสำเนานั้น",
+ "World Editor: the ported map does not open in the World Editor as it is (no {0}). To edit it, run Open in World Editor on the ported map, then open the copy it saves (_editor) in the World Editor.": "World Editor: แมพที่พอร์ตแล้วเปิดใน World Editor ตามสภาพเดิมไม่ได้ (ไม่มี {0}) หากต้องการแก้ไข ให้รัน เปิดใน World Editor บนแมพที่พอร์ตแล้ว จากนั้นเปิดสำเนาที่ถูกเซฟไว้ (_editor) ใน World Editor",
+ "{0} images stayed: they are the map's own art under a game file's name (their picture is not the game's) ({1}).": "รูปภาพ {0} รายการยังคงอยู่: เป็นงานภาพของแมพเองที่ใช้ชื่อไฟล์ของเกม (ภาพไม่ใช่ของเกม) ({1})",
+ "{0} local(s) l__X of the trigger functions named X again, which JassHelper renames back; pjass: {1}": "local l__X จำนวน {0} ตัวของฟังก์ชันทริกเกอร์ที่ชื่อ X อีกครั้ง ซึ่ง JassHelper จะเปลี่ยนชื่อกลับ; pjass: {1}"
 }
