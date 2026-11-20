@@ -3553,5 +3553,12 @@
  "Encrypted files of an xmload map (no game.pkg): \"Fix map\" opens its Lua modules, models and textures in place and puts the real script back.": "Các tệp đã mã hóa của bản đồ xmload (không có game.pkg): \"Sửa bản đồ\" mở các module Lua, mô hình và texture của nó tại chỗ và khôi phục script thật.",
  "Its Lua modules, models and textures become normal files in place.": "Các module Lua, mô hình và texture của nó trở thành tệp bình thường tại chỗ.",
  "Open the encrypted xmload files": "Mở các tệp xmload đã mã hóa",
- "Opened the encrypted xmload files: {0} in place{1}.": "Đã mở các tệp xmload đã mã hóa: {0} tại chỗ{1}."
+ "Opened the encrypted xmload files: {0} in place{1}.": "Đã mở các tệp xmload đã mã hóa: {0} tại chỗ{1}.",
+ "Comparing the pictures with the game's": "Đang so sánh hình ảnh với của game",
+ "Comparing the pictures with the game's...": "Đang so sánh hình ảnh với của game...",
+ "Trig_": "Trig_",
+ "The script declares {0} that Reforged does not have ({1}{2}): the natives of the map's platform client. The World Editor 3.0 refuses to save it (\"unregistered native function\"). Run Port to Reforged on the map first, then Open in World Editor on the ported map, and save that copy.": "Script khai báo {0} mà Reforged không có ({1}{2}): các native của client nền tảng của bản đồ. World Editor 3.0 từ chối lưu nó (\"unregistered native function\"). Hãy chạy Chuyển sang Reforged cho bản đồ trước, rồi Mở trong World Editor trên bản đồ đã chuyển, và lưu bản sao đó.",
+ "World Editor: the ported map does not open in the World Editor as it is (no {0}). To edit it, run Open in World Editor on the ported map, then open the copy it saves (_editor) in the World Editor.": "World Editor: bản đồ đã chuyển không mở được trong World Editor như hiện tại (không có {0}). Để chỉnh sửa, hãy chạy Mở trong World Editor trên bản đồ đã chuyển, rồi mở bản sao mà nó lưu (_editor) trong World Editor.",
+ "{0} images stayed: they are the map's own art under a game file's name (their picture is not the game's) ({1}).": "{0} hình ảnh được giữ lại: đó là tài nguyên đồ họa riêng của bản đồ mang tên tệp của game (hình của chúng không phải của game) ({1}).",
+ "{0} local(s) l__X of the trigger functions named X again, which JassHelper renames back; pjass: {1}": "{0} biến cục bộ l__X của các hàm trigger lại được đặt tên là X, mà JassHelper sẽ đổi tên lại; pjass: {1}"
 }
