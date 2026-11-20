@@ -20,7 +20,7 @@ if _restart:
     sys.exit(0)
 from doctor.fix import unprotect as D
 
-VERSION = '2.5.0'
+VERSION = '2.5.1'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -844,6 +844,22 @@ def editor_text(r):
                     (' (' + ', '.join(mem.get('names') or []) + ')') if mem.get('names') else '',
                     mem.get('casts') or 0,
                     (mem.get('neutral') or 0) + (mem.get('codes') or 0),
+                ),
+            )
+        )
+    nat = (r.get('editor') or {}).get('declared_platform_natives') or []
+    if nat:
+        out.append(
+            (
+                'warning',
+                '  - The script declares %s that Reforged does not have (%s%s): the natives of the map\'s '
+                'platform client. The World Editor 3.0 refuses to save it ("unregistered native '
+                'function"). Run Port to Reforged on the map first, then Open in World Editor on the '
+                'ported map, and save that copy.'
+                % (
+                    pluralize(len(nat), 'native', 'natives'),
+                    ', '.join(nat[:3]),
+                    ', and %d more' % (len(nat) - 3) if len(nat) > 3 else '',
                 ),
             )
         )
