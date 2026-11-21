@@ -109,6 +109,13 @@ def block_list(d, lay):
     return [struct.unpack_from('<4I', bt, i * 16) for i in range(lay['block_n'])]
 
 
+def _inflate(data_bytes):
+    try:
+        return zlib.decompress(data_bytes)
+    except zlib.error:
+        return zlib.decompress(data_bytes, -15)
+
+
 def decompress_zstd(raw, size):
     if not raw:
         return b''
@@ -131,7 +138,7 @@ def decompress_zstd(raw, size):
         mask = ch[0]
         try:
             if mask & 0x02:
-                out += zlib.decompress(ch[1:])
+                out += _inflate(ch[1:])
             elif mask & 0x08:
                 import bz2
                 out += bz2.decompress(ch[1:])
@@ -145,6 +152,8 @@ def decompress_zstd(raw, size):
 
 
 def find_pe(d, lay, progress=None):
+    cache = None
+    larger = None
     for i, (off, csize, size, flags) in enumerate(block_list(d, lay)):
         if flags & 0x00010000 or not size or size > 0x20000000:
             continue
@@ -152,9 +161,18 @@ def find_pe(d, lay, progress=None):
         if a + csize > len(d):
             continue
         pe = decompress_zstd(bytes(d[a:a + csize]), size)
-        if pe and pe[:2] == b'MZ':
-            return {'block_entry': i, 'pe': pe, 'sha256': hashlib.sha256(pe).hexdigest()}
-    return None
+        if not pe or len(pe) < 0x40 or pe[:2] != b'MZ':
+            continue
+        info = {'block_entry': i, 'pe': pe, 'sha256': hashlib.sha256(pe).hexdigest()}
+        if info['sha256'] in PROFILES:
+            return info
+        if cache is None:
+            cache = _cache_read()
+        if info['sha256'] in cache:
+            return info
+        if larger is None or len(pe) > len(larger['pe']):
+            larger = info
+    return larger
 
 
 def pe_sections(pe):
@@ -180,7 +198,7 @@ def pe_sections(pe):
 
 def kek_at_rva(pe, rva):
     for s in pe_sections(pe):
-        if s['va'] <= rva < s['va'] + max(s['rsize'], s['vsize']):
+        if s['rsize'] >= KEY_SIZE and s['va'] <= rva < s['va'] + s['rsize']:
             fo = s['rptr'] + (rva - s['va'])
             if fo + KEY_SIZE <= len(pe):
                 return pe[fo:fo + KEY_SIZE], fo
@@ -326,10 +344,12 @@ def record_count(d, lay, out_limit=None):
     pos = lay['record_count']
     end_pos = lay.get('end_pos', len(d))
     n = 0
+    previous = -1
     while pos + 12 <= end_pos:
         a, b, size = struct.unpack_from('<3I', d, pos)
-        if size < 0x1C or pos + 12 + size > end_pos:
+        if size < 0x1C or pos + 12 + size > end_pos or a < previous:
             return
+        previous = a
         yield a, b, size, pos + 12
         pos += 12 + size
         n += 1
