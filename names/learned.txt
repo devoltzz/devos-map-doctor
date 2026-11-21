@@ -9873,6 +9873,9 @@ ReplaceableTextures\CommandButtons\PASBloodDiamond.blp
 ReplaceableTextures\CommandButtons\PASBloodRed.blp
 ReplaceableTextures\CommandButtons\PASBlueFireHand.blp
 ReplaceableTextures\CommandButtons\PASBOSSRagnaros.blp
+replaceabletextures\commandbuttons\PASBTN--25.blp
+replaceabletextures\commandbuttons\PASbtn007.blp
+replaceabletextures\commandbuttons\PASbtn008.blp
 ReplaceableTextures\CommandButtons\PASBTNHellstoneGolem.blp
 ReplaceableTextures\CommandButtons\PASChainsOfTorment.blp
 ReplaceableTextures\CommandButtons\PAScharizard.blp
@@ -10738,6 +10741,66 @@ war3mapImported\Boss_thothan.mdx
 war3mapImported\Boss_thuhogiaphetich.mdx
 war3mapImported\Boss_tunglamthuhogia.mdx
 war3mapImported\BronzeDragon9.BLP
+war3mapImported\BTN---294.blp
+war3mapImported\BTN---295.blp
+war3mapImported\BTN---296.blp
+war3mapImported\BTN---296a.blp
+war3mapImported\BTN---297.blp
+war3mapImported\BTN---298.blp
+war3mapImported\BTN---299.blp
+war3mapImported\BTN---300.blp
+war3mapImported\BTN---301.blp
+war3mapImported\BTN---301a.blp
+war3mapImported\BTN---302.blp
+war3mapImported\BTN---304.blp
+war3mapImported\BTN---306.blp
+war3mapImported\BTN---310.blp
+war3mapImported\BTN---312.blp
+war3mapImported\BTN---314.blp
+war3mapImported\BTN---315.blp
+war3mapImported\BTN---316.blp
+war3mapImported\BTN---317.blp
+war3mapImported\BTN---318.blp
+war3mapImported\BTN---319.blp
+war3mapImported\BTN---320.blp
+war3mapImported\BTN---321.blp
+war3mapImported\BTN---322.blp
+war3mapImported\BTN---323.blp
+war3mapImported\BTN---324.blp
+war3mapImported\BTN---325.blp
+war3mapImported\BTN---326.blp
+war3mapImported\BTN---328.blp
+war3mapImported\BTN---329.blp
+war3mapImported\BTN---330.blp
+war3mapImported\BTN---331.blp
+war3mapImported\BTN---332.blp
+war3mapImported\BTN---ND08J.blp
+war3mapImported\BTN---ND09.blp
+war3mapImported\BTN---ND10.blp
+war3mapImported\BTN---ND11.blp
+war3mapImported\BTN---ND12.blp
+war3mapImported\BTN---ND13.blp
+war3mapImported\BTN---ND14.blp
+war3mapImported\BTN---ND15.blp
+war3mapImported\BTN---ND16.blp
+war3mapImported\BTN---ND17.blp
+war3mapImported\BTN---ND18.blp
+war3mapImported\BTN---ND19.blp
+war3mapImported\BTN---ND20.blp
+war3mapImported\BTN---ND21.blp
+war3mapImported\BTN---ND22.blp
+war3mapImported\BTN---ND24.blp
+war3mapImported\BTN---ND25.blp
+war3mapImported\BTN---ND26.blp
+war3mapImported\BTN---ND27.blp
+war3mapImported\BTN---NDBR.blp
+war3mapImported\BTN-JCXnew01.blp
+war3mapImported\BTN-JCXnew02.blp
+war3mapImported\BTN-JCXnew03.blp
+war3mapImported\BTN-JCXnew04.blp
+war3mapImported\BTN-JCXnew05.blp
+war3mapImported\BTN-JCXnew06.blp
+war3mapImported\BTN-JCXnew08.blp
 war3mapImported\BTNAzraelP.blp
 war3mapimported\btnbuff_phuphep_dangvan.blp
 war3mapimported\btnbutton_autonhat.blp
@@ -10808,6 +10871,122 @@ war3mapImported\by_wood_huoyanchongji_1_2_1.blp
 war3mapImported\by_wood_huoyanchongji_1_2_2.blp
 war3mapImported\Cantarella_Desert_kit01.blp
 war3mapImported\Cave-claw.blp
+war3mapImported\ch 01.mdx
+war3mapImported\ch 02.mdx
+war3mapImported\ch 03.mdx
+war3mapImported\ch 05.mdx
+war3mapImported\ch 06.mdx
+war3mapImported\ch 07.mdx
+war3mapImported\ch 08.mdx
+war3mapImported\ch 09.mdx
+war3mapImported\ch 10.mdx
+war3mapImported\ch 11.mdx
+war3mapImported\ch 12.mdx
+war3mapImported\ch 13.mdx
+war3mapImported\ch 14.mdx
+war3mapImported\CH13 01.blp
+war3mapImported\CH13 02.blp
+war3mapImported\CH13 03.blp
+war3mapImported\CH13 04.blp
+war3mapImported\CH13 05.blp
+war3mapImported\CH13 06.blp
+war3mapImported\CH13 07.blp
+war3mapImported\CH13 08.blp
+war3mapImported\CH14 01.blp
+war3mapImported\CH14 02.blp
+war3mapImported\CH14 03.blp
+war3mapImported\CH14 04.blp
+war3mapImported\CH14 05.blp
+war3mapImported\CH14 06.blp
+war3mapImported\CH14 07.blp
+war3mapImported\CH14 08.blp
+war3mapImported\CH_CRJH_00.blp
+war3mapImported\CH_CRJH_01.blp
+war3mapImported\CH_CRJH_02.blp
+war3mapImported\CH_CRJH_03.blp
+war3mapImported\CH_CRJH_04.blp
+war3mapImported\CH_CRJH_05.blp
+war3mapImported\CH_CRJH_06.blp
+war3mapImported\CH_CRJH_07.blp
+war3mapImported\CH_CRJH_08.blp
+war3mapImported\CH_CRJH_09.blp
+war3mapImported\CH_CRJH_10.blp
+war3mapImported\CH_GSWS_00.blp
+war3mapImported\CH_GSWS_01.blp
+war3mapImported\CH_GSWS_02.blp
+war3mapImported\CH_GSWS_03.blp
+war3mapImported\CH_GSWS_04.blp
+war3mapImported\CH_GSWS_05.blp
+war3mapImported\CH_GSWS_06.blp
+war3mapImported\CH_GSWS_07.blp
+war3mapImported\CH_GSWS_08.blp
+war3mapImported\CH_GSWS_09.blp
+war3mapImported\CH_GSWS_10.blp
+war3mapImported\CH_MDJH_00.blp
+war3mapImported\CH_MDJH_01.blp
+war3mapImported\CH_MDJH_02.blp
+war3mapImported\CH_MDJH_03.blp
+war3mapImported\CH_MDJH_04.blp
+war3mapImported\CH_MDJH_05.blp
+war3mapImported\CH_MDJH_06.blp
+war3mapImported\CH_MDJH_07.blp
+war3mapImported\CH_MDJH_08.blp
+war3mapImported\CH_MDJH_09.blp
+war3mapImported\CH_MDJH_10.blp
+war3mapImported\CH_QTSH_00.blp
+war3mapImported\CH_QTSH_01.blp
+war3mapImported\CH_QTSH_02.blp
+war3mapImported\CH_QTSH_03.blp
+war3mapImported\CH_QTSH_04.blp
+war3mapImported\CH_QTSH_05.blp
+war3mapImported\CH_QTSH_06.blp
+war3mapImported\CH_QTSH_07.blp
+war3mapImported\CH_QTSH_08.blp
+war3mapImported\CH_QTSH_09.blp
+war3mapImported\CH_QTSH_10.blp
+war3mapImported\CH_WWZZ_00.blp
+war3mapImported\CH_WWZZ_01.blp
+war3mapImported\CH_WWZZ_02.blp
+war3mapImported\CH_WWZZ_03.blp
+war3mapImported\CH_WWZZ_04.blp
+war3mapImported\CH_WWZZ_05.blp
+war3mapImported\CH_WWZZ_06.blp
+war3mapImported\CH_WWZZ_07.blp
+war3mapImported\CH_WWZZ_08.blp
+war3mapImported\CH_WWZZ_09.blp
+war3mapImported\CH_WWZZ_10.blp
+war3mapImported\CH_WZBF_00.blp
+war3mapImported\CH_WZBF_01.blp
+war3mapImported\CH_WZBF_02.blp
+war3mapImported\CH_WZBF_03.blp
+war3mapImported\CH_WZBF_04.blp
+war3mapImported\CH_WZBF_05.blp
+war3mapImported\CH_WZBF_06.blp
+war3mapImported\CH_WZBF_07.blp
+war3mapImported\CH_WZBF_08.blp
+war3mapImported\CH_WZBF_09.blp
+war3mapImported\CH_WZBF_10.blp
+war3mapImported\CH_ZHSH_00.blp
+war3mapImported\CH_ZHSH_01.blp
+war3mapImported\CH_ZHSH_02.blp
+war3mapImported\CH_ZHSH_03.blp
+war3mapImported\CH_ZHSH_04.blp
+war3mapImported\CH_ZHSH_05.blp
+war3mapImported\CH_ZHSH_06.blp
+war3mapImported\CH_ZHSH_07.blp
+war3mapImported\CH_ZHSH_08.blp
+war3mapImported\CH_ZHSH_09.blp
+war3mapImported\CH_ZHSH_10.blp
+war3mapImported\CH_ZSYW_00.blp
+war3mapImported\CH_ZSYW_01.blp
+war3mapImported\CH_ZSYW_02.blp
+war3mapImported\CH_ZSYW_03.blp
+war3mapImported\CH_ZSYW_04.blp
+war3mapImported\CH_ZSYW_05.blp
+war3mapImported\CH_ZSYW_06.blp
+war3mapImported\CH_ZSYW_07.blp
+war3mapImported\CH_ZSYW_08.blp
+war3mapImported\CH_ZSYW_09.blp
 war3mapImported\cominginclearly louder.mp3
 war3mapImported\cominginclearly.mp3
 war3mapImported\CoralofLife.blp
@@ -11690,10 +11869,15 @@ war3mapImported\KKSD\WyvernSpearMissile.mdx
 war3mapImported\KKSD\ZigguratFrostMissile.mdx
 war3mapImported\KKSD\ZigguratMissile.mdx
 war3mapImported\KKSD\ZombifyTarget.mdx
+war3mapImported\kkz5.blp
+war3mapImported\kkz6.blp
+war3mapImported\kkz7.blp
+war3mapImported\kkz8.blp
 war3mapImported\LDL_CS1.blp
 war3mapImported\LichKingBuilt.mp3
 war3mapImported\LichKingExecute.mp3
 war3mapImported\LichKingKTSummon.mp3
+war3mapImported\ljzuiq.mdx
 war3mapImported\Marine-FBP_chest_T_noweapon.mdx
 war3mapImported\Marine-FBP_foot_T.mdx
 war3mapImported\Marine-FBP_hua_noweapon.mdx
@@ -11718,6 +11902,14 @@ war3mapImported\nhiennnnn louder.mp3
 war3mapImported\nhiennnnn.mp3
 war3mapImported\NiceSoundEffect.mp3
 war3mapImported\NL_UI_JL_mapsVIP25.blp
+war3mapImported\nmsl01.blp
+war3mapImported\nmsl02.blp
+war3mapImported\nmsl03.blp
+war3mapImported\nmsl04.blp
+war3mapImported\nmsl05.blp
+war3mapImported\nmsl06.blp
+war3mapImported\nmsl07.blp
+war3mapImported\nmsl08.blp
 war3mapImported\NPC_bachtamdaonhan.mdx
 war3mapImported\NPC_chaunhattien.mdx
 war3mapImported\NPC_daluyen.mdx
@@ -11783,6 +11975,14 @@ war3mapImported\PS_W17D.blp
 war3mapImported\PS_W18D.blp
 war3mapImported\pumpkintdstart4.mp3
 war3mapImported\Puppets [WolSai].png
+war3mapImported\qndyh_00000.blp
+war3mapImported\qndyh_00001.blp
+war3mapImported\qndyh_00002.blp
+war3mapImported\qndyh_00003.blp
+war3mapImported\qndyh_00004.blp
+war3mapImported\qndyh_00005.blp
+war3mapImported\qndyh_00006.blp
+war3mapImported\qndyh_00007.blp
 war3mapImported\RagnarosBuilt.mp3
 war3mapImported\RB_BossBar.mdx
 war3mapImported\RB_BossHp.blp
@@ -12035,7 +12235,95 @@ war3mapImported\z_heduim_qq_qun_650151236_tt_ji_yin_ku_lv_se_genesaur_tt2.blp
 war3mapImported\z_solar_tt_zhiwu007_tt1.blp
 war3mapImported\[A1]Westhead1_PORTRAIT.mdx
 war3mapImported\[ake]war3ake.com - 5727081790362501190898653_0.blp
+war3mapImported\[a]202_PORTRAIT.mdx
+war3mapImported\[a]225_PORTRAIT.mdx
+war3mapImported\[a]421_PORTRAIT.mdx
+war3mapImported\[a]426.mdx
+war3mapImported\[A]43.mdx
+war3mapImported\[a]430.mdx
+war3mapImported\[A]433.mdx
+war3mapImported\[a]542.mdx
+war3mapImported\[a]543.mdx
+war3mapImported\[a]77_PORTRAIT.mdx
+war3mapImported\[a]94.mdx
+war3mapImported\[B]017.mdx
+war3mapImported\[B]023.MDX
+war3mapImported\[B]024.mdx
+war3mapImported\[B]027.mdx
+war3mapImported\[B]028.mdx
+war3mapImported\[B]032.MDX
+war3mapImported\[B]034.mdx
+war3mapImported\[B]035.mdx
+war3mapImported\[B]036.mdx
+war3mapImported\[B]037.mdx
+war3mapImported\[B]038.mdx
+war3mapImported\[b]039.mdx
+war3mapImported\[B]040.mdx
+war3mapImported\[B]041.MDX
+war3mapImported\[B]042.mdx
+war3mapImported\[B]044.mdx
+war3mapImported\[B]045.mdx
+war3mapImported\[B]046.mdx
+war3mapImported\[B]047.mdx
+war3mapImported\[B]048.mdx
+war3mapImported\[B]049.mdx
+war3mapImported\[B]050.mdx
+war3mapImported\[B]051.mdx
+war3mapImported\[B]052.MDX
+war3mapImported\[B]054.mdx
+war3mapImported\[B]057.mdx
+war3mapImported\[B]059.MDX
+war3mapImported\[C]001.MDX
+war3mapImported\[C]002-1.blp
+war3mapImported\[C]002-2.blp
+war3mapImported\[C]002-3.blp
+war3mapImported\[C]002-4.blp
+war3mapImported\[C]002-5.blp
+war3mapImported\[C]002-6.blp
+war3mapImported\[C]002-7.blp
+war3mapImported\[C]002-8.blp
+war3mapImported\[C]006.MDX
+war3mapImported\[C]007.MDX
+war3mapImported\[C]009.mdx
+war3mapImported\[C]011.mdx
+war3mapImported\[C]012.mdx
 war3mapImported\[effect][0407]_(01).blp
+war3mapImported\[HREO]emR.MDX
+war3mapImported\[J]LL01.MDX
+war3mapImported\[J]LL02.mdx
+war3mapImported\[J]LL04.mdx
+war3mapImported\[J]LL08.mdx
+war3mapImported\[J]XN01.mdx
+war3mapImported\[J]XN03.mdx
+war3mapImported\[J]XN04.mdx
+war3mapImported\[J]XN05.MDX
+war3mapImported\[J]XN06.mdx
+war3mapImported\[N22]DW Boll.mdx
+war3mapImported\[N22]DW Hero.mdx
+war3mapImported\[N22]Heal Blue.mdx
+war3mapImported\[N22]Heal Orange.mdx
+war3mapImported\[N22]Smite Blue.mdx
+war3mapImported\[N22]Smite Orange.mdx
+war3mapImported\[N22]Spell Marker Blue.mdx
+war3mapImported\[N22]Spell Marker Green.mdx
+war3mapImported\[N22]Spell Marker Red.mdx
+war3mapImported\[N23]TX01.mdx
+war3mapImported\[N23]TX02.mdx
+war3mapImported\[N23]TX03.mdx
+war3mapImported\[N23]TX05.mdx
+war3mapImported\[N23]TX06.mdx
+war3mapImported\[N23]TX07.mdx
+war3mapImported\[N23]TX08.MDX
+war3mapImported\[N26]TX01.mdx
+war3mapImported\[N26]TX01a.mdx
+war3mapImported\[N26]TX02.mdx
+war3mapImported\[N26]TX03.MDX
+war3mapImported\[N26]TX04.mdx
+war3mapImported\[N26]TX05.mdx
+war3mapImported\[N26]TX06.MDX
+war3mapImported\[N26]TX0A.mdx
+war3mapImported\[N26]TX0A_PORTRAIT.mdx
+war3mapImported\[N27]TX02.mdx
 war3mapImported\[plant-bush]cartoon.mdx
 war3mapImported\[st]jinkuang55.mdx
 war3mapImported\[st]jinkuang55_0.blp
