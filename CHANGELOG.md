@@ -3,6 +3,17 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 2.5.3 (2026-11-21)
+
+### Added
+
+- **Fix map, KK maps with a JAPIW appendix:** some maps of the Chinese KK platform keep part of their files after the MPQ archive, in a block that starts with `JAPIW`. Only the platform's plugin reads them there, so the World Editor and Reforged do not see those files. Fix map now finds this block and puts its files into the map. A file in the block replaces the map's file of the same name, as the plugin does.
+
+### Fixed
+
+- **Fix map, the KK CAME container:** a sector of the platform's SDK stored as raw deflate is now read too. When the SDK build is not one I know, the biggest program among the container's blocks is used to find the key, not the first one. Bytes after the last file no longer count as a file.
+- **Port to Reforged, panel keys with Shift, Ctrl or Alt held:** in the ported KK maps, the key that opens the panel or the inventory window and Esc did nothing while Shift, Ctrl or Alt was held, because the game fires a key only with the exact modifiers it was registered with. They are now registered with every modifier.
+
 ## 2.5.2 (2026-11-21)
 
 ### Fixed
