@@ -946,6 +946,7 @@ endfunction
 
 function KKI_init takes nothing returns nothing
     local integer i=0
+    local integer m=0
     if KKI_ok then
         return
     endif
@@ -979,7 +980,12 @@ function KKI_init takes nothing returns nothing
     call TriggerAddAction(KKI_t_sync, function KKI_ev_sync)
     loop
         exitwhen i>=KKI_jogadores
-        call BlzTriggerRegisterPlayerKeyEvent(KKI_t_tecla, Player(i), ConvertOsKeyType(KKI_tecla), 0, false)
+        set m=0
+        loop
+            exitwhen m > KKU_META_ULT
+            call BlzTriggerRegisterPlayerKeyEvent(KKI_t_tecla, Player(i), ConvertOsKeyType(KKI_tecla), m, false)
+            set m=m + 1
+        endloop
         call BlzTriggerRegisterPlayerSyncEvent(KKI_t_sync, Player(i), KKI_prefixo, false)
         set KKI_aberto[i]=false
         set KKI_pag[i]=0
