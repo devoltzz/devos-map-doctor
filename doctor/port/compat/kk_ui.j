@@ -241,6 +241,7 @@ framehandle KKU_rc_fh=null
 framehandle KKU_f_console=null
 constant integer KKU_PILHA=16
 constant real KKU_ESC_JANELA=0.35
+constant integer KKU_META_ULT=15
 constant integer KKU_NIVEL_TETO=7
 integer array KKU_pilha
 integer array KKU_npilha
@@ -2674,6 +2675,7 @@ endfunction
 function KKU_init takes nothing returns nothing
     local integer p=0
     local integer q=1
+    local integer m=0
     if KKU_pronto then
         return
     endif
@@ -2701,7 +2703,12 @@ function KKU_init takes nothing returns nothing
     set KKU_t_menu=CreateTrigger()
     loop
         exitwhen p >= KKU_JOGADORES
-        call BlzTriggerRegisterPlayerKeyEvent(KKU_t_menu, Player(p), ConvertOsKeyType(KKU_TECLA_MENU), 0, false)
+        set m=0
+        loop
+            exitwhen m > KKU_META_ULT
+            call BlzTriggerRegisterPlayerKeyEvent(KKU_t_menu, Player(p), ConvertOsKeyType(KKU_TECLA_MENU), m, false)
+            set m=m + 1
+        endloop
         set p=p + 1
     endloop
     call TriggerAddAction(KKU_t_menu, function KKU_menu_tecla)
@@ -2714,7 +2721,12 @@ function KKU_init takes nothing returns nothing
         exitwhen p >= KKU_JOGADORES
         set KKU_esc_t[p]=-1000.0
         set KKU_esc_gap[p]=-1.0
-        call BlzTriggerRegisterPlayerKeyEvent(KKU_t_esc_tecla, Player(p), OSKEY_ESCAPE, 0, false)
+        set m=0
+        loop
+            exitwhen m > KKU_META_ULT
+            call BlzTriggerRegisterPlayerKeyEvent(KKU_t_esc_tecla, Player(p), OSKEY_ESCAPE, m, false)
+            set m=m + 1
+        endloop
         call TriggerRegisterPlayerEvent(KKU_t_esc_cine, Player(p), EVENT_PLAYER_END_CINEMATIC)
         set p=p + 1
     endloop
