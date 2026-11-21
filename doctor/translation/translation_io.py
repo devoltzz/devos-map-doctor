@@ -71,6 +71,15 @@ RX_WESTRING = re.compile(r'\s*WESTRING_\w+\s*$')
 RX_FILE = re.compile(r'\.(?:mdl|mdx|blp|tga|dds|png|jpg|wav|mp3|flac|ogg|txt|slk|fdf|toc|j|lua|ai|pld|w3[a-z])$',
                      re.I)
 RX_FORMAT = re.compile(r'%(?:\d+\$)?[sd]')
+RX_ANGLE = re.compile(r'<[^<>\r\n]*>')
+RX_DATA_REF = re.compile(r'<[A-Za-z0-9]{4},[A-Za-z0-9]+(?:,%)?>$')
+ANGLE_SOURCES = ('object', 'profile', 'wts')
+
+
+def false_references(original, translation):
+    return [t for t in RX_ANGLE.findall(translation) if not RX_DATA_REF.match(t) and t not in original]
+
+
 RX_COMPILER_DEBUG = re.compile(r'(?:when (?:calling|writing array) \S+ in \S+, line \d+|via function reference \S+, '
                                r'line \d+|\S+, line \d+|Called \S+ on invalid object\.|'
                                r'Nullpointer exception when calling \S+|Out of memory: Could not create \S+|'
@@ -1291,6 +1300,9 @@ def check_entry(e, translation, language=''):
         out.append('a NUL character')
     if sorted(RX_FORMAT.findall(e['text'])) != sorted(RX_FORMAT.findall(translation)):
         out.append('format codes (%s, %d) changed')
+    if e['source'] in ANGLE_SOURCES and false_references(e['text'], translation):
+        out.append('%s: the game reads <...> as a data reference and it can crash the map; write [ ] instead'
+                   % ' '.join(dict.fromkeys(false_references(e['text'], translation))))
     if e['source'] == 'wts' and re.search(r'^\}', translation, re.M):
         out.append('a line starting with } (it ends a wts string)')
     if e['source'] in ('profile', 'fdf') and ('\r' in translation or '\n' in translation):
