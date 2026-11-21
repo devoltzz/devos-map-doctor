@@ -3,6 +3,15 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 2.5.2 (2026-11-21)
+
+### Fixed
+
+- **Translate, a translated map could crash:** Chinese tooltips often mark a hint with angle quotes, like 《提示》. The machine translation wrote them as `<Tip>`, but the game reads `<...>` in a tooltip as a reference to object data (like `<AHbz,DataA1>`), and the reported map crashed once translated. These quotes now become square brackets (`[Tip]`), and any other new `<...>` the translation writes that is not a data reference becomes `[...]` too. The translation check also refuses a new `<...>` in the map's object data, text tables (the `.txt` files) and strings (`war3map.wts`), whatever wrote the translation: the machine translation, an AI or your own file. Reported in issue #89.
+- **Translate, Korean numbers before 만큼:** in Korean, 만큼 means "as much as", but the translation check read its 만 as the number 10,000. So `2천만큼` (as much as 2,000) had to be 20,000,000, and the right translation was refused and stayed in Korean. 만큼 is no longer read as a number. In texts where each letter has its own color, a line break no longer joins the numbers of two lines into one.
+- **Port to Reforged, the quest log could close the game:** a quest with an empty title or description makes Reforged close when a player opens the quest log (F9). The port now writes a space in an empty quest title or description written in the script, so it looks the same on screen.
+- **Runs on Reforged?, a new warning for interface files:** an `.fdf` file that uses `Font` inside a `TEXT` frame makes Reforged close when the map loads that file. The game's own files write `FrameFont` there. The report now warns about it, with the line.
+
 ## 2.5.1 (2026-11-19)
 
 ### Fixed
