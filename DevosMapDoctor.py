@@ -20,7 +20,7 @@ if _restart:
     sys.exit(0)
 from doctor.fix import unprotect as D
 
-VERSION = '2.5.2'
+VERSION = '2.5.3'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -230,6 +230,10 @@ def describe(p):
                 (' (%s)' % (sdk.get('sha256') or '')[:12]) if sdk.get('sha256') else '',
             )
         )
+    if c == 'kk_japiw':
+        return ('JAPIW appendix (KK platform): %s (%s) stored after the MPQ archive, where only the platform plugin '
+                'reads them. "Fix map" puts them into the map.'
+                % (pluralize(p.get('record_count', 0), 'file', 'files'), mb(p.get('bytes', 0))))
     if c == 'kk_virtual_mpq':
         return ('%s hidden after the MPQ (KK virtual MPQ, %s): "files" lists them and "extract" takes them out.'
                 % (pluralize(p.get('file_set', 0), 'file', 'files'), mb(p.get('byte_size', 0))))
@@ -592,6 +596,9 @@ def _fixes_done(details, steps, before):
             extra = ', %s still unnamed (not in the new map)' % num(cv['unnamed']) if cv.get('unnamed') else ''
         out.append('Decrypted the CAME container (KK platform): %s written%s.'
                    % (pluralize(cv.get('arquivos_no_mapa') or 0, 'file', 'files'), extra))
+    if steps.get('japiw'):
+        out.append('Moved the JAPIW appendix (KK platform) into the map: %s.'
+                   % pluralize(steps['japiw'].get('file_set') or 0, 'file', 'files'))
     if steps.get('sprotect'):
         out.append('Undid the SProtect scrambling.')
     if details.get('new_tables'):
