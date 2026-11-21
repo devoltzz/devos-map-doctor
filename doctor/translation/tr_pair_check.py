@@ -13,11 +13,16 @@ from doctor.translation import tr_validate as tv
 from doctor.translation import tr_gradient as tg
 
 RX_COLOR = re.compile(r'\|[cC][0-9a-fA-F]{8}|\|[rRnN]')
+RX_GRADIENT_COLOR = re.compile(r'\|[cC][0-9a-fA-F]{8}|\|[rR]')
+
+
+def without_gradient_color(s):
+    return re.sub(r'\|[nN]', ' ', RX_GRADIENT_COLOR.sub('', s))
 RX_NUMBER = re.compile(r'\d+(?:\.\d+)?')
 RX_MULT = re.compile(r'(\d+(?:\.\d+)?)[ \t]*([百千万亿]|[wW](?![A-Za-z]))')
 MULT = {'百': 100, '千': 1000, '万': 10000, '亿': 100000000, 'w': 10000, 'W': 10000,
         '백': 100, '천': 1000, '만': 10000, '억': 100000000}
-RX_MULT_KO = re.compile(r'(\d+(?:\.\d+)?)([천백]?[만억]|[천백])')
+RX_MULT_KO = re.compile(r'(\d+(?:\.\d+)?)([천백]?[만억](?!큼)|[천백])')
 def _expande_mult(m):
     v = float(m.group(1)) * MULT[m.group(2)]
     return ' %d ' % round(v) if abs(v - round(v)) < 1e-6 else ' %s ' % v
@@ -102,7 +107,7 @@ RX_RANGE_MULT_KO = re.compile(r'(\d+(?:\.\d+)?)(\s*~\s*)(\d+(?:\.\d+)?)([천백]
 
 
 RX_MAN_REST_KO = re.compile(r'(\d+)만\s*(\d{1,4})(?![\d.천백억])(?!만(?!큼))')
-RX_MAN_CHEON_KO = re.compile(r'(\d+)만\s*(\d)천(?![\d.만])')
+RX_MAN_CHEON_KO = re.compile(r'(\d+)만\s*(\d)천(?![\d.]|만(?!큼))')
 
 
 def texts_ko(t):
@@ -314,7 +319,10 @@ def errors_of(item, entry, en):
     if isinstance(en, str):
         en_numbers = en if item.get('level_list') else without_thousands(en)
         if tg.e_gradient(item['t']):
-            zh_n, en_n = numbers(RX_COLOR.sub('', item['t'])), numbers(RX_COLOR.sub('', en_numbers), origin=False)
+            zh_n, en_n = (
+                numbers(without_gradient_color(item['t'])),
+                numbers(without_gradient_color(en_numbers), origin=False),
+            )
         else:
             zh_n, en_n = (
                 numbers(item['t'] if item.get('level_list') else without_thousands(item['t'])),
@@ -324,7 +332,7 @@ def errors_of(item, entry, en):
         if set((a - b) + (b - a)) <= {'1'}:
             zh_n = en_n
         elif RX_MULT_KO.search(item['t']) or RX_DECIMAL_VIRGULA.search(item['t']):
-            text_ko = RX_COLOR.sub('', item['t']) if tg.e_gradient(item['t']) else \
+            text_ko = without_gradient_color(item['t']) if tg.e_gradient(item['t']) else \
                 RX_COLOR.sub(' ', item['t'] if item.get('level_list') else without_thousands(item['t']))
             for tk in texts_ko(text_ko):
                 achou = False
