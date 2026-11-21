@@ -567,6 +567,86 @@ function DB_est_primario takes unit u returns real
 endfunction
 //{{KK_FIMSE:KK_EST_14}}
 
+//{{KK_SE:KK_EST_VERDE_MOTOR}}
+constant integer DB_EST_VERDE_M=23
+hashtable DB_est_verde_ids=null
+group DB_est_verde_g=null
+integer DB_est_verde_n=0
+
+function DB_est_verde_mede takes unit u returns nothing
+    local integer i=0
+    local integer j
+    local integer id
+    local integer lv
+    local integer v=0
+    local integer h
+    local item it
+    local ability a
+    if u==null then
+        return
+    endif
+    if DB_est_verde_ids==null then
+        set DB_est_verde_ids=InitHashtable()
+    endif
+    call FlushChildHashtable(DB_est_verde_ids,0)
+    loop
+        exitwhen i>=UnitInventorySize(u)
+        set it=UnitItemInSlot(u,i)
+        if it!=null then
+            set j=0
+            loop
+                set a=BlzGetItemAbilityByIndex(it,j)
+                exitwhen a==null or j>=16
+                set v=v+BlzGetAbilityIntegerLevelField(a,ABILITY_ILF_ATTACK_BONUS,0)
+                call SaveBoolean(DB_est_verde_ids,0,BlzGetAbilityId(a),true)
+                set j=j+1
+            endloop
+        endif
+        set i=i+1
+    endloop
+    set i=0
+    loop
+        set a=BlzGetUnitAbilityByIndex(u,i)
+        exitwhen a==null or i>=200
+        set id=BlzGetAbilityId(a)
+        if not LoadBoolean(DB_est_verde_ids,0,id) then
+            set lv=GetUnitAbilityLevel(u,id)
+            if lv>0 then
+                set v=v+BlzGetAbilityIntegerLevelField(a,ABILITY_ILF_ATTACK_BONUS,lv-1)
+            endif
+        endif
+        set i=i+1
+    endloop
+    set h=DB_est_h(u)
+    call SaveReal(DB_est_ht,h,DB_EST_VERDE_M,I2R(v))
+    set it=null
+    set a=null
+endfunction
+
+function DB_est_verde_tique takes nothing returns nothing
+    local unit u
+    if DB_est_verde_g==null then
+        set DB_est_verde_g=CreateGroup()
+    endif
+    call GroupEnumUnitsOfPlayer(DB_est_verde_g,Player(DB_est_verde_n),null)
+    set DB_est_verde_n=DB_est_verde_n+1
+    if DB_est_verde_n>=12 then
+        set DB_est_verde_n=0
+    endif
+    loop
+        set u=FirstOfGroup(DB_est_verde_g)
+        exitwhen u==null
+        call GroupRemoveUnit(DB_est_verde_g,u)
+        if IsUnitType(u,UNIT_TYPE_HERO) and GetUnitTypeId(u)!=0 then
+            call DB_est_verde_mede(u)
+        endif
+    endloop
+endfunction
+
+function DB_est_verde_le takes unit u,integer h returns real
+    return LoadReal(DB_est_ht,h,DB_EST_VERDE_M)
+endfunction
+//{{KK_FIMSE:KK_EST_VERDE_MOTOR}}
 function DB_estado_le takes unit u,integer st returns real
     local integer h
     if u==null then
@@ -608,6 +688,9 @@ function DB_estado_le takes unit u,integer st returns real
         return DB_aspd_base(u,h)
     elseif st==0x13 then
         //{{KK_INCLUI:estado_verde_le}}
+        //{{KK_SE:KK_EST_VERDE_MOTOR}}
+        return LoadReal(DB_est_ht,h,DB_EST_BONUS)+DB_est_verde_le(u,h)
+        //{{KK_FIMSE:KK_EST_VERDE_MOTOR}}
         return LoadReal(DB_est_ht,h,DB_EST_BONUS)
     elseif st==0x16 then
         return DB_est_alcance(u,h)
@@ -680,6 +763,9 @@ function DB_estado_set takes unit u,integer st,real v returns nothing
     elseif st==0x13 then
         set h=DB_est_h(u)
         //{{KK_INCLUI:estado_verde_grava}}
+        //{{KK_SE:KK_EST_VERDE_MOTOR}}
+        set v=v-DB_est_verde_le(u,h)
+        //{{KK_FIMSE:KK_EST_VERDE_MOTOR}}
         call SaveReal(DB_est_ht,h,DB_EST_BONUS,v)
     elseif st==0x16 then
         call DB_est_alcance_set(u,DB_est_h(u),v)
