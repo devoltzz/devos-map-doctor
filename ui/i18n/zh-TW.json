@@ -3560,5 +3560,8 @@
  "The script declares {0} that Reforged does not have ({1}{2}): the natives of the map's platform client. The World Editor 3.0 refuses to save it (\"unregistered native function\"). Run Port to Reforged on the map first, then Open in World Editor on the ported map, and save that copy.": "腳本宣告了 {0} 個 Reforged 沒有的 native 函式（{1}{2}）：這是地圖平台用戶端的 native 函式。World Editor 3.0 拒絕儲存它（\"unregistered native function\"）。請先對地圖執行「移植到 Reforged」，再對移植後的地圖執行「在 World Editor 中開啟」，並儲存該副本。",
  "World Editor: the ported map does not open in the World Editor as it is (no {0}). To edit it, run Open in World Editor on the ported map, then open the copy it saves (_editor) in the World Editor.": "World Editor：移植後的地圖無法在 World Editor 中直接開啟（沒有 {0}）。若要編輯，請對移植後的地圖執行「在 World Editor 中開啟」，再用 World Editor 開啟它儲存的副本（_editor）。",
  "{0} images stayed: they are the map's own art under a game file's name (their picture is not the game's) ({1}).": "保留了 {0} 張圖片：它們是地圖自己的美術圖，只是使用了遊戲檔案的名稱（其圖片與遊戲的不同）（{1}）。",
- "{0} local(s) l__X of the trigger functions named X again, which JassHelper renames back; pjass: {1}": "觸發器函式的 {0} 個區域變數 l__X 再次命名為 X，JassHelper 會將其改回；pjass：{1}"
+ "{0} local(s) l__X of the trigger functions named X again, which JassHelper renames back; pjass: {1}": "觸發器函式的 {0} 個區域變數 l__X 再次命名為 X，JassHelper 會將其改回；pjass：{1}",
+ "JAPIW appendix (KK platform): {0} ({1}) stored after the MPQ archive, where only the platform plugin reads them. \"Fix map\" puts them into the map.": "JAPIW 附加區塊（KK 平台）：{0}（{1}）存放在 MPQ 封存檔之後，只有平台外掛會讀取。「修復地圖」會把它們放進地圖。",
+ "Moved the JAPIW appendix (KK platform) into the map: {0}.": "已將 JAPIW 附加區塊（KK 平台）放進地圖：{0}。",
+ "{0}: the game reads <...> as a data reference and it can crash the map; write [ ] instead": "{0}：遊戲會把 <...> 當作資料參照讀取，可能導致地圖當機；請改寫為 [ ]"
 }
