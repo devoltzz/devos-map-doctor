@@ -20,7 +20,7 @@ if _restart:
     sys.exit(0)
 from doctor.fix import unprotect as D
 
-VERSION = '2.5.1'
+VERSION = '2.5.2'
 
 STAGES = {
     'read_map': 'Reading the map...',
