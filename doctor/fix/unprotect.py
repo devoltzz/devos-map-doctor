@@ -25,6 +25,7 @@ from doctor.triggers import wtg_triggers
 from doctor.mpq import ntfs_undo
 from doctor.data import slk_patch
 from doctor.mpq import kk_came
+from doctor.mpq import kk_japiw
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 KK = os.path.normpath(os.path.join(HERE, '..', 'kk'))
@@ -814,6 +815,12 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True, doodad
             prot('xm_loose')
     except Exception:
         pass
+    try:
+        jw = kk_japiw.info(file_path=file_path)
+        if jw and jw.get('effective'):
+            prot('kk_japiw', record_count=jw['effective'], bytes=jw['plaintext'])
+    except Exception:
+        pass
     r['lua_engine'] = _lua_engine(a, r)
     codes = [x['code'] for x in r['protections']]
     carvable = is_carvable(r)
@@ -1297,6 +1304,34 @@ def _unprotect_came(file_path, output, p, diag, res, all_items=True):
     return res
 
 
+def _unprotect_japiw(file_path, output, p, res, options):
+    part = _part(output)
+    try:
+        p('japiw')
+        r = kk_japiw.to_map(file_path, part)
+        step_size = {'file_set': r['japiw'], 'replaced': r['replaced'], 'new_ones': r['new_ones']}
+        after_diag = diagnose(part)
+        rest = set(x['code'] for x in after_diag['protections']) - set(BUTTON3_ONLY) - {'kk_japiw'}
+        if rest and after_diag.get('fixable') == 'yes':
+            r2 = unprotect(part, output, p, after_diag, options)
+            _remove_quietly(part)
+            r2['before'] = res['before']
+            r2.setdefault('steps', {})['japiw'] = step_size
+            return r2
+        os.replace(part, output)
+        res['steps']['japiw'] = step_size
+        res['output'] = os.path.abspath(output)
+        res['after_diag'] = after_diag
+        res['after_diag']['file_name'] = res['output']
+        res['status'] = 'done'
+        res['left_out'] = []
+    except (Exception, SystemExit) as e:
+        res['status'] = 'failed'
+        res['err'] = _error(e)
+        _remove_quietly(part)
+    return res
+
+
 def _lua_engine(a, r):
     try:
         if r.get('script') in ('kkwe', 'j2b') or any(x['code'] in ('xm_package', 'xm_loose') for x in r['protections']):
@@ -1408,6 +1443,8 @@ def unprotect(file_path, output, progress=None, diag=None, options=None):
             res['status'] = 'nothing_selected'
             return res
         return _unprotect_came(file_path, output, p, diag, res, all_items=step_on(options, 'came_todos'))
+    if 'kk_japiw' in codes and step_on(options, 'mpq'):
+        return _unprotect_japiw(file_path, output, p, res, options)
     if 'ntfs_copy' in codes:
         return _unprotect_ntfs_copy(file_path, output, p, diag, res, options)
     if not codes - set(BUTTON3_ONLY):
