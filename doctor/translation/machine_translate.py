@@ -253,8 +253,8 @@ COLOR = re.compile(r'\|[cC][0-9a-fA-F]{8}$|\|[rR]$')
 SPLIT = re.compile(r'([\u3002\uff01\uff1f\uff1b!?;\u2026]+|[\u3010\u3011\[\]\uff08\uff09()\u300a\u300b\u300c\u300d'
                    r'\u300e\u300f\u201c\u201d\u3008\u3009])')
 PUNCT = {'\u3002': '.', '\uff01': '!', '\uff1f': '?', '\uff1b': ';', '\u2026': '...', '\u3010': '[', '\u3011': ']',
-         '\uff08': '(', '\uff09': ')', '\u300a': '<', '\u300b': '>', '\u300c': "'", '\u300d': "'", '\u300e': "'",
-         '\u300f': "'", '\u201c': "'", '\u201d': "'", '\u3008': '<', '\u3009': '>', '\uff0c': ',', '\u3001': ',',
+         '\uff08': '(', '\uff09': ')', '\u300a': '[', '\u300b': ']', '\u300c': "'", '\u300d': "'", '\u300e': "'",
+         '\u300f': "'", '\u201c': "'", '\u201d': "'", '\u3008': '[', '\u3009': ']', '\uff0c': ',', '\u3001': ',',
          '\uff1a': ':', '\uff5e': '~', '\u3000': ' ', '\u00b7': '\u00b7'}
 LONG = {'zh': 24, 'ja': 30, 'ko': 40}
 RX_LEVEL_END = re.compile(r'^(.*?\S)(\s*(?:Lv|LV|lv)\.?\s*\d+)$', re.S)
@@ -757,6 +757,13 @@ def numbers_source(pl):
 RX_THOUSANDS = re.compile(r'(?<![\d.,])\d{1,3}(?:,\d{3})+(?![\d,]|\.\d)')
 
 
+def square_brackets(src, out):
+    from doctor.translation import translation_io
+    for t in dict.fromkeys(translation_io.false_references(src, out)):
+        out = out.replace(t, '[' + t[1:-1] + ']')
+    return out
+
+
 def entry_translation(e, lang, tr):
     plans, join = entry_plans(e, lang)
     parts = []
@@ -767,6 +774,7 @@ def entry_translation(e, lang, tr):
         s = fix_numbers(numbers_source(pl), s)
         if '++' in s and '++' not in pl.text:
             s = s.replace('++', '+')
+        s = square_brackets(pl.text, s)
         if join == 'comma':
             s = RX_THOUSANDS.sub(lambda m: m.group(0).replace(',', ''), s).replace(',', ';')
         parts.append(s)
