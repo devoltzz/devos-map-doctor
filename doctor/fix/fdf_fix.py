@@ -1,4 +1,6 @@
 # Removes a */ that closes no comment from a frame definition file (.fdf).
+
+
 def fixable(data_bytes):
     out = bytearray()
     removed = []
@@ -58,3 +60,4 @@ def fix_toc(data_bytes):
         return data_bytes, False
     eol = b'\r\n' if b'\r\n' in data_bytes else (b'\n' if b'\n' in data_bytes else b'\r\n')
     return data_bytes + eol + eol, True
+
