@@ -161,6 +161,14 @@ integer KKP_b_dtop=0
 integer KKP_b_dsel=0
 integer KKP_b_dpag=0
 //{{KK_FIMSE:KK_PAINEL_DROPS}}
+//{{KK_SE:KK_PAINEL_CHEFE_3D}}
+integer KKP_pv_b=0
+integer KKP_pv_cx_b=0
+integer KKP_pv_rot_b=0
+integer KKP_pv_al_b=0
+integer KKP_pv_alb_b=0
+boolean KKP_b_v3d=false
+//{{KK_FIMSE:KK_PAINEL_CHEFE_3D}}
 //{{KK_SE:KK_PAINEL_PADRAO}}
 group KKP_g_auto=null
 unit KKP_au_u=null
@@ -1577,6 +1585,22 @@ function KKP_des_chefe_dpag takes integer j,integer pid returns nothing
 endfunction
 
 //{{KK_FIMSE:KK_PAINEL_DROPS}}
+//{{KK_SE:KK_PAINEL_CHEFE_3D}}
+function KKP_des_chefe3d takes integer j,boolean vis returns boolean
+    local integer chave=0
+    local boolean tem=vis and KKP_pv_b>0 and KKP_pv_tem(KKP_bs_unid[j])
+    if KKP_pv_b<=0 then
+        return false
+    endif
+    call KKP_bvis(13005, tem)
+    if tem and KKP_b_v3d then
+        set chave=KKP_bs_unid[j]
+    endif
+    call KKP_pv_desenha(KKP_pv_b, KKP_pv_cx_b, KKP_pv_rot_b, KKP_pv_al_b, KKP_pv_alb_b, chave, KKP_gx(0.586), KKP_gy(0.290), KKP_gs(0.170))
+    return chave!=0
+endfunction
+
+//{{KK_FIMSE:KK_PAINEL_CHEFE_3D}}
 function KKP_des_chefe_det takes nothing returns nothing
     local integer pid=GetPlayerId(GetLocalPlayer())
     local integer j=KKP_b_sel
@@ -1585,6 +1609,9 @@ function KKP_des_chefe_det takes nothing returns nothing
     local integer k
     local integer it
     local string t
+//{{KK_SE:KK_PAINEL_CHEFE_3D}}
+    local boolean v3d=KKP_des_chefe3d(j, vis)
+//{{KK_FIMSE:KK_PAINEL_CHEFE_3D}}
     call KKP_vis(KKP_b_dico, vis)
     call KKP_vis(KKP_b_dnome, vis)
     call KKP_vis(KKP_b_dinfo, vis)
@@ -1635,6 +1662,11 @@ function KKP_des_chefe_det takes nothing returns nothing
         call KKU_texto(KKP_b_dtit, KKP_dm_s[2])
     endif
 //{{KK_FIMSE:KK_PAINEL_EXTRA}}
+//{{KK_SE:KK_PAINEL_CHEFE_3D}}
+    if v3d then
+        return
+    endif
+//{{KK_FIMSE:KK_PAINEL_CHEFE_3D}}
 //{{KK_SE:KK_PAINEL_DROPS}}
     if KKP_bs_drn[j]>12 then
         call KKP_des_chefe_dpag(j, pid)
@@ -2409,6 +2441,12 @@ function KKP_clique_local takes integer g,integer i returns nothing
         if i==1 and KKP_b_sel>0 and KKP_bs_pos[KKP_b_sel] then
             call PingMinimap(KKP_bs_x[KKP_b_sel], KKP_bs_y[KKP_b_sel], 4.00)
         endif
+//{{KK_SE:KK_PAINEL_CHEFE_3D}}
+        if i==5 then
+            set KKP_b_v3d=not KKP_b_v3d
+            set KKP_b_pend=true
+        endif
+//{{KK_FIMSE:KK_PAINEL_CHEFE_3D}}
 //{{KK_SE:KK_PAINEL_CHEFE_BT}}
         if i==2 and KKP_b_sel>0 and KKP_b_sel<=KKP_bs_n then
             call BlzSendSyncData("kkp", "B"+KKP_id2s(KKP_bs_unid[KKP_b_sel]))
@@ -3025,6 +3063,9 @@ function KKP_ao_carga takes nothing returns boolean
     set KKP_b_dtop=0
     set KKP_b_dsel=0
 //{{KK_FIMSE:KK_PAINEL_DROPS}}
+//{{KK_SE:KK_PAINEL_CHEFE_3D}}
+    set KKP_b_v3d=false
+//{{KK_FIMSE:KK_PAINEL_CHEFE_3D}}
     set KKP_st_pend=false
     loop
         exitwhen k>10
@@ -3235,6 +3276,33 @@ function KKP_cria_codex takes nothing returns nothing
     set KKP_c_desc=KKU_area(pg, KKP_gx(0.404), KKP_gy(0.354), KKP_gw(0.362), KKP_gh(0.186))
 endfunction
 
+//{{KK_SE:KK_PAINEL_CHEFE_3D}}
+function KKP_nivel3d takes integer i returns nothing
+    if i>0 and i<KKU_MAX then
+        call KKU_nivel(i, 5)
+    endif
+endfunction
+
+function KKP_cria_chefe3d takes integer pg returns nothing
+    local integer b
+    if KKU_PV_N<=0 then
+        return
+    endif
+    set KKP_pv_b=KKU_sprite(pg)
+    call KKU_esconde(KKP_pv_b)
+    set KKP_pv_cx_b=KKP_pv_caixa(pg, 0.640, 0.190)
+    set KKP_pv_rot_b=KKP_pv_rot_ult
+    set KKP_pv_al_b=KKP_pv_al_ult
+    set KKP_pv_alb_b=KKP_pv_alb_ult
+    set b=KKP_btxt(pg, "3D / Drops", 0.648, 0.452, 0.116, 0.024, 13005)
+    call KKP_bvis(13005, false)
+    call KKP_nivel3d(KKP_pv_b)
+    call KKP_nivel3d(KKP_pv_cx_b)
+    call KKP_nivel3d(KKP_pv_rot_b)
+    call KKP_nivel3d(b)
+endfunction
+
+//{{KK_FIMSE:KK_PAINEL_CHEFE_3D}}
 //{{KK_SE:KK_PAINEL_GRUPOS8}}
 function KKP_cria_chefes8 takes nothing returns nothing
     local integer pg=KKP_pag[3]
@@ -3290,6 +3358,9 @@ function KKP_cria_chefes takes nothing returns nothing
     local integer r
     local real x
     local real y
+//{{KK_SE:KK_PAINEL_CHEFE_3D}}
+    call KKP_cria_chefe3d(pg)
+//{{KK_FIMSE:KK_PAINEL_CHEFE_3D}}
 //{{KK_SE:KK_PAINEL_GRUPOS8}}
     if KKP_gr_n>4 then
         call KKP_cria_chefes8()
