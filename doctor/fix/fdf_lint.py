@@ -193,6 +193,10 @@ def lint_text(text, name='x.fdf', resolve=None, known=None):
                 if strs:
                     includes.append((kw[2], _unq(strs[0])))
                 continue
+            if key == 'font' and stack and stack[-1][1] == 'TEXT':
+                f.append(_finding('fdf_text_font', 'warning', name, kw[2], 'A TEXT frame uses Font, the action of the '
+                                  'String of a SIMPLE frame: the game closes when it loads the file. Write FrameFont '
+                                  '"<font>", <size>, "", (with DecorateFileNames, for a string key like MasterFont).'))
             if key not in KEYWORDS:
                 f.append(_finding('fdf_keyword', 'info', name, kw[2], 'The action %s is not in the list of known fdf '
                                   'actions (a typo, or one the game knows and the list does not).' % kw[1]))
