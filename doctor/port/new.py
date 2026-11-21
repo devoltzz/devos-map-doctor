@@ -70,7 +70,8 @@ def save(file_path, body_text):
 
 
 PANEL_PARTS = ('KK:kk_ui.j', 'out/out_ui_dados.j', 'KK:kk_painel.j', 'out/out_painel_dados.j')
-TEMPLATE_DEFAULTS = {'REPO_REL': "'..', '..'"}
+TEMPLATE_DEFAULTS = {'REPO_REL': "'..', '..'",
+                     'MAIN_LOCALS': 'False'}
 
 
 def layer_parts(jn=False, blizzard=False, ujapi=False, panel=False):
