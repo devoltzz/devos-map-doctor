@@ -2,6 +2,7 @@
 -1149796336_skin.mdx
 -1653921109.mdx
 -1653921109_skin.mdx
+053_skin2_Fjd_2.mdx
 12shengxiao\A (1).blp
 12shengxiao\A (10).blp
 12shengxiao\A (11).blp
@@ -15,6 +16,12 @@
 12shengxiao\A (8).blp
 12shengxiao\A (9).blp
 168_skin13_PORTRAIT.mdx
+1c79673b421748ad5cc36c83d965a72e.mdx
+1CJ.blp
+1DJ.blp
+1GJ.blp
+1MW.blp
+1ZJ.blp
 2bd262407f963ac5ef55e5e539137414-2.mdx
 3Cfaobao\A (1).blp
 3Cfaobao\A (10).blp
@@ -392,7 +399,9 @@ A (484)_PORTRAIT.mdx
 A (691).mdx
 A (693).mdx
 A (693)2.mdx
+A (703).mdx
 A (73)4.mdx
+A (754).mdx
 A (766)_PORTRAIT.mdx
 A (806)2.mdx
 A (85)2.mdx
@@ -404,8 +413,10 @@ A (92)_PORTRAIT.mdx
 A (935).mdx
 A (99)_PORTRAIT.mdx
 A Bao A Qu.mdx
+aerTX.blp
 aggro.blp
 aggro_Aura.mdx
+AHJZ.blp
 air-stamp.mdx
 AirStrikeRWW4.mdx
 akiha claw_red.mdx
@@ -445,6 +456,7 @@ ArcaneMissileComplete3.mdx
 ArcaneMissileComplete4.mdx
 Arisu_Portrait.blp
 Arisu_Skin_Portrait.blp
+ASCJ.blp
 AutumnGlow_RED.blp
 AutumnStar_RED.blp
 azusa_Mizugi_PORTRAIT.mdx
@@ -476,8 +488,10 @@ baoxiang\glow_line2_blue.blp
 baoxiang\glow_line2_orange.blp
 baoxiang\glow_line2_w.blp
 baoxiang\zap2_w.blp
+BaoZhaZC.blp
 baozha_yellow.mdx
 barrel1.blp
+Bbaonu.blp
 BBtu\10geanniu (1).blp
 BBtu\10geanniu (10).blp
 BBtu\10geanniu (2).blp
@@ -504,7 +518,23 @@ BBtu\wanJ1.blp
 BBtu\wanJ2.blp
 BBtu\wanJ3.blp
 BBtu\wanJ4.blp
+BengHuaiMoLi.blp
+BengKuiZhiRen.blp
+BenYuanQiangHua.blp
+BF_MT1.blp
+BF_T1.blp
+BF_T2.blp
+BF_T3.blp
+BianYiQT.blp
+BianYiWK.blp
 big factory.blp
+BingDun.blp
+bingfashiTX.blp
+BingShuangTZ.blp
+BingShuangZhenDang.blp
+bingyan.mdx
+BingYanSH.blp
+BingYuanSu.blp
 bjwz1.blp
 bjwz2.blp
 BlastFlash_my.blp
@@ -513,6 +543,7 @@ BloodTotem_CasterArmor.blp
 BloodTotem_CasterBase.blp
 BloodTotem_MeleeArmor.blp
 BloodySplat_Missile.mdx
+BLSH.blp
 blue cistern.blp
 blue_+.tga
 bl_b.blp
@@ -555,6 +586,7 @@ bskr3_00016.blp
 bskr3_00017.blp
 bskr3_00018.blp
 bskr3_00019.blp
+BSYZ.blp
 BTN19A.blp
 BTNAndroid21.blp
 BTNAndroid8.blp
@@ -673,6 +705,7 @@ BTNDR_BTN_BAG.blp
 BTNDR_BTN_BOOK.blp
 BTNDR_BTN_EQUIP.blp
 BTNDR_BTN_EVT.blp
+BTNduye.blp
 BTNEcho_D1.blp
 BTNEcho_E1.blp
 BTNEcho_E2.blp
@@ -765,6 +798,10 @@ BTNJTV_W1.blp
 BTNKafkaBlade.blp
 BTNKafkaPassive.blp
 BTNKafkaUlt.blp
+btnlingmengjnd.blp
+btnlingmengjnf.blp
+btnlingmengjnr.blp
+btnlingmengjnw.blp
 BTNMadara_D.blp
 BTNMadara_E.blp
 BTNMadara_Q.blp
@@ -778,6 +815,7 @@ BTNMari_E.blp
 BTNMari_Q.blp
 BTNMari_R.blp
 BTNMari_W.blp
+BTNnvhuang.blp
 BTNPatchNoteSDB.blp
 BTNRB_Armor.blp
 BTNRB_Bead.blp
@@ -790,6 +828,7 @@ BTNRN_Drop1.blp
 BTNRN_Drop2.blp
 BTNRN_Drop3.blp
 BTNRN_Drop4.blp
+BTNShockRush.blp
 BTNSK2_Avalon.blp
 BTNSK2_Dawn.blp
 BTNSK2_Q.blp
@@ -851,6 +890,12 @@ BTNXPet_Rudolph.blp
 BTNXPet_Sleigh.blp
 BTNXPet_SleighGold.blp
 BTNXPet_Snowman.blp
+budongrushan.blp
+BuMieJS.blp
+BuSiXQ.blp
+BuWenFA.blp
+BuWenGONG.blp
+BuXuYao.blp
 BY_Wood_Effect_Order_Integration_Flow_1_orange.mdx
 BY_Wood_Eff_Odr_DBZ_Int_Imp_2_jnt.mdx
 camera_glow.blp
@@ -859,6 +904,7 @@ CaptainAmerica_Hand_Leg.blp
 Captain_Skin_Portrait.blp
 Capt_R_Shield_Skin.mdx
 Capt_W_Hit_Skin.mdx
+CB64.blp
 cb_blsy.mdx
 cb_emzy.mdx
 cb_fire.mdx
@@ -866,6 +912,7 @@ cb_ice.mdx
 cb_jtsy.mdx
 cb_leidianzhiyi.mdx
 cb_zise.mdx
+CCSJ.blp
 CDs\CD (1).BLP
 CDs\CD (10).BLP
 CDs\CD (100).BLP
@@ -1015,6 +1062,7 @@ CDs\CD (5).BLP
 CDs\CD (50).BLP
 CDs\CD (51).BLP
 CDs\CD (52).BLP
+ChaoSuYiDong.blp
 Charge1.mdx
 chenghao1\A12.mdx
 chenghao1\A13.mdx
@@ -1026,8 +1074,22 @@ chenghao2\wbzdg_hdn03.blp
 chenghao2\wbzdg_hdn04.blp
 chenghao2\wbzdg_hdn05.blp
 chenghao2\wbzdg_hdn06.blp
+chengjiu4.blp
+chengjiu5.blp
+chengjiumw.blp
+ChiBangBX.blp
+ChiBangShu.blp
+ChiHuoZJ.blp
 ChimaeraAncientV1_00.mdx
+ChiTu.blp
 ChloeLilithilla_PORTRAIT.mdx
+chongqi.blp
+ChongWuPai.blp
+chongzhiban.blp
+ChongZhuTie.blp
+CHSYJS.blp
+ChuanQiJS.blp
+chunbaishuijing.blp
 ch_001_003.blp
 ch_001_005_weapon.blp
 ch_bug.mdx
@@ -1035,6 +1097,7 @@ ch_jsws.mdx
 ch_jyzz.mdx
 ch_msdz.mdx
 ch_zgts.mdx
+ciyuanzhan.blp
 cjb_yue.mdx
 CJtu1\A (1).blp
 CJtu1\A (10).blp
@@ -1322,8 +1385,12 @@ c_Vector_slg_eyeblend.blp
 c_Vector_slg_eye_d.blp
 c_Vector_slg_face_d.blp
 c_Vector_slg_hair_d.blp
+daojian.blp
+darenTX.blp
 darkgreen container.blp
 DarkMageFire2.mdx
+datianmoshou.blp
+DCYY.wav
 DeathRelease.mdx
 DefOmagan\building\alice1.blp
 DefOmagan\building\alice2.blp
@@ -1411,6 +1478,16 @@ Desperado_new_Skin_Portrait.blp
 devos\kk_modelos.fdf
 devos\kk_texto.fdf
 devos\kk_texto.toc
+DGJ.blp
+DGZJ.blp
+dianranxinhai.blp
+DianZiHuDun.blp
+DianZiJJ.blp
+DianZiMIcai.blp
+DianZiQuan.blp
+DiCiQX.blp
+DiGuoJianShu.blp
+DiGuoRG.blp
 dingzhi_by_wood_effect_blood_biaoxue_2.mdx
 DISBTNDiscordSDB.blp
 DISBTNFWD12_PlagueKing.blp
@@ -1514,7 +1591,15 @@ DISPASBTNMari_Z.blp
 DISRoxy_Portrait.blp
 DISYugi_Portrait.blp
 Divine Edict_jnt.mdx
+DiYuHH.blp
 diyuhuoP.blp
+DiYuQuanTX.blp
+diyuwuqi.blp
+DiYuYuanHun.mdx
+DiYuZhiHuo.blp
+diyuzhuanshu.blp
+DLZS.blp
+DLZY.blp
 Doodads_Bush.mdx
 Doodads_Bush2.mdx
 Doodads_Fence.mdx
@@ -1529,7 +1614,10 @@ DragonFlameStrike.mdx
 DragonhawkRiderUndeadV1_00_13.mdx
 Drakedog_Portrait.blp
 dtbluenoringwhite2_new_fix.mdx
+DuanHunSanLian.blp
 DustSpawn.mdx
+Duya.blp
+DuYeJian.blp
 DWCJH.blp
 DW\as\as_e.mdx
 DW\as\as_e0.blp
@@ -4710,6 +4798,17 @@ EllenJoe_weapon.blp
 EllenJoe_Weapon.mdx
 EllenJoe_W_Projectile_Swing.mp3
 EllenJoe_W_Voice.mp3
+ELZX.blp
+ELZXZY.blp
+EMDY.blp
+EmoQx.blp
+EmoXmai.blp
+EMoZhiHun.blp
+EMoZhiLi.blp
+EMoZhiWen.blp
+emyizhi.blp
+EMZH.blp
+ertiandao.blp
 eve_ana_PORTRAIT.mdx
 eve_bzd_whzy_PORTRAIT.mdx
 eve_gtsnlmly_PORTRAIT.mdx
@@ -4722,12 +4821,21 @@ eve_xkmbm_PORTRAIT.mdx
 eve_xmys_PORTRAIT.mdx
 eve_ypyy_PORTRAIT.mdx
 eve_zylmcj_PORTRAIT.mdx
+EXgalibang.blp
+EYY.wav
+EZF.blp
 E_BuffYellow2a.mdx
 FDE_LeftEnemyCount.fdf
 FDF_List.toc
+FeiHongJQ.blp
+feihongzhiwuTX.blp
 FelMinionV1_00_1.mdx
 fence and plank.blp
+FengChiDianChe.blp
 fengchidiancheP.mdx
+FengQiuHuang.blp
+FengShang.blp
+fenmo.blp
 File00001189.mdx
 File00001189a_White.mdx
 Firebolt Classic5.mdx
@@ -4735,9 +4843,20 @@ Firebolt Classic_fix2_x3.mdx
 FireDrakon2.blp
 fire_Spout.mdx
 Flame Grenade.mdx
+FM3.blp
+FM4.blp
 fonts\text.ttf
 Frieren_Portrait.blp
 Frieren_PORTRAIT.mdx
+FSZX.blp
+FuSuZhiFeng.blp
+fuwen10.blp
+fuwen6.blp
+fuwen7.blp
+fuwen8.blp
+fuwen9.blp
+fuwenshengji.blp
+fuZhiYe.blp
 FWD_DuskArmor.blp
 FWD_DuskCloth.blp
 FWD_DuskGuardian.mdx
@@ -4756,6 +4875,10 @@ FWD_StarDevourer.mdx
 FWD_VoidCrystal.blp
 FWD_VoidGolem.mdx
 FWD_VoidRock.blp
+FXJY.blp
+FYdeSilingjian.blp
+GaiYaZL.blp
+GaiYaZX.blp
 gaonengbaoji_LightBlue.mdx
 Genji_Slash_Red_Tilt.mdx
 gggbar_green.blp
@@ -4771,6 +4894,7 @@ gh_leidian.mdx
 gh_xxgh.mdx
 girl_1_sprite.mdx
 girl_pf_1.mdx
+GJCS.blp
 GjiantouP1T.mdx
 gjs_ngd.mdx
 GK\altar.blp
@@ -4943,15 +5067,39 @@ GK\warn_r67_t.mdx
 GK\warn_sq.mdx
 GK\warn_sq_t.mdx
 glow_1559.blp
+GongFangYT.blp
+GongZhuJS.blp
+GongZhuTX.blp
 GPF-New_PORTRAIT.mdx
 green cistern.blp
 green_+.tga
 grey cistern.blp
 grey container.blp
+guangmingzhijian.blp
+GuiWangLL.blp
+GZ.mdx
 HalfFallenAngelWarrior.blp
 HallowIchigoVFX.mdx
+HanBingZX.blp
 hanger building.blp
+HanShuangST.blp
+Harpy Of Darkness.mdx
+HASJ.blp
 hd_summertreewall.blp
+HeiAnGYP.blp
+HeiAnLieSha.blp
+HeiAnSP.blp
+HeiAnYZ.blp
+heianzhixing.blp
+HeiAnZY.blp
+HEIDEDOU.blp
+heilingxiaofashi.blp
+HeiLongDX.blp
+HeiLongPX.blp
+heiqishiTX.blp
+HeiRenYiShan.blp
+HeiSeMF.blp
+HeiYuLv.blp
 herohighlordinquisitor_v2_new.mdx
 HeroSkill_NEC.MDX
 hero\alice.blp
@@ -5007,10 +5155,35 @@ hero_ying_eyelight.blp
 hero_ying_light1.blp
 hero_ying_light2.blp
 hero_ying_light3.blp
+hexin.blp
 HGUJIA.blp
+HHJN1.blp
+HHJN2.blp
+HHJN3.blp
+HHJN4.blp
 HighSentinel_02_Di.blp
+HJG.blp
+HongLongDX.blp
+HSQT.blp
+HuaBanXie.blp
+HuaLingJian.blp
+HuangJinSD.blp
+HuangLongDX.blp
 hudbar_mana_e.blp
 HudBlack.blp
+huimiezhanjia.blp
+hulao.blp
+HunDunLY.blp
+hundunmoti.blp
+HunDunZhiYuan.blp
+HunDunZHIzhu.blp
+hunzhiyu.blp
+HuoYanBINGshuang.blp
+HYE1.blp
+HYQ1.blp
+HYQ2.blp
+HYQ3.blp
+HYW1.blp
 ICE-02_EJ.blp
 ICE15_2.MDx
 ICE15_EJ.mdx
@@ -5532,14 +5705,39 @@ IlluminaRing_navyglow.blp
 IlluminaRing_white.mdx
 ImpaleTargetDust_05sec.mdx
 ImpaleTargetDust_1sec.mdx
+JDBS.blp
+JDLC.blp
 jiamo.mdx
+JianMOxin.blp
+jian_1.blp
+jia_1.blp
 jidi_click.mdx
+JiFeng.blp
+JiHuangChui.blp
+JingJiZhiXin.blp
+JingLingSHIzhe.blp
+JingLingST.blp
+jinglingwang.blp
+JingLingZF.blp
+JingLingZX.blp
+JingZhuangHJ.blp
+jingzi_effect_GH_shanlin.mdx
+jingzi_effect_GH_shanlin01.blp
+jingzi_effect_GH_shanlin02.blp
+JinMinJiaoao.blp
+JinShengZhiShi.blp
+JIQU.blp
 jiujifengbao_p.mdx
 jiujifengbao_target_p.mdx
+jjj.blp
+jjklj.blp
+jjklj.mdx
+JlingLingHX.blp
 jls-2_0.blp
 jls-2_3.blp
 jls-2_4.blp
 jls-2_5.blp
+JMZH.blp
 JNSPortraits\H01B.blp
 JNSPortraits\H01S1.blp
 JNSPortraits\H01S2.blp
@@ -6651,6 +6849,18 @@ JNtu\A6 (6).blp
 JNtu\A6 (7).blp
 JNtu\A6 (8).blp
 JNtu\A6 (9).blp
+JTSHJ.blp
+JuDaMTR.blp
+JueDuiBF.blp
+JueDuiHA.blp
+JueDuiLL.blp
+JueJian.blp
+JueWangZX.blp
+JuiDuiLingDu.blp
+junzhe.blp
+JXHE.blp
+JYSQ.blp
+jyzy7_portrait.blp
 kafka_m3_last.wav
 kafka_m3_loop.wav
 kafka_pick.mp3
@@ -6659,22 +6869,73 @@ kafka_pick_2.mp3
 Kafka_Portrait.blp
 kafka_ult1.mp3
 kafka_ult2.mp3
+KaiLuoDMW.blp
+KaiLuoJi.blp
+KaiLuoZS.blp
+kaiYang.mdx
 Kakuzu-heart.mp3
 KakuzuLibeR.mp3
 KakuzuLibeR2.mp3
 KakuzuLibeR3.mp3
 KakuzuLibeT.mp3
 kakuzu_vfx_1.mdx
+KeAiYouNengDa.blp
+kitajnd.blp
+klj.mdx
+KLuo.blp
+KongBuLieSha.blp
+KuaiBenSanLe.blp
+KuaiSuXiaoQQ.blp
+KuangLan.blp
 Kula_D_Eff1.mdx
+Kundond2.mdx
+KZZX.blp
+landuo.blp
+LanLongDX.blp
+LeiDianCB.blp
+LeiDianFW.blp
+leishenjianglin.blp
+LeiY.blp
+LeiYu.mdx
+LHBS.blp
+LHJF.blp
+LHZH.blp
+LiangGui.mdx
+LianGunJP.blp
+LiangXiuQingShe.blp
+LieHuoFB.blp
+LieYanZF.blp
+LiLiangQH.blp
+linghunpanzui.blp
+LingHunShiFang.blp
+LingHunZhiPing.blp
 Lingyao.mdx
+LingZhuQW.blp
 liuqin4_PORTRAIT.mdx
+LLLZ.blp
+LLZhuanJing.blp
 longjuanfeng_loop_p.mdx
+LongSINH.blp
+LongYue.blp
+LongZuMoFa.blp
+LongZuZhiXing.blp
+LuanHongLian.blp
+LueYing.blp
 LUI\BlackBanner.tga
 LUI\LearningBackdrop.tga
 LUI\QQGrpClick.tga
 LUI\QQGrpLink.tga
 LUI\TextBulletScreen.tga
+luohou.blp
+LV12.blp
+LV25.blp
+LV35.blp
+lvbu16.1.mdx
+LvLongDX.blp
+LvLongPX.blp
+LvSeJinYu.blp
 lvsetoufanvgongjianshoumx_PORTRAIT.mdx
+LXZL.blp
 Madara-vfx-2.mdx
 Madara-vfx-3.mdx
 Madara_Enter.mp3
@@ -6707,7 +6968,38 @@ Marco_Bullet_O.blp
 Mari Sportswear Bag.blp
 Mari Sportswear Body.blp
 MarineFBP.blp
+MeiGuiHua.blp
+mengyingguiyuhechu.blp
+MFJ.blp
+MianJuFZ.blp
+MieFaZhiJie.blp
+MieQue.blp
+MieShiMoFa.blp
+mieshishenfa.blp
+mingyunjinghua.blp
+MingYunZhiLian.blp
 MirrorWorld.mdx
+MJTY.blp
+MJX.blp
+MJZhuanJing.blp
+modaoyi.blp
+MoFaJian.blp
+MoFAjianYS.blp
+MoFaShaoNv.blp
+moguangpao.blp
+MoguFemaleMoonArmor.blp
+MoguFemaleMoonBody.blp
+MoHuaYaoDao.blp
+MoJieQIM.blp
+MoLiFuShe.blp
+MoLiJiaoSha.blp
+MoLingTX.blp
+MoLiQiu.blp
+MoLiSuoLian.blp
+MoNengShi.blp
+MoQiang.blp
+MoRiZuiNie.blp
+MoZuZhanQ.blp
 mrfz_bj.mdx
 mrfz_bj_PORTRAIT.mdx
 MSKR_Damage169.mdx
@@ -6719,10 +7011,16 @@ MSKR_pingmu_NFS_Open169.mdx
 MSKR_unattack_hongping169.mdx
 MSKR_unattack_hudun169.mdx
 MSKR_unattack_judu169.mdx
+MuMaNiu.blp
+MuOUTX.blp
+MuYeShanGuang.blp
+MWZZ.blp
 MX-WPshenhuazhuangbei3.blp
 MX-WPshenhuazhuangbei4.blp
 mxcaoren.mdx
 mxxiaoqiao.mdx
+NaJiaYuanHun.blp
+NengLiangQH.blp
 new - Zeus_PORTRAIT.mdx
 NFS_Icon_number_9.blp
 NLLevel.tga
@@ -6732,6 +7030,11 @@ NLScoreTakenBar.tga
 NLScoreTowerBar.tga
 obj27_0.blp
 obj27_1.blp
+okitajne.blp
+okitajnf.blp
+okitajnr.blp
+okitajnw.blp
+okitatx.blp
 Orb_Red_S.mdx
 Orb_Yellow_S.mdx
 Outis_Aura.blp
@@ -6784,10 +7087,30 @@ pf1503.mdx
 pf1503_PORTRAIT.mdx
 PhoenixKnight.blp
 PhoenixKnight.mdx
+PiaoXueTX.blp
 PlaguerGoblinUndeadV1_02.mdx
+PoHun.blp
+POJ.blp
+pojie.blp
+PoM.blp
+PSHX.blp
 PSUI.fdf
 PSUI.toc
 purple-explosion.mdx
+QiangLISJ.blp
+QianGuang.blp
+qionghuashengnv.blp
+QIS.blp
+QiSha.mdx
+QiShaTX.blp
+QiSuoFengYin.blp
+qizongzuiBS.blp
+qizui1.blp
+qizui2.blp
+QXLZ.blp
+QYY.wav
+QZbaoshi.blp
+QZZseyu.blp
 rainbowbolt.mdx
 rapid-sting.mdx
 red-tornado.mdx
@@ -9975,10 +10298,17 @@ ReplaceableTextures\PassiveButtons\PAS_DvaSkin21.blp
 ReplaceableTextures\PassiveButtons\PAS_DvaSkin22.blp
 ReplaceableTextures\PassiveButtons\PAS_MoltresBreath.blp
 ReplaceableTextures\PassiveButtons\PAS_SoltBurnSoul.blp
+RLPX.blp
 roarthunder3.mdx
+RongyanLIEHUO.blp
+RuoDianDJ.blp
+RuYingSuiXing.blp
+RYY.wav
 S100007200.blp
 S100007200.mdx
 sbdbuff.mdl
+SBS.blp
+SBTX.blp
 script\ac\attribute.lua
 script\ac\id.lua
 script\ac\order_id.lua
@@ -9995,8 +10325,52 @@ script\happy\zhuang.lua
 script\ui\base\detail\tween.lua
 SearchlightTower.mdx
 SeigiNoIchigeki2.mdx
+SenLinKB.blp
+SenLinZS.blp
 ShadowmoonArchElder.mdx
 ShadowOrbMissile v1_2.mdx
+ShangPoQingYun.blp
+ShangShanRuoShui.blp
+ShanLingGH.blp
+shanyaoxingguang.blp
+ShaSheng1.mdx
+ShaShengShi.blp
+ShaShengWan.blp
+ShenFaTY.blp
+ShengGuangFW.blp
+ShengGuangTianFa.blp
+ShengGuangZhao.blp
+ShengMingAH.blp
+ShengMingBD.blp
+ShengMingBF.blp
+shengmingzhifu.blp
+ShengMingZS.blp
+shengongTX.blp
+ShengTu.blp
+ShengZheZhiZi.blp
+ShenLingJingTI.blp
+shenlingzhizui.blp
+ShenPan.blp
+shenshengchengjie.blp
+ShenSuMoCan.blp
+shenyuanzhihongTX.blp
+ShenZhiLi.blp
+ShenZhiZhuFu.blp
+ShiHunQiang.blp
+ShiJianJieJie.blp
+ShiJianZhangWo.blp
+ShiJianZhiLi.blp
+ShiJieBenYuan.blp
+ShiKongChuanSuo.blp
+Shio_ArturiaL_ghost_black.mdx
+Shio_Tx_Saber_Alter_Ex_1_1.blp
+Shio_Tx_Saber_Alter_Ex_1_1.mdx
+ShiQiKuangSan.blp
+ShiShenJie.blp
+shishenqiangjue.blp
+ShiXueKuangXi.blp
+shiyandeyuzhi.blp
+ShiYueJian.blp
 SHOP_BG2.mdx
 SHOP_fanguang.blp
 SHOP_huafei.blp
@@ -10027,16 +10401,47 @@ SHOP_text_zhizuozhong.mdx
 SHOP_wufazhizao.blp
 SHOP_wufazhizao.mdx
 SHOP_yiyongyou.blp
+ShouHuZhiX.blp
+ShouLieTianXi.blp
 SHOW_text_make_wancheng.blp
+SHPX.blp
+ShuangChongSJ.blp
+shuipingsifang.blp
+ShuiShenDao.blp
+ShuJuFY.blp
+ShuLing.blp
+ShunShen.blp
+sibeitongji.mdx
+SiLingFB.blp
+SiLingSY.blp
+SiMoShuai.blp
+SiShenGeYao.blp
+SiShenLD.blp
+sishenzhijian.blp
+SiWangLX.blp
+SiWangSG.blp
+SiWangZhiZhang.blp
+SJHM.blp
 sound\1112.wav
 sound\1115.wav
 sound\shengji1.wav
 sound\shengji2.wav
 sss_PORTRAIT.mdx
 StormreaverBlueTrollAuxiliaryHeadhunterV2.mdx
+sudu.blp
+SuiGu.blp
+SuiHun.blp
 Summoning Book.blp
 Summoning Book0.mdx
 Summoning Book1.mdx
+Suo.blp
+SuQing.blp
+SYDZ.blp
+SYMJ.blp
+taichu.blp
+TaiYangNS.blp
+TANL.blp
+tanlan.blp
 Terminator2.mdx
 TeXiao\00.tga
 TeXiao\11.tga
@@ -10052,6 +10457,18 @@ TeXiao\TXK (2).mdx
 Textures\Clouds8x8.dds
 theme5\HUAJIA1.blp
 theme5\HUAJIA2.blp
+TianJi.mdx
+TianJiang.blp
+TianLeiHuo.blp
+TianQiong.blp
+TianQuan.mdx
+TianShenLiuSuo.blp
+TianShu.mdx
+TianXuan.mdx
+TianZaiMoRi.blp
+tianzi2.blp
+tiaoyuezhanji.blp
+TieDaXiaoQQ.blp
 TitleMod\cjxy4_00000.mdx
 TitleMod\FirstPlayer.mdx
 TitleMod\Maplvl_1.mdx
@@ -10179,9 +10596,14 @@ TitleMod\xyhy4_00000.mdx
 TitleMod\zxxy4_00000.mdx
 tl_b.blp
 tl_jt.blp
+TongKuZhiYuan.blp
 treasure_box_cyllinder.mdx
 tr_b.blp
 tr_jt.blp
+tub_1_1.blp
+tub_3_1.blp
+tub_4_1.blp
+tx (447).mdx
 UI\chibang1.tga
 UI\chibang2.tga
 UI\daojian1.tga
@@ -10476,6 +10898,15 @@ venomancer_jaw_color.blp
 venomancer_tail_color.blp
 venomancer_wing_color.blp
 VFX_ququ_YXSY_yueliang.blp
+WaiLuo.blp
+WangJie.blp
+WangLingAH.blp
+WangLingZJ.blp
+WangPaiFD.blp
+WangQuanZJ.blp
+wangxiangzhongyan.blp
+WangZheZF.blp
+WanJuQG.blp
 war3mapImported\01_top_title_frame.blp
 war3mapImported\04_dungeon_select_title_frame.blp
 war3mapImported\112YX2.mdx
@@ -10553,6 +10984,7 @@ war3mapImported\15_blue_close_button.blp
 war3mapImported\16_bottom_button_area.blp
 war3mapImported\211DWAAA.mdx
 war3mapImported\212DWAAA.mdx
+war3mapimported\25c30cf4b742db851055b5a3028a41ae.mdx
 war3mapImported\313DWDW (1).mdx
 war3mapImported\313DWDW (2).mdx
 war3mapImported\313DWDW (3).mdx
@@ -10640,9 +11072,11 @@ war3mapImported\64XB12.mdx
 war3mapImported\64XB2.mdx
 war3mapImported\64XB21.mdx
 war3mapImported\64XB22.mdx
+war3mapImported\6fab34886900fe9f1d4f23bce0288eb1.mdx
 war3mapImported\729DW1.mdx
 war3mapImported\7311HeroSteam.mdx
 war3mapImported\732TX1.mdx
+war3mapImported\7d3f1c395f8cada5693deb2d1031d6a1.mdx
 war3mapImported\826DWA1.mdx
 war3mapImported\8819BOSS1.mdx
 war3mapImported\8819BOSS2.mdx
@@ -10664,6 +11098,8 @@ war3mapImported\8819XB6.mdx
 war3mapImported\8821DW1 (1).mdx
 war3mapImported\8821DW1 (2).mdx
 war3mapImported\918W1.mdx
+war3mapimported\9598c54b5d67db8ff9bd7dd97d4c7fb4.mdx
+war3mapImported\9ac0bc62bf1be427e5449670c8c9f9df.mdx
 war3mapImported\abi_agi_3_002_0.blp
 war3mapImported\abi_agi_3_002_1.blp
 war3mapImported\abi_agi_3_002_2.blp
@@ -10703,9 +11139,11 @@ war3mapImported\AZ_Scene13.blp
 war3mapImported\AZ_Scene59.blp
 war3mapImported\AZ_Scene60.blp
 war3mapImported\AZ_Scene61.blp
+war3mapImported\b0922c7a82e22f00de838c9f25e235a7.mdx
 war3mapImported\BabyBuilt.mp3
 war3mapImported\BabyChrono2.mp3
 war3mapImported\barbarian_earthquake_cracks_alpha.blp
+war3mapImported\bf7e74ad87dda66cbf84ad607b8c4cb8.mdx
 war3mapImported\BloodPrince.blp
 war3mapImported\blue_0.mdx
 war3mapImported\blue_1.mdx
@@ -10870,8 +11308,11 @@ war3mapImported\btxmx275_9.blp
 war3mapImported\by_wood_huoyanchongji_1_2_0.blp
 war3mapImported\by_wood_huoyanchongji_1_2_1.blp
 war3mapImported\by_wood_huoyanchongji_1_2_2.blp
+war3mapImported\c471d7790673d393044baeaf1f6e5d35.mdx
 war3mapImported\Cantarella_Desert_kit01.blp
 war3mapImported\Cave-claw.blp
+war3mapImported\cdj3.wav
+war3mapImported\cff2954c38c3bf512b64562cc93239c53.mdx
 war3mapImported\ch 01.mdx
 war3mapImported\ch 02.mdx
 war3mapImported\ch 03.mdx
@@ -11109,6 +11550,8 @@ war3mapImported\DISBTNHead_YSBE.blp
 war3mapImported\DISBTNTX1.blp
 war3mapImported\DISBTN_HEAD_JSN.blp
 war3mapImported\DiscoBallZX9.mdx
+war3mapImported\dj-z1.mp3
+war3mapImported\dj-z2.mp3
 war3mapImported\DMB_shandian.blp
 war3mapImported\DMB_shandian_g.blp
 war3mapImported\DMB_shandian_h.blp
@@ -11155,6 +11598,7 @@ war3mapImported\dya09_0.blp
 war3mapImported\dya10_0.blp
 war3mapimported\E29008.blp
 war3mapimported\ebh_poisontarget.mdx
+war3mapImported\ed90b26779b004f9503279ed06b7fca7.mdx
 war3mapimported\eff_fireslash.mdx
 war3mapimported\eff_gaidoc.mdx
 war3mapimported\eff_phuphep_lua.mdx
@@ -11178,9 +11622,11 @@ war3mapImported\Ew_DrainIn.blp
 war3mapImported\EyeOfRa_Diamond.blp
 war3mapImported\EyeOfRa_EdgeGlow.blp
 war3mapImported\EyeOfRa_GoldSand.blp
+war3mapImported\f0c39a7ea5e525669ae19cac4cad869f.mdx
 war3mapImported\FAzhen0000 (6).blp
 war3mapImported\File00000046-B026D.mdx
 war3mapImported\File00000047-805BD.mdx
+war3mapImported\file00000783.mdx
 war3mapImported\file00002384_0.blp
 war3mapImported\file00002384_1.blp
 war3mapImported\file00002384_2.blp
@@ -11754,6 +12200,9 @@ war3mapImported\Hero_xichhoa-ride.mdx
 war3mapImported\Hero_Yuanyzg2_PORTRAIT.mdx
 war3mapImported\holywin.mp3
 war3mapImported\huajiashaonv.mdx
+war3mapImported\hy14.mp3
+war3mapImported\hy8.mp3
+war3mapImported\hyd13.mp3
 war3mapImported\IChooseYou.mp3
 war3mapimported\item_bag4.mdx
 war3mapImported\JadeGolem.blp
@@ -11767,6 +12216,7 @@ war3mapImported\JN_dituci_lv2.blp
 war3mapImported\JN_dituci_lv3.blp
 war3mapImported\JN_dituci_lv4.blp
 war3mapImported\JN_dituci_lv5.blp
+war3mapImported\JueDuiLL.blp
 war3mapImported\Killer-A-S-Skill02-1.blp
 war3mapImported\Killer-A-S-Skill02-10.blp
 war3mapImported\Killer-A-S-Skill02-11.blp
@@ -11879,6 +12329,7 @@ war3mapImported\LichKingBuilt.mp3
 war3mapImported\LichKingExecute.mp3
 war3mapImported\LichKingKTSummon.mp3
 war3mapImported\ljzuiq.mdx
+war3mapimported\lrtx2.mdx
 war3mapImported\Marine-FBP_chest_T_noweapon.mdx
 war3mapImported\Marine-FBP_foot_T.mdx
 war3mapImported\Marine-FBP_hua_noweapon.mdx
@@ -12087,6 +12538,10 @@ war3mapImported\Skin_kante_Weapon_1_desert01.blp
 war3mapImported\Skin_kante_ya_desert01.blp
 war3mapImported\Skin_kante_yibi_desert01.blp
 war3mapImported\Skin_kante_Zyl_Wevan4_desert01.blp
+war3mapImported\skz5.mp3
+war3mapImported\skz6.wav
+war3mapImported\skz7.wav
+war3mapImported\skzyx3.mp3
 war3mapImported\SniperHeadshot.mp3
 war3mapImported\Sodasniffer.mp3
 war3mapImported\star24.mdx
@@ -12119,6 +12574,7 @@ war3mapImported\toaky_thienma.mdx
 war3mapImported\tongchang.blp
 war3mapImported\TrollText0.BLP
 War3MapImported\Troll_MountainTroll.blp
+war3mapImported\tx-liuying022.mdx
 war3mapImported\TX-TF-BDZ-1.blp
 war3mapImported\TX-TF-BDZ-2.BLP
 war3mapImported\TX-YX-SB-1.blp
@@ -12218,10 +12674,13 @@ war3mapImported\YC_BlizzardSky5.blp
 war3mapImported\YC_BlizzardSky6.blp
 war3mapImported\YC_xiahoudunImpact_1.blp
 war3mapImported\YC_xiahoudunImpact_2.blp
+war3mapImported\yinbao2.mp3
 war3mapImported\yswd_PORTRAIT.mdx
 war3mapImported\zheguanghudun2.mdx
 war3mapImported\zhiwu007.mdx
+war3mapImported\zhuqueyuanTX.blp
 war3mapImported\ziti_star4.blp
+war3mapImported\ZK_Ribbon13.blp
 war3mapImported\zm(74)1.blp
 war3mapImported\zm(74)2.blp
 war3mapImported\zm(74)4.blp
@@ -12954,6 +13413,10 @@ weapon_xuanfeng.blp
 weapon_xuanfeng.mdx
 wenlu.blp
 wenlu.mdx
+WenYiJia.blp
+WenYiZX.blp
+wenyi_1.blp
+WFSH.blp
 WH_PORTRAIT.mdx
 wp_R.blp
 wp_s.blp
@@ -12961,6 +13424,23 @@ wp_SP.blp
 wp_SR.blp
 wp_SSP.blp
 wp_SSR.blp
+WQ_T1.blp
+WuCangQiong.blp
+WuDuZhanJia.blp
+WuHuiYaoJi.blp
+WuHuiZhiPing.blp
+WuJianShu.blp
+WuLeiFa.blp
+WuLingJian.blp
+wuxianshiyue.blp
+WuYingJian.blp
+wuyingzhan.blp
+WuZhuangSe.blp
+WYY.wav
+WZCS.blp
+WZH.blp
+WZHX.blp
+WZZJ.blp
 XG_JAPI\Lua\Const.lua
 XG_JAPI\Lua\EventPool.lua
 XG_JAPI\Lua\Mouse.lua
@@ -12971,7 +13451,75 @@ XG_JAPI\Lua\XUI\button.lua
 XG_JAPI\Lua\XUI\checkbox.lua
 XG_JAPI\Lua\XUI\edit.lua
 XG_JAPI\Lua\XUI\event\init.lua
+XianXueJian.blp
+XianXueKuangChao.blp
+xianxueqiangwei.blp
+XiaoChouXF.blp
+xingbaoqiliu.blp
+XingHongZY.blp
+XingYueCB.blp
+xingyuechongfeng.blp
+XingYunSS.blp
+XinHun.blp
+XinHunBaoShi.blp
+XinHunSuiPian.blp
+xinhuntisheng.blp
+XinLingZZ.blp
+xinyuezhao.blp
+XiSheng.blp
 XJCSMppBYQ.mdx
+XueChi.blp
+xuehaixiuluo.blp
+XueHun.blp
+XueHunDao.mdx
+xuemo.mdx
+XueSeTianZai.blp
+XueSeZhiSha.blp
+xuesezhongyan.blp
+XueTong.blp
+XueWu.blp
+XueZhan.blp
+XuShiDaiFA.blp
+XuWang.blp
+XuWuFW.blp
+xuzuonenghuTX.blp
+XZBH1.blp
+yanmo-diyupaoxiao.blp
+YaoGuang.mdx
+YeMan.blp
+YeSha.blp
+YeYaoYingRen.blp
+YHFZ.blp
+YHJT.blp
+YHZJ.blp
+YiJianTongLing.blp
+YinANZT.blp
+YingHuaJian.blp
+YingXi.blp
+yingzhirenTX.blp
+YinYangLunHui.blp
+YinYingGuiYu.blp
+YMBZ.blp
+YMTB.blp
+YMXie.blp
+YongWangZQ.blp
+YouDuHuangQuan.blp
+YouMing.blp
+YouMingZhiLong.blp
+YouXiDA.blp
+YSda.blp
+yuangufuwen.blp
+YuanSuMoFa.blp
+yueguangfanxing.blp
+yueguangjiezhi.blp
+yueguangxianglian.blp
+YueShenHuFu.blp
+yueshenTX.blp
+YueShenZF.blp
+yueshenzhufu.blp
+YuHeng.mdx
+YunLuoZhiGong.blp
+YuXue.blp
 YXdaitexiao1\A (1).mdx
 YXdaitexiao1\A (10).mdx
 YXdaitexiao1\A (11).mdx
@@ -13213,11 +13761,46 @@ ZBtu\F (6).tga
 ZBtu\F (7).tga
 ZBtu\F (8).tga
 ZBtu\F (9).tga
+ZETK.blp
+ZhanDouLJF.blp
+ZhanZhengFW.blp
+zhendan.mdx
+ZhenFengSQ.blp
+ZhiGaoWuShang.blp
+ZhiMingLS.blp
+ZhiMingLZ.blp
+ZhiMingYuanHen.blp
+ZhiYeShiLian.blp
+Zhizhuxianglian.blp
+ZHJJ.blp
+zhongmohuixiang.blp
+ZhongMoSD.blp
+ZhongMoShenPan.blp
+zhua_12.blp
+ZhuFuZhiYi.blp
+ZhuiHunZhanji.blp
+zhuqueyuanTX.blp
 zidan3.blp
 ZigguratDemonV1_05.mdx
+ZiRanPX.blp
+zirzhiguang.mdx
 ZLYJ_XHP35.blp
 ZLYJ_XHP36.blp
 ZLYJ_XHP37.blp
+ZLZhuanJing.blp
+ZMSY.blp
+ZRBY.blp
+ZRHD.blp
+ZSY.blp
+ZuiChuQiang.blp
+ZuiEChengJie.blp
+ZuiETianTang.blp
+ZuiEzhiLong.blp
+ZuiEZhiYi.blp
+ZuiLongZhiYuan.blp
+zuizhishu.blp
+zuzhou.blp
+ZZQZ.blp
 [2_new_names.txt](https:\\github.com\user-attachments\files\34479840\2_new_names.txt)
 [AKE]war3AKE_com - 4888447066767509587607100.mdx
 [BossRPG.com]t11481A.blp
@@ -13243,11 +13826,17 @@ ZLYJ_XHP37.blp
 [effect][0399]_(01).blp
 [effect][0399]_(02).blp
 [found]rock-barren.mdx
+[lb] (1).blp
+[lb] (2).blp
+[lb] (3).blp
+[lb] (4).blp
+[lb] (5).blp
 [light]lightcircle.mdx
 [light]lightcircle45g.mdx
 [light]light_blue.mdx
 [light]light_white.mdx
 [maps_dz_rpg_A078365F5AAC87E181607FFFE5563997_new_names.txt](https:\\github.com\user-attachments\files\33924674\maps_dz_rpg_A078365F5AAC87E181607FFFE5563997_new_names.txt)
+[Music]XingBaoQiLiuZhan.mp3
 [mx]h-js2_0.blp
 [mx]h-js2_3.blp
 [mx]h-js2_4.blp
