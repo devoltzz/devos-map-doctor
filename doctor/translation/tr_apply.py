@@ -16,7 +16,7 @@ from doctor.translation import tr_extract as tx
 
 def load_translations():
     tr = {}
-    for fn in ('reuso.json', 'glossary.json', 'bulk.json', 'repair.json', 'manual.json'):
+    for fn in ('reuso.json', 'linhas.json', 'glossary.json', 'bulk.json', 'repair.json', 'manual.json'):
         p = os.path.join(TR, fn)
         if os.path.exists(p):
             tr.update(json.load(open(p, encoding='utf-8')))
