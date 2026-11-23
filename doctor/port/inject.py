@@ -16,6 +16,7 @@ MAP_NATIVES = None
 PROBE_NAMES = ('DB_slk_get', 'DzFrameSetText', 'EXSetEffectSize')
 NO_STUB = set()
 LAYER_GLOBALS_ON_TOP = False
+REFUSED_BLOCKS = []
 
 MINI = {
     'natives': (b'//@@CAMADA_INLINE_NATIVES_INI', b'//@@CAMADA_INLINE_NATIVES_FIM'),
@@ -330,6 +331,8 @@ def final_report(b, sec):
 
 
 def main(argv=None):
+    global REFUSED_BLOCKS
+    REFUSED_BLOCKS = []
     _demand_check()
     argv = sys.argv[1:] if argv is None else list(argv)
     apply = '--apply' in argv or any(a.startswith('--apply=') for a in argv)
@@ -384,6 +387,15 @@ def main(argv=None):
             print()
             print('=== LOCKS ===')
             for f in failures:
+                print('  FAIL: ' + f)
+            print('\nABORTED: NOTHING injected. The `war3map.j` stays as it was.')
+            return 1
+        vetoed = _layer.check_vetoed(new.decode('latin-1'))
+        if vetoed:
+            REFUSED_BLOCKS = list(vetoed)
+            print()
+            print('=== LOCKS ===')
+            for f in vetoed:
                 print('  FAIL: ' + f)
             print('\nABORTED: NOTHING injected. The `war3map.j` stays as it was.')
             return 1
