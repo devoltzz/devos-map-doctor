@@ -50,7 +50,8 @@ FILES = {
     '(attributes)': ('the checksums and dates of the files', 'tools', 'classic'),
     '(signature)': ('the signature of a Blizzard map', 'game', 'classic'),
 }
-LOCALES = ('deDE', 'enUS', 'esES', 'esMX', 'frFR', 'itIT', 'jaJP', 'koKR', 'plPL', 'ptBR', 'ruRU', 'zhCN', 'zhTW')
+LOCALES = ('deDE', 'enUS', 'esES', 'esMX', 'frFR', 'itIT', 'jaJP', 'koKR', 'plPL', 'ptBR', 'ruRU', 'thTH', 'zhCN',
+           'zhTW')
 LOCALE_DIR = '_Locales\\'
 LOCALE_FILES = ('war3map.wts', 'war3map.w3i', 'war3mapSkin.txt', 'war3mapMisc.txt', 'war3mapMap.blp',
                 'war3mapPreview.tga', 'conversation.json')
