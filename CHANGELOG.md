@@ -3,6 +3,14 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 2.5.4 (2026-11-22)
+
+### Fixed
+
+- **Port to Reforged, a map that keeps its table reads in a variable:** some JN maps read their object data through `(require'jass.slk')` in a text they run as Lua, and Reforged has no `jass.slk`. The port rewrites every such read into the value it stands for, but it stopped at step 2 when the map built the start of that text once, kept it in a local variable and added the rest at each read. The port now writes the start back into each read before it rewrites them, so these maps go past step 2. Reported in issue #93 (Bukesiyi K18.03).
+- **Port to Reforged, the cursor flickering over the interface:** in Reforged, an interface frame that listens for the mouse entering or leaving it makes the cursor flicker while it moves over the frame. The port layer listened for that, and for the mouse wheel, on every button and backdrop the map created. It now does it only when the map's own script asks for the mouse focus or the wheel. When the map itself reacts to the mouse over its own buttons, the port now finds that through the button's tooltip instead of a frame event, and runs the map's reaction on every player's game the same way. The port only does this when nothing in the map destroys interface frames or sets their tooltips through the platform's functions; otherwise it leaves this part off and the report says so. A map that runs Lua or loads frames with xmload keeps the old mouse focus and wheel.
+- **Port to Reforged, wide screen maps:** on a map laid out for a wide screen, the port set the size of the game's leaderboard frame again twice a second for the whole game, and the button under a still mouse could flicker. It now sets it again only when something changed it.
+
 ## 2.5.3 (2026-11-21)
 
 ### Added
