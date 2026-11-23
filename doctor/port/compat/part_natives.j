@@ -865,6 +865,63 @@ function DB_ui_nosso takes integer nid returns integer
     endif
     return nid
 endfunction
+//{{KK_SE:KK_UI_IGUAL}}
+
+constant integer DB_UI_IG_VIS=500
+constant integer DB_UI_IG_PAI=501
+constant integer DB_UI_IG_W=502
+constant integer DB_UI_IG_H=503
+constant integer DB_UI_IG_ESC=504
+constant integer DB_UI_IG_COR=505
+constant integer DB_UI_IG_VTX=506
+constant integer DB_UI_IG_FNT=507
+constant integer DB_UI_IG_ALI=510
+constant integer DB_UI_IG_DICA=511
+
+function DB_ui_ig_igual takes real a,real b returns boolean
+    return a-b<0.000001 and b-a<0.000001
+endfunction
+
+function DB_ui_ig_mesmo_vis takes integer frame,framehandle f,boolean enable returns boolean
+    local framehandle p
+    local integer pai
+    if not HaveSavedBoolean(DB_ui_ht, frame, DB_UI_IG_VIS) or LoadBoolean(DB_ui_ht, frame, DB_UI_IG_VIS)!=enable then
+        return false
+    endif
+    if BlzFrameIsVisible(f) then
+        return enable
+    endif
+    if not enable then
+        return true
+    endif
+    set pai=LoadInteger(DB_ui_ht, frame, DB_UI_IG_PAI)
+    if pai==0 then
+        set pai=LoadInteger(DB_ui_ht, frame, DB_MUNDO_PAI)
+    endif
+    set p=DB_fh(pai)
+    if p==null then
+        return false
+    endif
+    return not BlzFrameIsVisible(p)
+endfunction
+
+function DB_ui_ig_mesma_fonte takes integer frame,string arq,real altura,integer flag returns boolean
+    if DB_ui_ht==null or not LoadBoolean(DB_ui_ht, frame, DB_UI_NOSSO) then
+        return false
+    endif
+    if arq==null then
+        set arq=""
+    endif
+    if HaveSavedString(DB_ui_ht, frame, DB_UI_IG_FNT) and LoadStr(DB_ui_ht, frame, DB_UI_IG_FNT)==arq and DB_ui_ig_igual(LoadReal(DB_ui_ht, frame, DB_UI_IG_FNT+1), altura) and LoadInteger(DB_ui_ht, frame, DB_UI_IG_FNT+2)==flag then
+        return true
+    endif
+    call SaveStr(DB_ui_ht, frame, DB_UI_IG_FNT, arq)
+    call SaveReal(DB_ui_ht, frame, DB_UI_IG_FNT+1, altura)
+    call SaveInteger(DB_ui_ht, frame, DB_UI_IG_FNT+2, flag)
+    call RemoveSavedReal(DB_ui_ht, frame, DB_UI_IG_ESC)
+    return false
+endfunction
+//{{KK_FIMSE:KK_UI_IGUAL}}
 
 function DzFrameShow takes integer frame,boolean enable returns nothing
     local framehandle f=DB_fh(frame)
@@ -882,6 +939,14 @@ function DzFrameShow takes integer frame,boolean enable returns nothing
             call DB_pai_mostra(frame)
         endif
         //{{KK_FIMSE:KK_UI_PAI}}
+        //{{KK_SE:KK_UI_IGUAL}}
+        if DB_ui_ht!=null and LoadBoolean(DB_ui_ht, frame, DB_UI_NOSSO) and not LoadBoolean(DB_ui_ht, frame, DB_UI_IG_DICA) then
+            if DB_ui_ig_mesmo_vis(frame, f, enable) then
+                return
+            endif
+            call SaveBoolean(DB_ui_ht, frame, DB_UI_IG_VIS, enable)
+        endif
+        //{{KK_FIMSE:KK_UI_IGUAL}}
         if enable and BlzFrameIsVisible(f) then
             //{{KK_SE:KK_UI_ESCONDE_UMA}}
             if DB_ui_ht!=null and LoadBoolean(DB_ui_ht, frame, DB_UI_NOSSO) then
@@ -908,6 +973,11 @@ function DzFrameSetEnable takes integer name,boolean enable returns nothing
         return
     endif
     if f!=null then
+        //{{KK_SE:KK_UI_IGUAL}}
+        if DB_ui_ht!=null and LoadBoolean(DB_ui_ht, name, DB_UI_NOSSO) and BlzFrameGetEnable(f)==enable then
+            return
+        endif
+        //{{KK_FIMSE:KK_UI_IGUAL}}
         call BlzFrameSetEnable(f, enable)
     endif
 endfunction
@@ -1001,8 +1071,51 @@ function DB_larga_placar_quadro takes nothing returns framehandle
     return f
 endfunction
 
+//{{KK_FIMSE:KK_UI_LARGA}}
+//{{KK_SE:KK_UI_LARGA_QUIETA}}
+function DB_larga_vigia takes nothing returns nothing
+    local framehandle f=BlzGetFrameByName("Leaderboard", 0)
+    local framehandle b=BlzGetFrameByName("LeaderboardBackdrop", 0)
+    local framehandle t=BlzGetFrameByName("LeaderboardTitle", 0)
+    if not IsLeaderboardDisplayed(DB_larga_placar) then
+        call LeaderboardDisplay(DB_larga_placar, true)
+    endif
+    if f!=null and GetHandleId(f)!=0 then
+        if BlzFrameGetWidth(f)!=0.0 or BlzFrameGetHeight(f)!=0.0 then
+            call BlzFrameSetSize(f, 0.0, 0.0)
+        endif
+        if BlzFrameIsVisible(b) then
+            call BlzFrameSetVisible(b, false)
+        endif
+        if BlzFrameIsVisible(t) then
+            call BlzFrameSetVisible(t, false)
+        endif
+    endif
+    set f=null
+    set b=null
+    set t=null
+endfunction
+
+//{{KK_FIMSE:KK_UI_LARGA_QUIETA}}
+//{{KK_SE:KK_UI_LARGA}}
 function DB_larga_poe takes nothing returns nothing
     local framehandle f
+    //{{KK_FIMSE:KK_UI_LARGA}}
+    //{{KK_SE:KK_UI_LARGA_QUIETA}}
+    if DB_larga_no_placar then
+        call DB_larga_vigia()
+    else
+        call LeaderboardDisplay(DB_larga_placar, true)
+        set f=DB_larga_placar_quadro()
+        if f!=null then
+            call BlzFrameSetParent(DB_larga_raiz, f)
+            set DB_larga_no_placar=true
+        endif
+        set f=null
+    endif
+    return
+    //{{KK_FIMSE:KK_UI_LARGA_QUIETA}}
+    //{{KK_SE:KK_UI_LARGA}}
     set DB_larga_tentativas=DB_larga_tentativas+1
     call LeaderboardDisplay(DB_larga_placar, true)
     set f=DB_larga_placar_quadro()
@@ -1157,6 +1270,15 @@ function DzFrameSetSize takes integer frame,real w,real h returns nothing
         endif
         set w=w*DB_larga_f(frame)
         //{{KK_FIMSE:KK_UI_LARGA}}
+        //{{KK_SE:KK_UI_IGUAL}}
+        if DB_ui_ht!=null and LoadBoolean(DB_ui_ht, frame, DB_UI_NOSSO) and w>0.0 and h>0.0 then
+            if HaveSavedReal(DB_ui_ht, frame, DB_UI_IG_W) and DB_ui_ig_igual(LoadReal(DB_ui_ht, frame, DB_UI_IG_W), w) and DB_ui_ig_igual(LoadReal(DB_ui_ht, frame, DB_UI_IG_H), h) then
+                return
+            endif
+            call SaveReal(DB_ui_ht, frame, DB_UI_IG_W, w)
+            call SaveReal(DB_ui_ht, frame, DB_UI_IG_H, h)
+        endif
+        //{{KK_FIMSE:KK_UI_IGUAL}}
         call BlzFrameSetSize(f, w, h)
     endif
 endfunction
@@ -1194,6 +1316,11 @@ function DzFrameSetFont takes integer frame,string fileName,real height,integer 
     endif
     //{{KK_FIMSE:KK_UI_MSG}}
     if f!=null then
+        //{{KK_SE:KK_UI_IGUAL}}
+        if DB_ui_ig_mesma_fonte(frame, fileName, height, flag) then
+            return
+        endif
+        //{{KK_FIMSE:KK_UI_IGUAL}}
         //{{KK_SE:KK_UI_TEXTO}}
         if DB_ui_ht!=null and LoadBoolean(DB_ui_ht, frame, DB_TXT_MOLDE) then
             if height>=0.004 and height<=0.05 then
@@ -1223,6 +1350,14 @@ function DzFrameSetTextAlignment takes integer frame,integer align returns nothi
     if f==null then
         return
     endif
+    //{{KK_SE:KK_UI_IGUAL}}
+    if DB_ui_ht!=null and LoadBoolean(DB_ui_ht, frame, DB_UI_NOSSO) then
+        if HaveSavedInteger(DB_ui_ht, frame, DB_UI_IG_ALI) and LoadInteger(DB_ui_ht, frame, DB_UI_IG_ALI)==align then
+            return
+        endif
+        call SaveInteger(DB_ui_ht, frame, DB_UI_IG_ALI, align)
+    endif
+    //{{KK_FIMSE:KK_UI_IGUAL}}
     //{{KK_SE:KK_DZ_REAL}}
     set dv=LoadInteger(DB_alinha_ht, frame, 0)
     set dh=LoadInteger(DB_alinha_ht, frame, 1)
@@ -1764,6 +1899,11 @@ function DzCreateFrameByTagName takes string frameType,string name,integer paren
         return 0
     endif
     set nid=DB_ui_nosso(DB_fid(f))
+    //{{KK_SE:KK_UI_IGUAL}}
+    if DB_ui_ht!=null then
+        call SaveInteger(DB_ui_ht, nid, DB_UI_IG_PAI, parent)
+    endif
+    //{{KK_FIMSE:KK_UI_IGUAL}}
     if frameType=="TEXT" then
         call DB_ui_ht_ok()
         call SaveInteger(DB_ui_ht, nid, DB_MUNDO_PAI, parent)
@@ -1771,6 +1911,10 @@ function DzCreateFrameByTagName takes string frameType,string name,integer paren
     endif
     if frameType=="BUTTON" or frameType=="GLUEBUTTON" or frameType=="GLUETEXTBUTTON" then
         call SaveBoolean(DB_ui_ht, nid, 2, true)
+        //{{KK_SE:KK_UI_HOVER_SONDA}}
+        call DB_ui_ht_ok()
+        call SaveBoolean(DB_ui_ht, nid, DB_UI_SD_PODE, true)
+        //{{KK_FIMSE:KK_UI_HOVER_SONDA}}
         call DB_ui_foco(f, nid)
         call DB_ui_roda_registra(f, nid)
     elseif frameType=="SIMPLEBUTTON" then
@@ -1845,11 +1989,20 @@ function DzDestroyFrame takes integer frame returns nothing
         set ev=ev+1
     endloop
     call DB_mundo_solta(frame)
+    //{{KK_SE:KK_UI_HOVER_SONDA}}
+    call DB_sonda_tira(frame)
+    //{{KK_FIMSE:KK_UI_HOVER_SONDA}}
     call FlushChildHashtable(DB_ui_ht, frame)
     if DB_mouse_focus==frame then
         set DB_mouse_focus=0
     endif
     call RemoveSavedHandle(DB_frame_ht, frame, 0)
+    //{{KK_SE:KK_UI_HOVER_SONDA}}
+    call BlzFrameSetVisible(f, false)
+    set f=null
+    set t=null
+    return
+    //{{KK_FIMSE:KK_UI_HOVER_SONDA}}
     call DB_cova_poe(f)
     set t=null
 endfunction
@@ -1990,6 +2143,10 @@ endfunction
 
 function DB_ui_foco takes framehandle f,integer id returns nothing
     local trigger t
+    //{{KK_SE:KK_UI_FOCO_PEDIDO}}
+    call DB_ui_ht_ok()
+    return
+    //{{KK_FIMSE:KK_UI_FOCO_PEDIDO}}
     if f==null or id==0 then
         return
     endif
@@ -2018,8 +2175,18 @@ function DB_ui_roda takes nothing returns nothing
     endif
 endfunction
 
+//{{KK_SE:KK_UI_RODA_PEDIDA}}
+function DB_ui_roda_valor takes nothing returns nothing
+    set DB_wheel_delta=R2I(BlzGetTriggerFrameValue())
+endfunction
+
+//{{KK_FIMSE:KK_UI_RODA_PEDIDA}}
 function DB_ui_roda_registra takes framehandle f,integer id returns nothing
     local trigger t
+    //{{KK_SE:KK_UI_RODA_PEDIDA}}
+    call DB_ui_ht_ok()
+    return
+    //{{KK_FIMSE:KK_UI_RODA_PEDIDA}}
     if f==null or id==0 then
         return
     endif
@@ -2204,6 +2371,215 @@ function DB_atalho_liga takes framehandle f,integer frame,trigger t returns noth
 endfunction
 
 //{{KK_FIMSE:KK_UI_ATALHOS}}
+//{{KK_SE:KK_UI_HOVER_SONDA}}
+constant integer DB_UI_SD_PODE=520
+constant integer DB_UI_SD_IDX=521
+constant integer DB_UI_SD_DICA=522
+constant integer DB_UI_SD_AUTOR=523
+constant string DB_SONDA_SINC="KK_sd"
+constant real DB_SONDA_PERIODO=0.03
+constant integer DB_SONDA_ESPERA=3
+constant integer DB_SONDA_REPETE=10
+constant integer DB_SONDA_TETO=8000
+integer array DB_sonda_q
+framehandle array DB_sonda_dica
+integer DB_sonda_n=0
+integer DB_sonda_sobre=0
+integer DB_sonda_fora=0
+integer DB_sonda_dif=0
+integer array DB_sonda_de
+timer DB_sonda_tm=null
+trigger DB_sonda_t=null
+
+function DB_sonda_passa takes integer p,integer novo returns nothing
+    local integer velho=DB_sonda_de[p]
+    local trigger t
+    if velho==novo then
+        return
+    endif
+    set DB_sonda_de[p]=novo
+    if velho!=0 then
+        set t=LoadTriggerHandle(DB_ui_ht, velho, 103)
+        if t!=null then
+            call TriggerExecute(t)
+        endif
+    endif
+    if novo!=0 then
+        set t=LoadTriggerHandle(DB_ui_ht, novo, 102)
+        if t!=null then
+            call TriggerExecute(t)
+        endif
+    endif
+    set t=null
+endfunction
+
+function DB_sonda_sinc takes nothing returns nothing
+    local string s=BlzGetTriggerSyncData()
+    local integer novo=S2I(s)
+    if novo==0 and s!="0" then
+        return
+    endif
+    if novo!=0 and LoadInteger(DB_ui_ht, novo, DB_UI_SD_IDX)<=0 then
+        return
+    endif
+    call DB_sonda_passa(GetPlayerId(GetTriggerPlayer()), novo)
+endfunction
+
+function DB_sonda_antes_clique takes nothing returns nothing
+    local integer q=LoadInteger(DB_ui_ht, GetHandleId(GetTriggeringTrigger()), 0)
+    if q!=0 and LoadInteger(DB_ui_ht, q, DB_UI_SD_IDX)>0 then
+        call DB_sonda_passa(GetPlayerId(GetTriggerPlayer()), q)
+    endif
+endfunction
+
+function DB_sonda_local takes integer velho,integer novo returns nothing
+    local framehandle d
+    if velho!=0 and LoadBoolean(DB_ui_ht, velho, DB_UI_SD_AUTOR) then
+        set d=DB_fh(LoadInteger(DB_ui_ht, velho, DB_UI_SD_DICA))
+        if d!=null then
+            call BlzFrameSetVisible(d, false)
+        endif
+    endif
+    if novo!=0 and LoadBoolean(DB_ui_ht, novo, DB_UI_SD_AUTOR) then
+        set d=DB_fh(LoadInteger(DB_ui_ht, novo, DB_UI_SD_DICA))
+        if d!=null then
+            call BlzFrameSetVisible(d, true)
+        endif
+    endif
+    set d=null
+endfunction
+
+function DB_sonda_tique takes nothing returns nothing
+    local integer i
+    local integer achou=0
+    local integer eu
+    if DB_sonda_sobre!=0 then
+        set i=LoadInteger(DB_ui_ht, DB_sonda_sobre, DB_UI_SD_IDX)
+        if i>0 and BlzFrameIsVisible(DB_sonda_dica[i]) then
+            set achou=DB_sonda_sobre
+        endif
+    endif
+    if achou==0 then
+        set i=DB_sonda_n
+        loop
+            exitwhen i<1
+            if BlzFrameIsVisible(DB_sonda_dica[i]) then
+                set achou=DB_sonda_q[i]
+                exitwhen true
+            endif
+            set i=i-1
+        endloop
+    endif
+    if achou==0 and DB_sonda_sobre!=0 then
+        set DB_sonda_fora=DB_sonda_fora+1
+        if DB_sonda_fora<DB_SONDA_ESPERA then
+            return
+        endif
+    endif
+    set DB_sonda_fora=0
+    if achou!=DB_sonda_sobre then
+        call DB_sonda_local(DB_sonda_sobre, achou)
+        set DB_sonda_sobre=achou
+        set DB_sonda_dif=0
+        call BlzSendSyncData(DB_SONDA_SINC, I2S(achou))
+        return
+    endif
+    set eu=GetPlayerId(GetLocalPlayer())
+    if DB_sonda_de[eu]!=DB_sonda_sobre then
+        set DB_sonda_dif=DB_sonda_dif+1
+        if DB_sonda_dif>=DB_SONDA_REPETE then
+            set DB_sonda_dif=0
+            call BlzSendSyncData(DB_SONDA_SINC, I2S(DB_sonda_sobre))
+        endif
+    else
+        set DB_sonda_dif=0
+    endif
+endfunction
+
+function DB_sonda_liga takes nothing returns nothing
+    local integer i=0
+    if DB_sonda_t!=null then
+        return
+    endif
+    set DB_sonda_t=CreateTrigger()
+    loop
+        exitwhen i>=bj_MAX_PLAYERS
+        call BlzTriggerRegisterPlayerSyncEvent(DB_sonda_t, Player(i), DB_SONDA_SINC, false)
+        set i=i+1
+    endloop
+    call TriggerAddAction(DB_sonda_t, function DB_sonda_sinc)
+    set DB_sonda_tm=CreateTimer()
+    call TimerStart(DB_sonda_tm, DB_SONDA_PERIODO, true, function DB_sonda_tique)
+endfunction
+
+function DB_sonda_poe takes framehandle f,integer frame returns boolean
+    local framehandle d
+    local framehandle a=null
+    local integer dica
+    if LoadInteger(DB_ui_ht, frame, DB_UI_SD_IDX)>0 then
+        return true
+    endif
+    if DB_sonda_n>=DB_SONDA_TETO then
+        return false
+    endif
+    call DB_sonda_liga()
+    set d=BlzCreateFrameByType("FRAME", "DB_sonda", f, "", 0)
+    if d==null then
+        return false
+    endif
+    call BlzFrameSetPoint(d, FRAMEPOINT_BOTTOMLEFT, f, FRAMEPOINT_TOPLEFT, 0.0, 0.002)
+    call BlzFrameSetSize(d, 0.001, 0.001)
+    set dica=LoadInteger(DB_ui_ht, frame, DB_UI_SD_DICA)
+    if dica!=0 then
+        set a=DB_fh(dica)
+    endif
+    if a==null then
+        call BlzFrameSetTooltip(f, d)
+        call BlzFrameSetVisible(d, false)
+    else
+        call BlzFrameSetVisible(d, false)
+        set d=a
+    endif
+    set DB_sonda_n=DB_sonda_n+1
+    set DB_sonda_q[DB_sonda_n]=frame
+    set DB_sonda_dica[DB_sonda_n]=d
+    call SaveInteger(DB_ui_ht, frame, DB_UI_SD_IDX, DB_sonda_n)
+    set d=null
+    set a=null
+    return true
+endfunction
+
+function DB_sonda_tira takes integer frame returns nothing
+    local integer i
+    local integer p=0
+    if DB_ui_ht==null then
+        return
+    endif
+    set i=LoadInteger(DB_ui_ht, frame, DB_UI_SD_IDX)
+    if i<=0 then
+        return
+    endif
+    set DB_sonda_q[i]=DB_sonda_q[DB_sonda_n]
+    set DB_sonda_dica[i]=DB_sonda_dica[DB_sonda_n]
+    call SaveInteger(DB_ui_ht, DB_sonda_q[i], DB_UI_SD_IDX, i)
+    set DB_sonda_q[DB_sonda_n]=0
+    set DB_sonda_dica[DB_sonda_n]=null
+    set DB_sonda_n=DB_sonda_n-1
+    call RemoveSavedInteger(DB_ui_ht, frame, DB_UI_SD_IDX)
+    loop
+        exitwhen p>=bj_MAX_PLAYERS
+        if DB_sonda_de[p]==frame then
+            set DB_sonda_de[p]=0
+        endif
+        set p=p+1
+    endloop
+    if DB_sonda_sobre==frame then
+        set DB_sonda_sobre=0
+        set DB_sonda_fora=0
+    endif
+endfunction
+
+//{{KK_FIMSE:KK_UI_HOVER_SONDA}}
 function DzFrameSetScriptByCode takes integer frame,integer eventId,code funcHandle,boolean sync returns nothing
     local framehandle f=DB_fh(frame)
     local frameeventtype ev=DB_ev(eventId)
@@ -2232,6 +2608,11 @@ function DzFrameSetScriptByCode takes integer frame,integer eventId,code funcHan
             call BlzTriggerRegisterFrameEvent(t, f, FRAMEEVENT_MOUSE_UP)
         endif
         call SaveInteger(DB_ui_ht, GetHandleId(t), 0, frame)
+        //{{KK_SE:KK_UI_HOVER_SONDA}}
+        if eventId==4 and LoadBoolean(DB_ui_ht, frame, DB_UI_SD_PODE) then
+            call TriggerAddAction(t, function DB_sonda_antes_clique)
+        endif
+        //{{KK_FIMSE:KK_UI_HOVER_SONDA}}
         if eventId==12 then
             if DB_ui_relogio==null then
                 set DB_ui_relogio=CreateTimer()
@@ -2252,15 +2633,37 @@ function DzFrameSetScriptByCode takes integer frame,integer eventId,code funcHan
         set t=null
         return
     endif
+    //{{KK_SE:KK_UI_HOVER_SONDA}}
+    if (eventId==2 or eventId==3) and LoadBoolean(DB_ui_ht, frame, DB_UI_SD_PODE) then
+        if DB_sonda_poe(f, frame) then
+            set t=CreateTrigger()
+            call SaveInteger(DB_ui_ht, GetHandleId(t), 0, frame)
+            call TriggerAddAction(t, funcHandle)
+            call SaveTriggerHandle(DB_ui_ht, frame, 100+eventId, t)
+            set t=null
+            return
+        endif
+    endif
+    //{{KK_FIMSE:KK_UI_HOVER_SONDA}}
     set t=CreateTrigger()
     call BlzTriggerRegisterFrameEvent(t, f, ev)
     call SaveInteger(DB_ui_ht, GetHandleId(t), 0, frame)
+    //{{KK_SE:KK_UI_HOVER_SONDA}}
+    if eventId==1 and LoadBoolean(DB_ui_ht, frame, DB_UI_SD_PODE) then
+        call TriggerAddAction(t, function DB_sonda_antes_clique)
+    endif
+    //{{KK_FIMSE:KK_UI_HOVER_SONDA}}
     if eventId==2 and LoadBoolean(DB_ui_ht, frame, 2) then
         call TriggerAddCondition(t, Condition(function DB_ui_eco))
     endif
     if eventId==1 and LoadBoolean(DB_ui_ht, frame, 2) then
         call TriggerAddAction(t, function DB_ui_solta_foco)
     endif
+    //{{KK_SE:KK_UI_RODA_PEDIDA}}
+    if eventId==6 then
+        call TriggerAddAction(t, function DB_ui_roda_valor)
+    endif
+    //{{KK_FIMSE:KK_UI_RODA_PEDIDA}}
     call TriggerAddAction(t, funcHandle)
     call SaveTriggerHandle(DB_ui_ht, frame, 100+eventId, t)
     //{{KK_SE:KK_UI_ATALHOS}}
@@ -2420,6 +2823,9 @@ function DB_ui_boot takes nothing returns nothing
     call TimerStart(CreateTimer(), 0.00, false, function DB_ui_pos_init)
     set DB_cova_relogio=CreateTimer()
     call TimerStart(DB_cova_relogio, 0.25, true, function DB_cova_passa)
+    //{{KK_SE:KK_UI_HOVER_SONDA}}
+    call DB_sonda_liga()
+    //{{KK_FIMSE:KK_UI_HOVER_SONDA}}
     //{{KK_SE:KK_UI_NOMES}}
     set DB_nm_t=CreateTimer()
     //{{KK_FIMSE:KK_UI_NOMES}}
