@@ -3565,5 +3565,7 @@
  "{0} local(s) l__X of the trigger functions named X again, which JassHelper renames back; pjass: {1}": "{0} local(is) l__X das funções de gatilho chamadas X de novo, que o JassHelper renomeia de volta; pjass: {1}",
  "JAPIW appendix (KK platform): {0} ({1}) stored after the MPQ archive, where only the platform plugin reads them. \"Fix map\" puts them into the map.": "Apêndice JAPIW (plataforma KK): {0} ({1}) guardados depois do arquivo MPQ, onde só o plugin da plataforma os lê. \"Consertar mapa\" os coloca no mapa.",
  "Moved the JAPIW appendix (KK platform) into the map: {0}.": "O apêndice JAPIW (plataforma KK) foi colocado no mapa: {0}.",
- "{0}: the game reads <...> as a data reference and it can crash the map; write [ ] instead": "{0}: o jogo lê <...> como uma referência a dados e isso pode travar o mapa; escreva [ ] no lugar"
+ "{0}: the game reads <...> as a data reference and it can crash the map; write [ ] instead": "{0}: o jogo lê <...> como uma referência a dados e isso pode travar o mapa; escreva [ ] no lugar",
+ "the mouse-over of the buttons the map draws itself stays on interface events, as before (the cursor may flicker over them): the port layer's hover probe was left off, because code of this map that can run destroys an interface frame or sets a tooltip on one": "o mouse-over dos botões que o próprio mapa desenha continua em eventos de interface, como antes (o cursor pode piscar sobre eles): a sonda de hover da camada do port foi deixada desligada, porque código deste mapa que pode rodar destrói um frame de interface ou define uma dica nele",
+ "an optional block of the port layer was left off: {0}": "um bloco opcional da camada do port foi deixado desligado: {0}"
 }
