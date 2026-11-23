@@ -33,6 +33,92 @@ def unwrap_pcall(body_text):
     return '\n'.join(line_list)
 
 
+RX_LOCAL_STR = re.compile(r'^(\s*local\s+string\s+)([A-Za-z_]\w*)(\s*=\s*)(.*?)\s*$')
+RX_NAME_TOKEN = re.compile(r'[A-Za-z_]\w*')
+RX_FUNC_START = re.compile(r'^\s*(?:constant\s+)?function\s+\w+\s+takes\s+(.*?)\s+returns\b')
+RX_STR_LIT = re.compile(r'"(?:\\.|[^"\\])*"')
+
+
+def _blind(ln):
+    c = without_comment(ln)
+    return RX_STR_LIT.sub(lambda m: '"' + ' ' * (len(m.group(0)) - 2) + '"', c)
+
+
+def inline_local_prefix(body_text):
+    if 'jass.slk' not in body_text or 'local string' not in body_text:
+        return body_text, 0
+    line_list = body_text.split('\n')
+    masked = masked_lines(body_text)
+    n_done = 0
+    for i, line in enumerate(masked):
+        if 'jass.slk' not in line or 'local' not in line:
+            continue
+        m = RX_LOCAL_STR.match(without_comment(line).rstrip('\r'))
+        if not m:
+            continue
+        pieces = split_more(m.group(4))
+        if len(pieces) != 2 or not RX_PREFIX_MATCH.match(pieces[0]):
+            continue
+        m1 = RX_I2S.match(pieces[1])
+        expr = m1.group(1).strip() if m1 else ''
+        if not expr or '(' in expr or '"' in expr or "'" in expr:
+            continue
+        fname = m.group(2)
+        begin = i
+        while begin > 0 and not RX_FUNC_START.match(masked[begin]):
+            begin -= 1
+        mf = RX_FUNC_START.match(masked[begin])
+        if not mf:
+            continue
+        end_pos = i + 1
+        while end_pos < len(masked) and not re.match(r'^\s*endfunction\b', masked[end_pos]):
+            end_pos += 1
+        if end_pos >= len(masked):
+            continue
+        params = set(p.strip().split()[-1] for p in mf.group(1).split(',') if p.strip() and p.strip() != 'nothing')
+        local_vars = set()
+        for k in range(begin + 1, end_pos):
+            ml = re.match(r'^\s*local\s+\w+\s+(?:array\s+)?([A-Za-z_]\w*)', masked[k])
+            if ml:
+                local_vars.add(ml.group(1))
+        ids = set(RX_NAME_TOKEN.findall(expr))
+        if not ids or not ids <= (params | local_vars) or fname in ids:
+            continue
+        rx_set = re.compile(r'^\s*set\s+(%s)\b' % '|'.join(re.escape(x) for x in sorted(ids | {fname})))
+        rx_uso = re.compile(r'\bEXExecuteScript\(\s*%s\s*\+' % re.escape(fname))
+        rx_tok = re.compile(r'(?<![\w$])%s\b' % re.escape(fname))
+        is_safe = True
+        uses = []
+        for k in range(i + 1, end_pos):
+            cb = _blind(masked[k])
+            if rx_set.match(cb):
+                is_safe = False
+                break
+            toks = len(rx_tok.findall(cb))
+            matches = list(rx_uso.finditer(cb))
+            if toks != len(matches):
+                is_safe = False
+                break
+            if matches:
+                uses.append((k, matches))
+        if not is_safe or not uses:
+            continue
+        new_prefix = '%s+I2S(%s)+' % (pieces[0], expr)
+        for k, matches in uses:
+            lk = line_list[k]
+            for a in sorted(matches, key=lambda a: -a.start()):
+                lk = lk[:a.start()] + 'EXExecuteScript(' + new_prefix + lk[a.end():]
+            line_list[k] = lk
+        real = line_list[i]
+        cr = '\r' if real.endswith('\r') else ''
+        rest = real[len(without_comment(real)):].rstrip('\r')
+        line_list[i] = m.group(1) + fname + m.group(3) + '""' + rest + cr
+        n_done += 1
+    if not n_done:
+        return body_text, 0
+    return '\n'.join(line_list), n_done
+
+
 def skip_string(s, i):
     n = len(s)
     k = i + 1
@@ -270,7 +356,7 @@ def rewrite(arg, nested_ones=None):
 def script_pairs(body_text):
     pairs = {}
     failures = []
-    body_text = unwrap_pcall(body_text)
+    body_text = inline_local_prefix(unwrap_pcall(body_text))[0]
     for i, line in enumerate(masked_lines(body_text)):
         if TARGET not in line:
             continue
@@ -325,7 +411,7 @@ def class_of(arg):
 def applies(body_text, to_report=False, codes=None, expected_count=None, table=None, tolerant_mode=False):
     if codes is None:
         codes = read_codes(table)
-    body_text = unwrap_pcall(body_text)
+    body_text = inline_local_prefix(unwrap_pcall(body_text))[0]
     line_list = body_text.split('\n')
     failures = []
     plain_name = []
