@@ -33,6 +33,20 @@ SOURCE_SPEAKS = ('人工智能', '인공지능', '人工知能', '翻译', '翻�
 RX_SOURCE_SPEAKS = re.compile(r'\b(?:AI|GPT|LLM|Claude)\b')
 
 
+DEFAULT_LANGUAGE = os.environ.get('TR_IDIOMA') or 'en'
+HANGUL_KANA = re.compile('[' + chr(0xAC00) + '-' + chr(0xD7A3) + chr(0x1100) + '-' + chr(0x11FF) + chr(0x3130) + '-'
+                         + chr(0x318F) + chr(0x3040) + '-' + chr(0x30FF) + ']')
+HANZI = re.compile('[' + chr(0x4E00) + '-' + chr(0x9FFF) + chr(0x3400) + '-' + chr(0x4DBF) + ']')
+
+
+def original_leftover(body_text, target_language):
+    if target_language == 'en':
+        return bool(CJK.search(body_text))
+    return bool(HANGUL_KANA.search(body_text)) or (
+        not target_language.startswith('zh') and bool(HANZI.search(body_text))
+    )
+
+
 def codes(s):
     return re.findall(r'\|c[0-9A-Fa-f]{8}|\|r|\|n', s, re.I)
 
@@ -70,14 +84,15 @@ def record_error(ko, en):
     return None
 
 
-def check(entry, en):
+def check(entry, en, target_language=None):
+    target_language = target_language or DEFAULT_LANGUAGE
     ko = entry['text']
     errs = []
     if not isinstance(en, str):
         return ['not a string']
     if en.strip() == '' and ko.strip() != '':
         errs.append('empty')
-    if CJK.search(en):
+    if original_leftover(en, target_language):
         errs.append('CJK restante')
     mentions_ai = any(t in ko for t in SOURCE_SPEAKS) or RX_SOURCE_SPEAKS.search(ko)
     if AI_WORDS.search(en) and 'AI Protocol' not in en and not mentions_ai:
@@ -111,6 +126,6 @@ def check(entry, en):
             errs.append('the command is not in lowercase ASCII (%r)' % en)
         if ko.endswith(' ') != en.endswith(' '):
             errs.append('different trailing space in the command')
-    if len(en) > max(60, 3 * len(ko) + 40):
+    if len(en) > max(60, (3 if target_language == 'en' else 4) * len(ko) + 40):
         errs.append('muito longo (%d chars vs %d)' % (len(en), len(ko)))
     return errs
