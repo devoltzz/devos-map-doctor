@@ -3564,5 +3564,7 @@
  "{0} local(s) l__X of the trigger functions named X again, which JassHelper renames back; pjass: {1}": "トリガー関数のローカル変数l__Xのうち{0}個が再びXという名前になっています。JassHelperが元の名前に戻します; pjass: {1}",
  "JAPIW appendix (KK platform): {0} ({1}) stored after the MPQ archive, where only the platform plugin reads them. \"Fix map\" puts them into the map.": "JAPIW 付録（KK プラットフォーム）：{0}（{1}）が MPQ アーカイブの後ろに保存されており、プラットフォームのプラグインだけが読みます。「マップを修復」がそれらをマップに入れます。",
  "Moved the JAPIW appendix (KK platform) into the map: {0}.": "JAPIW 付録（KK プラットフォーム）をマップに入れました：{0}。",
- "{0}: the game reads <...> as a data reference and it can crash the map; write [ ] instead": "{0}：ゲームは <...> をデータ参照として読み、マップがクラッシュすることがあります。代わりに [ ] と書いてください"
+ "{0}: the game reads <...> as a data reference and it can crash the map; write [ ] instead": "{0}：ゲームは <...> をデータ参照として読み、マップがクラッシュすることがあります。代わりに [ ] と書いてください",
+ "the mouse-over of the buttons the map draws itself stays on interface events, as before (the cursor may flicker over them): the port layer's hover probe was left off, because code of this map that can run destroys an interface frame or sets a tooltip on one": "マップ自体が描画するボタンのマウスオーバーは、これまでどおりインターフェースイベントのままです(カーソルがちらつくことがあります)。移植レイヤーのホバー検出は無効のままにしました。このマップには、実行される可能性のあるコードでインターフェースフレームを破棄したりツールチップを設定したりするものがあるためです",
+ "an optional block of the port layer was left off: {0}": "移植レイヤーの任意ブロックを無効のままにしました: {0}"
 }
