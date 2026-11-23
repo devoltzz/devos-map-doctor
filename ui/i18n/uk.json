@@ -3563,5 +3563,7 @@
  "{0} local(s) l__X of the trigger functions named X again, which JassHelper renames back; pjass: {1}": "{0} локальних l__X тригерних функцій знову названо X, і JassHelper перейменовує їх назад; pjass: {1}",
  "JAPIW appendix (KK platform): {0} ({1}) stored after the MPQ archive, where only the platform plugin reads them. \"Fix map\" puts them into the map.": "Додаток JAPIW (платформа KK): {0} ({1}) зберігаються після архіву MPQ, де їх читає лише плагін платформи. \"Виправити мапу\" поміщає їх у мапу.",
  "Moved the JAPIW appendix (KK platform) into the map: {0}.": "Додаток JAPIW (платформа KK) поміщено в мапу: {0}.",
- "{0}: the game reads <...> as a data reference and it can crash the map; write [ ] instead": "{0}: гра читає <...> як посилання на дані, і це може обвалити мапу; пишіть натомість [ ]"
+ "{0}: the game reads <...> as a data reference and it can crash the map; write [ ] instead": "{0}: гра читає <...> як посилання на дані, і це може обвалити мапу; пишіть натомість [ ]",
+ "the mouse-over of the buttons the map draws itself stays on interface events, as before (the cursor may flicker over them): the port layer's hover probe was left off, because code of this map that can run destroys an interface frame or sets a tooltip on one": "наведення миші на кнопки, які карта малює сама, залишається на подіях інтерфейсу, як і раніше (курсор може мерехтіти над ними): перевірку наведення шару портування вимкнено, бо код цієї карти, який може виконуватися, знищує кадр інтерфейсу або встановлює на ньому підказку",
+ "an optional block of the port layer was left off: {0}": "необов'язковий блок шару портування вимкнено: {0}"
 }
