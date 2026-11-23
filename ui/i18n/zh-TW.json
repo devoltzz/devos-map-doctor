@@ -3563,5 +3563,7 @@
  "{0} local(s) l__X of the trigger functions named X again, which JassHelper renames back; pjass: {1}": "觸發器函式的 {0} 個區域變數 l__X 再次命名為 X，JassHelper 會將其改回；pjass：{1}",
  "JAPIW appendix (KK platform): {0} ({1}) stored after the MPQ archive, where only the platform plugin reads them. \"Fix map\" puts them into the map.": "JAPIW 附加區塊（KK 平台）：{0}（{1}）存放在 MPQ 封存檔之後，只有平台外掛會讀取。「修復地圖」會把它們放進地圖。",
  "Moved the JAPIW appendix (KK platform) into the map: {0}.": "已將 JAPIW 附加區塊（KK 平台）放進地圖：{0}。",
- "{0}: the game reads <...> as a data reference and it can crash the map; write [ ] instead": "{0}：遊戲會把 <...> 當作資料參照讀取，可能導致地圖當機；請改寫為 [ ]"
+ "{0}: the game reads <...> as a data reference and it can crash the map; write [ ] instead": "{0}：遊戲會把 <...> 當作資料參照讀取，可能導致地圖當機；請改寫為 [ ]",
+ "the mouse-over of the buttons the map draws itself stays on interface events, as before (the cursor may flicker over them): the port layer's hover probe was left off, because code of this map that can run destroys an interface frame or sets a tooltip on one": "地圖自行繪製的按鈕，其滑鼠懸停仍沿用介面事件，與先前相同（游標在其上方可能會閃爍）：移植層的懸停偵測已被關閉，因為此地圖中可能執行的程式碼會銷毀介面框架，或為其設定提示文字",
+ "an optional block of the port layer was left off: {0}": "移植層的一個選用區塊已被關閉：{0}"
 }
