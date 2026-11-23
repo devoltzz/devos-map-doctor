@@ -151,6 +151,12 @@ integer KKJN_relogio_base=0
 //{{KK_SE:KK_JN_RELOGIO_SALVO}}
 timer KKJN_relogio_grava=CreateTimer()
 //{{KK_FIMSE:KK_JN_RELOGIO_SALVO}}
+//{{KK_SE:KK_JN_GERACAO}}
+integer KKJN_wger=0
+boolean KKJN_ger_avisado=false
+string KKJN_ger_dir=""
+string KKJN_ger_log=""
+//{{KK_FIMSE:KK_JN_GERACAO}}
 //@ENDGLOBALS
 
 function KKJN_Esc takes string s returns string
@@ -781,6 +787,9 @@ function KKJN_init takes nothing returns nothing
     set KKJN_relogio_base=1767225600+GetRandomInt(0, 2999)*86400
     call TimerStart(KKJN_relogio, 1000000.0, false, null)
     //{{KK_FIMSE:KK_JN_RELOGIO}}
+    //{{KK_SE:KK_JN_GERACAO}}
+    set KKJN_ger_dir=KKJN_Dir(KKJN_UKey(GetPlayerName(GetLocalPlayer())))
+    //{{KK_FIMSE:KK_JN_GERACAO}}
     set KKJN_pronto=true
 endfunction
 
@@ -1047,6 +1056,10 @@ function KKJN_Reparte takes integer parts returns integer
     local integer bl=StringLength(b)
     local string r
     local integer c
+    //{{KK_SE:KK_JN_GERACAO}}
+    set b=b+"#g"+I2S(KKJN_wger)+";"
+    set bl=StringLength(b)
+    //{{KK_FIMSE:KK_JN_GERACAO}}
     if KKJN_blob_lit then
         set por=KKJN_nslots*(KKJN_TRECHO-1)
     endif
@@ -1155,10 +1168,115 @@ function KKJN_Dano takes string obj returns nothing
     endif
 endfunction
 
+//{{KK_SE:KK_JN_GERACAO}}
+function KKJN_GerBase takes string base,integer g returns string
+    if g<1 then
+        return base
+    endif
+    return base+"g"+I2S(g)+"_"
+endfunction
+
+function KKJN_GerNum takes string s returns integer
+    local integer p
+    local integer q
+    if s==null then
+        return 0
+    endif
+    set p=KKJN_PosB(s, "#g", 0)
+    if p<0 then
+        return 0
+    endif
+    set q=KKJN_PosB(s, ";", p+2)
+    if q<0 then
+        return 0
+    endif
+    return S2I(SubString(s, p+2, q))
+endfunction
+
+function KKJN_GerDono takes string base returns boolean
+    local integer n=StringLength(KKJN_ger_dir)
+    if SubString(base, 0, StringLength(KKJN_PASTA)+1)!=KKJN_PASTA+"u" then
+        return true
+    endif
+    return n>0 and SubString(base, 0, n)==KKJN_ger_dir
+endfunction
+
+function KKJN_GerDonoObj takes string obj returns boolean
+    local integer q=KKJN_PosB(obj, "|", 2)
+    if q<2 then
+        return false
+    endif
+    return KKJN_Dir(SubString(obj, 2, q))==KKJN_ger_dir
+endfunction
+
+function KKJN_GerLe takes string base returns string
+    local integer gk=StringHash("G"+base)
+    local integer g
+    local integer n=0
+    if not HaveSavedInteger(KKJN_dbf, gk, 0) then
+        call KKJN_SlotClear()
+        call Preloader(base+"g.pld")
+        set g=KKJN_GerNum(KKJN_SlotGet(0))
+        if g<0 then
+            set g=0
+        endif
+        loop
+            exitwhen n>=1000
+            call KKJN_SlotClear()
+            call Preloader(base+"g"+I2S(g+1)+".pld")
+            exitwhen KKJN_GerNum(KKJN_SlotGet(0))!=g+1
+            set g=g+1
+            set n=n+1
+        endloop
+        call SaveInteger(KKJN_dbf, gk, 0, g)
+    endif
+    return KKJN_GerBase(base, LoadInteger(KKJN_dbf, gk, 0))
+endfunction
+
+function KKJN_GerEscreve takes string base returns string
+    local integer gk=StringHash("G"+base)
+    if not HaveSavedInteger(KKJN_dbf, gk, 1) then
+        if not HaveSavedInteger(KKJN_dbf, gk, 0) then
+            call KKJN_GerLe(base)
+            call KKJN_SlotRestore()
+        endif
+        call SaveInteger(KKJN_dbf, gk, 1, LoadInteger(KKJN_dbf, gk, 0)+1)
+    endif
+    set KKJN_wger=LoadInteger(KKJN_dbf, gk, 1)
+    set KKJN_ger_log=base
+    return KKJN_GerBase(base, KKJN_wger)
+endfunction
+
+function KKJN_GerFecha takes string base returns nothing
+    local integer gk=StringHash("G"+base)
+    local string t
+    if KKJN_nslots<1 or LoadBoolean(KKJN_dbf, gk, 2) then
+        return
+    endif
+    call SaveBoolean(KKJN_dbf, gk, 2, true)
+    set t="#g"+I2S(LoadInteger(KKJN_dbf, gk, 1))+";"
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call KKJN_WriteSlotCru(0, t)
+    call PreloadGenEnd(base+"g"+I2S(LoadInteger(KKJN_dbf, gk, 1))+".pld")
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call KKJN_WriteSlotCru(0, t)
+    call PreloadGenEnd(base+"g.pld")
+endfunction
+//{{KK_FIMSE:KK_JN_GERACAO}}
+
 function KKJN_ConfereCarga takes string obj,integer lidos,integer espera,boolean curto returns nothing
     if not curto and (espera<=0 or lidos>=espera) then
         return
     endif
+    //{{KK_SE:KK_JN_GERACAO}}
+    if not KKJN_ger_avisado and KKJN_GerDonoObj(obj) then
+        set KKJN_ger_avisado=true
+        call DisplayTimedTextToPlayer(GetLocalPlayer(), 0, 0, 30, "|cffffcc00[Save] Your save file was out of step (an older version of the map wrote it across two games). What could be read was loaded; your next save writes a fresh copy and the old file stays on disk.|r")
+    endif
+    return
+    //{{KK_FIMSE:KK_JN_GERACAO}}
     call SaveBoolean(KKJN_dbf, StringHash(obj), -6, true)
     if not KKJN_encolhe_avisado then
         set KKJN_encolhe_avisado=true
@@ -1173,6 +1291,9 @@ function KKJN_LoadObjRaw takes string obj,string base returns boolean
     if KKJN_nslots<1 then
         return false
     endif
+    //{{KK_SE:KK_JN_GERACAO}}
+    set base=KKJN_GerLe(base)
+    //{{KK_FIMSE:KK_JN_GERACAO}}
     call KKJN_SlotClear()
     call Preloader(base+"0.pld")
     if KKJN_SlotGet(0)=="" then
@@ -1295,6 +1416,9 @@ function KKJN_CargaObj takes string obj,string base returns boolean
         call SaveBoolean(KKJN_dbf, k, -3, true)
         call KKJN_ClearObj(obj)
         if KKJN_nslots>0 then
+            //{{KK_SE:KK_JN_GERACAO}}
+            set base=KKJN_GerLe(base)
+            //{{KK_FIMSE:KK_JN_GERACAO}}
             call KKJN_SlotClear()
             call Preloader(base+"0.pld")
             if KKJN_SlotGet(0)!="" then
@@ -1374,6 +1498,14 @@ endfunction
 
 function KKJN_SaveObj takes string obj,string base returns nothing
     local integer k=StringHash(obj)
+    //{{KK_SE:KK_JN_GERACAO}}
+    if not KKJN_GerDono(base) then
+        call SaveBoolean(KKJN_dbf, k, -2, true)
+        call SaveBoolean(KKJN_dbf, k, -3, true)
+        return
+    endif
+    set base=KKJN_GerEscreve(base)
+    //{{KK_FIMSE:KK_JN_GERACAO}}
     if not LoadBoolean(KKJN_dbf, k, -4) and LoadStr(KKJN_dbf, k, -5)==base then
         return
     endif
@@ -1382,6 +1514,9 @@ function KKJN_SaveObj takes string obj,string base returns nothing
     endif
     call KKJN_BuildBlob(obj)
     call KKJN_WriteParts(base)
+    //{{KK_SE:KK_JN_GERACAO}}
+    call KKJN_GerFecha(KKJN_ger_log)
+    //{{KK_FIMSE:KK_JN_GERACAO}}
     call SaveBoolean(KKJN_dbf, k, -2, true)
     call SaveBoolean(KKJN_dbf, k, -3, true)
     call SaveBoolean(KKJN_dbf, k, -4, false)
@@ -1740,6 +1875,44 @@ function KKJN_UserObj takes string UserId returns string
     return KKJN_ObjUser(u, KKJN_CurNs(u))
 endfunction
 
+function KKJN_LevaBuffer takes string de,string para returns nothing
+    local integer fk=StringHash("F"+de)
+    local integer vk=StringHash(de)
+    local integer rk=StringHash("R"+de)
+    local integer n
+    local integer i=0
+    local integer h
+    local integer tipo
+    local string fld
+    local string rec
+    local boolean lit
+    if KKJN_cg_obj==de or KKJN_cg_obj==para then
+        call KKJN_CargaLe(0)
+    endif
+    call KKJN_ClearObj(para)
+    set n=LoadInteger(KKJN_dbf, fk, -1)
+    loop
+        exitwhen i>=n
+        set fld=LoadStr(KKJN_dbf, fk, i)
+        if fld!=null and fld!="" then
+            set h=StringHash(fld)
+            set tipo=LoadInteger(KKJN_dbt, vk, h)
+            set rec=""
+            set lit=false
+            if HaveSavedString(KKJN_dbf, rk, h) then
+                set rec=LoadStr(KKJN_dbf, rk, h)
+                set lit=LoadBoolean(KKJN_dbf, rk, h)
+            endif
+            if tipo==1 then
+                call KKJN_PoeCampo(para, fld, 1, LoadStr(KKJN_db, vk, h), 0, rec, lit)
+            else
+                call KKJN_PoeCampo(para, fld, 0, "", LoadInteger(KKJN_db, vk, h), rec, lit)
+            endif
+        endif
+        set i=i+1
+    endloop
+endfunction
+
 function JNObjectCharacterInit takes string MapId,string UserId,string SecretKey,string Character returns integer
     local string u
     local string c=Character
@@ -1763,12 +1936,17 @@ endfunction
 function JNObjectCharacterSave takes string MapId,string UserId,string SecretKey,string Character returns string
     local string u
     local string c=Character
+    local string p
     if not KKJN_pronto or UserId==null or UserId=="" then
         return ""
     endif
     set u=KKJN_UKey(UserId)
     if c==null then
         set c=""
+    endif
+    set p=KKJN_CurChar(u)
+    if p!="" and StringHash(KKJN_ObjChar(u, p))!=StringHash(KKJN_ObjChar(u, c)) then
+        call KKJN_LevaBuffer(KKJN_ObjChar(u, p), KKJN_ObjChar(u, c))
     endif
     call SaveStr(KKJN_dbf, KKJN_AKey(u), 0, c)
     call KKJN_SaveObj(KKJN_ObjChar(u, c), KKJN_BaseChar(u, c))
