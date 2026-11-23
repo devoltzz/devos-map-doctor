@@ -235,6 +235,176 @@ REQUIRE_FIX_FILE = ('(make the file before the build -- the UI kit data come fro
                     'port/ui.json of the project -- or take the part off the list)')
 
 
+BLOCK_OFF = {
+    'KK_UI_FOCO_PEDIDO': ('DzGetMouseFocus',),
+    'KK_UI_RODA_PEDIDA': ('DzTriggerRegisterMouseWheelEvent', 'DzTriggerRegisterMouseWheelEventByCode'),
+}
+
+
+def check_turned_off(params, map_path, functions):
+    problems = []
+    for block_entry, name_list in sorted(BLOCK_OFF.items()):
+        if params.get(block_entry) != 'true':
+            continue
+        rx = re.compile(r'(?<![\w.])(%s)[ \t]*\(' % '|'.join(map(re.escape, name_list)))
+        who = []
+        for ln in map_path.replace('\r', '').split('\n'):
+            code = ln.split('//', 1)[0]
+            if rx.search(code) and not re.match(r'[ \t]*(?:constant[ \t]+)?native\b', code):
+                who.append('the map script (`%s`)' % code.strip()[:80])
+                break
+        rest = functions
+        for n in name_list:
+            rest, _body = cut_function(rest, n)
+        for m in RX_FUNC_DEF.finditer(rest):
+            end_pos = rest.find('\nendfunction', m.end())
+            body = '\n'.join(
+                line.split('//', 1)[0]
+                for line in rest[m.end() : end_pos if end_pos >= 0 else len(rest)].split('\n')[1:]
+            )
+            if rx.search(body):
+                who.append('the layer function %s' % m.group(1))
+        if who:
+            problems.append(
+                '%s is on and %s still calls %s: take the block out of port/kk_parametros.json (or the call)'
+                % (block_entry, '; '.join(who[:4]), ' / '.join(name_list))
+            )
+    return problems
+
+
+BLOCK_VETO = {
+    'KK_UI_HOVER_SONDA': {
+        'mark': 'DB_sonda_tique',
+        'vetoes': (
+            (
+                ('DzDestroyFrame', 'BlzDestroyFrame'),
+                ('DB_cova_passa', 'DB_cova_poe'),
+                'with this block a destroyed frame is only hidden (the probe clock cannot read a dead frame): in a '
+                'map that destroys frames the hidden ones would pile up, and a direct `BlzDestroyFrame` would kill the buttons with '
+                'probe',
+            ),
+            (
+                ('DzFrameSetTooltip',),
+                (),
+                'the tooltip of the author and the probe share the single tooltip of the frame (the same tooltip on several buttons would make the clock '
+                'point at the wrong button; not measured in game)',
+            ),
+        ),
+    },
+}
+RX_SCRIPT_FUNCTION = re.compile(r'(?m)^[ \t]*(?:constant[ \t]+)?function[ \t]+([A-Za-z_]\w*)[ \t]+takes[ \t]+(\w+)')
+RX_END_FUNCTION = re.compile(r'(?m)^[ \t]*endfunction\b')
+RX_EXEC_BUILT = re.compile(r'\bExecuteFunc[ \t]*\((?![ \t]*"[^"\n]*"[ \t]*\))')
+LIVE_CAP = 400
+
+
+def _no_comment(body_text):
+    output = []
+    for ln in body_text.split('\n'):
+        i = ln.find('//')
+        if i >= 0 and '"' in ln[:i]:
+            inside, j, i = False, 0, -1
+            while j < len(ln) - 1:
+                c = ln[j]
+                if c == '\\' and inside:
+                    j += 2
+                    continue
+                if c == '"':
+                    inside = not inside
+                elif c == '/' and ln[j + 1] == '/' and not inside:
+                    i = j
+                    break
+                j += 1
+        if i >= 0:
+            ln = ln[:i] + ' ' * (len(ln) - i)
+        output.append(ln)
+    return '\n'.join(output)
+
+
+def live_calls(script, name_list, exempt_count=(), assembled=None):
+    import bisect
+    code = _no_comment(script.replace('\r\n', '\n').replace('\r', '\n'))
+    rx = re.compile(r'(?<![\w.])(%s)[ \t]*\(' % '|'.join(map(re.escape, name_list)))
+    if not rx.search(code):
+        return []
+    fn_list = []
+    for m in RX_SCRIPT_FUNCTION.finditer(code):
+        f = RX_END_FUNCTION.search(code, m.end())
+        fn_list.append((m.start(), f.end() if f else len(code), m.group(1), m.group(2) == 'nothing', m.end()))
+    starts = [f[0] for f in fn_list]
+    by_name = {f[2]: f for f in fn_list}
+    assembled = bool(assembled) or RX_EXEC_BUILT.search(code) is not None
+    dead = set()
+
+    def owner(pos):
+        i = bisect.bisect_right(starts, pos) - 1
+        return fn_list[i] if i >= 0 and pos < fn_list[i][1] else None
+
+    def live_one(fname):
+        seen, work_queue = set(), [fname]
+        while work_queue:
+            n = work_queue.pop()
+            if n in seen or n in dead:
+                continue
+            seen.add(n)
+            f = by_name.get(n)
+            if n in ('main', 'config') or f is None or (f[3] and assembled) or len(seen) > LIVE_CAP:
+                return True
+            for m in re.finditer(r'(?<!\w)%s(?!\w)' % re.escape(n), code):
+                if f[0] <= m.start() < f[4]:
+                    continue
+                d = owner(m.start())
+                if d is None:
+                    return True
+                if d[2] != n:
+                    work_queue.append(d[2])
+        dead.update(seen)
+        return False
+
+    output = []
+    for m in rx.finditer(code):
+        begin = code.rfind('\n', 0, m.start()) + 1
+        if re.match(r'[ \t]*(?:constant[ \t]+)?native\b', code[begin:m.start() + 1]):
+            continue
+        d = owner(m.start())
+        if d is not None and d[2] in exempt_count:
+            continue
+        if d is None or live_one(d[2]):
+            output.append((d[2] if d else '(outside a function)', code.count('\n', 0, m.start()) + 1))
+    return output
+
+
+def check_vetoed(script):
+    problems = []
+    for block_entry, d in sorted(BLOCK_VETO.items()):
+        if not re.search(
+            r'(?m)^[ \t]*function[ \t]+%s[ \t]+takes\b' % re.escape(d['mark']), script.replace('\r', '\n')
+        ):
+            continue
+        for name_list, exempt_count, kept_why in d['vetoes']:
+            who = ['the function %s (line %d)' % fl for fl in live_calls(script, name_list, exempt_count)]
+            if who:
+                problems.append(
+                    '%s is in the program and %s calls %s: %s; take the block out of port/kk_parametros.json (or the '
+                    'call)' % (block_entry, '; '.join(who[:4]), ' / '.join(name_list), kept_why)
+                )
+    return problems
+
+
+BLOCK_REQUIRES = {
+    'KK_UI_LARGA_QUIETA': 'KK_UI_LARGA',
+    'KK_UI_HOVER_SONDA': 'KK_UI_FOCO_PEDIDO',
+}
+
+
+def check_requires(params):
+    return [
+        '%s is on without %s: turn both on in port/kk_parametros.json (or take the first out)' % (block_entry, other)
+        for block_entry, other in sorted(BLOCK_REQUIRES.items())
+        if params.get(block_entry) == 'true' and params.get(other) != 'true'
+    ]
+
+
 def _part_file(fname):
     return fname.replace('\\', '/').rsplit('/', 1)[-1].rsplit(':', 1)[-1]
 
@@ -475,6 +645,17 @@ def write_layer(file_path, natives, globals_txt, functions_txt, score):
     return raw_bytes
 
 
+def cut_function(body_text, fname):
+    m = re.search(r'(?m)^function\s+' + re.escape(fname) + r'\s+takes[^\n]*\n', body_text)
+    if not m:
+        return body_text, None
+    end_pos = body_text.find('\nendfunction', m.start())
+    if end_pos < 0:
+        return body_text, None
+    end_pos += len('\nendfunction')
+    return body_text[:m.start()] + body_text[end_pos:], body_text[m.start():end_pos]
+
+
 def map_native_declarations(origin):
     map_path = open(origin, 'rb').read().decode('utf-8', 'surrogateescape')
     map_path = re.sub(r'\r(?!\n)', '\n', map_path)
@@ -638,11 +819,17 @@ def main(argv=None):
     if in_layer:
         print('declared by the MAP (outside blizzard.j): %s' % ', '.join(sorted(in_layer)))
 
+    alone_ones = check_requires(read_parameters())
+    if alone_ones:
+        raise SystemExit('ABORTS: ' + ' | '.join(alone_ones))
     natives, g, functions = read_parts(argv)
     functions_block = '\n'.join(functions)
     if not functions_block.strip() and not g:
         print('nothing to generate: the parts of the layer are empty')
         return 2
+    turned_off = check_turned_off(read_parameters(), map_path, functions_block)
+    if turned_off:
+        raise SystemExit('ABORTS: ' + ' | '.join(turned_off))
 
     layer = arg('layer', None, argv)
     smoke_mode = '--stubs' in argv
