@@ -52,6 +52,11 @@ function DzCreateFrame takes string frame,integer parent,integer id returns inte
     if f==null then
         return 0
     endif
+    //{{KK_SE:KK_UI_IGUAL}}
+    if DB_ui_ht!=null then
+        call SaveInteger(DB_ui_ht, DB_fid(f), DB_UI_IG_PAI, parent)
+    endif
+    //{{KK_FIMSE:KK_UI_IGUAL}}
     //{{KK_SE:KK_UI_BOTOES}}
     if DB_ui_e_botao(frame) then
         set nid=DB_ui_nosso(DB_fid(f))
@@ -248,6 +253,14 @@ function DzFrameSetParent takes integer frame,integer parent returns nothing
         return
     endif
     if f!=null and p!=null then
+        //{{KK_SE:KK_UI_IGUAL}}
+        if DB_ui_ht!=null and LoadBoolean(DB_ui_ht, frame, DB_UI_NOSSO) then
+            if LoadInteger(DB_ui_ht, frame, DB_UI_IG_PAI)==parent then
+                return
+            endif
+            call SaveInteger(DB_ui_ht, frame, DB_UI_IG_PAI, parent)
+        endif
+        //{{KK_FIMSE:KK_UI_IGUAL}}
         call BlzFrameSetParent(f, p)
     endif
 endfunction
@@ -272,6 +285,14 @@ endfunction
 function DzFrameSetTextColor takes integer frame,integer color returns nothing
     local framehandle f=DB_fh(frame)
     if f!=null then
+        //{{KK_SE:KK_UI_IGUAL}}
+        if DB_ui_ht!=null and LoadBoolean(DB_ui_ht, frame, DB_UI_NOSSO) then
+            if HaveSavedInteger(DB_ui_ht, frame, DB_UI_IG_COR) and LoadInteger(DB_ui_ht, frame, DB_UI_IG_COR)==color then
+                return
+            endif
+            call SaveInteger(DB_ui_ht, frame, DB_UI_IG_COR, color)
+        endif
+        //{{KK_FIMSE:KK_UI_IGUAL}}
         call BlzFrameSetTextColor(f, color)
     endif
 endfunction
@@ -287,6 +308,21 @@ function DzFrameSetTooltip takes integer frame,integer tooltip returns nothing
     local framehandle f=DB_fh(frame)
     local framehandle t=DB_fh(tooltip)
     if f!=null and t!=null then
+        //{{KK_SE:KK_UI_IGUAL}}
+        if DB_ui_ht!=null then
+            call SaveBoolean(DB_ui_ht, tooltip, DB_UI_IG_DICA, true)
+        endif
+        //{{KK_FIMSE:KK_UI_IGUAL}}
+        //{{KK_SE:KK_UI_HOVER_SONDA}}
+        if DB_ui_ht!=null then
+            call SaveInteger(DB_ui_ht, frame, DB_UI_SD_DICA, tooltip)
+            if LoadInteger(DB_ui_ht, frame, DB_UI_SD_IDX)>0 then
+                call SaveBoolean(DB_ui_ht, frame, DB_UI_SD_AUTOR, true)
+                call BlzFrameSetVisible(t, false)
+                return
+            endif
+        endif
+        //{{KK_FIMSE:KK_UI_HOVER_SONDA}}
         call BlzFrameSetTooltip(f, t)
     endif
 endfunction
@@ -301,6 +337,14 @@ endfunction
 function DzFrameSetVertexColor takes integer frame,integer color returns nothing
     local framehandle f=DB_fh(frame)
     if f!=null then
+        //{{KK_SE:KK_UI_IGUAL}}
+        if DB_ui_ht!=null and LoadBoolean(DB_ui_ht, frame, DB_UI_NOSSO) then
+            if HaveSavedInteger(DB_ui_ht, frame, DB_UI_IG_VTX) and LoadInteger(DB_ui_ht, frame, DB_UI_IG_VTX)==color then
+                return
+            endif
+            call SaveInteger(DB_ui_ht, frame, DB_UI_IG_VTX, color)
+        endif
+        //{{KK_FIMSE:KK_UI_IGUAL}}
         call BlzFrameSetVertexColor(f, color)
     endif
 endfunction
