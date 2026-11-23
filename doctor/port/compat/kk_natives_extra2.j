@@ -19,6 +19,16 @@ function DzFrameSetScale takes integer frame,real scale returns nothing
         return
     endif
     if f!=null then
+        //{{KK_SE:KK_UI_IGUAL}}
+        if DB_ui_ht!=null and LoadBoolean(DB_ui_ht, frame, DB_UI_NOSSO) then
+            if HaveSavedReal(DB_ui_ht, frame, DB_UI_IG_ESC) and DB_ui_ig_igual(LoadReal(DB_ui_ht, frame, DB_UI_IG_ESC), scale) then
+                set f=null
+                return
+            endif
+            call SaveReal(DB_ui_ht, frame, DB_UI_IG_ESC, scale)
+            call RemoveSavedString(DB_ui_ht, frame, DB_UI_IG_FNT)
+        endif
+        //{{KK_FIMSE:KK_UI_IGUAL}}
         call BlzFrameSetScale(f, scale)
     endif
     set f=null
