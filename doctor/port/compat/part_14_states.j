@@ -572,6 +572,31 @@ constant integer DB_EST_VERDE_M=23
 hashtable DB_est_verde_ids=null
 group DB_est_verde_g=null
 integer DB_est_verde_n=0
+boolean DB_est_verde_filtro=false
+
+function DB_est_verde_aceita takes integer id returns nothing
+    if DB_est_verde_ids==null then
+        set DB_est_verde_ids=InitHashtable()
+    endif
+    if not DB_est_verde_filtro then
+        set DB_est_verde_filtro=true
+        call SaveBoolean(DB_est_verde_ids,1,'AIat',true)
+        call SaveBoolean(DB_est_verde_ids,1,'AIt6',true)
+        call SaveBoolean(DB_est_verde_ids,1,'AIt9',true)
+        call SaveBoolean(DB_est_verde_ids,1,'AItc',true)
+        call SaveBoolean(DB_est_verde_ids,1,'AItf',true)
+        call SaveBoolean(DB_est_verde_ids,1,'AItg',true)
+        call SaveBoolean(DB_est_verde_ids,1,'AIth',true)
+        call SaveBoolean(DB_est_verde_ids,1,'AIti',true)
+        call SaveBoolean(DB_est_verde_ids,1,'AItj',true)
+        call SaveBoolean(DB_est_verde_ids,1,'AItk',true)
+        call SaveBoolean(DB_est_verde_ids,1,'AItl',true)
+        call SaveBoolean(DB_est_verde_ids,1,'AItn',true)
+    endif
+    if id!=0 then
+        call SaveBoolean(DB_est_verde_ids,1,id,true)
+    endif
+endfunction
 
 function DB_est_verde_mede takes unit u returns nothing
     local integer i=0
@@ -585,8 +610,8 @@ function DB_est_verde_mede takes unit u returns nothing
     if u==null then
         return
     endif
-    if DB_est_verde_ids==null then
-        set DB_est_verde_ids=InitHashtable()
+    if not DB_est_verde_filtro then
+        call DB_est_verde_aceita(0)
     endif
     call FlushChildHashtable(DB_est_verde_ids,0)
     loop
@@ -597,8 +622,11 @@ function DB_est_verde_mede takes unit u returns nothing
             loop
                 set a=BlzGetItemAbilityByIndex(it,j)
                 exitwhen a==null or j>=16
-                set v=v+BlzGetAbilityIntegerLevelField(a,ABILITY_ILF_ATTACK_BONUS,0)
-                call SaveBoolean(DB_est_verde_ids,0,BlzGetAbilityId(a),true)
+                set id=BlzGetAbilityId(a)
+                if LoadBoolean(DB_est_verde_ids,1,id) then
+                    set v=v+BlzGetAbilityIntegerLevelField(a,ABILITY_ILF_ATTACK_BONUS,0)
+                endif
+                call SaveBoolean(DB_est_verde_ids,0,id,true)
                 set j=j+1
             endloop
         endif
@@ -609,7 +637,7 @@ function DB_est_verde_mede takes unit u returns nothing
         set a=BlzGetUnitAbilityByIndex(u,i)
         exitwhen a==null or i>=200
         set id=BlzGetAbilityId(a)
-        if not LoadBoolean(DB_est_verde_ids,0,id) then
+        if not LoadBoolean(DB_est_verde_ids,0,id) and LoadBoolean(DB_est_verde_ids,1,id) then
             set lv=GetUnitAbilityLevel(u,id)
             if lv>0 then
                 set v=v+BlzGetAbilityIntegerLevelField(a,ABILITY_ILF_ATTACK_BONUS,lv-1)
