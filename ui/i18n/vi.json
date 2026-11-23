@@ -3563,5 +3563,7 @@
  "{0} local(s) l__X of the trigger functions named X again, which JassHelper renames back; pjass: {1}": "{0} biến cục bộ l__X của các hàm trigger lại được đặt tên là X, mà JassHelper sẽ đổi tên lại; pjass: {1}",
  "JAPIW appendix (KK platform): {0} ({1}) stored after the MPQ archive, where only the platform plugin reads them. \"Fix map\" puts them into the map.": "Phần phụ JAPIW (nền tảng KK): {0} ({1}) được lưu sau kho MPQ, nơi chỉ plugin của nền tảng đọc chúng. \"Sửa bản đồ\" đưa chúng vào bản đồ.",
  "Moved the JAPIW appendix (KK platform) into the map: {0}.": "Đã đưa phần phụ JAPIW (nền tảng KK) vào bản đồ: {0}.",
- "{0}: the game reads <...> as a data reference and it can crash the map; write [ ] instead": "{0}: trò chơi đọc <...> như một tham chiếu dữ liệu và có thể làm bản đồ bị treo; hãy viết [ ] thay thế"
+ "{0}: the game reads <...> as a data reference and it can crash the map; write [ ] instead": "{0}: trò chơi đọc <...> như một tham chiếu dữ liệu và có thể làm bản đồ bị treo; hãy viết [ ] thay thế",
+ "the mouse-over of the buttons the map draws itself stays on interface events, as before (the cursor may flicker over them): the port layer's hover probe was left off, because code of this map that can run destroys an interface frame or sets a tooltip on one": "phần di chuột lên các nút mà bản đồ tự vẽ vẫn dùng sự kiện giao diện, như trước đây (con trỏ có thể nhấp nháy trên chúng): bộ dò di chuột của lớp port đã bị tắt, vì mã của bản đồ này có thể chạy sẽ hủy một khung giao diện hoặc đặt chú giải cho khung đó",
+ "an optional block of the port layer was left off: {0}": "một khối tùy chọn của lớp port đã bị tắt: {0}"
 }
