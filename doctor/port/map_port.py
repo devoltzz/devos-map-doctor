@@ -737,6 +737,7 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
     pair['KK_UI_PAI'] = new.ui_parent(body_text)
     from doctor.mpq import xm_porta
     pair.update(xm_porta.ui_flags())
+    pair.update(new.ui_requests(body_text, with_lua=bool(lua_modules) or xm_porta.ACTIVE, wide=pair.get('KK_UI_LARGA')))
     atk = new.covered_attack(extract)
     pair['KK_CMD_ATAQUE'] = 'true' if atk else 'false'
     if atk:
@@ -858,14 +859,50 @@ def recipe(root, raw_data, diag, blz, no_dot_name_list, heading, added_models=()
     return r
 
 
+BLOCK_REFUSED = {
+    'KK_UI_HOVER_SONDA': "the mouse-over of the buttons the map draws itself stays on interface events, as before (the "
+    "cursor may flicker over them): the port layer's hover probe was left off, because code of this "
+    "map that can run destroys an interface frame or sets a tooltip on one",
+}
+
+
+def turn_off_refused(r):
+    from doctor.port import layer
+    from doctor.port import inject
+    rejected = [b for b in sorted(layer.BLOCK_VETO) if any(v.startswith(b) for v in inject.REFUSED_BLOCKS)]
+    if not rejected:
+        return []
+    file_ = os.path.join(r.ROOT, 'port', 'kk_parametros.json')
+    with open(file_, encoding='utf-8') as f:
+        pair = json.load(f)
+    done = [b for b in rejected if pair.get(b) == 'true']
+    if done:
+        for b in done:
+            pair[b] = 'false'
+        new.save(file_, json.dumps(pair, ensure_ascii=False, indent=1) + '\n')
+    return done
+
+
 def run_chain(r):
     from doctor.port import chain
-    try:
-        v, output = _muted(chain.assemble, r, [])
-    except Exception as e:
-        with open(os.path.join(r.ROOT, 'port', 'out', 'cadeia.log'), 'w', encoding='utf-8', errors='replace') as f:
-            f.write(getattr(e, 'quiet_output', '') + '\n%s: %s\n' % (type(e).__name__, e))
-        raise
+    from doctor.port import inject
+    for goes_back in (1, 2):
+        inject.REFUSED_BLOCKS = []
+        try:
+            v, output = _muted(chain.assemble, r, [])
+        except Exception as e:
+            with open(os.path.join(r.ROOT, 'port', 'out', 'cadeia.log'), 'w', encoding='utf-8', errors='replace') as f:
+                f.write(getattr(e, 'quiet_output', '') + '\n%s: %s\n' % (type(e).__name__, e))
+            raise
+        disabled_triggers = turn_off_refused(r) if goes_back == 1 and isinstance(v, SystemExit) else []
+        if not disabled_triggers:
+            break
+        with open(
+            os.path.join(r.ROOT, 'port', 'out', 'cadeia_recusada.log'), 'w', encoding='utf-8', errors='replace'
+        ) as f:
+            f.write(output)
+        for b in disabled_triggers:
+            WARNINGS.append(BLOCK_REFUSED.get(b, 'an optional block of the port layer was left off: %s' % b))
     with open(os.path.join(r.ROOT, 'port', 'out', 'cadeia.log'), 'w', encoding='utf-8', errors='replace') as f:
         f.write(output)
     g = re.search(r'G1 (PASS|FAIL) \| G2 (PASS|FAIL)', output)
