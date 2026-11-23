@@ -485,6 +485,47 @@ def ui_parent(body_text):
     )
 
 
+def ui_focus_requested(body_text):
+    return 'false' if _call(body_text, 'DzGetMouseFocus') else 'true'
+
+
+def ui_wheel_requested(body_text):
+    if _call(body_text, 'DzTriggerRegisterMouseWheelEvent') or _call(
+        body_text, 'DzTriggerRegisterMouseWheelEventByCode'
+    ):
+        return 'false'
+    return 'true'
+
+
+RX_NAME_BY_TEXT = re.compile(
+    r'(?m)^[ \t]*(?:constant[ \t]+)?native[ \t]+(?:DzFrameSetScript|DzFrameSetUpdateCallback)\b'
+)
+
+
+def ui_hover_probe(body_text):
+    if not _call(body_text, 'DzCreateFrameByTagName') or not (_call(body_text, 'DzFrameSetScriptByCode')
+                                                              or _call(body_text, 'DzFrameSetScript')):
+        return 'false'
+    from doctor.port import layer
+    name_list = [n for v in layer.BLOCK_VETO['KK_UI_HOVER_SONDA']['vetoes'] for n in v[0]]
+    name_list.append('DestroyFrame')
+    return (
+        'false'
+        if layer.live_calls(body_text, name_list, assembled=RX_NAME_BY_TEXT.search(body_text) is not None)
+        else 'true'
+    )
+
+
+def ui_requests(body_text, with_lua=False, wide=None):
+    pair = {'KK_UI_FOCO_PEDIDO': 'false' if with_lua else ui_focus_requested(body_text),
+            'KK_UI_RODA_PEDIDA': 'false' if with_lua else ui_wheel_requested(body_text),
+            'KK_UI_ESCONDE_UMA': 'true'}
+    pair['KK_UI_HOVER_SONDA'] = ui_hover_probe(body_text) if pair['KK_UI_FOCO_PEDIDO'] == 'true' else 'false'
+    if wide is not None:
+        pair['KK_UI_LARGA_QUIETA'] = 'true' if wide == 'true' else 'false'
+    return pair
+
+
 def ui_hud_lol(body_text):
     for rx in (r'(?m)^\s*integer\s+LoLHUD_LastHover\b', r'(?m)^\s*integer\s+array\s+LoLHUD_SlotAbil\b',
                r'(?m)^\s*unit\s+LoLHUD_Hero\b', r'(?m)^\s*boolean\s+AltDown\b'):
