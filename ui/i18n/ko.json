@@ -3564,5 +3564,7 @@
  "{0} local(s) l__X of the trigger functions named X again, which JassHelper renames back; pjass: {1}": "트리거 함수의 로컬 l__X {0}개가 다시 X로 명명되며, JassHelper가 이를 되돌려 이름을 바꿉니다; pjass: {1}",
  "JAPIW appendix (KK platform): {0} ({1}) stored after the MPQ archive, where only the platform plugin reads them. \"Fix map\" puts them into the map.": "JAPIW 부록(KK 플랫폼): {0}({1})이(가) MPQ 아카이브 뒤에 저장되어 있어 플랫폼 플러그인만 읽습니다. \"맵 수정\"이 이를 맵 안에 넣습니다.",
  "Moved the JAPIW appendix (KK platform) into the map: {0}.": "JAPIW 부록(KK 플랫폼)을 맵 안에 넣었습니다: {0}.",
- "{0}: the game reads <...> as a data reference and it can crash the map; write [ ] instead": "{0}: 게임은 <...>를 데이터 참조로 읽으며 맵이 튕길 수 있습니다. 대신 [ ]를 쓰세요"
+ "{0}: the game reads <...> as a data reference and it can crash the map; write [ ] instead": "{0}: 게임은 <...>를 데이터 참조로 읽으며 맵이 튕길 수 있습니다. 대신 [ ]를 쓰세요",
+ "the mouse-over of the buttons the map draws itself stays on interface events, as before (the cursor may flicker over them): the port layer's hover probe was left off, because code of this map that can run destroys an interface frame or sets a tooltip on one": "맵이 직접 그리는 버튼의 마우스 오버는 이전처럼 인터페이스 이벤트를 그대로 사용합니다(커서가 깜박일 수 있습니다). 이 맵에서 실행될 수 있는 코드가 인터페이스 프레임을 삭제하거나 툴팁을 설정하기 때문에 포팅 레이어의 호버 감지는 꺼 두었습니다.",
+ "an optional block of the port layer was left off: {0}": "포팅 레이어의 선택 블록이 꺼져 있습니다: {0}"
 }
