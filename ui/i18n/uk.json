@@ -3565,5 +3565,7 @@
  "Moved the JAPIW appendix (KK platform) into the map: {0}.": "Додаток JAPIW (платформа KK) поміщено в мапу: {0}.",
  "{0}: the game reads <...> as a data reference and it can crash the map; write [ ] instead": "{0}: гра читає <...> як посилання на дані, і це може обвалити мапу; пишіть натомість [ ]",
  "the mouse-over of the buttons the map draws itself stays on interface events, as before (the cursor may flicker over them): the port layer's hover probe was left off, because code of this map that can run destroys an interface frame or sets a tooltip on one": "наведення миші на кнопки, які карта малює сама, залишається на подіях інтерфейсу, як і раніше (курсор може мерехтіти над ними): перевірку наведення шару портування вимкнено, бо код цієї карти, який може виконуватися, знищує кадр інтерфейсу або встановлює на ньому підказку",
- "an optional block of the port layer was left off: {0}": "необов'язковий блок шару портування вимкнено: {0}"
+ "an optional block of the port layer was left off: {0}": "необов'язковий блок шару портування вимкнено: {0}",
+ "The engine stopped: the browser most likely ran out of the memory it gives a page for this map. The program for Windows or Linux has no such limit (Download on GitHub).": "Рушій зупинився: найімовірніше, браузеру забракло пам'яті, яку він дає сторінці для цієї мапи. Програма для Windows або Linux не має такого обмеження (Завантажити з GitHub).",
+ "a piece of a module path": "частина шляху модуля"
 }
