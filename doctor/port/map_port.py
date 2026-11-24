@@ -264,6 +264,15 @@ def build_lua_route(r, lua, original, extract, log, details):
         generated = {}
         WARNINGS.append('the frame definitions the map writes at run time could not be collected (%s: %s): its custom '
                         'interface may not show' % (type(e).__name__, e))
+    map_only = body_text
+    for d in (('simulator', 'rt_core.lua'), ('ydwe', 'bignum.lua'), ('ydwe', 'motor.lua')):
+        map_only = map_only.replace(ydwe_port._read(ydwe_port._route_data(*d)), '')
+    literais = [
+        re.sub(r'\\\\+', r'\\', c)
+        for c in re.findall(r'''(?:\[\[|["'])([^'"\[\]\r\n%]{3,200}?\.(?:blp|tga|dds))(?:\]\]|["'])''', map_only, re.I)
+        if '\\' in c or '/' in c
+    ]
+    textures = list(textures) + sorted(set(literais) - set(textures))
     missing_ones = (
         ydwe_port.missing_textures(textures, extract, generated, log=log, map_path=mpqread.Archive(original))
         if textures
@@ -630,7 +639,19 @@ def _punishment_marks(ls, acquire_range=6):
     return out
 
 
-def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, memory_hacks=None, lua_modules=None):
+def map_part(
+    root,
+    compat,
+    extract,
+    raw_data,
+    body_text,
+    diag,
+    heading,
+    log,
+    memory_hacks=None,
+    lua_modules=None,
+    wide_screen=False,
+):
     for p in new.inclusion_points():
         _writes(os.path.join(compat, 'kk_%s.j' % p), b'')
     value_list = {'NOME': heading, 'DATA': time.strftime('%d/%m/%Y'),
@@ -729,6 +750,8 @@ def map_part(root, compat, extract, raw_data, body_text, diag, heading, log, mem
     pair['KK_UI_CICLO'] = 'true'
     pair['KK_UI_MOUSE_POS'] = new.ui_mouse_pos(body_text)
     pair['KK_UI_LARGA'] = new.wide_ui(body_text)
+    if wide_screen:
+        pair['KK_UI_LARGA'] = 'true'
     if pair['KK_UI_LARGA'] == 'true':
         pair['KK_UI_MOUSE_POS'] = 'true'
     pair['KK_UI_BORDAS'] = new.ui_borders(body_text)
@@ -1740,7 +1763,7 @@ def write_local_art(folder, output, log=print):
 
 def map_port(map_path, work, output=None, stats=None, heading=None, log=print, packages=(), shrink_large=True,
              memory_hacks='neutralize', balance_numbers=False, lua_translation=None, shrink_with_loss=False,
-             sd_models=False, main_on_load=False, only_lua=False):
+             sd_models=False, main_on_load=False, only_lua=False, wide_screen=False):
     t0 = time.time()
     map_path = os.path.abspath(map_path)
     base = os.path.splitext(map_path)[0]
@@ -1828,7 +1851,7 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
                'SLK' if diag['slk'] else 'w3u'))
         job_progress.topo('layer', 'Writing the map\'s part of the port layer')
         blz, _pair = map_part(root, compat, extract, raw_data, body_text, diag, heading, log, memory_hacks=memory_hacks,
-                              lua_modules=(lua or {}).get('collect', {}).get('lua_modules'))
+                              lua_modules=(lua or {}).get('collect', {}).get('lua_modules'), wide_screen=wide_screen)
         from doctor.port import name_without_dot
         listing = name_without_dot.map_models(set(name_list))
         from doctor.port import model_carriers
