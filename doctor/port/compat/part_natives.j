@@ -682,6 +682,14 @@ function DzFrameGetPortrait takes nothing returns integer
     return DB_origin(ORIGIN_FRAME_PORTRAIT, 0)
 endfunction
 
+function DzFrameGetLowerLevelFrame takes nothing returns integer
+    local framehandle f=BlzGetFrameByName("ConsoleUIBackdrop", 0)
+    if f==null then
+        return DzGetGameUI()
+    endif
+    return DB_fid(f)
+endfunction
+
 function DzFrameGetTooltip takes nothing returns integer
     return DB_origin(ORIGIN_FRAME_TOOLTIP, 0)
 endfunction
