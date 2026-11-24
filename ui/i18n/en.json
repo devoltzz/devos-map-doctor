@@ -2456,6 +2456,7 @@
   "The {0} turn(s) both logs have are identical.",
   "There is no such file or folder: {0}",
   "These files were written on {0}, {1} day(s) ago: if the copy was played after that, the game did not get to write them this time, and they are from an earlier run.",
+  "This copy no longer has {0}. While a map has that file, the KK client runs it and ignores war3map.j: to put this war3map.j into another copy of the map, delete {1} from that copy too.",
   "This file cannot be {0}: it is an art package, not a map.",
   "This file is not a report the Doctor reads (a Crash.txt, a Desync.txt, a *_Desync.log or the War3Log.txt of the game): {0}",
   "This file is too big to be a log of a diagnostic copy ({0} MB).",
