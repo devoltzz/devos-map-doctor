@@ -3567,5 +3567,7 @@
  "Moved the JAPIW appendix (KK platform) into the map: {0}.": "O apêndice JAPIW (plataforma KK) foi colocado no mapa: {0}.",
  "{0}: the game reads <...> as a data reference and it can crash the map; write [ ] instead": "{0}: o jogo lê <...> como uma referência a dados e isso pode travar o mapa; escreva [ ] no lugar",
  "the mouse-over of the buttons the map draws itself stays on interface events, as before (the cursor may flicker over them): the port layer's hover probe was left off, because code of this map that can run destroys an interface frame or sets a tooltip on one": "o mouse-over dos botões que o próprio mapa desenha continua em eventos de interface, como antes (o cursor pode piscar sobre eles): a sonda de hover da camada do port foi deixada desligada, porque código deste mapa que pode rodar destrói um frame de interface ou define uma dica nele",
- "an optional block of the port layer was left off: {0}": "um bloco opcional da camada do port foi deixado desligado: {0}"
+ "an optional block of the port layer was left off: {0}": "um bloco opcional da camada do port foi deixado desligado: {0}",
+ "The engine stopped: the browser most likely ran out of the memory it gives a page for this map. The program for Windows or Linux has no such limit (Download on GitHub).": "O motor parou: o navegador provavelmente ficou sem a memória que dá a uma página para este mapa. O programa para Windows ou Linux não tem esse limite (Baixar no GitHub).",
+ "a piece of a module path": "um pedaço de um caminho de módulo"
 }
