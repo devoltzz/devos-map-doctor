@@ -3565,5 +3565,7 @@
  "Moved the JAPIW appendix (KK platform) into the map: {0}.": "已將 JAPIW 附加區塊（KK 平台）放進地圖：{0}。",
  "{0}: the game reads <...> as a data reference and it can crash the map; write [ ] instead": "{0}：遊戲會把 <...> 當作資料參照讀取，可能導致地圖當機；請改寫為 [ ]",
  "the mouse-over of the buttons the map draws itself stays on interface events, as before (the cursor may flicker over them): the port layer's hover probe was left off, because code of this map that can run destroys an interface frame or sets a tooltip on one": "地圖自行繪製的按鈕，其滑鼠懸停仍沿用介面事件，與先前相同（游標在其上方可能會閃爍）：移植層的懸停偵測已被關閉，因為此地圖中可能執行的程式碼會銷毀介面框架，或為其設定提示文字",
- "an optional block of the port layer was left off: {0}": "移植層的一個選用區塊已被關閉：{0}"
+ "an optional block of the port layer was left off: {0}": "移植層的一個選用區塊已被關閉：{0}",
+ "The engine stopped: the browser most likely ran out of the memory it gives a page for this map. The program for Windows or Linux has no such limit (Download on GitHub).": "引擎已停止：很可能是瀏覽器分配給此地圖所在頁面的記憶體用盡了。Windows 或 Linux 版程式沒有這樣的限制（在 GitHub 下載）。",
+ "a piece of a module path": "模組路徑的一部分"
 }
