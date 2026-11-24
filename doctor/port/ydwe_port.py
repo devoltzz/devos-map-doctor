@@ -792,7 +792,64 @@ def generated_files(lua_p, seconds=15.0, log=None, extract=None, textures=None, 
                 % (fallback_fdf.count('Frame "'), FDF_FALLBACK))
     if log and details.get('main_error'):
         log('   the simulation that collects the generated files stopped: %s' % str(details.get('main_error'))[:300])
+    blended = 0
+    for fname in list(out):
+        if fname.lower().endswith('.fdf') and fname != FDF_FALLBACK:
+            out[fname], n = fdf_blend(out[fname])
+            blended += n
+    if log and blended:
+        log(
+            '   %d BACKDROP template(s) of the frame definitions the map writes drawn with their alpha (BackdropBlendAll)'
+            % blended
+        )
     return out
+
+
+RX_FDF_BACKDROP = re.compile(r'^\s*Frame\s+"BACKDROP"\s+"[^"]*"')
+
+
+def _no_comment(ln):
+    i = ln.find('//')
+    return ln if i < 0 else ln[:i]
+
+
+def fdf_blend(data_bytes):
+    body_text = data_bytes.decode('utf-8', 'surrogateescape')
+    line_break = '\r\n' if '\r\n' in body_text else '\n'
+    line_list = body_text.split(line_break)
+    to_insert = []
+    i = 0
+    while i < len(line_list):
+        if not RX_FDF_BACKDROP.match(line_list[i]):
+            i += 1
+            continue
+        j, max_depth, opens, body = i, 0, None, []
+        while j < len(line_list):
+            s = _no_comment(line_list[j])
+            for c in s:
+                if c == '{':
+                    max_depth += 1
+                    if opens is None:
+                        opens = j
+                elif c == '}':
+                    max_depth -= 1
+            if opens is not None and max_depth == 1 and j > opens:
+                body.append(s)
+            if opens is not None and max_depth <= 0:
+                break
+            j += 1
+        if opens is None:
+            break
+        active_body = ' '.join(body)
+        if 'BackdropBackground' in active_body and 'BackdropBlendAll' not in active_body:
+            to_insert.append(opens)
+        i = opens + 1
+    for k in reversed(to_insert):
+        indent_trim = re.match(r'\s*', line_list[k + 1] if k + 1 < len(line_list) else '').group(0) or '    '
+        line_list.insert(k + 1, indent_trim + 'BackdropBlendAll,')
+    if not to_insert:
+        return data_bytes, 0
+    return line_break.join(line_list).encode('utf-8', 'surrogateescape'), len(to_insert)
 
 
 TRANSPARENT = 'devos\\transparente.tga'
