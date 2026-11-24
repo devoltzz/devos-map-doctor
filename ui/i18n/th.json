@@ -3565,5 +3565,7 @@
  "Moved the JAPIW appendix (KK platform) into the map: {0}.": "นำส่วนต่อท้าย JAPIW (แพลตฟอร์ม KK) เข้าไปในแผนที่แล้ว: {0}",
  "{0}: the game reads <...> as a data reference and it can crash the map; write [ ] instead": "{0}: เกมอ่าน <...> เป็นการอ้างอิงข้อมูลและอาจทำให้แผนที่ค้าง ให้เขียน [ ] แทน",
  "the mouse-over of the buttons the map draws itself stays on interface events, as before (the cursor may flicker over them): the port layer's hover probe was left off, because code of this map that can run destroys an interface frame or sets a tooltip on one": "การชี้เมาส์เหนือปุ่มที่แผนที่วาดขึ้นเองยังคงใช้เหตุการณ์ของอินเทอร์เฟซเหมือนเดิม (เคอร์เซอร์อาจกะพริบเมื่ออยู่เหนือปุ่มเหล่านั้น): ตัวตรวจจับการชี้เมาส์ของเลเยอร์พอร์ตถูกปิดไว้ เพราะโค้ดของแผนที่นี้ที่อาจทำงานได้จะทำลายเฟรมอินเทอร์เฟซหรือตั้งค่าทูลทิปให้เฟรมนั้น",
- "an optional block of the port layer was left off: {0}": "บล็อกเสริมของเลเยอร์พอร์ตถูกปิดไว้: {0}"
+ "an optional block of the port layer was left off: {0}": "บล็อกเสริมของเลเยอร์พอร์ตถูกปิดไว้: {0}",
+ "The engine stopped: the browser most likely ran out of the memory it gives a page for this map. The program for Windows or Linux has no such limit (Download on GitHub).": "เอนจินหยุดทำงาน: เบราว์เซอร์น่าจะใช้หน่วยความจำที่ให้แก่หน้าเว็บสำหรับแมพนี้จนหมด โปรแกรมสำหรับ Windows หรือ Linux ไม่มีข้อจำกัดนี้ (ดาวน์โหลดบน GitHub)",
+ "a piece of a module path": "ส่วนหนึ่งของพาธโมดูล"
 }
