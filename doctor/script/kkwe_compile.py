@@ -523,6 +523,7 @@ class Compiler(object):
         self.init_name = '<init>'
         self.after_init = None
         self.isolate = {}
+        self.begin_function = {}
 
     def emit(self, op, b0=0, b1=0, b2=0, arg=0):
         self.ins.append((b0, b1, b2, op, arg))
@@ -816,6 +817,12 @@ class Compiler(object):
                         self.rot = self.after_init[1]
             elif k == 'function':
                 _, fname, params, ret, body = it
+                if fname in self.begin_function:
+                    reg, rot = self.begin_function[fname]
+                    if reg is not None:
+                        self.reg = reg
+                    if rot is not None:
+                        self.rot = rot
                 saved = (self.reg, self.rot) if fname in self.isolate else None
                 if saved:
                     self.reg = 0
