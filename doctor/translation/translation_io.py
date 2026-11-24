@@ -704,6 +704,7 @@ def _lua_sources(mt, a, read):
         except Exception:
             found = {}
         names = sorted(n for n, m in found.items() if m.get('forma') == 'body_text' and n.lower() != 'war3map.lua')
+        mt.lua_segments = set(p for n in found for p in re.split(r'[\\/]', re.sub(r'(?i)\.lua$', '', n)) if p)
     else:
         return out, context
     for name in names:
@@ -736,6 +737,7 @@ def _collect_lua(mt, a, read, script_entries):
     srcs, context = _lua_sources(mt, a, read)
     if not srcs:
         return
+    segments = getattr(mt, 'lua_segments', None) or set()
     flow = tr_lua.flow_of(srcs + context)
     jass_out = set(e['text'] for e in script_entries if e['kind'] != 'script')
     cats = collections.defaultdict(collections.Counter)
@@ -765,6 +767,8 @@ def _collect_lua(mt, a, read, script_entries):
             reason = None if not is_text(value) else 'a file path'
         elif c['hash_key'] or c['caution']:
             reason = 'compared or used as a key'
+        elif value in segments:
+            reason = 'a piece of a module path'
         elif not c['screen']:
             reason = 'not screen text'
         elif value in jass_out:
