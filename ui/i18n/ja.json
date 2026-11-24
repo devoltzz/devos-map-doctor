@@ -3568,5 +3568,6 @@
  "the mouse-over of the buttons the map draws itself stays on interface events, as before (the cursor may flicker over them): the port layer's hover probe was left off, because code of this map that can run destroys an interface frame or sets a tooltip on one": "マップ自体が描画するボタンのマウスオーバーは、これまでどおりインターフェースイベントのままです(カーソルがちらつくことがあります)。移植レイヤーのホバー検出は無効のままにしました。このマップには、実行される可能性のあるコードでインターフェースフレームを破棄したりツールチップを設定したりするものがあるためです",
  "an optional block of the port layer was left off: {0}": "移植レイヤーの任意ブロックを無効のままにしました: {0}",
  "The engine stopped: the browser most likely ran out of the memory it gives a page for this map. The program for Windows or Linux has no such limit (Download on GitHub).": "エンジンが停止しました: ブラウザーがこのマップのためにページに与えるメモリが不足した可能性が高いです。Windows版またはLinux版のプログラムにはこの制限がありません(GitHubでダウンロード)。",
- "a piece of a module path": "モジュールパスの一部"
+ "a piece of a module path": "モジュールパスの一部",
+ "This copy no longer has {0}. While a map has that file, the KK client runs it and ignores war3map.j: to put this war3map.j into another copy of the map, delete {1} from that copy too.": "このコピーには {0} がなくなっています。マップにこのファイルがあると、KKクライアントはそれを実行し、war3map.j を無視します。この war3map.j をマップの別のコピーに反映するには、そのコピーからも {1} を削除してください。"
 }
