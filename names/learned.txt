@@ -453,6 +453,8 @@ Android_16_DATA017.BLP
 Android_16_DATA018.BLP
 Android_16_Pink_2P.mdx
 aneu_upward.mdx
+AO_1.blp
+AO_3.tga
 Arale2.mdx
 ArcaneMissileComplete3.mdx
 ArcaneMissileComplete4.mdx
@@ -1238,6 +1240,8 @@ ch_bug.mdx
 ch_jsws.mdx
 ch_jyzz.mdx
 ch_msdz.mdx
+ch_tank_16_01.blp
+ch_tank_16_01_table.blp
 ch_zgts.mdx
 ciyuanzhan.blp
 cjb_yue.mdx
@@ -1510,6 +1514,10 @@ concrite and metal tube.blp
 concrite barier1.blp
 COOLAA_D_Projectile_small.mdx
 CQ123.blp
+cq15-zhenhong_0.blp
+cq15-zhenhong_1.blp
+cq15-zhenhong_2.blp
+cq15-zhenhong_3.blp
 Cross Crash.mdx
 Cutscene_Echo_R_Ve3_birth.mdx
 Cutscene_Echo_R_Ve3_death.mdx
@@ -1534,6 +1542,8 @@ DarkMageFire2.mdx
 datianmoshou.blp
 DCYY.wav
 DeathRelease.mdx
+decorationmodel\ZS0061.mdx
+decorationmodel\ZS0062.mdx
 DefOmagan\building\alice1.blp
 DefOmagan\building\alice2.blp
 DefOmagan\building\SpikedFence0.mdx
@@ -1742,6 +1752,146 @@ DiYuZhiHuo.blp
 diyuzhuanshu.blp
 DLZS.blp
 DLZY.blp
+doodads\7lg_legion_altar01.mdx
+doodads\7lg_legion_book01.mdx
+doodads\7lg_legion_brazier01.mdx
+doodads\7lg_legion_platformlarge.mdx
+doodads\7lg_legion_rune01.mdx
+doodads\7ne_moonguard_console.mdx
+doodads\7ne_moonguard_pylon02.mdx
+doodads\7sr_moonguard_bridgesection01.mdx
+doodads\7sr_moonguard_building01.mdx
+doodads\7sr_moonguard_door01.mdx
+doodads\7sr_moonguard_giantcrenelation.mdx
+doodads\7sr_moonguard_highwall01.mdx
+doodads\7sr_moonguard_lowwall_thick01.mdx
+doodads\7sr_moonguard_pillarshort01.mdx
+doodads\7sr_moonguard_stairs_long01.mdx
+doodads\7sr_moonguard_towertall02.mdx
+doodads\7sr_moonguard_walldivider02.mdx
+doodads\8dv_drustvari_pillar01.mdx
+doodads\8dv_drustvari_tile01.mdx
+doodads\8dv_drustvari_wallpiece01.mdx
+doodads\8swa_watergrass_b01.mdx
+doodads\8swa_watergrass_b03.mdx
+doodads\9du_vampire_catacomb_tomb01.mdx
+doodads\9du_vampire_catacomb_tomb01_destroyed01.mdx
+doodads\9du_vampire_catacomb_tombbottom01_destroyed01.mdx
+doodads\9vl_valkyr_banner01 fixed CE.mdx
+doodads\9vl_valkyr_statue02 CE.mdx
+doodads\9vl_valkyr_statue04 CE.mdx
+doodads\A2_A.mdx
+doodads\A4_A.mdx
+doodads\A5_A.mdx
+doodads\A7_A.mdx
+doodads\A8_A.mdx
+doodads\A9_A.mdx
+doodads\A9_B.mdx
+doodads\A9_C.mdx
+doodads\AO_SKY1.mdx
+doodads\AO_SKY7.mdx
+Doodads\AshenvaleTree05.mdx
+doodads\azjol_platform_ground_01.mdx
+doodads\azjol_tile_1.mdx
+doodads\azjol_wall_arch.mdx
+doodads\azjol_wall_arch_window.mdx
+Doodads\BE_BookshelfFilled_01.mdx
+Doodads\BE_BookshelfFilled_02.mdx
+Doodads\BigCityHouse2.mdx
+Doodads\BigCityHouse3.mdx
+doodads\BlackHole.mdx
+Doodads\Blacksmith.mdx
+Doodads\Black_Glow.mdx
+doodads\BM_BRSPIRE_TRIMS09.mdx
+doodads\Cave01_c.mdx
+doodads\Cave01_f.mdx
+doodads\Cave01_g.mdx
+doodads\Cave01_h.mdx
+doodads\Cave02_a.mdx
+doodads\Cave02_c.mdx
+doodads\Cave03_f.mdx
+doodads\Cave04_a.mdx
+doodads\CBone1.mdx
+Doodads\Ceiling Rays.mdx
+Doodads\City Building 1.mdx
+Doodads\City Building 2.mdx
+doodads\CKelp1.mdx
+doodads\CKelp2.mdx
+doodads\CKelp4.mdx
+doodads\CKelp5.mdx
+Doodads\Cottage.mdx
+doodads\CPearl1.mdx
+doodads\CShell3.mdx
+doodads\CWorm1.mdx
+doodads\CWorm4.mdx
+Doodads\Depot.mdx
+doodads\DM10.mdx
+Doodads\Door 1.mdx
+Doodads\DungeonPortal.mdx
+Doodads\EnergyShieldBlue.mdx
+doodads\ES76.mdx
+Doodads\Escalier4x.mdx
+doodads\F1_A.mdx
+doodads\fog25p.mdx
+doodads\fog25pB.mdx
+doodads\fog40pB.mdx
+Doodads\FruitCraits.mdx
+Doodads\FruitStand.mdx
+doodads\Generic_Glow.mdx
+doodads\House Wall 2.mdx
+doodads\House Wall Window.mdx
+Doodads\HouseVar1.mdx
+Doodads\HouseVar1Up1.mdx
+Doodads\HouseVar1Up2.mdx
+doodads\HuoDong_Ren_Props_H.mdx
+doodads\Ice_11.mdx
+doodads\Ice_12.mdx
+doodads\Ice_3.mdx
+doodads\Ice_4.mdx
+doodads\Ice_5.mdx
+doodads\Ice_7.mdx
+doodads\Ice_8.mdx
+doodads\l3.mdx
+Doodads\LootEffect.mdx
+doodads\mangrovetree.mdx
+doodads\monkeytree.mdx
+doodads\monkeytreetrank.mdx
+Doodads\MoongladeTree02.mdx
+Doodads\NerubianSlayer.mdx
+doodads\ojz_shuji_A01.mdx
+doodads\ozs_shizhu_A015.mdx
+doodads\ozs_tiemen_A01.mdx
+doodads\ozs_weiqiang_A01.mdx
+doodads\ozs_weiqiang_A03.mdx
+doodads\ping6.mdx
+Doodads\PinkFog.mdx
+Doodads\Porticulis Gate 1.mdx
+doodads\pubu00.mdx
+Doodads\PumpkinDoodad.mdx
+Doodads\QuickSand.mdx
+Doodads\SF&SMDrop.mdx
+Doodads\SKHouse_Upper03.mdx
+Doodads\Snowglobe.mdx
+Doodads\StonemaceHouse.mdx
+doodads\stormsphere.mdx
+doodads\SW.mdx
+Doodads\Tavern.mdx
+doodads\TerrainGlow.mdx
+doodads\TerrainGlow_Depth.mdx
+Doodads\Tower Animated.mdx
+Doodads\Tree05.mdx
+doodads\TREE1.mdx
+doodads\TREE11.mdx
+doodads\TREE2.mdx
+doodads\TREE4.mdx
+doodads\TREE7.mdx
+doodads\TREE8.mdx
+Doodads\Wall Animated.mdx
+Doodads\WatchPost.mdx
+doodads\Wave0.mdx
+doodads\WindowLight.mdx
+doodads\WindowLightStraight.mdx
+doodads\[FLOOR].mdx
 Doodads_Bush.mdx
 Doodads_Bush2.mdx
 Doodads_Fence.mdx
