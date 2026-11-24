@@ -3,6 +3,12 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 2.5.6 (2026-11-23)
+
+### Fixed
+
+- **Open in World Editor, KK maps with a compiled script (`kkmap.jc`):** a map that calls some of the platform's natives (in the report, `DzAPI_Map_GetMapLevelRank` and `DzAPI_Map_Stat_SetStat`) stopped with "the signature of the native ... is not known". The script decompiler now knows those two and the other platform natives that were still missing from its table (`GetMatchType`, `IsRedVIP`, `IsBlueVIP`, `SavePublicArchive`, `GetPublicArchive`), so the script of that map comes back as JASS. Reported in issue #96.
+
 ## 2.5.5 (2026-11-23)
 
 ### Fixed
