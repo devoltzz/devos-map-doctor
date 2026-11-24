@@ -3568,5 +3568,6 @@
  "the mouse-over of the buttons the map draws itself stays on interface events, as before (the cursor may flicker over them): the port layer's hover probe was left off, because code of this map that can run destroys an interface frame or sets a tooltip on one": "najechanie myszą na przyciski rysowane przez samą mapę pozostaje oparte na zdarzeniach interfejsu, jak dotychczas (kursor może migać nad nimi): sonda najechania warstwy portu została wyłączona, ponieważ kod tej mapy, który może zostać uruchomiony, niszczy ramkę interfejsu lub ustawia na niej podpowiedź",
  "an optional block of the port layer was left off: {0}": "opcjonalny blok warstwy portu został wyłączony: {0}",
  "The engine stopped: the browser most likely ran out of the memory it gives a page for this map. The program for Windows or Linux has no such limit (Download on GitHub).": "Silnik się zatrzymał: przeglądarka najprawdopodobniej wyczerpała pamięć, jaką daje stronie na tę mapę. Program dla Windows lub Linuksa nie ma takiego limitu (Pobierz z GitHub).",
- "a piece of a module path": "fragment ścieżki modułu"
+ "a piece of a module path": "fragment ścieżki modułu",
+ "This copy no longer has {0}. While a map has that file, the KK client runs it and ignores war3map.j: to put this war3map.j into another copy of the map, delete {1} from that copy too.": "Ta kopia nie zawiera już pliku {0}. Gdy mapa ma ten plik, klient KK uruchamia go i ignoruje war3map.j. Aby przenieść ten war3map.j do innej kopii mapy, usuń także {1} z tej kopii."
 }
