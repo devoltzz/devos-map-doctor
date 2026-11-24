@@ -74,6 +74,26 @@ do
   if __orig then __orig["StringHash"] = sh128 end
 end
 
+
+
+
+
+do
+  local fog = rawget(G, "SetTerrainFogEx")
+  if type(fog) == "function" then
+    local function fog_ex(style, zstart, zend, density, r, g, b)
+      if type(zstart) == "number" and type(zend) == "number" and zend <= zstart then
+        zstart, zend = 1000000.0, 1000001.0
+      end
+      return fog(style, zstart, zend, density, r, g, b)
+    end
+    __ydwe_fog_ex = fog_ex
+    rawset(G, "SetTerrainFogEx", fog_ex)
+    if __rawnat and __rawnat["SetTerrainFogEx"] then __rawnat["SetTerrainFogEx"] = fog_ex end
+    if __orig and __orig["SetTerrainFogEx"] then __orig["SetTerrainFogEx"] = fog_ex end
+  end
+end
+
 __ydwe_fonte = __ydwe_fonte or {}
 __ydwe_forma = __ydwe_forma or {}
 __ydwe_dados = __ydwe_dados or {}
@@ -984,7 +1004,51 @@ message.selection = message.selection or function()
   if u == nil then return 0 end
   return GetHandleId(u)
 end
-message.button = message.button or function() return nil end
+
+
+
+
+
+
+do
+local COMANDOS = {}
+for _, s in ipairs({ "Amov", "Aatk", "Astp", "Ahol", "Apat", "AHer", "Aloc", "Abdt", "Aneu", "Ane2", "Asel", "Adtg",
+    "Aawa", "Ahar", "Arep", "Argd", "Aphx" }) do
+  COMANDOS[(sbyte(s, 1) << 24) | (sbyte(s, 2) << 16) | (sbyte(s, 3) << 8) | sbyte(s, 4)] = true
+end
+local botoes_u, botoes_t, botoes_n = nil, nil, 0
+local function cartao(u)
+  local t = {}
+  local px, py = rawget(G, "ABILITY_IF_BUTTON_POSITION_NORMAL_X"), rawget(G, "ABILITY_IF_BUTTON_POSITION_NORMAL_Y")
+  local por_indice, id_de, campo = rawget(G, "BlzGetUnitAbilityByIndex"), rawget(G, "BlzGetAbilityId"),
+                                   rawget(G, "BlzGetAbilityIntegerField")
+  if not (px and py and por_indice and id_de and campo) then return t end
+  for i = 0, 255 do
+    local ok, a = pcall(por_indice, u, i)
+    if not ok or a == nil then break end
+    local id = id_de(a)
+    if id and id ~= 0 and not COMANDOS[id] then
+      local x, y = campo(a, px), campo(a, py)
+      if x and y and x >= 0 and x <= 3 and y >= 0 and y <= 2 then
+        t[x * 4 + y] = id
+      end
+    end
+  end
+  return t
+end
+message.button = message.button or function(x, y)
+  local u = __sel_first and __sel_first(GetLocalPlayer())
+  if u == nil or type(x) ~= "number" or type(y) ~= "number" then return 0, 0 end
+  botoes_n = botoes_n + 1
+  if u ~= botoes_u or botoes_t == nil or botoes_n > 24 then
+    local ok, t = pcall(cartao, u)
+    botoes_u, botoes_t, botoes_n = u, ok and t or {}, 0
+  end
+  local id = botoes_t[x * 4 + y]
+  if id == nil then return 0, 0 end
+  return id, 0
+end
+end
 message.order_immediate = message.order_immediate or function(order, flag)
   if __local_order then __local_order("immediate", order, 0, 0, nil, flag) end
 end
@@ -1487,7 +1551,15 @@ do
   end
   X.FrameSetModelScale = function(f, a, b, c) local h = fh(f) if h then BlzFrameSetScale(h, a or 1.0) end end
   X.FrameSetModelSize = function(f, s) local h = fh(f) if h then BlzFrameSetScale(h, s or 1.0) end end
-  X.FrameSetTextFont = function(f, font, altura, flags) local h = fh(f) if h then BlzFrameSetFont(h, font, altura, flags or 0) end end
+
+  local altura_fonte = {}
+  X.FrameSetTextFont = function(f, font, altura, flags)
+    local h = fh(f)
+    if h then
+      BlzFrameSetFont(h, font, altura, flags or 0)
+      if type(altura) == "number" and altura > 0 then altura_fonte[f] = altura end
+    end
+  end
   X.FrameSetEditFocus = function(f, v) local h = fh(f) if h and BlzFrameSetFocus then BlzFrameSetFocus(h, v) end end
 
 
@@ -1499,10 +1571,18 @@ do
   X.GetTargetObject = function() return BlzGetMouseFocusUnit() end
 
 
+
+
+
   local function selecionada()
-    local f = __JENV and rawget(__JENV, "DzGetSelectedLeaderUnit")
-    if type(f) == "function" then return f() end
-    return nil
+    local u = __sel_first and __sel_first(GetLocalPlayer())
+    if u == nil then
+      local f = __JENV and rawget(__JENV, "DzGetSelectedLeaderUnit")
+      if type(f) == "function" then u = f() end
+    end
+    if u == nil or u == 0 then return 0 end
+    if type(u) == "number" then return u end
+    return GetHandleId(u)
   end
   X.GetRealSelectUnit = selecionada
   X.GetPlayerSelectedUnit = function(p)
@@ -1727,18 +1807,46 @@ do
 
   X.GetUnitAddress = function(u) if type(u) == "number" then return u end return u and GetHandleId(u) or 0 end
 
-  X.FrameGetTextWidth = function(f)
+
+
+
+  local function trechos_do_texto(f)
     local h = fh(f)
     local t = h and BlzFrameGetText(h) or ""
-    local n = utf8.len(t or "") or #(t or "")
-    return n * 0.0075
+    t = sgsub(sgsub(t or "", "|[cC]%x%x%x%x%x%x%x%x", ""), "|[rR]", "")
+    t = sgsub(t, "\r?\n", "|n")
+    local alt = altura_fonte[f] or 0.011
+    local larguras = {}
+    for trecho in sgmatch(t .. "|n", "(.-)|[nN]") do
+      local w = 0.0
+      local ok = pcall(function()
+        for _, c in utf8.codes(trecho) do w = w + (c < 128 and alt * 0.5 or alt) end
+      end)
+      if not ok then w = #trecho * alt * 0.5 end
+      larguras[#larguras + 1] = w
+    end
+    return h, alt, larguras
+  end
+  __ydwe_altura_fonte = altura_fonte
+  __ydwe_trechos_do_texto = trechos_do_texto
+  X.FrameGetTextWidth = function(f)
+    local _, _, larguras = trechos_do_texto(f)
+    local m = 0.0
+    for _, w in ipairs(larguras) do if w > m then m = w end end
+    return m
   end
   X.FrameGetTextHeight = function(f)
-    local h = fh(f)
-    local t = h and BlzFrameGetText(h) or ""
-    local linhas = 1
-    for _ in sgmatch(t or "", "|n") do linhas = linhas + 1 end
-    return linhas * 0.012
+    local h, alt, larguras = trechos_do_texto(f)
+    local caixa = h and BlzFrameGetWidth(h) or 0.0
+    local linhas = 0
+    for _, w in ipairs(larguras) do
+      if caixa > 0.01 and w > 0 then
+        linhas = linhas + math.max(1, math.ceil(w * 1.08 / caixa))
+      else
+        linhas = linhas + 1
+      end
+    end
+    return math.max(1, linhas) * alt * 1.15
   end
 
   X.EXSetEffectVisible = function(e, v)
@@ -2223,6 +2331,19 @@ do
         local w, h = BlzGetLocalClientWidth(), BlzGetLocalClientHeight()
         if w ~= w0 or h ~= h0 then
           w0, h0 = w, h
+
+
+
+          local larga = __JENV and rawget(__JENV, "DB_larga_ok")
+          if not larga and w * 3 > h * 4 + 4 and type(BlzGetOriginFrame) == "function" then
+            pcall(function()
+              local hb = BlzGetOriginFrame(ORIGIN_FRAME_HERO_BAR, 0)
+              if hb then
+                BlzFrameClearAllPoints(hb)
+                BlzFrameSetAbsPoint(hb, FRAMEPOINT_TOPLEFT, 0.0, 0.575)
+              end
+            end)
+          end
           wcb(9)
         end
       end
