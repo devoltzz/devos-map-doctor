@@ -3565,5 +3565,7 @@
  "Moved the JAPIW appendix (KK platform) into the map: {0}.": "JAPIW eki (KK platformu) haritaya kondu: {0}.",
  "{0}: the game reads <...> as a data reference and it can crash the map; write [ ] instead": "{0}: oyun <...> ifadesini bir veri başvurusu olarak okur ve bu haritayı çökertebilir; yerine [ ] yazın",
  "the mouse-over of the buttons the map draws itself stays on interface events, as before (the cursor may flicker over them): the port layer's hover probe was left off, because code of this map that can run destroys an interface frame or sets a tooltip on one": "haritanın kendi çizdiği düğmelerin üzerine gelme (mouse-over) işlemi eskisi gibi arayüz olayları üzerinden çalışır (imleç üzerlerinde titreyebilir): port katmanının hover yoklaması kapalı bırakıldı, çünkü bu haritanın çalışabilen kodu bir arayüz çerçevesini yok ediyor veya üzerine bir ipucu metni (tooltip) atıyor",
- "an optional block of the port layer was left off: {0}": "port katmanının isteğe bağlı bir bloğu kapalı bırakıldı: {0}"
+ "an optional block of the port layer was left off: {0}": "port katmanının isteğe bağlı bir bloğu kapalı bırakıldı: {0}",
+ "The engine stopped: the browser most likely ran out of the memory it gives a page for this map. The program for Windows or Linux has no such limit (Download on GitHub).": "Motor durdu: tarayıcının bu harita için bir sayfaya verdiği bellek büyük olasılıkla tükendi. Windows veya Linux programında böyle bir sınır yoktur (GitHub'dan indirin).",
+ "a piece of a module path": "bir modül yolunun parçası"
 }
