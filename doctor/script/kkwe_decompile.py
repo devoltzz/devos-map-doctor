@@ -514,6 +514,18 @@ def _reversed_functions(bc, ref):
     while cut > 0 and fs[cut - 1][1] in ref.funcs:
         cut -= 1
     map_path = bounds[:cut]
+    bliz = bounds[cut:]
+    appended_funcs = []
+    if cut == len(fs):
+        b = max((i for i, (_k, n) in enumerate(fs) if n == 'BJDebugMsg'), default=None)
+        if b is not None and b + 1 < len(fs):
+            a = b
+            while a > 0 and fs[a - 1][1] in ref.funcs:
+                a -= 1
+            if b + 1 - a >= 500:
+                map_path, bliz, appended_funcs = bounds[:a], bounds[a:b + 1], bounds[b + 1:]
+                cut = a
+    map_path = map_path + appended_funcs
     if bc.order == kkwe.JC1_ORDER:
         while map_path and bc.fname(bc.arg[map_path[0][0]]) == '<init>' and _game_init(bc, ref, map_path[0]):
             map_path = map_path[1:]
@@ -524,10 +536,13 @@ def _reversed_functions(bc, ref):
     forward = of_globals + [t for t in map_path if t not in of_globals]
     if cut == len(fs) and _breaks(bc, forward) == 0 and _breaks(bc, order) > 0:
         return forward
-    before = next((a[-1] for a in (_allocated(bc, t) for t in bounds[cut:]) if a), None)
+    before = next((a[-1] for a in (_allocated(bc, t) for t in bliz) if a), None)
     after_diag = next((a[0] for a in (_allocated(bc, t) for t in order) if a), None)
+    if appended_funcs:
+        bc.hand_rewritten = True
+        return order
     if before is not None and after_diag is not None and before % 255 + 1 != after_diag and of_globals:
-        bliz_ini = next((a[0] for a in (_allocated(bc, t) for t in reversed(bounds[cut:])) if a), None)
+        bliz_ini = next((a[0] for a in (_allocated(bc, t) for t in reversed(bliz)) if a), None)
         glob_end = next((a[-1] for a in (_allocated(bc, t) for t in reversed(of_globals)) if a), None)
         rest = next((a[0] for a in (_allocated(bc, t) for t in order if t not in of_globals) if a), None)
         if glob_end is not None and bliz_ini == glob_end % 255 + 1 and (rest is None or before % 255 + 1 == rest):
@@ -1193,7 +1208,7 @@ def grafts_of(bc, segments):
         elif regs:
             prev_reg = regs[-1]
     patched = set()
-    for kind in ('constant_calls', 'removed_conditions', 'constant_comparisons'):
+    for kind in ('constant_calls', 'removed_conditions', 'constant_comparisons', 'structured'):
         patched |= set(getattr(bc, kind, None) or ())
     if patched:
         out += [bc.fname(bc.arg[b]) for b, _e in segments
@@ -1262,6 +1277,14 @@ def prove_map(bc, ref, common, blizzard, map_text, maximum=5):
     grafts = grafts_of(bc, segments)
     c = KC.Compiler()
     c.isolate = dict((n, resume_at(bc, segments, n)) for n in grafts)
+    if _hand_rewritten(bc):
+        for begin, end_pos in segments:
+            fname = bc.fname(bc.arg[begin])
+            if bc.op[begin] != FUNCTION or fname in c.isolate:
+                continue
+            regs = [bc.b2[k] for k in range(begin, end_pos) if bc.op[k] in ALLOCATING and bc.b2[k]]
+            labels = [bc.arg[k] for k in range(begin, end_pos) if bc.op[k] in WITH_LABEL]
+            c.begin_function[fname] = (regs[0] - 1 if regs else None, min(labels) - 1 if labels else None)
     for body_text in (common, blizzard):
         c.declare_all(KC.analyze(body_text))
     reg = next((bc.b2[k] for k in where if bc.op[k] in ALLOCATING and bc.b2[k]), None)
@@ -1296,9 +1319,63 @@ def prove_map(bc, ref, common, blizzard, map_text, maximum=5):
                     structure.append((ks[0], 'graft', n))
         only_problems = [k for n, ks in orig if n not in outside for k in ks]
         ins = [x for n, item_entries in mine if n not in outside for x in item_entries]
+    if _hand_rewritten(bc):
+        mine = dict(_segmentos(ins, lambda x: x[3] == FUNCTION, lambda x: str(x[4])))
+        orig = _segmentos(only_problems, lambda k: bc.op[k] == FUNCTION, lambda k: bc.fname(bc.arg[k]))
+        if len(mine) == len(orig) and all(n in mine for n, _ks in orig):
+            ins = [x for n, _ks in orig for x in mine[n]]
+        ins = _original_labels(bc, ins, only_problems)
     real_blocks = []
     identical, diffs = KC.compare(bc, ins, maximum=maximum, real_blocks=real_blocks, where=only_problems)
     return len(ins), len(only_problems), identical, structure + diffs, real_blocks, c, grafts
+
+
+def _original_labels(bc, ins, only_problems):
+    out = list(ins)
+    m, inv = {}, {}
+    for i in range(min(len(out), len(only_problems))):
+        x = out[i]
+        if x[3] == FUNCTION:
+            m, inv = {}, {}
+        if x[3] not in WITH_LABEL or bc.op[only_problems[i]] != x[3]:
+            continue
+        a, b = x[4], bc.arg[only_problems[i]]
+        if m.get(a, b) != b or inv.get(b, a) != a:
+            continue
+        m[a], inv[b] = b, a
+        out[i] = x[:4] + (b,)
+    return out
+
+
+def _hand_rewritten(bc):
+    return bool(getattr(bc, 'structured', None) or getattr(bc, 'hand_rewritten', False))
+
+
+def declaration_order(funcs):
+    import heapq
+    name_list = dict((f.fname, i) for i, f in enumerate(funcs))
+    deps = []
+    for f in funcs:
+        called, codes, _t = cited([], [f])
+        deps.append(set(name_list[n] for n in called | codes if n in name_list and n != f.fname))
+    who = collections.defaultdict(list)
+    missing = [len(d) for d in deps]
+    for i, d in enumerate(deps):
+        for j in d:
+            who[j].append(i)
+    work_queue = [i for i, n in enumerate(missing) if not n]
+    heapq.heapify(work_queue)
+    out, done = [], set()
+    while work_queue:
+        i = heapq.heappop(work_queue)
+        out.append(i)
+        done.add(i)
+        for j in who[i]:
+            missing[j] -= 1
+            if not missing[j]:
+                heapq.heappush(work_queue, j)
+    out += [i for i in range(len(funcs)) if i not in done]
+    return [funcs[i] for i in out]
 
 
 def cited(globals_block, funcs):
@@ -1440,6 +1517,580 @@ def restore_jumps(bc):
     return new, where
 
 
+READS_REGS = dict([(o, (0, 1)) for o in BINOP] + [(MOVRA, (1,)), (PUSH, (2,)), (MOVVR, (2,)), (MOVAR, (1, 2)),
+                                                  (MOVRR, (1,)), (I2R, (2,)), (NEG, (2,)), (NOT, (2,)), (JIT, (2,)),
+                                                  (JIF, (2,))])
+PURE_OPS = (LIT, MOVRV, MOVRCODE, MOVRA, I2R, NEG, NOT) + tuple(BINOP)
+WRITES_B2 = PURE_OPS + (POP,)
+CODE_TYPES = ('code', 'boolexpr', 'trigger', 'conditionfunc', 'filterfunc')
+
+
+class _Writes(object):
+    def __init__(self, bc, ref):
+        self.ref = ref
+        self.direct = {}
+        self.callees = {}
+        fname = None
+        for k in range(bc.n):
+            o = bc.op[k]
+            if o == FUNCTION:
+                fname = bc.fname(bc.arg[k])
+                self.direct[fname], self.callees[fname] = set(), set()
+            elif fname is None:
+                continue
+            elif o in (MOVVR, MOVAR):
+                self.direct[fname].add(bc.fname(bc.arg[k]))
+            elif o == CALLJ:
+                self.callees[fname].add(bc.fname(bc.arg[k]))
+            elif o == CALLN and self.runs_code(bc.fname(bc.arg[k])):
+                self.direct[fname].add('*')
+        self.memo = {}
+
+    def runs_code(self, native):
+        if native == 'ExecuteFunc':
+            return True
+        try:
+            params = self.ref.native(native)[0]
+        except DecompileError:
+            return True
+        return any(t in CODE_TYPES for t, _n in params)
+
+    def from_(self, function):
+        if function in self.memo:
+            return self.memo[function]
+        if function not in self.direct:
+            return {'*'}
+        seen, work_queue, out = {function}, [function], set()
+        while work_queue:
+            f = work_queue.pop()
+            out |= self.direct.get(f, {'*'})
+            for g in self.callees.get(f, ()):
+                if g not in seen:
+                    seen.add(g)
+                    work_queue.append(g)
+        self.memo[function] = out
+        return out
+
+
+class _Reload(object):
+    def __init__(self, bc, begin, writing_systems, local_vars, fname=None):
+        self.bc, self.f_name, self.writing_systems, self.local_vars = (
+            bc,
+            bc.fname(bc.arg[begin]),
+            writing_systems,
+            local_vars,
+        )
+        self.fname = fname or bc.fname
+        self.out = []
+
+    @staticmethod
+    def new():
+        return {'#': 0, '!': (), 'p': ()}
+
+    @staticmethod
+    def copy_state(st):
+        return dict((r, (list(v) if isinstance(r, int) else v)) for r, v in st.items())
+
+    def change(self, var, since, st):
+        for ef, v in st['!']:
+            if ef <= since:
+                continue
+            if v == ('set', var):
+                return True
+            if v[0] == 'call' and var not in self.local_vars and v[1] != '':
+                w = self.writing_systems().from_(v[1]) if v[1] is not None else {'*'}
+                if '*' in w or var in w:
+                    return True
+        return False
+
+    def verify(self, tree, st):
+        t, children, ep = tree
+        if t[3] in (MOVRV, MOVRA) and self.change(self.fname(t[4]), ep, st):
+            raise DecompileError('%s: the register r%02x is read again after %s changed'
+                                 % (self.f_name, t[2], self.fname(t[4])))
+        for c in children:
+            self.verify(c, st)
+
+    def put_back(self, tree):
+        for c in tree[1]:
+            self.put_back(c)
+        self.out.append(tree[0])
+
+    def emit(self, t, st):
+        b0, b1, b2, o, a = t
+        children = []
+        for field_id in READS_REGS.get(o, ()):
+            r = (b0, b1, b2)[field_id]
+            d = st.get(r)
+            if d is None:
+                children.append(None)
+                continue
+            if d[1]:
+                if d[0] is None:
+                    raise DecompileError('%s: the register r%02x is read again and its value is not pure'
+                                         % (self.f_name, r))
+                self.verify(d[0], st)
+                self.put_back(d[0])
+            d[1] += 1
+            children.append(d[0])
+        self.out.append(t)
+        ef = st['#']
+        if o in (MOVVR, MOVAR):
+            st['#'] = ef = ef + 1
+            st['!'] = st['!'] + ((ef, ('set', self.fname(a))),)
+        elif o in (CALLN, CALLJ):
+            st['#'] = ef = ef + 1
+            fname = self.fname(a)
+            if o == CALLN:
+                fname = None if self.writing_systems().runs_code(fname) else ''
+            st['!'] = st['!'] + ((ef, ('call', fname)),)
+            st[0] = [None, 0]
+            if o == CALLN:
+                n = len(self.writing_systems().ref.native(self.fname(a))[0])
+                st['p'] = st['p'][:len(st['p']) - n] if n else st['p']
+        elif o == POPN:
+            st['p'] = st['p'][:len(st['p']) - b2] if b2 else st['p']
+        if o == PUSH:
+            st['p'] = st['p'] + (children[0],)
+        elif o == POP:
+            tree = st['p'][-1] if st['p'] else None
+            st['p'] = st['p'][:-1]
+            if tree is not None:
+                x = tree[0]
+                tree = ((x[0], x[1], b2, x[3], x[4]), tree[1], tree[2])
+            st[b2] = [tree, 0]
+        elif o in PURE_OPS:
+            ok = all(f is not None for f in children)
+            st[b2] = [(t, children, ef) if ok else None, 0]
+
+    def join_lines(self, before, *branches):
+        st = self.copy_state(before)
+        for r in branches:
+            st['#'] = max(st['#'], r['#'])
+            st['!'] = tuple(sorted(set(st['!']) | set(r['!'])))
+            for reg, v in r.items():
+                if not isinstance(reg, int):
+                    continue
+                if reg in before and v[0] is before[reg][0]:
+                    st[reg][1] = max(st[reg][1], v[1])
+                elif reg in before and before[reg][0] is not None:
+                    st[reg][1] = max(st[reg][1], 1)
+                else:
+                    st[reg] = [None, 1]
+        return st
+
+
+def _function_parts(bc, begin):
+    op = bc.op
+    E = begin
+    while op[E] != ENDFUNCTION:
+        E += 1
+    if not (op[E - 1] == RET and op[E - 2] == LIT and bc.b1[E - 2] == 0 and bc.b2[E - 2] == 0):
+        return None
+    j = begin + 1
+    while op[j] == FUNCARG:
+        j += 1
+    local_vars = set(bc.fname(bc.arg[k]) for k in range(begin + 1, E) if op[k] in (FUNCARG, LOCAL))
+    return E, j, local_vars
+
+
+def _writes_reg(bc, k):
+    o = bc.op[k]
+    if o in (CALLN, CALLJ):
+        return 0
+    if o in WRITES_B2:
+        return bc.b2[k]
+    return None
+
+
+def _expr_start(bc, ref, i):
+    op = bc.op
+    o = op[i]
+    if o in (LIT, MOVRV, MOVRCODE):
+        return i
+    if o in (I2R, NEG, NOT, MOVRA):
+        r = bc.b1[i] if o == MOVRA else bc.b2[i]
+        if i - 1 < 0 or _writes_reg(bc, i - 1) != r:
+            return None
+        return _expr_start(bc, ref, i - 1)
+    if o == CALLN:
+        try:
+            n = len(ref.native(bc.fname(bc.arg[i]))[0])
+        except DecompileError:
+            return None
+        k = i
+        for _a in range(n):
+            if op[k - 1] != PUSH or _writes_reg(bc, k - 2) != bc.b2[k - 1]:
+                return None
+            k = _expr_start(bc, ref, k - 2)
+            if k is None:
+                return None
+        return k
+    if o in BINOP:
+        if op[i - 1] != POP or _writes_reg(bc, i - 2) is None:
+            return None
+        k = _expr_start(bc, ref, i - 2)
+        if k is None or op[k - 1] != PUSH or _writes_reg(bc, k - 2) != bc.b2[k - 1]:
+            return None
+        return _expr_start(bc, ref, k - 2)
+    return None
+
+
+END_OF_COMMAND = (MOVVR, MOVAR, LABEL, JUMP, JIT, JIF, LOCAL, FUNCARG, FUNCTION, POPN, CALLN, CALLJ, RET)
+
+
+def _default_values(bc, begin, E, ref, writing_systems, new_ones):
+    op, arg = bc.op, bc.arg
+    pos = {}
+    jumps = collections.Counter()
+    for k in range(begin, E):
+        if op[k] == LABEL:
+            pos[arg[k]] = k
+        elif op[k] in (JIT, JIF, JUMP):
+            jumps[arg[k]] += 1
+    ins = lambda k: (bc.b0[k], bc.b1[k], bc.b2[k], op[k], arg[k])
+    replacements = {}
+    for t in range(begin + 4, E - 3):
+        if op[t] not in (JIT, JIF) or pos.get(arg[t]) != t + 2 or jumps[arg[t]] != 1 or op[t + 1] != LIT:
+            continue
+        R, C = bc.b2[t + 1], bc.b2[t]
+        if not (op[t - 1] in BINOP and bc.b2[t - 1] == C and op[t - 2] == LIT):
+            continue
+        O = bc.b2[t - 2]
+        if sorted((bc.b0[t - 1], bc.b1[t - 1])) != sorted((R, O)) or R == O:
+            continue
+        c = t - 3
+        if _writes_reg(bc, c) != R:
+            continue
+        s = _expr_start(bc, ref, c)
+        if s is None:
+            continue
+        if any(
+            op[k] == CALLJ or (op[k] == CALLN and writing_systems().runs_code(bc.fname(arg[k])))
+            for k in range(s, c + 1)
+        ):
+            continue
+        h = s
+        while op[h - 1] in (LIT, MOVRV, MOVRCODE, PUSH):
+            h -= 1
+        if op[h - 1] not in END_OF_COMMAND:
+            continue
+        written = set()
+        ok = True
+        for k in range(h, s):
+            if op[k] == PUSH and bc.b2[k] not in written:
+                ok = False
+            w = _writes_reg(bc, k)
+            if w is not None:
+                written.add(w)
+        if not ok or any(not (t + 3 <= a or b <= h) for a, (b, _n) in replacements.items()):
+            continue
+        T = bc.b1[t + 1]
+        fname = 'devo_valor_%d' % (len(new_ones) + 1)
+        while fname in bc.name_list or fname in [n for _t, n in new_ones]:
+            fname += '_'
+        new_ones.append((T, fname))
+        v = len(bc.name_list) + len(new_ones)
+        la, lb = -1, -2
+        new = [ins(k) for k in range(s, c + 1)]
+        new += [(0, 0, R, MOVVR, v), (0, T, R, MOVRV, v), ins(t - 2), ins(t - 1)]
+        if op[t] == JIT:
+            new.append((0, 0, C, NOT, 0))
+        new += [(0, 0, C, JIF, la), ins(t + 1), (0, 0, R, MOVVR, v), (0, 0, 0, JUMP, lb), (0, 0, 0, LABEL, la),
+                (0, 0, 0, LABEL, lb)]
+        new += [ins(k) for k in range(h, s)]
+        new.append((0, T, R, MOVRV, v))
+        replacements[h] = (t + 3, new)
+    return replacements
+
+
+def _fix_linear(bc, begin, writing_systems, fresh_label, new_ones=None, ref=None):
+    pieces = _function_parts(bc, begin)
+    if pieces is None:
+        return None
+    E, j, local_vars = pieces
+    new_ones = [] if new_ones is None else new_ones
+    before = len(new_ones)
+    op, arg = bc.op, bc.arg
+    ins = lambda k: (bc.b0[k], bc.b1[k], bc.b2[k], op[k], arg[k])
+    replacements = _default_values(bc, begin, E, ref, writing_systems, new_ones) if ref is not None else {}
+    rot = [fresh_label]
+
+    def label():
+        rot[0] += 1
+        return rot[0]
+    seq = []
+    k = begin
+    while k <= E:
+        if k == j:
+            for i, (T, _n) in enumerate(new_ones[before:]):
+                seq.append((0, 0, T, LOCAL, len(bc.name_list) + before + i + 1))
+        if k in replacements:
+            end_pos, new = replacements[k]
+            ren = {}
+            for x in new:
+                if x[3] in (JIF, JUMP, LABEL) and x[4] < 0:
+                    if x[4] not in ren:
+                        ren[x[4]] = label()
+                    x = x[:4] + (ren[x[4]],)
+                seq.append(x)
+            k = end_pos
+            continue
+        seq.append(ins(k))
+        k += 1
+    name_of = lambda a: bc.fname(a) if a <= len(bc.name_list) else new_ones[a - len(bc.name_list) - 1][1]
+    pos = dict((x[4], i) for i, x in enumerate(seq) if x[3] == LABEL)
+    no_jump = set()
+    for i, x in enumerate(seq):
+        if x[3] == JIF:
+            p = pos.get(x[4])
+            if p is not None and p > i + 1 and seq[p - 1][3] != JUMP:
+                no_jump.add(x[4])
+    rc = _Reload(bc, begin, writing_systems, local_vars | set(n for _t, n in new_ones[before:]), name_of)
+    st = rc.new()
+    for t in seq:
+        if t[3] == LABEL and t[4] in no_jump:
+            lb = label()
+            rc.out.extend([(0, 0, 0, JUMP, lb), t, (0, 0, 0, LABEL, lb)])
+            continue
+        rc.emit(t, st)
+    if rc.out == [ins(k) for k in range(begin, E + 1)]:
+        del new_ones[before:]
+        return None
+    return rc.out, rot[0]
+
+
+def _structure_function(bc, begin, writing_systems, fresh_label, new_ones=None, ref=None):
+    op, arg = bc.op, bc.arg
+    if bc.b2[begin] != 0:
+        return None
+    pieces = _function_parts(bc, begin)
+    if pieces is None:
+        return None
+    E, j, local_vars = pieces
+    ins = lambda k: (bc.b0[k], bc.b1[k], bc.b2[k], op[k], arg[k])
+    X = E - 2
+    pos = {}
+    for k in range(j, X):
+        if op[k] == LABEL:
+            pos[arg[k]] = k
+    leaders = {j, X} | set(pos.values())
+    for k in range(j, X):
+        if op[k] in (JIT, JIF, JUMP, RET):
+            leaders.add(k + 1)
+            if op[k] != RET and arg[k] not in pos:
+                return None
+    leaders = sorted(p for p in leaders if j <= p <= X)
+    block_list = {}
+    for i, p in enumerate(leaders[:-1]):
+        q = leaders[i + 1]
+        tally = [k for k in range(p, q) if op[k] != LABEL]
+        t = tally[-1] if tally and op[tally[-1]] in (JIT, JIF, JUMP, RET) else None
+        if t is not None:
+            tally = tally[:-1]
+        if t is None:
+            succ = [q]
+        elif op[t] == JUMP:
+            succ = [pos[arg[t]]]
+        elif op[t] == RET:
+            succ = []
+        else:
+            succ = [pos[arg[t]], q]
+        block_list[p] = (tally, t, succ)
+    block_list[X] = ([], None, [])
+
+    def resolve(n):
+        seen = set()
+        while n != X and not block_list[n][0] and (block_list[n][1] is None or op[block_list[n][1]] == JUMP):
+            if n in seen:
+                return None
+            seen.add(n)
+            n = block_list[n][2][0]
+        return n
+    succ = {}
+    for n in block_list:
+        s = [resolve(m) for m in block_list[n][2]]
+        if None in s:
+            return None
+        succ[n] = s
+    S = -1
+    order, status = [], {}
+    stack = [(resolve(j), 0)]
+    while stack:
+        n, i = stack.pop()
+        if i == 0:
+            if status.get(n) == 2:
+                continue
+            status[n] = 1
+        if i < len(succ[n]):
+            stack.append((n, i + 1))
+            m = succ[n][i]
+            if status.get(m) == 1:
+                return None
+            if status.get(m) != 2:
+                stack.append((m, 0))
+        else:
+            status[n] = 2
+            order.append(n)
+    pd = {S: [S]}
+    for n in order:
+        chains = [pd[m] for m in (succ[n] or [S])]
+        common_module = set(chains[0])
+        for c in chains[1:]:
+            common_module &= set(c)
+        pd[n] = [n] + [m for m in chains[0] if m in common_module]
+    ipd = dict((n, pd[n][1]) for n in order)
+
+    rc = _Reload(bc, begin, writing_systems, local_vars)
+    out = rc.out
+    rot = [fresh_label]
+
+    def label():
+        rot[0] += 1
+        return rot[0]
+
+    def lin(n, stop, st, topo):
+        while True:
+            if n == stop:
+                return st
+            if n == X:
+                if not topo:
+                    rc.emit((0, 0, 0, RET, 0), st)
+                return st
+            tally, t, _s = block_list[n]
+            for k in tally:
+                rc.emit(ins(k), st)
+            if t is None or op[t] == JUMP:
+                n = succ[n][0]
+                continue
+            if op[t] == RET:
+                rc.emit(ins(t), st)
+                return st
+            tgt, falls_to = succ[n]
+            r = bc.b2[t]
+            j_ = ipd[n]
+            then_body, else_body = (tgt, falls_to) if op[t] == JIT else (falls_to, tgt)
+            la, lb = label(), label()
+            if j_ in (X, S):
+                rc.emit((0, 0, r, JIF, la), st)
+                s1 = lin(then_body, S, rc.copy_state(st), False)
+                out.extend([(0, 0, 0, JUMP, lb), (0, 0, 0, LABEL, la), (0, 0, 0, LABEL, lb)])
+                st = rc.join_lines(st, s1)
+                n = else_body
+                continue
+            rc.emit((0, 0, r, JIF, la), st)
+            m1 = len(out)
+            s1 = lin(then_body, j_, rc.copy_state(st), False)
+            m2 = len(out)
+            out.extend([(0, 0, 0, JUMP, lb), (0, 0, 0, LABEL, la)])
+            s2 = lin(else_body, j_, rc.join_lines(st, s1), False)
+            out.append((0, 0, 0, LABEL, lb))
+            if m2 == m1 and len(out) == m2 + 3:
+                del out[m1 - 1:]
+                st[r] = [None, 1]
+            else:
+                st = rc.join_lines(st, s1, s2)
+            n = j_
+
+    for k in range(begin, j):
+        out.append(ins(k))
+    lin(resolve(j), S, rc.new(), True)
+    out.extend([ins(X), ins(X + 1), ins(E)])
+    return out, rot[0]
+
+
+def _function_alone(bc, ref, begin, arity):
+    E = begin
+    while bc.op[E] != ENDFUNCTION:
+        E += 1
+    d = Decompiler.__new__(Decompiler)
+    d.bc, d.ref, d.arity = bc, ref, arity
+    d.label_pos = {}
+    d.jumps = collections.defaultdict(list)
+    for k in range(begin, E):
+        if bc.op[k] == LABEL:
+            d.label_pos[bc.arg[k]] = k
+        elif bc.op[k] == JUMP:
+            d.jumps[bc.arg[k]].append(k)
+    return d.function(begin)
+
+
+def _swap(bc, replacements, new_ones=()):
+    b0, b1, b2, ops, args = bytearray(), bytearray(), bytearray(), bytearray(), array.array('i')
+    cut = 0
+    for begin, end_pos, ins in sorted(replacements, key=lambda x: x[0]):
+        b0 += bc.b0[cut:begin]
+        b1 += bc.b1[cut:begin]
+        b2 += bc.b2[cut:begin]
+        ops += bc.op[cut:begin]
+        args.extend(bc.arg[cut:begin])
+        for x0, x1, x2, o, a in ins:
+            b0.append(x0)
+            b1.append(x1)
+            b2.append(x2)
+            ops.append(o)
+            args.append(a)
+        cut = end_pos
+    b0 += bc.b0[cut:]
+    b1 += bc.b1[cut:]
+    b2 += bc.b2[cut:]
+    ops += bc.op[cut:]
+    args.extend(bc.arg[cut:])
+    new = copy.copy(bc)
+    new.b0, new.b1, new.b2, new.op, new.arg = bytes(b0), bytes(b1), bytes(b2), bytes(ops), args
+    new.n = len(ops)
+    if new_ones:
+        new.name_list = list(bc.name_list) + [n for _t, n in new_ones]
+    return new
+
+
+def structure_grafts(bc, ref):
+    segments = map_functions(bc, ref)
+    d = Decompiler(bc, ref)
+    esc = []
+
+    def writing_systems():
+        if not esc:
+            esc.append(_Writes(bc, ref))
+        return esc[0]
+    replacements, name_list, new_ones = [], [], []
+    rot = max([bc.arg[k] for k in range(bc.n) if bc.op[k] in WITH_LABEL] or [0]) + 1000
+    for begin, end_pos in segments:
+        if bc.op[begin] != FUNCTION:
+            continue
+        try:
+            d.function(begin)
+            continue
+        except DecompileError as e:
+            err = e
+        new = None
+        for step_size in (_fix_linear, _structure_function):
+            before = len(new_ones)
+            try:
+                cand = step_size(bc, begin, writing_systems, rot, new_ones, ref)
+            except DecompileError:
+                cand = None
+            if cand is not None:
+                trial = _swap(bc, [(begin, end_pos, cand[0])], new_ones)
+                try:
+                    _function_alone(trial, ref, begin, d.arity)
+                    new = cand
+                    break
+                except DecompileError:
+                    pass
+            del new_ones[before:]
+        if new is None:
+            raise err
+        replacements.append((begin, end_pos, new[0]))
+        rot = new[1]
+        name_list.append(bc.fname(bc.arg[begin]))
+    if not replacements:
+        return bc, []
+    new = _swap(bc, replacements, new_ones)
+    new.structured = name_list
+    return new, name_list
+
+
 def _decompile(bc, common, blizzard, extra_natives, map_own, header_text, no_clash):
     bc, restored_jumps = restore_jumps(bc)
     if extra_natives is None:
@@ -1454,7 +2105,16 @@ def _decompile(bc, common, blizzard, extra_natives, map_own, header_text, no_cla
     except (SyntaxError, NameError, IndexError, KeyError, ValueError, OverflowError, struct.error, RecursionError) as e:
         raise DecompileError('the map reference does not read (%s: %s)' % (type(e).__name__, str(e)[:120]))
     try:
-        globals_block, funcs, natives, _region = decompile(bc, ref)
+        try:
+            globals_block, funcs, natives, _region = decompile(bc, ref)
+            structured = []
+        except DecompileError:
+            bc, structured = structure_grafts(bc, ref)
+            if not structured:
+                raise
+            globals_block, funcs, natives, _region = decompile(bc, ref)
+        if _hand_rewritten(bc):
+            funcs = declaration_order(funcs)
     except (IndexError, KeyError, struct.error, RecursionError) as e:
         raise DecompileError('the bytecode cannot be read (%s: %s)' % (type(e).__name__, e))
     try:
@@ -1503,6 +2163,7 @@ def _decompile(bc, common, blizzard, extra_natives, map_own, header_text, no_cla
                        'natives': len(natives), 'hooks': len(hooks) - len(outside), 'hooks_left_out': outside,
                        'clashes': clashes, 'global_clashes': global_clashes, 'handles': len(types),
                        'bad_flows': len(inf.bad_ones), 'jumps_restored': len(restored_jumps),
+                       'structured': structured,
                        'grafts_of': [g for g in grafted if g not in constant_calls and g not in bc.removed_conditions
                                      and g not in bc.constant_comparisons],
                        'constant_calls': constant_calls, 'constant_calls_skipped': constants_skipped,
