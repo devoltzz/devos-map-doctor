@@ -14,6 +14,8 @@
   const lost = new Set();
   const GONE = 'This file is gone: the engine that kept it in memory was restarted (a cancel or a crash). ' +
     'Run the action again.';
+  const BROKE = 'The engine stopped: the browser most likely ran out of the memory it gives a page for this map. ' +
+    'The program for Windows or Linux has no such limit (Download on GitHub).';
   let next = 0;
   const NEW_VERSION = 'A new version of the Doctor is ready: reload the page to use it.';
 
@@ -119,7 +121,7 @@
       if (x.key !== key) continue;
       jobs.delete(j);
       const ev = cancelledJob !== null ? { type: 'cancelled', job: j } :
-        { type: 'error', job: j, message: 'The engine stopped.' };
+        { type: 'error', job: j, message: BROKE };
       if (x.silent) x.silent.resolve(ev); else emit(ev);
     }
     for (const [p, k] of [...where]) if (k === key) { where.delete(p); lost.add(p); }
