@@ -147,6 +147,13 @@ native DzAPI_Map_GetMapConfig takes string key returns string
 native DzAPI_Map_IsRPGLobby takes nothing returns boolean
 native DzAPI_Map_GetPlatformVIP takes player whichPlayer returns integer
 native DzAPI_Map_GetGuildName takes player whichPlayer returns string
+native DzAPI_Map_Stat_SetStat takes player whichPlayer, string key, string value returns nothing
+native DzAPI_Map_GetMatchType takes nothing returns integer
+native DzAPI_Map_IsRedVIP takes player whichPlayer returns boolean
+native DzAPI_Map_IsBlueVIP takes player whichPlayer returns boolean
+native DzAPI_Map_GetMapLevelRank takes player whichPlayer returns integer
+native DzAPI_Map_SavePublicArchive takes player whichPlayer, string key, string value returns boolean
+native DzAPI_Map_GetPublicArchive takes player whichPlayer, string key returns string
 native RequestExtraIntegerData takes integer dataType, player whichPlayer, string param1, string param2, boolean param3, integer param4, integer param5, integer param6 returns integer
 native RequestExtraBooleanData takes integer dataType, player whichPlayer, string param1, string param2, boolean param3, integer param4, integer param5, integer param6 returns boolean
 native RequestExtraStringData takes integer dataType, player whichPlayer, string param1, string param2, boolean param3, integer param4, integer param5, integer param6 returns string
