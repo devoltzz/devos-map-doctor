@@ -58,3 +58,21 @@ def data_bytes(folder):
                     if len(ex[hash_key]) < 3:
                         ex[hash_key].append(m.group(2)[:90])
     return by, ex
+
+
+def lua(file_path):
+    from doctor.translation import tr_lua
+    body_text = open(file_path, encoding='utf-8', errors='surrogateescape').read()
+    srcs = tr_lua.sources(os.path.basename(file_path), body_text)
+    script_flow = tr_lua.flow_of(srcs)
+    clusters = collections.Counter()
+    where = collections.defaultdict(list)
+    for s in srcs:
+        if s.module is None:
+            continue
+        line_breaks = [m.start() for m in re.finditer('\n', s.text)]
+        for _i, begin, _stop, v, cat in tr_lua.occurrences(s, script_flow):
+            if CJK.search(v):
+                clusters[cat.partition(':')[0]] += 1
+                where[v].append((s.module, sum(1 for q in line_breaks if q < begin) + 1))
+    return clusters, where
