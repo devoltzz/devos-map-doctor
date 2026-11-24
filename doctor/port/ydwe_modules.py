@@ -1,4 +1,5 @@
 # Finds the Lua modules of a YDWE Lua engine map (Lua 5.3 bytecode or text) and the name each one is required by.
+import collections
 import re
 
 from doctor.script import lua_bytecode
@@ -333,19 +334,40 @@ def collect(a, hash_entries=(), log=None):
     short_names = sorted(short_names)
     prefixes = set(c.replace('.', '\\').rstrip('\\') for c in cited if c.endswith(('.', '\\', '/')) and len(c) > 1)
     visited = set()
-    for _run_once in range(6):
-        folders = set(n.rsplit('\\', 1)[0] for n in from_block.values() if '\\' in n)
-        for p in prefixes:
-            for m in templates:
-                if m.endswith('?.lua'):
-                    folders.add((m[:-5] + p).strip('\\'))
-        added = folders - visited
-        if not added or len(from_block) == len(block_list):
-            break
-        visited |= added
-        matches = existing_product(a, [p + '\\' for p in sorted(added)], short_names, ['.lua', '\\init.lua'])
-        if not try_batch(None, matches):
-            break
+
+    def rounds():
+        for _run_once in range(6):
+            folders = set(n.rsplit('\\', 1)[0] for n in from_block.values() if '\\' in n)
+            for p in prefixes:
+                for m in templates:
+                    if m.endswith('?.lua'):
+                        folders.add((m[:-5] + p).strip('\\'))
+            added = folders - visited
+            if not added or len(from_block) == len(block_list):
+                break
+            visited.update(added)
+            matches = existing_product(a, [p + '\\' for p in sorted(added)], short_names, ['.lua', '\\init.lua'])
+            if not try_batch(None, matches):
+                break
+    rounds()
+    nameless = [
+        bi for bi in block_list if bi not in from_block and block_list[bi][0] == 'body_text' and block_list[bi][1]
+    ]
+    if nameless:
+        children_of = collections.defaultdict(set)
+        for n in from_block.values():
+            p = n.rsplit('\\', 1)[0] if '\\' in n else ''
+            if '\\' in p:
+                children_of[p.rsplit('\\', 1)[0]].add(p)
+        parent_folders = sorted(p for p, f in children_of.items() if len(f) >= 2)
+        own = set()
+        for bi in nameless:
+            own.update(t for t in (_decode_name(c) for c in _text_strings(block_list[bi][1]))
+                       if t and '\\' not in t and '/' not in t and len(t) <= 40)
+        if parent_folders and own:
+            subfolders = [m + '\\' + c + '\\' for m in parent_folders for c in short_names]
+            if try_batch(None, existing_product(a, subfolders, sorted(own), ['.lua'])):
+                rounds()
     lua_modules = {}
     for bi, (forma, d) in sorted(block_list.items()):
         n = from_block.get(bi)
