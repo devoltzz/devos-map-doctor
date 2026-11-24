@@ -3565,5 +3565,7 @@
  "Moved the JAPIW appendix (KK platform) into the map: {0}.": "Đã đưa phần phụ JAPIW (nền tảng KK) vào bản đồ: {0}.",
  "{0}: the game reads <...> as a data reference and it can crash the map; write [ ] instead": "{0}: trò chơi đọc <...> như một tham chiếu dữ liệu và có thể làm bản đồ bị treo; hãy viết [ ] thay thế",
  "the mouse-over of the buttons the map draws itself stays on interface events, as before (the cursor may flicker over them): the port layer's hover probe was left off, because code of this map that can run destroys an interface frame or sets a tooltip on one": "phần di chuột lên các nút mà bản đồ tự vẽ vẫn dùng sự kiện giao diện, như trước đây (con trỏ có thể nhấp nháy trên chúng): bộ dò di chuột của lớp port đã bị tắt, vì mã của bản đồ này có thể chạy sẽ hủy một khung giao diện hoặc đặt chú giải cho khung đó",
- "an optional block of the port layer was left off: {0}": "một khối tùy chọn của lớp port đã bị tắt: {0}"
+ "an optional block of the port layer was left off: {0}": "một khối tùy chọn của lớp port đã bị tắt: {0}",
+ "The engine stopped: the browser most likely ran out of the memory it gives a page for this map. The program for Windows or Linux has no such limit (Download on GitHub).": "Bộ máy đã dừng: nhiều khả năng trình duyệt đã hết bộ nhớ mà nó cấp cho một trang để xử lý bản đồ này. Chương trình cho Windows hoặc Linux không có giới hạn như vậy (Tải xuống trên GitHub).",
+ "a piece of a module path": "một phần của đường dẫn mô-đun"
 }
