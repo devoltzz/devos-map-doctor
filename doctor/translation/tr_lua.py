@@ -19,6 +19,7 @@ STRING_FUNCTIONS = frozenset(('sub', 'find', 'match', 'gmatch', 'gsub', 'byte', 
 NOT_TEXT = frozenset(('print', 'error', 'assert', 'warn', 'collectgarbage', 'tonumber', 'type', 'select'))
 NOT_TEXT_PREFIX = ('log.', 'debug.', 'os.', 'io.', 'string.dump', 'package.')
 RX_MODULE_NAME = re.compile(r'^[^\s.\\/]+(?:\.[^\s.\\/]+)+$')
+RX_MODULE_PREFIX = re.compile(r'^[^\W\d]\w*(?:\.[^\W\d]\w*)+\.$')
 RX_FIRST_BREAK = re.compile(r'\r\n|\n\r|\n|\r')
 RX_PATTERN = re.compile(r'%[aAcClLpPuUwWbfDSGX\[\]()]|%[ds][+*-]|\[\^|\(\.[-+*]\)')
 
@@ -341,7 +342,7 @@ def flow_of(srcs):
 
 
 def module_like(value):
-    return bool(RX_MODULE_NAME.match(value))
+    return bool(RX_MODULE_NAME.match(value) or RX_MODULE_PREFIX.match(value))
 
 
 def pattern_like(value):
