@@ -3,6 +3,13 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 2.5.7 (2026-11-24)
+
+### Fixed
+
+- **Open in World Editor, a compiled script (`war3map.bin`) rewritten by another tool:** on a map whose compiled script had been changed by hand after it was compiled (in the report, by a "startfix" tool: new functions added after the game's own functions, and a few functions with jumps the compiler never writes, such as an early exit or many jumps to the same place), it stopped with "JUMPIFTRUE to ... outside a loop/and/or". The Doctor now finds where the game's functions really end, gives the added functions back to the map, and rewrites those few functions into the shape the compiler writes before it turns them back into JASS. It still proves the result: the JASS compiled again gives the same instructions as the map, function by function. Reported in issue #101.
+- **Open in World Editor, KK maps with `kkmap.jc`:** while a map has `kkmap.jc` (or `kkmap.jc1`), the KK client runs that file and never reads `war3map.j`, so an edited `war3map.j` put back into the original map did nothing. The copy that Open in World Editor saves has no `kkmap.jc`; the result now says so, and that you have to delete that file from any other copy of the map that gets the edited `war3map.j`. Reported in issue #102.
+
 ## 2.5.6 (2026-11-23)
 
 ### Fixed
