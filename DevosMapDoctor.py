@@ -20,7 +20,7 @@ if _restart:
     sys.exit(0)
 from doctor.fix import unprotect as D
 
-VERSION = '2.5.6'
+VERSION = '2.5.7'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -923,6 +923,11 @@ def editor_text(r):
         out.append(('info', '      Proved: compiled again, it gives the same %s instructions%s.'
                     % (num(sv.get('instructions', 0)),
                        '' if pj.startswith('skipped') else '; pjass finds no error')))
+        if sv.get('kind') == 'kkwe':
+            jc = sv.get('file_name') or 'kkmap.jc'
+            out.append(('info', '      This copy no longer has %s. While a map has that file, the KK client runs it '
+                        'and ignores war3map.j: to put this war3map.j into another copy of the map, delete %s from '
+                        'that copy too.' % (jc, jc)))
         if sv.get('hooks'):
             out.append(('info', '      %s plugin functions came back as native declarations.'
                         % pluralize(sv['hooks'], 'function', 'functions')))
