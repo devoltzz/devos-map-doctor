@@ -3,6 +3,15 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 2.5.5 (2026-11-23)
+
+### Fixed
+
+- **The site, a map too big for the browser:** on a very big map (in the report, 441 MB with a 56 MB compiled script), "Open in World Editor" on the site stopped half way with only "The engine stopped.". The engine that runs inside the browser most likely ran out of the memory the browser gives a page. The site now says that, and that the program for Windows or Linux has no such limit; the program opens that map. Reported in issue #97.
+- **Port to Reforged, KK maps that run Lua:** a whole screen painted white: the interface panels the map writes at run time had a transparent background that Reforged drew white, and they are now drawn with their transparency. A world painted white: a terrain fog that ends before it starts turned the fog off on the old client and paints everything white in Reforged, and it now starts beyond the camera's reach. A green rectangle: a texture path written in the map's Lua that exists neither in the map nor in the game is now drawn transparent too, like the ones the port already found on the frames. The selected unit the platform returns, the measure of a wrapped text (tooltip boxes smaller than their text), the command card buttons the map reads, and the hero bar at the edge of the 4:3 area now behave as on the old client. The port also finds the Lua modules a map loads from a folder that only its data tables name (one folder per hero, one file per skill, for example), so they are no longer left out.
+- **Port to Reforged, KK maps, a black unit portrait:** the platform's background frame that maps put behind the portrait and the buttons was created over the whole interface and covered them. It is now created under the game's console.
+- **Translate, KK maps that run Lua:** a text that is a piece of a Lua module's path (a folder or file name the map joins at run time to load a module, or the start of a module name like `game.skill.hero.`) is no longer translated, so those modules still load.
+
 ## 2.5.4 (2026-11-22)
 
 ### Fixed
