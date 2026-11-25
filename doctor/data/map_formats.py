@@ -54,7 +54,31 @@ LOCALES = ('deDE', 'enUS', 'esES', 'esMX', 'frFR', 'itIT', 'jaJP', 'koKR', 'plPL
            'zhTW')
 LOCALE_DIR = '_Locales\\'
 LOCALE_FILES = ('war3map.wts', 'war3map.w3i', 'war3mapSkin.txt', 'war3mapMisc.txt', 'war3mapMap.blp',
-                'war3mapPreview.tga', 'conversation.json')
+                'war3mapPreview.tga', 'conversation.json', 'war3map.j', 'war3map.lua')
+LOCALE_SCRIPTS = ('war3map.j', 'war3map.lua')
+
+
+def locale_scripts(read):
+    out = {}
+    for loc in LOCALES:
+        for n in LOCALE_SCRIPTS:
+            name = '%s%s.w3mod\\%s' % (LOCALE_DIR, loc, n)
+            b = read(name)
+            if b:
+                out[loc] = (name, b)
+                break
+    return out
+
+
+def locale_script_names(find):
+    out = {}
+    for loc in LOCALES:
+        for n in LOCALE_SCRIPTS:
+            name = '%s%s.w3mod\\%s' % (LOCALE_DIR, loc, n)
+            if find(name):
+                out[loc] = name
+                break
+    return out
 _CASED = dict((n.lower(), n) for n in (
     'war3map.j', 'war3map.lua', 'Scripts\\war3map.j', 'war3map.w3i', 'war3map.wts', 'war3map.wtg', 'war3map.wct',
     'war3map.w3e', 'war3map.wpm', 'war3map.shd', 'war3map.mmp', 'war3map.doo', 'war3mapUnits.doo', 'war3map.w3r',
