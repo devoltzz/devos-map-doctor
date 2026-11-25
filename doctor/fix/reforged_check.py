@@ -834,6 +834,41 @@ def _lua54_attributes(tree, text):
     return first
 
 
+def locale_layer_items(read, root_text, root_lang):
+    from doctor.data import map_formats
+    layers = map_formats.locale_scripts(read)
+    if not layers:
+        return None
+    loc = 'enUS' if 'enUS' in layers else sorted(layers)[0]
+    name, data = layers[loc]
+    lang = 'lua' if name.lower().endswith('.lua') else 'jass'
+    distinct = len(set(b for _n, b in layers.values()))
+    have = sorted(layers)
+    items = [_item('locale_script', 'info', 'Reforged runs the script of its own language layer in place of the root '
+                   'war3map.j: the map has one for %d of the game\'s %d languages (%s). This check reads the %s one '
+                   '(%s)%s.' % (len(have), len(map_formats.LOCALES), ', '.join(have), loc, name,
+                                ', and the layers hold %d different scripts' % distinct if distinct > 1 else ''),
+                   'none', locales=have, file=name, scripts=distinct)]
+    missing = [x for x in map_formats.LOCALES if x not in layers]
+    if missing:
+        blockers = 0
+        if root_lang == 'jass' and root_text:
+            try:
+                root_tree = jass_ast.parse(root_text)
+                blockers = sum(1 for x in jass_items(root_tree, None, None) if x['severity'] == 'blocker')
+            except Exception:
+                blockers = 0
+        if blockers:
+            items.append(_item('locale_script_missing', 'warning', 'With the game in %s, Reforged finds no language '
+                               'layer and runs the root war3map.j, which has %d blocker(s) of its own: those players '
+                               'cannot start the map.' % (', '.join(missing), blockers), 'port', locales=missing,
+                               blockers=blockers))
+        else:
+            items.append(_item('locale_script_missing', 'info', 'With the game in %s, Reforged finds no language layer '
+                               'and runs the root war3map.j.' % ', '.join(missing), 'none', locales=missing))
+    return data.decode('utf-8', 'surrogateescape'), lang, items
+
+
 def _script_items(src, diag, progress, version=None, extra=None):
     p = progress
     items = []
@@ -850,6 +885,11 @@ def _script_items(src, diag, progress, version=None, extra=None):
     text = sc['bytes'].decode('utf-8', 'surrogateescape')
     if extra is not None:
         extra['made_for'] = made_for(lambda name: unprotect._read(a, name), text, lang, diag.get('byte_size'))
+    if not version:
+        layer = locale_layer_items(lambda name: unprotect._read(a, name), text, lang)
+        if layer:
+            text, lang, found = layer
+            items += found
     if version and lang == 'lua':
         return [_item('lua_script', 'blocker', 'The script is Lua, which only 1.31 and later run; %s runs JASS.'
                       % _label(version), 'none')], False
