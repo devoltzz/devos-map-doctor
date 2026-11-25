@@ -46,6 +46,10 @@ timer DB_esc_relogio=null
 trigger DB_roda_trig=null
 trigger DB_quadro_trig=null
 timer DB_quadro_timer=null
+trigger DB_quadro_um=null
+code DB_quadro_um_cod=null
+boolean DB_quadro_um_muda=false
+boolean DB_quadro_no_tique=false
 boolean DB_pos_init=false
 trigger array DB_mov_fila
 integer DB_mov_n=0
