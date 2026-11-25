@@ -683,6 +683,10 @@ def run_port(D, G, path, progress, emit, packages=(), memory=True, icons=False, 
     if b0_lines:
         lines += [['info', t] for t in b0_lines]
         append_report(report, b0_lines)
+    layer = locale_script_line(path, r.get('output') if ported else None)
+    if layer:
+        lines.append(['info', layer])
+        append_report(report, [layer])
     if ported and textures:
         lines += port_step(r['output'], progress, 'kk_textures', None)
     if ported and icons:
@@ -742,6 +746,30 @@ def editor_hint(out):
     return ('World Editor: the ported map does not open in the World Editor as it is (no %s). To edit it, run Open '
             'in World Editor on the ported map, then open the copy it saves (_editor) in the World Editor.'
             % ', '.join(missing))
+
+
+def locale_script_line(path, ported=None):
+    from doctor.fix import unprotect
+    from doctor.data import map_formats
+    try:
+        have = map_formats.locale_script_names(unprotect._open(path).find)
+    except (Exception, SystemExit):
+        return None
+    if not have:
+        return None
+    kept = {}
+    if ported:
+        try:
+            kept = map_formats.locale_script_names(unprotect._open(ported).find)
+        except (Exception, SystemExit):
+            kept = {}
+    text = ('The map already carries a script of its own for Reforged in its language layers (%s): Reforged runs it in '
+            'place of the root war3map.j, which is the script this port converts, so the original map may already run '
+            'on Reforged in those languages.' % ', '.join(sorted(have)))
+    if kept:
+        text += (' The ported map keeps those layers, so a game in those languages still runs the map\'s own script, '
+                 'not the ported one.')
+    return text
 
 
 def append_report(report, lines):
