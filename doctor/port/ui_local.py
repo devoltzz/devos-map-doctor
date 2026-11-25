@@ -11,6 +11,7 @@ REGISTROS = {
 }
 PREFIX = 'KK_loc_'
 DEFAULT_MARK = '// [KK framework] step 3n: the body only on the machine of whoever acted (the event runs on all)'
+RX_CALL = re.compile(r'\b(%s)\s*\(' % '|'.join(REGISTROS))
 RX_EX = re.compile(r'\bDzFrameSetUpdateCallbackByCodeEx\s*\(\s*"(\w+)"\s*\)')
 BY_NAME = {'DzFrameSetScript': (4, 2), 'DzTriggerRegisterKeyEvent': (5, 4), 'DzTriggerRegisterMouseEvent': (5, 4),
            'DzTriggerRegisterMouseMoveEvent': (3, 2), 'DzTriggerRegisterMouseWheelEvent': (3, 2)}
