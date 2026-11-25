@@ -3,6 +3,17 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 2.5.8 (2026-11-25)
+
+### Added
+
+- **Port to Reforged, the quick cast of M16 maps:** many M16 maps (FOCS, FGO RPG, Project Defence, ARS RPG and others) carry the `SmartCastSystem` library, which casts a skill at the unit or point under the mouse when you press its key. It runs only on the M16 client, so until now the port turned it off and those keys did nothing on Reforged. The port now rebuilds it with Reforged's own natives: the key press and the aim are sent to every player, the order goes out in synced code, and the skill orders come from the game's data instead of a table written by hand. It turns on only when the map has the library. It has not been tested in a game with two players yet. Reported in issue #104.
+
+### Fixed
+
+- **Runs on Reforged?, a map with a Reforged script per language:** some maps keep the M16 script at the root and a second script, written for Reforged, inside the language folders (`_Locales\<language>.w3mod\war3map.j`). Reforged runs that one, so the map plays fine, but the Doctor read only the root script and said the map could not run. It now reads the script of the English language folder, warns about the languages that have no script of their own, and the Files tab, the Script tab, the text diagnosis and the Port report name those scripts. Reported in issue #104.
+- **Port to Reforged, the DzAPI frame functions:** a few of them now behave like the M16 client does. The callback that runs on every frame is a single one: a new one replaces the old one, and an empty one turns it off (before, they piled up). Inside that callback `DzGetTriggerUIEventPlayer` gives the local player. `DzFrameSetPoint` with no relative frame does nothing, as on the client. And when the map never reads the mouse position on the ground, the port no longer listens for every mouse move of every player. Found while looking into issue #104.
+
 ## 2.5.7 (2026-11-24)
 
 ### Fixed
