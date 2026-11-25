@@ -22,6 +22,7 @@ from doctor.port import dead_type
 from doctor.port import save_wiring
 from doctor.port import hud_lol
 from doctor.port import return_fixes
+from doctor.port import smartcast
 from doctor.port import swap_calls
 from doctor.port import inject
 from doctor.port import engine
@@ -392,6 +393,16 @@ def assemble(r, argv=None):
     engine.report_data(info)
     medidas['engine'] = dict((k, info[k]) for k in ('destroy_timer', 'dead_unit', 'damage_target', 'target_damage_bj',
                                                   'damage_dealt'))
+
+    if getattr(r, 'SMARTCAST', False):
+        if not any(str(p).replace('KK:', '') == smartcast.PART for p in r.PARTS if not isinstance(p, (list, tuple))):
+            aborts(
+                '7d (smartcast)', ['the recipe turns SMARTCAST on without the part KK:%s in PARTES' % smartcast.PART]
+            )
+        t, info = smartcast.applies(t, getattr(r, 'EXTRACT', None))
+        if info['failures']:
+            aborts('7d (smartcast)', info['failures'])
+        smartcast.report_data(info)
 
     job_progress.step_size('8', 'Building the script: local interface code')
     t, info = ui_local.applies(t, exp_len['ui_local'], fixed_ones=getattr(r, 'UI_FIXED', False),
