@@ -1871,6 +1871,12 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
             r.DEFERRED_MAIN = False
         r.COMMAND_CARD = _pair.get('KK_JN_CARTAO') == 'true'
         r.HUD_LOL = new.ui_hud_lol(body_text) == 'true'
+        sc_on, sc_summary = new.smartcast_enabled(body_text)
+        if sc_on:
+            r.SMARTCAST = True
+            r.PARTS = list(r.PARTS) + ['KK:kk_smartcast.j']
+        if sc_summary:
+            log('4. SmartCastSystem (quick cast): %s' % sc_summary)
         from doctor.port import shadowed
         r.MAP_VERSION = shadowed.RANGE_CAP.get((details.get('made_for') or {}).get('range'))
         log('5. the script chain (this is the long step)')
