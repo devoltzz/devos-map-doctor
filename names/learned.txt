@@ -415,6 +415,7 @@ A (92)_PORTRAIT.mdx
 A (935).mdx
 A (99)_PORTRAIT.mdx
 A Bao A Qu.mdx
+Abilities\Spells\Human\DevotionAura\AuraRuneArrow3.blp
 aerTX.blp
 aggro.blp
 aggro_Aura.mdx
@@ -1202,6 +1203,7 @@ chengjiumw.blp
 ChiBangBX.blp
 ChiBangShu.blp
 ChiHuoZJ.blp
+Chikata.toc
 ChimaeraAncientV1_00.mdx
 ChiTu.blp
 ChloeLilithilla_PORTRAIT.mdx
@@ -1788,6 +1790,7 @@ doodads\A8_A.mdx
 doodads\A9_A.mdx
 doodads\A9_B.mdx
 doodads\A9_C.mdx
+Doodads\alpha.blp
 doodads\AO_SKY1.mdx
 doodads\AO_SKY7.mdx
 Doodads\AshenvaleTree05.mdx
@@ -1803,6 +1806,7 @@ doodads\BlackHole.mdx
 Doodads\Blacksmith.mdx
 Doodads\Black_Glow.mdx
 doodads\BM_BRSPIRE_TRIMS09.mdx
+Doodads\Building01_D.blp
 doodads\Cave01_c.mdx
 doodads\Cave01_f.mdx
 doodads\Cave01_g.mdx
@@ -1826,8 +1830,10 @@ doodads\CWorm1.mdx
 doodads\CWorm4.mdx
 Doodads\Depot.mdx
 doodads\DM10.mdx
+Doodads\DM_Ground_5.BLP
 Doodads\Door 1.mdx
 Doodads\DungeonPortal.mdx
+Doodads\dxwkm.blp
 Doodads\EnergyShieldBlue.mdx
 doodads\ES76.mdx
 Doodads\Escalier4x.mdx
@@ -1891,6 +1897,8 @@ Doodads\WatchPost.mdx
 doodads\Wave0.mdx
 doodads\WindowLight.mdx
 doodads\WindowLightStraight.mdx
+Doodads\wj_lumian2.blp
+Doodads\wj_lumian3.blp
 doodads\[FLOOR].mdx
 Doodads_Bush.mdx
 Doodads_Bush2.mdx
@@ -7385,6 +7393,13 @@ PoHun.blp
 POJ.blp
 pojie.blp
 PoM.blp
+Preview\BlueFatFish\textures\a0.blp
+Preview\BlueFatFish\textures\a1.blp
+Preview\BlueFatFish\textures\t10.blp
+Preview\BlueFatFish\textures\t11.blp
+Preview\BlueFatFish\textures\t14.blp
+Preview\BlueFatFish\textures\t15.blp
+Preview\BlueFatFish\textures\t16.blp
 PSHX.blp
 PSUI.fdf
 PSUI.toc
@@ -10803,6 +10818,7 @@ Suo.blp
 SuQing.blp
 SYDZ.blp
 SYMJ.blp
+Sys_jisi.mdx
 taichu.blp
 TaiYangNS.blp
 TANL.blp
@@ -10819,7 +10835,38 @@ TeXiao\77.tga
 TeXiao\88.tga
 TeXiao\99.tga
 TeXiao\TXK (2).mdx
+Textures\AZ_Flash1G.blp
+Textures\AZ_Shockwave1_White.blp
+Textures\AZ_Tornado2.BLP
 Textures\Clouds8x8.dds
+Textures\Flare______.blp
+Textures\GenericGlow5___.blp
+Textures\hero_csb_tx6_glow.blp
+Textures\Hero_DemonWitch_N5S_R_Target_mofazhen.blp
+Textures\Hero_DemonWitch_N5S_R_Target_p1.blp
+Textures\Hero_TwinHeadDragon_N2S_T_Target_lizi.blp
+Textures\Hero_TwinHeadDragon_N2S_T_Target_p1.blp
+Textures\Hero_TwinHeadDragon_N2_SZ1.blp
+Textures\hongfengye.blp
+textures\Panda_xbm_xstbaobian_02.blp
+textures\Panda_xbm_xstbaobian_04.blp
+textures\Panda_xbm_xuebaobian_02.blp
+textures\Panda_xty_dashanti_01.blp
+Textures\SetItems_N6S_RibbonNK2.blp
+Textures\SetItems_N6S_water_Shockwave.blp
+Textures\SetItems_N6S_water_Shockwave1.blp
+Textures\SetItems_N6S_water_Shockwave6.blp
+Textures\SetItems_N6S_water_Shockwave9.blp
+Textures\SetItems_N6S_water_wenli.blp
+Textures\Shoot_Lotus1_blue.blp
+Textures\T_AM_BODY_005_000_D.blp
+Textures\T_AM_SKIN_CMN_000_D.blp
+Textures\T_AU_ACCE_010_004_D.blp
+Textures\T_WHG003_000_D.blp
+Textures\T_WSR001_000_D.blp
+Textures\xiejiewenli_3.tga
+Textures\YC_GlowRed2.blp
+Textures\YC_ZapPurple4.blp
 theme5\HUAJIA1.blp
 theme5\HUAJIA2.blp
 TianJi.mdx
@@ -10969,6 +11016,7 @@ tub_1_1.blp
 tub_3_1.blp
 tub_4_1.blp
 tx (447).mdx
+ui\board\tab_pool_on.png
 UI\chibang1.tga
 UI\chibang2.tga
 UI\daojian1.tga
@@ -10995,10 +11043,17 @@ UI\qiangpao1.tga
 UI\qiangpao2.tga
 UI\quantao1.tga
 UI\quantao2.tga
+ui\select\timer_ring.blp
+ui\select\timer_ring.mdx
 UI\shipin1.tga
 UI\shipin2.tga
+ui\shop\gold.png
+ui\shop\lives.png
+ui\shop_in.ogg
 UI\toukui1.tga
 UI\toukui2.tga
+ui\ui_background_color_Nashi.png
+ui\ui_background_color_shadow.jpg
 UI\wuqi1.tga
 UI\wuqi2.tga
 UI\XRAB\Monghwan128.blp
@@ -11272,6 +11327,18 @@ WangQuanZJ.blp
 wangxiangzhongyan.blp
 WangZheZF.blp
 WanJuQG.blp
+war3mapImported\(By XeSHTeG)Bull_Skull.blp
+war3mapImported\(By XeSHTeG)ExtraStuff.blp
+war3mapImported\(By XeSHTeG)Human_Skull.blp
+war3mapImported\(By XeSHTeG)Mouth.blp
+war3mapImported\(By XeSHTeG)Shrine.blp
+war3mapImported\(By XeSHTeG)Water 1.blp
+war3mapImported\(By XeSHTeG)Water 2.blp
+war3mapImported\(By XeSHTeG)World.blp
+war3mapImported\000013 1681894917.blp
+war3mapImported\000014 1681894917.blp
+war3mapImported\000015 1681894917.blp
+war3mapImported\000200 1666696725.blp
 war3mapImported\01_top_title_frame.blp
 war3mapImported\04_dungeon_select_title_frame.blp
 war3mapImported\0ab58d3858e8e5c6142a7935d666cfa8_01.blp
@@ -11369,6 +11436,7 @@ war3mapImported\212DWAAA.mdx
 war3mapimported\25c30cf4b742db851055b5a3028a41ae.mdx
 war3mapImported\262_a.blp
 war3mapImported\262_B.blp
+war3mapImported\27q1_black.blp
 war3mapimported\2obvwrinkle.blp
 war3mapimported\2obxwep01_0.blp
 war3mapImported\313DWDW (1).mdx
@@ -11425,6 +11493,7 @@ war3mapImported\59DW1.mdx
 war3mapImported\59DW2.mdx
 war3mapImported\59DW3.mdx
 war3mapImported\59DW4.mdx
+war3mapImported\5T5-Shio-5T5-JZ.blp
 war3mapImported\616SQ1.mdx
 war3mapImported\616SQ2.mdx
 war3mapImported\619ZSW1.mdx
@@ -11496,6 +11565,8 @@ war3mapImported\8821DW1 (2).mdx
 war3mapImported\918W1.mdx
 war3mapimported\9598c54b5d67db8ff9bd7dd97d4c7fb4.mdx
 war3mapImported\9ac0bc62bf1be427e5449670c8c9f9df.mdx
+war3mapImported\9ard_ascenciondecal_b01_3492809.blp
+war3mapImported\9ard_dreamcatchertree_ring04_3501707.blp
 war3mapImported\abi_agi_3_002_0.blp
 war3mapImported\abi_agi_3_002_1.blp
 war3mapImported\abi_agi_3_002_2.blp
@@ -13770,6 +13841,14 @@ war3mapImported\[a]542.mdx
 war3mapImported\[a]543.mdx
 war3mapImported\[a]77_PORTRAIT.mdx
 war3mapImported\[a]94.mdx
+war3mapImported\[BossRPG.com]t11753A.blp
+war3mapImported\[BossRPG.com]t11753B.blp
+war3mapImported\[BossRPG.com]t11753C.blp
+war3mapImported\[BossRPG.com]t11753D.blp
+war3mapImported\[BossRPG.com]t11753E.blp
+war3mapImported\[BossRPG.com]t11753F.blp
+war3mapImported\[BossRPG.com]t11753G.blp
+war3mapImported\[BossRPG.com]t11753H.blp
 war3mapImported\[B]017.mdx
 war3mapImported\[B]023.MDX
 war3mapImported\[B]024.mdx
@@ -13815,7 +13894,24 @@ war3mapImported\[DX]YY2.mdx
 war3mapImported\[dx]yy3_lanse.mdx
 war3mapImported\[dx]yy5.mdx
 war3mapImported\[effect][0407]_(01).blp
+war3mapImported\[EFFE][0145]_(01).blp
+war3mapImported\[EFFE][0145]_(02).blp
+war3mapImported\[EFFE][0145]_(03).blp
 war3mapImported\[eff]extra_eff27.mdx
+war3mapImported\[eff]huanyingcike_1113_0.blp
+war3mapImported\[eff]huanyingcike_1113_0_blue.blp
+war3mapImported\[eff]huanyingcike_1113_1.blp
+war3mapImported\[eff]huanyingcike_1113_1_blue.blp
+war3mapImported\[eff]huanyingcike_1113_2.blp
+war3mapImported\[eff]huanyingcike_1113_3.blp
+war3mapImported\[eff]huanyingcike_1113_4.blp
+war3mapImported\[eff]huanyingcike_1113_5.blp
+war3mapImported\[hit]saw_ring_red_0.blp
+war3mapImported\[hit]saw_ring_red_1.blp
+war3mapImported\[hit]saw_ring_red_2.blp
+war3mapImported\[hit]saw_ring_red_3.blp
+war3mapImported\[hit]saw_ring_red_4.blp
+war3mapImported\[hit]saw_ring_red_5.blp
 war3mapImported\[HREO]emR.MDX
 war3mapImported\[J]LL01.MDX
 war3mapImported\[J]LL02.mdx
@@ -13863,6 +13959,20 @@ war3mapImported\[TP] (5).blp
 war3mapImported\[TP] (9).blp
 war3mapImported\[TX] (679).mdx
 war3mapImported\[TX] (800).mdx
+war3mapImported\[TX][JN]jibanjiye-1.blp
+war3mapImported\[TX][JN]shandianyingsha-2red.blp
+war3mapImported\[TX][JN]shandianyingsha-2_black.blp
+war3mapImported\[TX][JN]shandianyingsha-3red.blp
+war3mapImported\[TX][JN]shandianyingsha-3_black.blp
+war3mapImported\[TX][JN]shandianyingsha-4red.blp
+war3mapImported\[TX][JN]shandianyingsha-4_black.blp
+war3mapImported\[tx]_tongyong_gaojidaoqi_qingzuo_0.blp
+war3mapImported\[tx]_tongyong_gaojidaoqi_qingzuo_1.blp
+war3mapImported\[tx]_tongyong_gaojidaoqi_qingzuo_10.blp
+war3mapImported\[tx]_tongyong_gaojidaoqi_qingzuo_2.blp
+war3mapImported\[tx]_tongyong_gaojidaoqi_qingzuo_3.blp
+war3mapImported\[tx]_tongyong_gaojidaoqi_qingzuo_4.BLP
+war3mapImported\[tx]_tongyong_gaojidaoqi_qingzuo_5.blp
 war3mapImported\[unit]chongwu12.mdx
 war3mapImported\[unit]chongwu14.mdx
 war3mapImported\[unit]chongwu15.mdx
@@ -14918,6 +15028,46 @@ ZZQZ.blp
 [light]light_blue.mdx
 [light]light_white.mdx
 [maps_dz_rpg_A078365F5AAC87E181607FFFE5563997_new_names.txt](https:\\github.com\user-attachments\files\33924674\maps_dz_rpg_A078365F5AAC87E181607FFFE5563997_new_names.txt)
+[model]\doodads\[doodads]2013-zxcao1_soft.mdx
+[model]\effect\lxf_cross_flash\lxf_cross_flash_0.blp
+[model]\effect\lxf_cross_flash\lxf_cross_flash_1.blp
+[model]\effect\lxf_cross_flash\lxf_cross_flash_2.blp
+[model]\effect\lxf_cross_flash\lxf_cross_flash_3.blp
+[model]\effect\lxf_cross_flash\lxf_cross_flash_4.blp
+[model]\effect\lxf_cross_flash\lxf_cross_flash_5.blp
+[model]\effect\lxf_cross_flash\lxf_cross_flash_6.blp
+[model]\effect\lxf_cross_flash\lxf_cross_flash_7.blp
+[model]\hero\altria_alter\HS001.blp
+[model]\hero\altria_alter\HS002.blp
+[model]\hero\emilia\Emilia_222_skin4.blp
+[model]\hero\flandre\Flandre Scarlet-MXTT1.blp
+[model]\hero\flandre\Flandre Scarlet-MXTT2.blp
+[model]\hero\flandre\Hero_flandre.mdx
+[model]\Hero\Kirito\AFB_Effect_Texture_Unusual_Fate_XSaber_Integration_1.blp
+[model]\Hero\Kirito\Hm_xmao3.blp
+[model]\Hero\Kirito\XM_body.blp
+[model]\Hero\Kirito\XM_head.blp
+[model]\hero\kutori\300kdl.blp
+[model]\hero\kutori\300kdl_a.blp
+[model]\hero\kutori\300kdl_a1.blp
+[model]\hero\kutori\300kdl_b.blp
+[model]\hero\kutori\300kdl_b1.blp
+[model]\hero\kutori\Hero_kutori.mdx
+[model]\hero\sasuke\EAGLE_T01.blp
+[model]\hero\sasuke\Hero_Sasuke.mdx
+[model]\hero\sasuke\XYSSK_T01.blp
+[model]\hero\sasuke\XYSSK_T02.blp
+[model]\hero\sinon\167_skin2.blp
+[model]\hero\sinon\167_skin2_a.blp
+[model]\hero\sinon\Cloth_Shin.blp
+[model]\hero\sinon\Hero_sinon.mdx
+[model]\hero\sinon\Weapon_Shin.blp
+[model]\npc\[NPC]flandre.mdx
+[model]\npc\[NPC]yuyuko.mdx
+[model]\unit\[boss]cell.mdx
+[model]\unit\[Boss]lucifer.mdx
+[model]\unit\[elite]kanako.mdx
+[model]\unit\[elite]Sterben.mdx
 [Music]XingBaoQiLiuZhan.mp3
 [mx]h-js2_0.blp
 [mx]h-js2_3.blp
