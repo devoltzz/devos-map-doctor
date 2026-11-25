@@ -238,6 +238,8 @@ REQUIRE_FIX_FILE = ('(make the file before the build -- the UI kit data come fro
 BLOCK_OFF = {
     'KK_UI_FOCO_PEDIDO': ('DzGetMouseFocus',),
     'KK_UI_RODA_PEDIDA': ('DzTriggerRegisterMouseWheelEvent', 'DzTriggerRegisterMouseWheelEventByCode'),
+    'KK_UI_MOV_PEDIDO': ('DzGetMouseTerrainX', 'DzGetMouseTerrainY', 'DzGetMouseTerrainZ', 'DzSetMousePos',
+                         'DzTriggerRegisterMouseMoveEvent', 'DzTriggerRegisterMouseMoveEventByCode'),
 }
 
 
