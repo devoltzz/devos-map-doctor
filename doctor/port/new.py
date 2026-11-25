@@ -71,10 +71,11 @@ def save(file_path, body_text):
 
 PANEL_PARTS = ('KK:kk_ui.j', 'out/out_ui_dados.j', 'KK:kk_painel.j', 'out/out_painel_dados.j')
 TEMPLATE_DEFAULTS = {'REPO_REL': "'..', '..'",
-                     'MAIN_LOCALS': 'False'}
+                     'MAIN_LOCALS': 'False',
+                     'SMARTCAST': 'False'}
 
 
-def layer_parts(jn=False, blizzard=False, ujapi=False, panel=False):
+def layer_parts(jn=False, blizzard=False, ujapi=False, panel=False, smartcast=False):
     return (
         [
             'KK:part_0_natives.j',
@@ -103,7 +104,28 @@ def layer_parts(jn=False, blizzard=False, ujapi=False, panel=False):
         + ['KKN:nat_blizzard.j', 'KKN:nat_shop.j', 'KKN:nat_dzapi.j', 'KKN:nat_relatives.j', 'KKN:nat_emulated.j']
         + (['KKN:nat_ujapi.j', 'KKN:nat_ujapi_eq.j'] if ujapi else [])
         + (list(PANEL_PARTS) if panel else [])
+        + (['KK:kk_smartcast.j'] if smartcast else [])
         + (['out_blizzard_mapa.j'] if blizzard else [])
+    )
+
+
+def smartcast_enabled(body_text):
+    from doctor.port import smartcast
+    d = smartcast.detect(body_text)
+    if d is None:
+        return False, None
+    if d['failures']:
+        return False, 'the library is there and stays neutral (the keys dead): ' + '; '.join(d['failures'])[:300]
+    if not d['record_count']:
+        return False, 'the library is there with no key registration (the author turned it off)'
+    return True, (
+        'on: %d key registration(s) of `%s`, keys %s%s'
+        % (
+            d['record_count'],
+            d['handler'],
+            ''.join(d['key_codes']),
+            '; the key that is on forces ALWAYS' if d['always'] else '',
+        )
     )
 
 
@@ -497,6 +519,14 @@ def ui_wheel_requested(body_text):
     return 'true'
 
 
+def ui_move_requested(body_text):
+    from doctor.port import layer
+    for n in layer.BLOCK_OFF['KK_UI_MOV_PEDIDO']:
+        if _call(body_text, n):
+            return 'false'
+    return 'true'
+
+
 RX_NAME_BY_TEXT = re.compile(
     r'(?m)^[ \t]*(?:constant[ \t]+)?native[ \t]+(?:DzFrameSetScript|DzFrameSetUpdateCallback)\b'
 )
@@ -519,6 +549,7 @@ def ui_hover_probe(body_text):
 def ui_requests(body_text, with_lua=False, wide=None):
     pair = {'KK_UI_FOCO_PEDIDO': 'false' if with_lua else ui_focus_requested(body_text),
             'KK_UI_RODA_PEDIDA': 'false' if with_lua else ui_wheel_requested(body_text),
+            'KK_UI_MOV_PEDIDO': 'false' if with_lua else ui_move_requested(body_text),
             'KK_UI_ESCONDE_UMA': 'true'}
     pair['KK_UI_HOVER_SONDA'] = ui_hover_probe(body_text) if pair['KK_UI_FOCO_PEDIDO'] == 'true' else 'false'
     if wide is not None:
