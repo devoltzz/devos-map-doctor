@@ -695,6 +695,9 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True, doodad
         from doctor.fix import editor_version
         r['jassnative'] = editor_version.jassnative_mark(j)
         r['without_jasshelper'] = editor_version.uncompiled_custom_script(j)
+    if r['script'] in ('jass', 'lua'):
+        from doctor.data import map_formats
+        r['locale_scripts'] = sorted(map_formats.locale_script_names(a.find))
     r['repacker'] = repacker_seal(
         j if r['script'] == 'jass' else _read(a, 'war3map.lua') if r['script'] == 'lua' else None
     )
