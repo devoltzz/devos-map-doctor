@@ -3569,5 +3569,13 @@
  "an optional block of the port layer was left off: {0}": "移植レイヤーの任意ブロックを無効のままにしました: {0}",
  "The engine stopped: the browser most likely ran out of the memory it gives a page for this map. The program for Windows or Linux has no such limit (Download on GitHub).": "エンジンが停止しました: ブラウザーがこのマップのためにページに与えるメモリが不足した可能性が高いです。Windows版またはLinux版のプログラムにはこの制限がありません(GitHubでダウンロード)。",
  "a piece of a module path": "モジュールパスの一部",
- "This copy no longer has {0}. While a map has that file, the KK client runs it and ignores war3map.j: to put this war3map.j into another copy of the map, delete {1} from that copy too.": "このコピーには {0} がなくなっています。マップにこのファイルがあると、KKクライアントはそれを実行し、war3map.j を無視します。この war3map.j をマップの別のコピーに反映するには、そのコピーからも {1} を削除してください。"
+ "This copy no longer has {0}. While a map has that file, the KK client runs it and ignores war3map.j: to put this war3map.j into another copy of the map, delete {1} from that copy too.": "このコピーには {0} がなくなっています。マップにこのファイルがあると、KKクライアントはそれを実行し、war3map.j を無視します。この war3map.j をマップの別のコピーに反映するには、そのコピーからも {1} を削除してください。",
+ "The ported map keeps those layers, so a game in those languages still runs the map's own script, not the ported one.": "移植後のマップはそれらのレイヤーをそのまま保持するため、該当言語のゲームでは移植後のスクリプトではなく、マップ本来のスクリプトが引き続き実行されます。",
+ ", and the layers hold {0} different scripts": "、レイヤーには異なるスクリプトが{0}個あります",
+ "A script per language ({0}): Reforged runs it in place of the root war3map.j.": "言語ごとのスクリプト ({0}): Reforged はルートの war3map.j の代わりにこれを実行します。",
+ "Reforged runs the script of its own language layer in place of the root war3map.j: the map has one for {0} of the game's {1} languages ({2}). This check reads the {3} one ({4}){5}.": "Reforged はルートの war3map.j の代わりに、その言語のレイヤーのスクリプトを実行します。このマップにはゲームの{1}言語のうち{0}言語 ({2}) 用のスクリプトがあります。このチェックでは{3}のスクリプト ({4}){5}を読み取ります。",
+ "The map already carries a script of its own for Reforged in its language layers ({0}): Reforged runs it in place of the root war3map.j, which is the script this port converts, so the original map may already run on Reforged in those languages.": "このマップは言語レイヤー ({0}) に Reforged 用の独自スクリプトをすでに持っています。Reforged はルートの war3map.j の代わりにそれを実行します。この移植が変換するのはルートの war3map.j なので、元のマップはそれらの言語ですでに Reforged で動作する可能性があります。",
+ "This is the root script, which the classic game reads. Reforged runs the script of its own language layer instead: the map has {0} ({1}); the Files tab extracts them.": "これはクラシック版ゲームが読み込むルートスクリプトです。Reforged は代わりにその言語のレイヤーのスクリプトを実行します。このマップには{0}個 ({1}) あり、ファイルタブで抽出できます。",
+ "With the game in {0}, Reforged finds no language layer and runs the root war3map.j, which has {1} blocker(s) of its own: those players cannot start the map.": "ゲームの言語が{0}の場合、Reforged は言語レイヤーを見つけられず、ルートの war3map.j を実行します。このスクリプト自体に{1}件のブロッカーがあるため、該当プレイヤーはマップを開始できません。",
+ "With the game in {0}, Reforged finds no language layer and runs the root war3map.j.": "ゲームの言語が{0}の場合、Reforged は言語レイヤーを見つけられず、ルートの war3map.j を実行します。"
 }
