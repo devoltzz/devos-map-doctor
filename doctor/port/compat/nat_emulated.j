@@ -2,35 +2,24 @@ function IsReplayMode takes nothing returns boolean
     return false
 endfunction
 
-string array KKN_qcb_nome
-integer KKN_qcb_n = 0
+string KKN_qcb_nome = ""
 
 function KKN_qcb_tique takes nothing returns nothing
-    local integer i=0
-    loop
-        exitwhen i>=KKN_qcb_n
-        call ExecuteFunc(KKN_qcb_nome[i])
-        set i=i+1
-    endloop
+    if KKN_qcb_nome!="" then
+        call ExecuteFunc(KKN_qcb_nome)
+    endif
 endfunction
 
 function DzFrameSetUpdateCallback takes string xfunc returns nothing
-    local integer i=0
     if xfunc==null or xfunc=="" then
+        if DB_quadro_pode_limpar() then
+            set KKN_qcb_nome=""
+            call DzFrameSetUpdateCallbackByCode(null)
+        endif
         return
     endif
-    loop
-        exitwhen i>=KKN_qcb_n
-        if KKN_qcb_nome[i]==xfunc then
-            return
-        endif
-        set i=i+1
-    endloop
-    if KKN_qcb_n==0 then
-        call DzFrameSetUpdateCallbackByCode(function KKN_qcb_tique)
-    endif
-    set KKN_qcb_nome[KKN_qcb_n]=xfunc
-    set KKN_qcb_n=KKN_qcb_n+1
+    set KKN_qcb_nome=xfunc
+    call DzFrameSetUpdateCallbackByCode(function KKN_qcb_tique)
 endfunction
 
 function DzUnlockOpCodeLimit takes boolean enable returns nothing
