@@ -1677,6 +1677,9 @@ function DzFrameSetPoint takes integer frame,integer point,integer relativeFrame
         return
     endif
     //{{KK_FIMSE:KK_UI_ANCORA}}
+    if r==null then
+        return
+    endif
     //{{KK_SE:KK_UI_LARGA}}
     if relativeFrame!=0 and relativeFrame==DzGetGameUI() then
         if DB_larga_4x3(frame) then
@@ -2682,24 +2685,56 @@ function DzFrameSetScriptByCode takes integer frame,integer eventId,code funcHan
     set t=null
 endfunction
 
+function DB_quadro_um_aplica takes nothing returns nothing
+    set DB_quadro_um_muda=false
+    if DB_quadro_um==null then
+        return
+    endif
+    call TriggerClearActions(DB_quadro_um)
+    if DB_quadro_um_cod!=null then
+        call TriggerAddAction(DB_quadro_um, DB_quadro_um_cod)
+    endif
+endfunction
+
 function DB_quadro_tique takes nothing returns nothing
     if DB_quadro_trig!=null then
         call TriggerExecute(DB_quadro_trig)
     endif
+    if DB_quadro_um_muda then
+        call DB_quadro_um_aplica()
+    endif
+    if DB_quadro_um_cod!=null then
+        set DB_quadro_no_tique=true
+        call TriggerExecute(DB_quadro_um)
+        set DB_quadro_no_tique=false
+    endif
 endfunction
 
-function DzFrameSetUpdateCallbackByCode takes code funcHandle returns nothing
-    if funcHandle==null then
-        return
-    endif
-    if DB_quadro_trig==null then
-        set DB_quadro_trig=CreateTrigger()
-    endif
-    call TriggerAddAction(DB_quadro_trig, funcHandle)
+function DB_quadro_relogio takes nothing returns nothing
     if DB_quadro_timer==null then
         set DB_quadro_timer=CreateTimer()
         call TimerStart(DB_quadro_timer, 0.03, true, function DB_quadro_tique)
     endif
+endfunction
+
+function DB_quadro_pode_limpar takes nothing returns boolean
+    return GetTriggerPlayer()==null
+endfunction
+
+function DzFrameSetUpdateCallbackByCode takes code funcHandle returns nothing
+    if funcHandle==null then
+        if DB_quadro_pode_limpar() then
+            set DB_quadro_um_cod=null
+            set DB_quadro_um_muda=true
+        endif
+        return
+    endif
+    set DB_quadro_um_cod=funcHandle
+    set DB_quadro_um_muda=true
+    if DB_quadro_um==null then
+        set DB_quadro_um=CreateTrigger()
+    endif
+    call DB_quadro_relogio()
 endfunction
 
 function DB_quadro_registra takes code funcHandle,integer chave returns nothing
@@ -2708,11 +2743,20 @@ function DB_quadro_registra takes code funcHandle,integer chave returns nothing
         return
     endif
     call SaveBoolean(DB_ui_ht, -7, chave, true)
-    call DzFrameSetUpdateCallbackByCode(funcHandle)
+    if DB_quadro_trig==null then
+        set DB_quadro_trig=CreateTrigger()
+    endif
+    call TriggerAddAction(DB_quadro_trig, funcHandle)
+    call DB_quadro_relogio()
 endfunction
 
 function DB_mov_registra takes trigger trig returns nothing
     local integer i=0
+    //{{KK_SE:KK_UI_MOV_PEDIDO}}
+    if trig==DB_mundo_trig then
+        return
+    endif
+    //{{KK_FIMSE:KK_UI_MOV_PEDIDO}}
     loop
         exitwhen i>=bj_MAX_PLAYERS
         call TriggerRegisterPlayerEvent(trig, Player(i), EVENT_PLAYER_MOUSE_MOVE)
@@ -3339,6 +3383,9 @@ function DzGetTriggerKeyPlayer takes nothing returns player
 endfunction
 
 function DzGetTriggerUIEventPlayer takes nothing returns player
+    if DB_quadro_no_tique and GetTriggerPlayer()==null then
+        return GetLocalPlayer()
+    endif
     return GetTriggerPlayer()
 endfunction
 
