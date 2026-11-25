@@ -3568,5 +3568,13 @@
  "an optional block of the port layer was left off: {0}": "移植層的一個選用區塊已被關閉：{0}",
  "The engine stopped: the browser most likely ran out of the memory it gives a page for this map. The program for Windows or Linux has no such limit (Download on GitHub).": "引擎已停止：很可能是瀏覽器分配給此地圖所在頁面的記憶體用盡了。Windows 或 Linux 版程式沒有這樣的限制（在 GitHub 下載）。",
  "a piece of a module path": "模組路徑的一部分",
- "This copy no longer has {0}. While a map has that file, the KK client runs it and ignores war3map.j: to put this war3map.j into another copy of the map, delete {1} from that copy too.": "此副本已不再包含 {0}。只要地圖中有該檔案，KK 用戶端就會執行它並忽略 war3map.j：若要將這份 war3map.j 套用到地圖的其他副本，也必須一併從該副本中刪除 {1}。"
+ "This copy no longer has {0}. While a map has that file, the KK client runs it and ignores war3map.j: to put this war3map.j into another copy of the map, delete {1} from that copy too.": "此副本已不再包含 {0}。只要地圖中有該檔案，KK 用戶端就會執行它並忽略 war3map.j：若要將這份 war3map.j 套用到地圖的其他副本，也必須一併從該副本中刪除 {1}。",
+ "The ported map keeps those layers, so a game in those languages still runs the map's own script, not the ported one.": "移植後的地圖保留了這些語言層，因此以這些語言執行遊戲時，仍會執行地圖自帶的腳本，而不是移植後的腳本。",
+ ", and the layers hold {0} different scripts": "，且各語言層共有 {0} 個不同的腳本",
+ "A script per language ({0}): Reforged runs it in place of the root war3map.j.": "每種語言一個腳本（{0}）：Reforged 會執行它，而不是根目錄的 war3map.j。",
+ "Reforged runs the script of its own language layer in place of the root war3map.j: the map has one for {0} of the game's {1} languages ({2}). This check reads the {3} one ({4}){5}.": "Reforged 會執行其自身語言層的腳本，而不是根目錄的 war3map.j：此地圖為遊戲的 {1} 種語言中的 {0} 種提供了腳本（{2}）。本次檢查讀取的是 {3}（{4}）{5}。",
+ "The map already carries a script of its own for Reforged in its language layers ({0}): Reforged runs it in place of the root war3map.j, which is the script this port converts, so the original map may already run on Reforged in those languages.": "地圖的語言層中已自帶適用於 Reforged 的腳本（{0}）：Reforged 會執行它，而不是根目錄的 war3map.j（本移植轉換的正是後者），因此原版地圖在這些語言下可能已能在 Reforged 上執行。",
+ "This is the root script, which the classic game reads. Reforged runs the script of its own language layer instead: the map has {0} ({1}); the Files tab extracts them.": "這是經典版遊戲讀取的根目錄腳本。Reforged 則會執行其自身語言層的腳本：此地圖有 {0}（{1}）；檔案頁籤可將其擷取。",
+ "With the game in {0}, Reforged finds no language layer and runs the root war3map.j, which has {1} blocker(s) of its own: those players cannot start the map.": "當遊戲語言為 {0} 時，Reforged 找不到語言層，會執行根目錄的 war3map.j，其中自身有 {1} 個阻斷問題：這些玩家無法啟動地圖。",
+ "With the game in {0}, Reforged finds no language layer and runs the root war3map.j.": "當遊戲語言為 {0} 時，Reforged 找不到語言層，會執行根目錄的 war3map.j。"
 }
