@@ -20,7 +20,7 @@ if _restart:
     sys.exit(0)
 from doctor.fix import unprotect as D
 
-VERSION = '2.5.7'
+VERSION = '2.5.8'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -387,6 +387,9 @@ def diagnosis_text(d):
         out.append(('info', 'SLK mode: %s data table files.' % num(len(d['slk']))))
     if d.get('jassnative'):
         out.append(('info', 'Compiled in the JassNative Editor.'))
+    if d.get('locale_scripts'):
+        out.append(('info', 'A script per language (%s): Reforged runs it in place of the root war3map.j.'
+                    % ', '.join(d['locale_scripts'])))
     if d.get('without_jasshelper'):
         out.append(
             (
