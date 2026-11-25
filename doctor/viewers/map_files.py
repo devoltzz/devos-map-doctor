@@ -884,6 +884,14 @@ def script(path, max_bytes=SCRIPT_MAX):
     try:
         a, notes = _open(path)
         out['language'], out['name'], data, out['note'], out['compiled'] = _script_file(a)
+        from doctor.data import map_formats
+        layers = map_formats.locale_script_names(a.find)
+        if layers:
+            out['locale_scripts'] = sorted(layers.values())
+            layer = ('This is the root script, which the classic game reads. Reforged runs the script of its own '
+                     'language layer instead: the map has %d (%s); the Files tab extracts them.'
+                     % (len(layers), ', '.join(sorted(layers))))
+            out['note'] = ('%s %s' % (out['note'], layer)).strip()
         if data is not None:
             t = decode_text(data, max_bytes, script=True)
             out.update(text=t['text'], size=len(data), encoding=t['encoding'], line_endings=t['line_endings'],
