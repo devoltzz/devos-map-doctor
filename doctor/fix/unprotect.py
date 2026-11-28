@@ -40,6 +40,7 @@ EDITOR_BLOCKERS = ('read_only', 'fake_header', 'missing_hm3w', 'virtual_tables',
                    'scrambled_ids', 'locale_decoy', 'inflated_counts', 'invalid_doodad', 'unreadable_tables',
                    'script_kkwe', 'script_j2b')
 BUTTON3_ONLY = ('inflated_counts', 'invalid_doodad', 'script_kkwe', 'script_j2b', 'lua_wc3fuscator', 'lua_layers')
+LUA_ROUTE_ONLY = ('ydwe_qimp',)
 EDITOR_SCRIPTS = ('jass', 'lua', 'kkwe', 'j2b')
 TEXTS_NOT_BACK = ('the texts the platform DLL fills in at startup did not come back into the script, so the '
                   'triggers show the table reads instead')
@@ -60,7 +61,7 @@ def step_on(options, hash_key):
 
 def steps(diag):
     code_part = set(x['code'] for x in diag.get('protections') or [])
-    mpq = code_part - set(BUTTON3_ONLY) - set(DATA_ONLY)
+    mpq = code_part - set(BUTTON3_ONLY) - set(DATA_ONLY) - set(LUA_ROUTE_ONLY)
     ids = next((x for x in diag.get('protections') or [] if x['code'] == 'scrambled_ids'), None)
     ed = (diag.get('editor') or {}).get('status')
     out = []
@@ -79,13 +80,8 @@ def steps(diag):
     xs = 'xm_loose' in code_part
     place('fix', 'xm_open', xs, reason=None if xs else 'no_package')
     place('fix', 'xm_script', xm or xs, reason=None if xm or xs else 'no_package')
-    place(
-        'fix',
-        'lua_reforged',
-        diag.get('lua_engine'),
-        reason=None if diag.get('lua_engine') else 'no_lua',
-        default_on=False,
-    )
+    place('fix', 'lua_reforged', diag.get('lua_engine'), reason=None if diag.get('lua_engine') else 'no_lua',
+          default_on='ydwe_qimp' in code_part)
     place('fix', 'listing', mpq and not has_virtual_tables(diag), reason=None if mpq else 'no_protection')
     place('fix', 'ids', ids and ids.get('fixable'), reason=None if ids else 'no_ids')
     for problem in slk_patch.PROBLEMS:
@@ -824,6 +820,13 @@ def diagnose(file_path, progress=None, depth=0, extra_ids=(), _ntfs=True, doodad
             prot('kk_japiw', record_count=jw['effective'], bytes=jw['plaintext'])
     except Exception:
         pass
+    try:
+        from doctor.models import xor4
+        qimp = xor4.probe(a)
+        if qimp:
+            prot('ydwe_qimp', assets=qimp['assets'], lua=qimp['lua'])
+    except Exception:
+        pass
     r['lua_engine'] = _lua_engine(a, r)
     codes = [x['code'] for x in r['protections']]
     carvable = is_carvable(r)
@@ -1317,10 +1320,11 @@ def _unprotect_japiw(file_path, output, p, res, options):
         rest = set(x['code'] for x in after_diag['protections']) - set(BUTTON3_ONLY) - {'kk_japiw'}
         if rest and after_diag.get('fixable') == 'yes':
             r2 = unprotect(part, output, p, after_diag, options)
-            _remove_quietly(part)
-            r2['before'] = res['before']
-            r2.setdefault('steps', {})['japiw'] = step_size
-            return r2
+            if r2['status'] != 'nothing_selected':
+                _remove_quietly(part)
+                r2['before'] = res['before']
+                r2.setdefault('steps', {})['japiw'] = step_size
+                return r2
         os.replace(part, output)
         res['steps']['japiw'] = step_size
         res['output'] = os.path.abspath(output)
@@ -1386,7 +1390,7 @@ def _unpack_xm_package(file_path, output, p, res, options, loose=False):
             rx = xm_pkg.unpack_to_map(file_path, aberto, bool(options and options.get('xm_keep_package') is True),
                                       log=_nothing, real_script=step_on(options, 'xm_script'))
         r2 = unprotect(aberto, part, p, None, dict(options or {}, xm_unpack=False, xm_open=False))
-        if r2['status'] == 'nothing_to_do':
+        if r2['status'] in ('nothing_to_do', 'nothing_selected'):
             os.replace(aberto, part)
             r2 = dict(r2, status='done', output=part, after_diag=diagnose(part))
         elif r2['status'] not in ('done', 'partial'):
@@ -1450,12 +1454,12 @@ def unprotect(file_path, output, progress=None, diag=None, options=None):
         return _unprotect_japiw(file_path, output, p, res, options)
     if 'ntfs_copy' in codes:
         return _unprotect_ntfs_copy(file_path, output, p, diag, res, options)
-    if not codes - set(BUTTON3_ONLY):
+    if not codes - set(BUTTON3_ONLY) - set(LUA_ROUTE_ONLY):
         res['status'] = 'nothing_to_do'
         return res
     if 'unreadable_tables' in codes:
         return _unprotect_by_carving(file_path, output, p, diag, res)
-    remove_mpq = bool(codes - set(BUTTON3_ONLY) - set(DATA_ONLY)) and step_on(options, 'mpq')
+    remove_mpq = bool(codes - set(BUTTON3_ONLY) - set(DATA_ONLY) - set(LUA_ROUTE_ONLY)) and step_on(options, 'mpq')
     data_only = [x for x in slk_patch.PROBLEMS if SLK_CODE[x] in codes and step_on(options, 'dados:' + x)]
     prot_ids = next((x for x in diag['protections'] if x['code'] == 'scrambled_ids'), None)
     do_ids = bool(prot_ids and prot_ids.get('fixable')) and step_on(options, 'ids')
@@ -1590,7 +1594,7 @@ def _unprotect_ntfs_copy(file_path, output, p, diag, res, options=None):
         return res
     res['steps']['ntfs'] = dict((k, v) for k, v in details.items() if k in ('lznt1', 'lost', 'grown', 'tables'))
     r2 = unprotect(t, output, p, diagnose(t, _ntfs=False), options)
-    if r2['status'] == 'nothing_to_do':
+    if r2['status'] in ('nothing_to_do', 'nothing_selected'):
         try:
             p('save')
             part = _part(output)
