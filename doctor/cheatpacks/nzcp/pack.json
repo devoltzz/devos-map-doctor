@@ -6,9 +6,9 @@
   "options": [{"key": "activator", "label": "Activation string", "default": "easymode", "kind": "text"},
               {"key": "arrow", "label": "Arrow activation", "default": "UUDDLR", "kind": "text"},
               {"key": "name", "label": "Player name that activates it", "default": "nuzamacuxe", "kind": "text"}],
-  "finds": {"activator": "StringHash\\(\\s*\"Activator\"\\s*\\)\\s*,\\s*\"([^\"]*)\"",
-            "arrow": "StringHash\\(\\s*\"ArrowActivator\"\\s*\\)\\s*,\\s*\"([^\"]*)\"",
-            "name": "NameEvent\\(\\s*\"([^\"]*)\"\\s*\\)"},
+  "finds": {"activator": "SaveStr\\(\\s*nzHash\\s*,\\s*-1\\s*,\\s*2\\s*,\\s*\"([^\"]*)\"\\s*\\)",
+            "arrow": "SaveStr\\(\\s*nzHash\\s*,\\s*-1\\s*,\\s*3\\s*,\\s*\"([^\"]*)\"\\s*\\)",
+            "name": "call\\s+nzNameActivate\\(\\s*\"([^\"]*)\"\\s*\\)"},
   "default": true,
   "prefix": "-",
   "mark_option": "activator"
