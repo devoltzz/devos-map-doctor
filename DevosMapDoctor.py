@@ -20,7 +20,7 @@ if _restart:
     sys.exit(0)
 from doctor.fix import unprotect as D
 
-VERSION = '2.5.8'
+VERSION = '2.5.9'
 
 STAGES = {
     'read_map': 'Reading the map...',
@@ -215,6 +215,10 @@ def describe(p):
                 % mb(p.get('outside', 0)))
     if c == 'xm_package':
         return 'Encrypted package game.pkg (xmload maps): "Fix map" unpacks its models, textures and scripts.'
+    if c == 'ydwe_qimp':
+        return ('Masked models and textures and encrypted Lua modules of the map\'s Lua engine (wenhao_plugin): the '
+                'game reads them only through the platform. "Fix map" with "Make the Lua run on Reforged" opens them, '
+                'as Port does.')
     if c == 'xm_loose':
         return ('Encrypted files of an xmload map (no game.pkg): "Fix map" opens its Lua modules, models and textures '
                 'in place and puts the real script back.')
