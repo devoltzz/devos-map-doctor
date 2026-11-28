@@ -11377,6 +11377,9 @@ UI\jindutiao.tga
 UI\jindutiaodi.tga
 ui\Load.toc
 ui\loaded.fdf
+UI\minimap\ping4.png
+UI\minimap\ping6.png
+ui\MiniMap\ping7.png
 ui\mjcodex.fdf
 ui\mjcodex.toc
 UI\MSKR_Tooltip.fdf
