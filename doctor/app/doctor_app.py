@@ -575,7 +575,12 @@ def run_action(D, G, job, path, task, progress, emit):
             tmp = tempfile.mkdtemp(prefix='devos_map_doctor_editor_')
             try:
                 base, r1 = path, None
-                if set(p['code'] for p in d['protections']) - set(D.BUTTON3_ONLY) - set(D.DATA_ONLY):
+                if (
+                    set(p['code'] for p in d['protections'])
+                    - set(D.BUTTON3_ONLY)
+                    - set(D.DATA_ONLY)
+                    - set(D.LUA_ROUTE_ONLY)
+                ):
                     unprotect = options
                     try:
                         if D.target_version(path, version) is not None:
