@@ -69,8 +69,13 @@ KNOWN = (
         'id': 'nzcp',
         'title': 'NZCP',
         'prefix': '-',
+        'packs': ('nzcp_lua',),
         'evidence': ('CheatPackCommands_Handler', 'NUZAMACUXE', 'CheatPack_Action'),
-        'activator': (r'StringHash\(\s*"Activator"\s*\)\s*,\s*"([^"]*)"',),
+        'activator': (
+            r'StringHash\(\s*"Activator"\s*\)\s*,\s*"([^"]*)"',
+            r'SaveStr\(\s*nzHash\s*,\s*-1\s*,\s*2\s*,\s*"([^"]*)"',
+            r'(?m)^\s*local\s+activator\s*=\s*"([^"]*)"',
+        ),
     },
     {
         'id': 'ozzycp',
@@ -158,7 +163,7 @@ def detect(mapa, progresso=None):
                     'where': where, 'evidence': 'the Doctor\'s own marker (%s)' % value, 'confidence': 'high'})
     ja = set(x.get('pack') for x in out)
     for k in KNOWN:
-        if k['id'] in ja:
+        if k['id'] in ja or ja & set(k.get('packs') or ()):
             continue
         found = [e for e in k['evidence'] if e in text]
         if not found:
@@ -253,9 +258,14 @@ def _read_json(path, folder):
     marca_opt = d.get('mark_option')
     if marca_opt and marca_opt not in keys:
         raise RuntimeError('%s: `mark_option` is %r, which is not one of the options' % (path, marca_opt))
+    lugar = d.get('place') or 'start'
+    if lugar not in ('start', 'end'):
+        raise RuntimeError('%s: `place` has to be start or end, not %r' % (path, lugar))
+    if lugar != 'start' and d['language'] != LUA:
+        raise RuntimeError('%s: `place` is only for a Lua pack' % path)
     return {'id': d['id'], 'title': d['title'], 'language': d['language'], 'needs': d.get('needs') or '',
         'options': opcoes, 'notes': notas, 'finds': d['finds'], 'inside': d.get('inside'), 'mark_option': marca_opt,
-        'prefix': d.get('prefix') or '', 'default': bool(d.get('default')), 'file': arquivo}
+        'prefix': d.get('prefix') or '', 'default': bool(d.get('default')), 'file': arquivo, 'place': lugar}
 
 
 def _pack(pack_id):
@@ -624,6 +634,25 @@ def _lua_obfusca(text):
     return out_path
 
 
+def _lua_fim(text):
+    from doctor.script import lua_ast
+    corpo = lua_ast.parse(text).body
+    if not corpo or type(corpo[-1]).__name__ != 'ReturnStmt':
+        return len(text)
+    kinds, _texts, _lines, offs = lua_ast._lex(text)[:4]
+    nivel, ultimo = 0, None
+    for k, off in zip(kinds, offs):
+        if k in ('function', 'do', 'if', 'repeat'):
+            nivel += 1
+        elif k in ('end', 'until'):
+            nivel -= 1
+        elif k == 'return' and nivel == 0:
+            ultimo = off
+    if ultimo is None:
+        raise RuntimeError('the Lua script ends in a return the lexer does not find at the top level')
+    return ultimo
+
+
 def _lua_check(text):
     from doctor.script import lua_ast
     try:
@@ -776,6 +805,17 @@ def _injeta(p, pack, text, name, bruto, opcoes, mapa, out_path, out, durable=Fal
             out['renamed_names'] = renamed
         new_text = _jass_merge(text, pack_body, mark_line)
         durable_code = _durable_jass(text, pack, pack_body, mark_line) if durable else None
+    elif pack.get('place') == 'end':
+        base = text.replace('\r\n', '\n')
+        fim = _lua_fim(base)
+        new_text = (base[:fim].rstrip('\n') + '\n'
+                    + ('-- %s %s%s\n' % (MARK_NAME, MARK_HEAD, pack['id'] + ':' + (usados.get('activator') or '')))
+                    + _lua_obfusca(pack_body) + '\n' + base[fim:])
+        durable_code = None
+        if durable:
+            out['durable'] = {'wct': False, 'reason': 'this pack wraps the map\'s main function, so it goes at the end '
+                                                      'of the script; the World Editor writes the custom script header '
+                                                      'before main, where the pack would never start'}
     else:
         new_text = ('-- %s %s%s\n' % (MARK_NAME, MARK_HEAD, pack['id'] + ':' + (usados.get('activator') or ''))) \
             + _lua_obfusca(pack_body) + '\n' + text.replace('\r\n', '\n')
@@ -897,7 +937,7 @@ def _report(pack, usados, name, before, after, renames, det, renamed=None, seman
     for k, _l, _d, _t in pack['options']:
         out.append(('info', '  %s: %s' % (k, usados.get(k))))
     out.append(('info', '  Works on: %s' % pack['needs']))
-    if pack['language'] == LUA:
+    if pack['language'] == LUA and pack['id'] == 'ozzycp':
         out.append(('info', '  The OzzyCP body is already an obfuscated build; the comments (and the header that '
                             'explains the options) were removed.'))
     if pack['language'] == JASS:
