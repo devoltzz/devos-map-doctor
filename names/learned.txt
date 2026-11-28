@@ -11153,12 +11153,14 @@ SR-GNB-Smst.mdx
 SR-JLZS.mdx
 sss_PORTRAIT.mdx
 StarIVFResources.lua
+starlua.lua
 StarLuaVideoResources.lua
 StarMediaResources.lua
 StarMusicLyricEditor.tga
 StarMusicLyrics.fdf
 StarMusicLyrics.toc
 StarMusicLyricSettings.tga
+starscreenfx.lua
 StarScreenFXConfig.lua
 StormreaverBlueTrollAuxiliaryHeadhunterV2.mdx
 straigtwind.mdx
@@ -11940,6 +11942,19 @@ war3mapimported\9598c54b5d67db8ff9bd7dd97d4c7fb4.mdx
 war3mapImported\9ac0bc62bf1be427e5449670c8c9f9df.mdx
 war3mapImported\9ard_ascenciondecal_b01_3492809.blp
 war3mapImported\9ard_dreamcatchertree_ring04_3501707.blp
+war3mapImported\9naruto_D_05.mp3
+war3mapImported\9naruto_E4_01.mp3
+war3mapImported\9naruto_Q5_01.mp3
+war3mapImported\9naruto_Q5_03.mp3
+war3mapImported\9naruto_Q5_06.mp3
+war3mapImported\9naruto_Q5_effet.mp3
+war3mapImported\9naruto_R4.mp3
+war3mapImported\9naruto_W3.mp3
+war3mapImported\9naruto_W3_effet.mp3
+war3mapImported\9naruto_WHSBGM.mp3
+war3mapImported\9naruto_ZS_02.mp3
+war3mapImported\9naruto_ZS_effet.mp3
+war3mapImported\9narutp_ZS_01.mp3
 war3mapImported\abi_agi_3_002_0.blp
 war3mapImported\abi_agi_3_002_1.blp
 war3mapImported\abi_agi_3_002_2.blp
@@ -11982,6 +11997,11 @@ war3mapImported\Alphamon Ouryuken3.blp
 war3mapImported\Alphamon Ouryuken4.blp
 war3mapImported\Alphamon Ouryuken5.blp
 war3mapImported\als-tx121.blp
+war3mapImported\Amis-farewell.mp3
+war3mapImported\Amis-final.mp3
+war3mapImported\Amis-heart.mp3
+war3mapImported\Amis-paper.mp3
+war3mapImported\Amis-spring.mp3
 war3mapimported\aura_boss1.mdx
 war3mapimported\aura_boss2.mdx
 war3mapimported\aura_boss3.mdx
@@ -12096,10 +12116,119 @@ war3mapImported\barbarian_earthquake_cracks_alpha.blp
 war3mapImported\Baryon mode animated.mdx
 war3mapImported\BD_QILIUA.blp
 war3mapImported\bf7e74ad87dda66cbf84ad607b8c4cb8.mdx
+war3mapImported\BGM-bossbuluoli.mp3
+war3mapImported\BGM-chen1.mp3
+war3mapImported\BGM-chen2.mp3
+war3mapImported\BGM-dekesasi1.mp3
+war3mapImported\BGM-dekesasi2.mp3
+war3mapImported\BGM-linguang1.mp3
+war3mapImported\BGM-linguang2.mp3
+war3mapImported\BGM-shounilu-zt.mp3
+war3mapImported\BGM-shounilukaichang.mp3
+war3mapImported\BGM-sikadi1.mp3
+war3mapImported\BGM-sikadi2.mp3
+war3mapImported\BGM-sikadi3.mp3
+war3mapImported\BGM-sikadi4.mp3
+war3mapImported\BGMbayecaidan1.mp3
+war3mapImported\BGMbayecaidan2.mp3
+war3mapImported\BGMbayecaidan3.mp3
+war3mapImported\BGMbayecaidan4.mp3
+war3mapImported\BGMbayecaidan5.mp3
+war3mapImported\BGMbayecaidan6.mp3
+war3mapImported\BGMbayecaidan7.mp3
+war3mapImported\BGMbloozt.mp3
+war3mapImported\BGMdijia-1.mp3
+war3mapImported\BGMdijia-10.mp3
+war3mapImported\BGMdijia-11.mp3
+war3mapImported\BGMdijia-2.mp3
+war3mapImported\BGMdijia-3.mp3
+war3mapImported\BGMdijia-4.mp3
+war3mapImported\BGMdijia-5.mp3
+war3mapImported\BGMdijia-6.mp3
+war3mapImported\BGMdijia-7.mp3
+war3mapImported\BGMdijia-8.mp3
+war3mapImported\BGMdijia-9.mp3
+war3mapImported\BGMdijia-jiatanjieedeath.mp3
+war3mapImported\BGMdijia-jiliailuoderenchuxian.mp3
+war3mapImported\BGMfulilian1.mp3
+war3mapImported\BGMfulilian2.mp3
+war3mapImported\BGMfulilian4.mp3
+war3mapImported\BGMfulilian5.mp3
+war3mapImported\BGMheimianzs.mp3
+war3mapImported\BGMjingming1.mp3
+war3mapImported\BGMjingming2.mp3
+war3mapImported\BGMjingming3.mp3
+war3mapImported\BGMjingming4.mp3
+war3mapImported\BGMlien1.mp3
+war3mapImported\BGMlien10.mp3
+war3mapImported\BGMlien11.mp3
+war3mapImported\BGMlien12.mp3
+war3mapImported\BGMlien2.mp3
+war3mapImported\BGMlien3.mp3
+war3mapImported\BGMlien4.mp3
+war3mapImported\BGMlien5.mp3
+war3mapImported\BGMlien6.mp3
+war3mapImported\BGMlien7.mp3
+war3mapImported\BGMlien8.mp3
+war3mapImported\BGMlien9.mp3
+war3mapImported\BGMlienBE.mp3
+war3mapImported\BGMlienzhenjieju.mp3
+war3mapImported\BGMsasuke_zt.mp3
+war3mapImported\BGMyunkafayi1.mp3
+war3mapImported\BGMyunkafayi2.mp3
+war3mapImported\BGMyunkafayi3.mp3
 war3mapImported\bjt_huoyanchonji_hong.mdx
 war3mapImported\bjt_huoyanchonji_Lvse.mdx
 war3mapImported\bjt_toutichonji_blue.mdx
 war3mapImported\bjwz4.blp
+war3mapImported\bloo-bqyx.mp3
+war3mapImported\bloo-bsyx.mp3
+war3mapImported\bloo-bsyx2.mp3
+war3mapImported\bloo-bzyx1.mp3
+war3mapImported\bloo-djyx01.mp3
+war3mapImported\bloo-djyx2.mp3
+war3mapImported\bloo-djyx3.mp3
+war3mapImported\bloo-djyx4.mp3
+war3mapImported\bloo-djyx5.mp3
+war3mapImported\bloo-djyx6.mp3
+war3mapImported\bloo-djyx7.mp3
+war3mapImported\bloo-djyx8.mp3
+war3mapImported\bloo-djyx9.mp3
+war3mapImported\bloo-e-yx.mp3
+war3mapImported\bloo-e-yy.mp3
+war3mapImported\bloo-jiemojingyx.mp3
+war3mapImported\bloo-liandongyx-1.mp3
+war3mapImported\bloo-overheatyx.mp3
+war3mapImported\bloo-q-yx.mp3
+war3mapImported\bloo-q-yy.mp3
+war3mapImported\bloo-qe-yx.mp3
+war3mapImported\bloo-qe-yy.mp3
+war3mapImported\bloo-qq-mzyx.mp3
+war3mapImported\bloo-qq-yx.mp3
+war3mapImported\bloo-qq-yy.mp3
+war3mapImported\bloo-qr-mzyx.mp3
+war3mapImported\bloo-qr-yy.mp3
+war3mapImported\bloo-r1-yx.mp3
+war3mapImported\bloo-r1-yy.mp3
+war3mapImported\bloo-r1-yy2.mp3
+war3mapImported\bloo-r2-yy.mp3
+war3mapImported\bloo-r2-yy2.mp3
+war3mapImported\bloo-r2-yy3.mp3
+war3mapImported\bloo-r2-yy4.mp3
+war3mapImported\bloo-r2-yy6.mp3
+war3mapImported\bloo-r2yy5.mp3
+war3mapImported\bloo-t1-yy1.mp3
+war3mapImported\bloo-t1-yy2.mp3
+war3mapImported\bloo-t1-yy3.mp3
+war3mapImported\bloo-t2-yy.mp3
+war3mapImported\bloo-t2-yyend.mp3
+war3mapImported\bloo-w-mzyx.mp3
+war3mapImported\bloo-w-yx.mp3
+war3mapImported\bloo-w-yy.mp3
+war3mapImported\bloo-xuanren.blp
+war3mapImported\bloo-zsbgm.mp3
+war3mapImported\bloo-zsyyend1.mp3
+war3mapImported\bloo-zsyyend2.mp3
 war3mapImported\BloodPrince.blp
 war3mapImported\blue-daoguang-new-ex1.blp
 war3mapImported\blue-daoguang-new-ex2.blp
@@ -12115,6 +12244,7 @@ war3mapImported\blue_7.mdx
 war3mapImported\blue_8.mdx
 war3mapImported\blue_9.mdx
 war3mapImported\Boruto_M3222.mdx
+war3mapImported\bossjinggaok600c3000yellow.mdx
 war3mapImported\BossMini_battumakhuyen.mdx
 war3mapImported\BossMini_hachungtinh.mdx
 war3mapImported\BossMini_huyetthechienbinh.mdx
@@ -12139,6 +12269,20 @@ war3mapImported\Boss_thiencuongtinh.mdx
 war3mapImported\Boss_thothan.mdx
 war3mapImported\Boss_thuhogiaphetich.mdx
 war3mapImported\Boss_tunglamthuhogia.mdx
+war3mapImported\Broly_R_jineng.mp3
+war3mapImported\Broly_yinxiao_jineng (1).mp3
+war3mapImported\Broly_yinxiao_jineng (1)_011.mp3
+war3mapImported\Broly_yinxiao_jineng (1)_022.mp3
+war3mapImported\Broly_yinxiao_jineng (10).mp3
+war3mapImported\Broly_yinxiao_jineng (11).mp3
+war3mapImported\Broly_yinxiao_jineng (12).mp3
+war3mapImported\Broly_yinxiao_jineng (2).mp3
+war3mapImported\Broly_yinxiao_jineng (3).mp3
+war3mapImported\Broly_yinxiao_jineng (4).mp3
+war3mapImported\Broly_yinxiao_jineng (5).mp3
+war3mapImported\Broly_yinxiao_jineng (6).mp3
+war3mapImported\Broly_yinxiao_jineng (7).mp3
+war3mapImported\Broly_yinxiao_jineng (8).mp3
 war3mapImported\BronzeDragon9.BLP
 war3mapImported\btlichigohorou.mdx
 war3mapImported\BTN---294.blp
@@ -14571,6 +14715,7 @@ war3mapImported\[C]009.mdx
 war3mapImported\[C]011.mdx
 war3mapImported\[C]012.mdx
 war3mapImported\[doft]az_laser33.mdx
+war3mapImported\[doft]broly2.mdx
 war3mapImported\[doft]broly_head2.mdx
 war3mapImported\[DX]YY2.mdx
 war3mapImported\[dx]yy3_lanse.mdx
