@@ -372,9 +372,11 @@ def layer(body_text, source_dir, target_dir, source_player_slots=24, target_slot
     info = {'types': {}, 'emulated': [], 'neutrals': [], 'copied': [], 'w3p_constants': [], 'neutral_constants': [],
             'n_players': 0, 'cameras': n_cam}
 
+    own = set(t for t, _p in RX_TYPE_CHECK.findall(_without_comments(body_text)))
+
     def target_type(t):
         seen = set()
-        while t not in tgt.types and t not in BASIC_TYPES and t not in seen:
+        while t not in tgt.types and t not in BASIC_TYPES and t not in own and t not in seen:
             seen.add(t)
             t = origin.types.get(t, 'handle')
         return t
