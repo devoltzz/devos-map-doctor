@@ -11152,11 +11152,14 @@ sound\signal\zzxj.wav
 SR-GNB-Smst.mdx
 SR-JLZS.mdx
 sss_PORTRAIT.mdx
+StarIVFResources.lua
+StarLuaVideoResources.lua
 StarMediaResources.lua
 StarMusicLyricEditor.tga
 StarMusicLyrics.fdf
 StarMusicLyrics.toc
 StarMusicLyricSettings.tga
+StarScreenFXConfig.lua
 StormreaverBlueTrollAuxiliaryHeadhunterV2.mdx
 straigtwind.mdx
 sudu.blp
@@ -12199,7 +12202,25 @@ war3mapImported\BTN-JCXnew05.blp
 war3mapImported\BTN-JCXnew06.blp
 war3mapImported\BTN-JCXnew08.blp
 war3mapImported\BTNAzraelP.blp
+war3mapImported\BTNbloo-dtb.blp
+war3mapImported\BTNbloo-e1tb.blp
+war3mapImported\BTNbloo-e5tb.blp
+war3mapImported\BTNbloo-ftb.blp
+war3mapImported\BTNbloo-q1tb.blp
+war3mapImported\BTNbloo-q2tb.blp
+war3mapImported\BTNbloo-q3tb.blp
+war3mapImported\BTNbloo-q5tb.blp
+war3mapImported\BTNbloo-r1tb.blp
+war3mapImported\BTNbloo-r2tb.blp
+war3mapImported\BTNbloo-r5tb.blp
+war3mapImported\BTNbloo-t1tb.blp
+war3mapImported\BTNbloo-t2tb.blp
+war3mapImported\BTNbloo-w1tb.blp
+war3mapImported\BTNbloo-w2tb.blp
+war3mapImported\BTNbloo-xtx.blp
+war3mapImported\BTNbloo-zwtb.blp
 war3mapimported\btnbuff_phuphep_dangvan.blp
+war3mapImported\BTNbuluolixtx.blp
 war3mapimported\btnbutton_autonhat.blp
 war3mapImported\BTNButton_luyendon.blp
 war3mapImported\BTNButton_luyennguyenthan-khi.blp
@@ -12219,6 +12240,15 @@ war3mapImported\BTNButton_new_shoptoaky.blp
 war3mapImported\BTNButton_phupheptrangbi-xoa.blp
 war3mapImported\BTNButton_phupheptrangbi.blp
 war3mapimported\btnbutton_tuidopet.blp
+war3mapImported\BTNchangli-dtb.blp
+war3mapImported\BTNchangli-etb.blp
+war3mapImported\BTNchangli-ftb.blp
+war3mapImported\BTNchangli-qtb.blp
+war3mapImported\BTNchangli-rtb.blp
+war3mapImported\BTNchangli-ttb.blp
+war3mapImported\BTNchangli-wtb.blp
+war3mapImported\BTNchangli-xtx.blp
+war3mapImported\BTNchangli-zwtb.blp
 war3mapImported\BTNdiyuhaozhu.blp
 war3mapImported\BTNFBP.blp
 war3mapImported\BTNhamijiduodun.blp
@@ -12231,6 +12261,24 @@ war3mapImported\BTNIcon_kiemlinh.blp
 war3mapImported\BTNIcon_ruongdo.blp
 war3mapImported\BTNItem_linhphach.blp
 war3mapImported\BTNjunenghuopaoP.blp
+war3mapImported\BTNlien-dtb.blp
+war3mapImported\BTNlien-etb.blp
+war3mapImported\BTNlien-qtb.blp
+war3mapImported\BTNlien-rtb.blp
+war3mapImported\BTNlien-ttb.blp
+war3mapImported\BTNlien-wtb.blp
+war3mapImported\BTNlien-xtx.blp
+war3mapImported\BTNlien-zwtb.blp
+war3mapImported\BTNshounilu-dtb.blp
+war3mapImported\BTNshounilu-etb.blp
+war3mapImported\BTNshounilu-ftb.blp
+war3mapImported\BTNshounilu-qtb.blp
+war3mapImported\BTNshounilu-rtb.blp
+war3mapImported\BTNshounilu-t2tb.blp
+war3mapImported\BTNshounilu-ttb.blp
+war3mapImported\BTNshounilu-wtb.blp
+war3mapImported\BTNshounilu-xtx.blp
+war3mapImported\BTNshounilu-zwtb.blp
 war3mapImported\BTNtiendon_1.blp
 war3mapImported\BTNtoaky_bachlongthienma.blp
 war3mapImported\BTNtoaky_bachtho.blp
@@ -12245,6 +12293,19 @@ war3mapImported\BTNYTLJN0001.blp
 war3mapImported\BTNYTLJN0002.blp
 war3mapImported\BTNYTLJN0003.blp
 war3mapImported\BTNYTLJN0004.blp
+war3mapImported\BTNzuozhu-dtb.blp
+war3mapImported\BTNzuozhu-etb.blp
+war3mapImported\BTNzuozhu-ftb.blp
+war3mapImported\BTNzuozhu-q1tb.blp
+war3mapImported\BTNzuozhu-q2tb.blp
+war3mapImported\BTNzuozhu-r1tb.blp
+war3mapImported\BTNzuozhu-r2tb.blp
+war3mapImported\BTNzuozhu-r3tb.blp
+war3mapImported\BTNzuozhu-ttb.blp
+war3mapImported\BTNzuozhu-w1tb.blp
+war3mapImported\BTNzuozhu-w2tb.blp
+war3mapImported\BTNzuozhu-xtx.blp
+war3mapImported\BTNzuozhu-zwtb.blp
 war3mapImported\BTN_EventMenu.blp
 war3mapImported\BTN_EvFlag.blp
 war3mapImported\BTN_EvQuest.blp
@@ -12333,6 +12394,9 @@ war3mapImported\CH14 05.blp
 war3mapImported\CH14 06.blp
 war3mapImported\CH14 07.blp
 war3mapImported\CH14 08.blp
+war3mapImported\Changli_dummy.mdx
+war3mapImported\Changli_dummy_PORTRAIT.mdx
+war3mapImported\Changli_PORTRAIT.mdx
 war3mapImported\Chenghao1_beigai.blp
 war3mapImported\Chenghao1_beigai.mdx
 war3mapImported\Chenghao1_dongxie.mdx
@@ -12580,6 +12644,8 @@ war3mapImported\DD_tunglam (6).mdx
 war3mapImported\DD_tunglam (7).mdx
 war3mapImported\DD_tunglam (8).mdx
 war3mapImported\DeathwingWhip.mp3
+war3mapImported\delake.mdx
+war3mapImported\delake_PORTRAIT.mdx
 war3mapImported\description_panel_frame_extracted.blp
 war3mapImported\Dgb_c.mdx
 war3mapImported\Dgb_cc.mdx
@@ -13838,6 +13904,10 @@ war3mapImported\RelicTranscend_UI_R2_C1.blp
 war3mapImported\RelicTranscend_UI_R2_C2.blp
 war3mapImported\RelicTranscend_UI_R2_C3.blp
 war3mapImported\RelicTranscend_UI_R2_C4.blp
+war3mapImported\reon.mdx
+war3mapImported\reon_dummy.mdx
+war3mapImported\reon_dummy_PORTRAIT.mdx
+war3mapImported\reon_PORTRAIT.mdx
 war3mapImported\ReynaDumaurier.blp
 war3mapImported\RN_Empty.blp
 war3mapImported\RN_G0.blp
@@ -13880,6 +13950,7 @@ war3mapImported\Saber_Hair.blp
 war3mapImported\Saber_Hair.mdx
 war3mapImported\Saber_Head.blp
 war3mapImported\Saber_Skirt.blp
+war3mapImported\saruke_naruto_xuzuoweizhuang.mdx
 war3mapImported\Sasuke Wandering Ninja Storm animation11.mdx
 war3mapImported\Sasuke Wandering Ninja Storm animation22.mdx
 war3mapImported\sd-stone01.mdx
@@ -13890,6 +13961,7 @@ war3mapImported\Shanghai_cloth02.blp
 war3mapImported\Shanghai_face.blp
 war3mapImported\Shanghai_hair01.blp
 war3mapImported\Shanghai_hair02.blp
+war3mapImported\shengdanniluchongwu.mdx
 war3mapImported\ShHo_weapon1.blp
 war3mapImported\Shio_Amiya_Tx_Yb2.blp
 war3mapImported\Shio_Amiya_Tx_Yb3.blp
@@ -13973,6 +14045,7 @@ war3mapImported\Talgath.blp
 war3mapImported\TB-Shunshenshu.blp
 war3mapImported\Templar.blp
 war3mapImported\texiao_gokuuiaura.mdx
+war3mapImported\texiao_hero_shidaimu2_huo (3).mdx
 war3mapImported\texiao_qibaofu.mdx
 war3mapImported\Texiao_wansheluo4.mdx
 war3mapImported\tex_sd_131_001_body.blp
@@ -14162,6 +14235,7 @@ war3mapImported\TX_QIDAIMU005.mdx
 war3mapImported\Tx_qidaishanguang01.mdx
 war3mapImported\Tx_qidaishanguang02.mdx
 war3mapImported\TX_qixuan2_1.mdx
+war3mapImported\tx_Sasuke_029.mdx
 war3mapImported\Tx_shitouren4.mdx
 war3mapImported\Tx_sidaijiseshanguan1.mdx
 war3mapImported\Tx_sidaijiseshanguan2.mdx
@@ -14496,6 +14570,8 @@ war3mapImported\[C]007.MDX
 war3mapImported\[C]009.mdx
 war3mapImported\[C]011.mdx
 war3mapImported\[C]012.mdx
+war3mapImported\[doft]az_laser33.mdx
+war3mapImported\[doft]broly_head2.mdx
 war3mapImported\[DX]YY2.mdx
 war3mapImported\[dx]yy3_lanse.mdx
 war3mapImported\[dx]yy5.mdx
