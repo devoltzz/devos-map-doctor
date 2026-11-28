@@ -66,11 +66,13 @@
 3Cfaobao\A (8).blp
 3Cfaobao\A (9).blp
 514WDZSJSJW3YS_PORTRAIT.mdx
+54e2a11edf5cc094.mdx
 68huE.blp
 68huQ.blp
 68huR.blp
 68hutx.blp
 68huW.blp
+6e845af7ee273bc0.mdx
 7bc654fc615cc1f1bb5bc58d8241312c2.mdx
 7e450567d5b3cee89723c734c11889d0_PORTRAIT.mdx
 7fx_alphamask_glow_red512.blp
@@ -79,6 +81,7 @@
 7ne_nightelf_retainingwall05.mdx
 7ne_nightelf_retainingwall07.mdx
 83106520762e05a16d15b628dc2552f8-2.mdx
+8b889b61d9f104bb.mdx
 9000CaiLiao\A (1).blp
 9000CaiLiao\A (10).blp
 9000CaiLiao\A (100).blp
@@ -1231,6 +1234,7 @@ chenghao2\wbzdg_hdn06.blp
 chengjiu4.blp
 chengjiu5.blp
 chengjiumw.blp
+chengxz.mdx
 ChiBangBX.blp
 ChiBangShu.blp
 ChiHuoZJ.blp
@@ -1871,6 +1875,7 @@ diyuwuqi.blp
 DiYuYuanHun.mdx
 DiYuZhiHuo.blp
 diyuzhuanshu.blp
+dj_baoxiang_yingxiongka.mdx
 DLZS.blp
 DLZY.blp
 doodads\7lg_legion_altar01.mdx
@@ -5265,6 +5270,8 @@ Firebolt Classic5.mdx
 Firebolt Classic_fix2_x3.mdx
 FireDrakon2.blp
 fire_Spout.mdx
+fishgan.mdx
+fishgan1.mdx
 Flame Grenade.mdx
 FM3.blp
 FM4.blp
@@ -5302,6 +5309,10 @@ FWD_VoidCrystal.blp
 FWD_VoidGolem.mdx
 FWD_VoidRock.blp
 FXJY.blp
+FX\Cloud\Cloud0.mdx
+FX\Fog\Fog_Env.mdx
+FX\Glow\Glow_Ground.mdx
+FX\Glow\Glow_Scale.mdx
 FYdeSilingjian.blp
 GaiYaZL.blp
 GaiYaZX.blp
@@ -5601,7 +5612,10 @@ HJG.blp
 HND.mdx
 Honglian.mdx
 HongLongDX.blp
+hongxz.mdx
 HSQT.blp
+HS\2HS20.blp
+HS\3HS15.blp
 HTCM-NEW.mdx
 HTU.mdx
 HuaBanXie.blp
@@ -5622,6 +5636,7 @@ HUOYU.mdx
 huzhang68.mdx
 huzhang68_PORTRAIT.mdx
 HYE1.blp
+HYJZ14.mdx
 HYQ1.blp
 HYQ2.blp
 HYQ3.blp
@@ -7429,6 +7444,11 @@ LvLongPX.blp
 LvSeJinYu.blp
 lvsetoufanvgongjianshoumx_PORTRAIT.mdx
 LXWnew.mdx
+LxXModel\Sence1\ancient_giant_skeleton.mdx
+LxXModel\Sence1\BG_ShanTiC.mdx
+LxXModel\Sence1\Crate_A.mdx
+LxXModel\Sence1\Portal.mdx
+LxXModel\Sence1\WaterFall.mdx
 LXZL.blp
 Madara-vfx-2.mdx
 Madara-vfx-3.mdx
@@ -7657,6 +7677,9 @@ rainbowbolt.mdx
 rapid-sting.mdx
 RCR-KAI.mdx
 red-tornado.mdx
+ReplaceableTextures\baicai.blp
+ReplaceableTextures\baicai2.blp
+ReplaceableTextures\cd1.blp
 ReplaceableTextures\CommandButtonsDisabled\BTNJNSBAG1.blp
 ReplaceableTextures\CommandButtonsDisabled\BTNJNSBAG10.blp
 ReplaceableTextures\CommandButtonsDisabled\BTNJNSBAG11.blp
@@ -9785,6 +9808,8 @@ ReplaceableTextures\CommandButtons\BTNCyberDance.blp
 ReplaceableTextures\CommandButtons\BTNDeathRevenant.dds
 ReplaceableTextures\CommandButtons\BTNDetheroc.dds
 ReplaceableTextures\CommandButtons\BTNDownTier 1.blp
+ReplaceableTextures\CommandButtons\BTNdy1.blp
+ReplaceableTextures\CommandButtons\BTNdy2.blp
 ReplaceableTextures\CommandButtons\BTNEvoAvailable.blp
 ReplaceableTextures\CommandButtons\BTNForkedlightningRED.tga
 ReplaceableTextures\CommandButtons\BTNGoldGeneratorUpgrade.blp
@@ -10906,6 +10931,18 @@ ReplaceableTextures\CommandButtons\PASZeppelinIcon.blp
 ReplaceableTextures\CommandButtons\PASZeus.blp
 ReplaceableTextures\CommandButtons\PAS_DicesGGambling.blp
 ReplaceableTextures\CommandButtons\PAS_DicesLumberGambling.blp
+ReplaceableTextures\flash.blp
+ReplaceableTextures\gn1.blp
+ReplaceableTextures\gn2.blp
+ReplaceableTextures\gn3.blp
+ReplaceableTextures\gn5.blp
+ReplaceableTextures\gn6.blp
+ReplaceableTextures\gn7.blp
+ReplaceableTextures\gn8.blp
+ReplaceableTextures\hks1.blp
+ReplaceableTextures\JBCJ.blp
+ReplaceableTextures\mrhy.blp
+ReplaceableTextures\nn1.blp
 ReplaceableTextures\PassiveButtons\PASArticuno.blp
 ReplaceableTextures\PassiveButtons\PASMewPassive.blp
 ReplaceableTextures\PassiveButtons\PASsushibounce.blp
@@ -10915,6 +10952,31 @@ ReplaceableTextures\PassiveButtons\PAS_DvaSkin21.blp
 ReplaceableTextures\PassiveButtons\PAS_DvaSkin22.blp
 ReplaceableTextures\PassiveButtons\PAS_MoltresBreath.blp
 ReplaceableTextures\PassiveButtons\PAS_SoltBurnSoul.blp
+ReplaceableTextures\sbfl.blp
+ReplaceableTextures\yjtz.blp
+ReplaceableTextures\zb1.blp
+ReplaceableTextures\zb10.blp
+ReplaceableTextures\zb11.blp
+ReplaceableTextures\zb12.blp
+ReplaceableTextures\zb13.blp
+ReplaceableTextures\zb14.blp
+ReplaceableTextures\zb15.blp
+ReplaceableTextures\zb17.blp
+ReplaceableTextures\zb18.blp
+ReplaceableTextures\zb2.blp
+ReplaceableTextures\zb20.blp
+ReplaceableTextures\zb21.blp
+ReplaceableTextures\zb22.blp
+ReplaceableTextures\zb23.blp
+ReplaceableTextures\zb24.blp
+ReplaceableTextures\zb25.blp
+ReplaceableTextures\zb26.blp
+ReplaceableTextures\zb27.blp
+ReplaceableTextures\zb28.blp
+ReplaceableTextures\zb3.blp
+ReplaceableTextures\zb4.blp
+ReplaceableTextures\zb5.blp
+ReplaceableTextures\zb6.blp
 RLPX.blp
 roarthunder3.mdx
 RongyanLIEHUO.blp
@@ -11060,8 +11122,17 @@ SJHM.blp
 sl_ae52ca7.mdx
 sound\1112.wav
 sound\1115.wav
+sound\click.mp3
+sound\level.mp3
+sound\quest.mp3
 sound\shengji1.wav
 sound\shengji2.wav
+sound\signal\dj.wav
+sound\signal\enemy.wav
+sound\signal\ksct.wav
+sound\signal\miss.wav
+sound\signal\qqzy.wav
+sound\signal\zzxj.wav
 SR-GNB-Smst.mdx
 SR-JLZS.mdx
 sss_PORTRAIT.mdx
@@ -11292,11 +11363,13 @@ UI\chibang2.tga
 UI\daojian1.tga
 UI\daojian2.tga
 UI\di.tga
+ui\equip\icon-wash.blp
 UI\fangju1.tga
 UI\fangju2.tga
 UI\fazhang1.tga
 UI\fazhang2.tga
 UI\Feedback\Resources\ResourceMonghwan.blp
+ui\frame\icon-event.tga
 UI\gongjian1.tga
 UI\gongjian2.tga
 UI\gongyong1.tga
@@ -12159,6 +12232,7 @@ war3mapImported\c0744_t01_body01_c.blp
 war3mapImported\c0744_t01_gunholder_c.blp
 war3mapImported\c0744_t01_syoukanki_c.blp
 war3mapImported\c471d7790673d393044baeaf1f6e5d35.mdx
+war3mapImported\caihong.mdx
 war3mapImported\Cantarella_Desert_kit01.blp
 war3mapImported\Cave-claw.blp
 war3mapImported\cdj3.wav
@@ -13150,6 +13224,14 @@ war3mapImported\GuijiaoJN0006.blp
 war3mapImported\GuijiaoJN0007.blp
 war3mapImported\GW_huolingshen1.blp
 war3mapImported\GW_huolingshen2.blp
+war3mapimported\haidao (1).mdx
+war3mapimported\haidao (2).mdx
+war3mapimported\haidao (3).mdx
+war3mapimported\haidao (4).mdx
+war3mapimported\haidao (5).mdx
+war3mapimported\haidao (6).mdx
+war3mapimported\haidao (7).mdx
+war3mapimported\haidao (8).mdx
 war3mapImported\Heishi_wupin10.blp
 war3mapImported\Heishi_wupin12.blp
 war3mapImported\Heishi_wupin13.blp
@@ -15369,6 +15451,7 @@ zidan3.blp
 ZigguratDemonV1_05.mdx
 ZiRanPX.blp
 zirzhiguang.mdx
+zixz.mdx
 ZLYJ_XHP35.blp
 ZLYJ_XHP36.blp
 ZLYJ_XHP37.blp
