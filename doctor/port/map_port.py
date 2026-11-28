@@ -73,7 +73,12 @@ def unprotected_result(map_path, root, log):
             'the map is ENCRYPTED by the KK platform: kkmap.jc is only the loader, the real map is outside the '
             'MPQ and only the KK client decrypts it, so it cannot be ported'
         )
-    mpq = code_part - set(unprotect.BUTTON3_ONLY) - set(unprotect.DATA_ONLY)
+    mpq = (
+        code_part
+        - set(unprotect.BUTTON3_ONLY)
+        - set(unprotect.DATA_ONLY)
+        - set(getattr(unprotect, 'LUA_ROUTE_ONLY', ()))
+    )
     if not mpq - set(HARMLESS_PROTECTIONS):
         return map_path
     output = os.path.join(root, 'unprotected.w3x')
@@ -1789,6 +1794,16 @@ def map_port(map_path, work, output=None, stats=None, heading=None, log=print, p
         original = map_path
         from doctor.mpq import xm_porta
         original = xm_porta.prepare_map_copy(original, root, log) or original
+        from doctor.models import xor4
+        _x4, _c4 = xor4.prepare_map_copy(original, root, log)
+        if _x4:
+            original = _x4
+            _missing4 = _c4['mdx'][1] + _c4['blp'][1]
+            if _missing4:
+                WARNINGS.append(
+                    '%d masked model(s)/texture(s) (the Qimp trailer of the map\'s Lua engine) could not be '
+                    'restored: in Reforged they do not load' % _missing4
+                )
         job_progress.topo('protection', 'Removing the map protection')
         from doctor.mpq import mpqdoctor
         sp, _m, _u = mpqdoctor.is_sprotect(mpqread.Archive(original))
