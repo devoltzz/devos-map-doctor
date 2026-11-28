@@ -930,6 +930,23 @@ def _script_items(src, diag, progress, version=None, extra=None):
         if lua:
             items.append(_item('ydwe_lua_engine', 'blocker' if lua['all_lua'] else 'warning', ydwe_lua.message(lua),
                                'port', entries=lua['entries'], modules=[m['name'] for m in lua['modules']]))
+        try:
+            from doctor.models import xor4
+            qimp = xor4.probe(a)
+        except Exception:
+            qimp = None
+        if qimp:
+            items.append(
+                _item(
+                    'masked_engine_files',
+                    'blocker',
+                    'The map\'s models and textures are masked and its Lua modules encrypted by its Lua engine '
+                    '(wenhao_plugin), which only the platform client loads: in Reforged they do not load. Port, '
+                    'or Fix map with "Make the Lua run on Reforged", opens them.',
+                    'port',
+                    **qimp,
+                )
+            )
         from doctor.port import text_table
         ht = text_table.detect(text)
         if ht:
