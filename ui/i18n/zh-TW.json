@@ -3576,5 +3576,10 @@
  "The map already carries a script of its own for Reforged in its language layers ({0}): Reforged runs it in place of the root war3map.j, which is the script this port converts, so the original map may already run on Reforged in those languages.": "地圖的語言層中已自帶適用於 Reforged 的腳本（{0}）：Reforged 會執行它，而不是根目錄的 war3map.j（本移植轉換的正是後者），因此原版地圖在這些語言下可能已能在 Reforged 上執行。",
  "This is the root script, which the classic game reads. Reforged runs the script of its own language layer instead: the map has {0} ({1}); the Files tab extracts them.": "這是經典版遊戲讀取的根目錄腳本。Reforged 則會執行其自身語言層的腳本：此地圖有 {0}（{1}）；檔案頁籤可將其擷取。",
  "With the game in {0}, Reforged finds no language layer and runs the root war3map.j, which has {1} blocker(s) of its own: those players cannot start the map.": "當遊戲語言為 {0} 時，Reforged 找不到語言層，會執行根目錄的 war3map.j，其中自身有 {1} 個阻斷問題：這些玩家無法啟動地圖。",
- "With the game in {0}, Reforged finds no language layer and runs the root war3map.j.": "當遊戲語言為 {0} 時，Reforged 找不到語言層，會執行根目錄的 war3map.j。"
+ "With the game in {0}, Reforged finds no language layer and runs the root war3map.j.": "當遊戲語言為 {0} 時，Reforged 找不到語言層，會執行根目錄的 war3map.j。",
+ "Reforged only (Blz natives)": "僅限 Reforged（Blz native）",
+ "this pack wraps the map's main function, so it goes at the end of the script; the World Editor writes the custom script header before main, where the pack would never start": "此包會包裝地圖的 main 函式，因此必須放在腳本末尾；World Editor 會把 custom script 標頭寫在 main 之前，包在那裡永遠不會啟動",
+ "Masked models and textures and encrypted Lua modules of the map's Lua engine (wenhao_plugin): the game reads them only through the platform. \"Fix map\" with \"Make the Lua run on Reforged\" opens them, as Port does.": "地圖 Lua 引擎(wenhao_plugin)的被遮蔽的模型和貼圖以及加密的 Lua 模組:遊戲只能透過平台讀取它們。“修復地圖”搭配“讓 Lua 在 Reforged 上執行”可以開啟它們,“移植”也一樣。",
+ "The map's models and textures are masked and its Lua modules encrypted by its Lua engine (wenhao_plugin), which only the platform client loads: in Reforged they do not load. Port, or Fix map with \"Make the Lua run on Reforged\", opens them.": "地圖的模型和貼圖被其 Lua 引擎(wenhao_plugin)遮蔽,Lua 模組被加密,而只有平台用戶端才能載入該引擎:在 Reforged 中它們無法載入。“移植”,或“修復地圖”搭配“讓 Lua 在 Reforged 上執行”,可以開啟它們。",
+ "{0} masked model(s)/texture(s) (the Qimp trailer of the map's Lua engine) could not be restored: in Reforged they do not load": "無法還原 {0} 個被遮蔽的模型/貼圖(地圖 Lua 引擎的 Qimp 尾部資料):在 Reforged 中它們無法載入"
 }
