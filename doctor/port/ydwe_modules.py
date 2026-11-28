@@ -3,6 +3,7 @@ import collections
 import re
 
 from doctor.script import lua_bytecode
+from doctor.script import ydwe_aes
 
 
 ENGINE_TEMPLATES = ('?.lua', '?\\init.lua', 'scripts\\?.lua', 'scripts\\?\\init.lua', 'script\\?.lua',
@@ -241,9 +242,13 @@ def collect(a, hash_entries=(), log=None):
     log = log or (lambda s: None)
     block_list = {}
     dll = []
+    encrypted_count = {}
     for bi in a.pointed_blocks():
         d = mpqnames.read_unnamed(a, bi, whole=True)
         if d is None:
+            continue
+        if d[:1] != b'\x1b' and ydwe_aes.looks_ciphered(d):
+            encrypted_count[bi] = d
             continue
         if not d:
             block_list[bi] = ('body_text', b'')
@@ -252,6 +257,12 @@ def collect(a, hash_entries=(), log=None):
         if forma == 'dll':
             dll.append((bi, d))
         elif forma:
+            block_list[bi] = (forma, d)
+    unclosed = ydwe_aes.map_own(a, encrypted_count, log)['lua_modules'] if encrypted_count else {}
+    for bi, d in encrypted_count.items():
+        d = unclosed.get(bi, d)
+        forma = _classify(d) if d else 'body_text'
+        if forma in ('bytecode', 'body_text'):
             block_list[bi] = (forma, d)
     name_list = {}
     origin = {}
@@ -390,7 +401,8 @@ def collect(a, hash_entries=(), log=None):
             len(file_set),
         )
     )
-    return {'lua_modules': lua_modules, 'unnamed': unnamed, 'dll': dll, 'templates': templates, 'file_set': file_set}
+    return {'lua_modules': lua_modules, 'unnamed': unnamed, 'dll': dll, 'templates': templates, 'file_set': file_set,
+            'encrypted_count': len(unclosed)}
 
 
 RX_JASS_LITERAL = re.compile(r'"((?:[^"\\\r\n]|\\.){1,260})"')
