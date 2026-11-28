@@ -193,3 +193,5 @@ DHT parte no cabecalho, parte no mipmap
 os blocos if/loop do main nao fecham
 registro chave:valor
 muito longo ({0} chars vs {1})
+{0}: `place` has to be start or end, not {1}
+the Lua script ends in a return the lexer does not find at the top level
