@@ -3,6 +3,18 @@
 What each version of Devo's Map Doctor brought, the newest first. The downloads are on the
 [Releases](https://github.com/devoltzz/devos-map-doctor/releases) page, with the notes of each version.
 
+## 2.5.9 (2026-11-27)
+
+### Added
+
+- **Maps of the wenhao_plugin Lua engine:** some maps of the Chinese platforms run their whole game in Lua through a plugin the map ships (`wenhao_plugin.tga`), and keep their Lua modules encrypted and their models and textures masked (one byte in four changed, with a `Qimp` mark at the end of each file). Only the platform client could read them, so on Reforged the map did nothing and every model and texture failed to load. The Doctor now opens both: the Lua modules are decrypted with the key chain the map itself carries, and each model and texture is unmasked, with the exact key when its file name is known and from the file's own structure when it is not; every file is checked by reading it back. "Fix map" turns on "Make the Lua run on Reforged" for these maps, and Port does the same. The diagnosis names the protection and "Runs on Reforged?" has a new item for it. On the map I tested, 9,500 of about 9,800 models and textures came back; small textures whose name the map never mentions can stay masked, and the Port report says how many.
+- **Cheat packs, NZCP:** the NZCP cheat pack is the author's new version, and there is now an NZCP for Lua maps too. The Lua pack wraps the map's start, so it goes at the end of the script (before a final `return`, as protected Lua scripts have).
+
+### Fixed
+
+- **Fix map, xmload maps with some steps unticked:** on an xmload map whose encrypted files sit loose in the archive, Fix map stopped with "RuntimeError: nothing_selected" when the data fixes were unticked, and saved nothing. Opening the encrypted files is now the result, and the unticked steps are simply left out. The same was true after the JAPIW appendix and the restored NTFS or W3XE copy. Reported in issue #105.
+- **Port to a classic version, maps that declare their own types:** a KK map that declares `type dzeffectgroup extends agent` (the DzAPI effect groups) stopped at the compile check of a 1.27a port with "Cannot convert handle to dzeffectgroup": the natives the old game lacks were replaced with versions that return `handle`. They now keep the map's own type, and the reporter's map ports to 1.27a. Reported in issue #107.
+
 ## 2.5.8 (2026-11-25)
 
 ### Added
