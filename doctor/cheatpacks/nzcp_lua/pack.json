@@ -1,0 +1,34 @@
+{
+  "id": "nzcp_lua",
+  "title": "NZCP",
+  "language": "lua",
+  "needs": "Reforged only (Blz natives)",
+  "options": [
+    {
+      "key": "activator",
+      "label": "Activation string",
+      "default": "easymode",
+      "kind": "text"
+    },
+    {
+      "key": "arrow",
+      "label": "Arrow activation",
+      "default": "UUDDLR",
+      "kind": "text"
+    },
+    {
+      "key": "name",
+      "label": "Player name that activates it",
+      "default": "nuzamacuxe",
+      "kind": "text"
+    }
+  ],
+  "finds": {
+    "activator": "(?m)^\\s*local\\s+activator\\s*=\\s*\"([^\"]*)\"",
+    "arrow": "(?m)^\\s*local\\s+ARROWS\\s*=\\s*\"([^\"]*)\"",
+    "name": "(?m)^\\s*local\\s+AUTO_NAME\\s*=\\s*\"([^\"]*)\""
+  },
+  "place": "end",
+  "prefix": "-",
+  "mark_option": "activator"
+}
